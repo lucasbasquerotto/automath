@@ -31,10 +31,10 @@ STATE_ARG_GROUP_CONTEXT = 3
 STATE_ARG_EXPR_CONTEXT = 4
 STATE_ASSUMPTION_CONTEXT = 5
 
-ACTION_TYPE_CONTEXT = 0
-ACTION_INPUT_CONTEXT = 1
-ACTION_OUTPUT_CONTEXT = 2
-ACTION_STATUS_CONTEXT = 3
+ACTION_TYPE_CONTEXT = 1
+ACTION_INPUT_CONTEXT = 2
+ACTION_OUTPUT_CONTEXT = 3
+ACTION_STATUS_CONTEXT = 4
 
 ACTION_OUTPUT_SUBCONTEXT_PARTIAL_DEFINITION_IDX = 1
 ACTION_OUTPUT_SUBCONTEXT_DEFINITION_IDX = 2
@@ -46,6 +46,10 @@ ACTION_OUTPUT_SUBCONTEXT_NODE_EXPR = 6
 ACTION_STATUS_SKIP_ID = 0
 ACTION_STATUS_SUCCESS_ID = 1
 ACTION_STATUS_FAIL_ID = 2
+
+GENERAL_ITEM_CONTEXT_TYPE_IDX = 1
+GENERAL_ITEM_CONTEXT_PARAM_IDX = 2
+GENERAL_ITEM_CONTEXT_EXPR_IDX = 3
 
 UNKNOWN_OR_EMPTY_FIELD = 0
 
@@ -76,14 +80,15 @@ class NodeItemData:
         history_type: int,
         context: int,
         subcontext: int,
-        item: int,
-        parent_node_idx: int,
-        node_idx: int,
-        atomic_node: int,
-        node_type: int,
-        node_value: int,
-        history_expr_id: int | None,
-        node: BaseNode | None,
+        item_idx: int,
+        item_context: int,
+        atomic_node: int = 1,
+        parent_node_idx: int = 0,
+        node_idx: int = 1,
+        node_type: int = UNKNOWN_OR_EMPTY_FIELD,
+        node_value: int = UNKNOWN_OR_EMPTY_FIELD,
+        expr: BaseNode | None = None,
+        history_expr_id: int | None = None,
     ):
         if history_expr_id is not None:
             assert history_expr_id > 0, f"Invalid history expression id: {history_expr_id}"
@@ -92,14 +97,15 @@ class NodeItemData:
         self._history_type = history_type
         self._context = context
         self._subcontext = subcontext
-        self._item = item
+        self._item = item_idx
+        self._item_context = item_context
         self._parent_node_idx = parent_node_idx
         self._node_idx = node_idx
         self._atomic_node = atomic_node
         self._node_type = node_type
         self._node_value = node_value
         self._history_expr_id = history_expr_id
-        self._node = node
+        self._expr = expr
 
     @property
     def history_number(self) -> int:
@@ -120,6 +126,10 @@ class NodeItemData:
     @property
     def item(self) -> int:
         return self._item
+
+    @property
+    def item_context(self) -> int:
+        return self._item_context
 
     @property
     def parent_node_idx(self) -> int:
@@ -146,8 +156,8 @@ class NodeItemData:
         return self._history_expr_id
 
     @property
-    def node(self) -> BaseNode | None:
-        return self.node
+    def expr(self) -> BaseNode | None:
+        return self.expr
 
     def to_array(self) -> np.ndarray[np.int_, np.dtype]:
         return np.array([
@@ -278,14 +288,10 @@ class FullState:
                 history_type=HISTORY_TYPE_META,
                 context=META_ACTION_TYPE_CONTEXT,
                 subcontext=UNKNOWN_OR_EMPTY_FIELD,
-                item=action_info.type_idx+1,
-                parent_node_idx=0,
-                node_idx=1,
-                atomic_node=1,
+                item_idx=action_info.type_idx+1,
+                item_context=UNKNOWN_OR_EMPTY_FIELD,
                 node_type=UNKNOWN_OR_EMPTY_FIELD,
                 node_value=len(action_info.arg_types),
-                history_expr_id=None,
-                node=None,
             ))
 
             for j, arg_type in enumerate(action_info.arg_types):
@@ -294,14 +300,10 @@ class FullState:
                     history_type=HISTORY_TYPE_META,
                     context=META_ACTION_ARG_CONTEXT,
                     subcontext=action_info.type_idx+1,
-                    item=j+1,
-                    parent_node_idx=0,
-                    node_idx=1,
-                    atomic_node=1,
+                    item_idx=j+1,
+                    item_context=UNKNOWN_OR_EMPTY_FIELD,
                     node_type=UNKNOWN_OR_EMPTY_FIELD,
                     node_value=arg_type,
-                    history_expr_id=None,
-                    node=None,
                 ))
 
         return nodes
@@ -358,14 +360,10 @@ class FullState:
             history_type=HISTORY_TYPE_ACTION,
             context=ACTION_TYPE_CONTEXT,
             subcontext=UNKNOWN_OR_EMPTY_FIELD,
-            item=UNKNOWN_OR_EMPTY_FIELD,
-            parent_node_idx=0,
-            node_idx=1,
-            atomic_node=1,
+            item_idx=UNKNOWN_OR_EMPTY_FIELD,
+            item_context=UNKNOWN_OR_EMPTY_FIELD,
             node_type=action_data.type,
-            node_value=0,
-            history_expr_id=None,
-            node=None,
+            node_value=UNKNOWN_OR_EMPTY_FIELD,
         )
 
         action_input_nodes: list[NodeItemData] = []
@@ -376,14 +374,10 @@ class FullState:
                 history_type=HISTORY_TYPE_ACTION,
                 context=ACTION_INPUT_CONTEXT,
                 subcontext=UNKNOWN_OR_EMPTY_FIELD,
-                item=i+1,
-                parent_node_idx=0,
-                node_idx=1,
-                atomic_node=1,
+                item_idx=i+1,
+                item_context=UNKNOWN_OR_EMPTY_FIELD,
                 node_type=arg.type,
                 node_value=arg.value,
-                history_expr_id=None,
-                node=None,
             )
             action_input_nodes.append(arg_node)
 
@@ -399,14 +393,10 @@ class FullState:
                     history_type=HISTORY_TYPE_ACTION,
                     context=ACTION_OUTPUT_CONTEXT,
                     subcontext=subcontext,
-                    item=UNKNOWN_OR_EMPTY_FIELD,
-                    parent_node_idx=0,
-                    node_idx=1,
-                    atomic_node=1,
+                    item_idx=UNKNOWN_OR_EMPTY_FIELD,
+                    item_context=UNKNOWN_OR_EMPTY_FIELD,
                     node_type=action_output_type,
                     node_value=node_value,
-                    history_expr_id=None,
-                    node=None,
                 )
 
             def create_expr_tree(expr_info: ExprInfo, history_expr_id: int):
@@ -415,7 +405,7 @@ class FullState:
                     history_type=HISTORY_TYPE_ACTION,
                     context=ACTION_OUTPUT_CONTEXT,
                     subcontext=ACTION_OUTPUT_SUBCONTEXT_NODE_EXPR,
-                    item=UNKNOWN_OR_EMPTY_FIELD,
+                    item_idx=UNKNOWN_OR_EMPTY_FIELD,
                     history_expr_id=history_expr_id,
                     expr_info=expr_info,
                 )
@@ -546,14 +536,10 @@ class FullState:
             history_type=history_type,
             context=group_context,
             subcontext=group_subcontext,
-            item=group_item,
-            parent_node_idx=0,
-            node_idx=1,
-            atomic_node=1,
+            item_idx=group_item,
+            item_context=UNKNOWN_OR_EMPTY_FIELD,
             node_type=UNKNOWN_OR_EMPTY_FIELD,
             node_value=group.amount,
-            history_expr_id=None,
-            node=None,
         )]
 
         for i, expr in enumerate(group.expressions):
@@ -562,9 +548,10 @@ class FullState:
                 history_type=history_type,
                 context=expression_context,
                 subcontext=group_item,
-                item=i+1,
+                item_idx=i+1,
                 history_expr_id=history_expr_id,
                 expr_info=ExprInfo(expr=expr, params=group.params) if expr is not None else None,
+                skip_params=True,
             )
 
             nodes += iter_nodes
@@ -588,7 +575,7 @@ class FullState:
                 history_type=history_type,
                 context=context,
                 subcontext=subcontext,
-                item=i+1,
+                item_idx=i+1,
                 history_expr_id=history_expr_id,
                 expr_info=expr_info,
             )
@@ -603,130 +590,144 @@ class FullState:
         history_type: int,
         context: int,
         subcontext: int,
-        item: int,
+        item_idx: int,
         history_expr_id: int,
         expr_info: ExprInfo | None,
+        skip_params=False,
     ) -> tuple[list[NodeItemData], int]:
+        type_data = NodeItemData(
+            history_number=history_number,
+            history_type=history_type,
+            context=context,
+            subcontext=subcontext,
+            item_idx=item_idx,
+            item_context=GENERAL_ITEM_CONTEXT_TYPE_IDX,
+            expr=expr_info.expr if expr_info is not None else None,
+            node_value=len(expr_info.params) if expr_info is not None else 0,
+        )
+        nodes: list[NodeItemData] = [type_data]
+
         if expr_info is None:
-            node_data = self._leaf_node_data(
-                history_number=history_number,
-                history_type=history_type,
-                context=context,
-                subcontext=subcontext,
-                item=item,
-                parent_node_idx=0,
-                node_idx=1,
-                history_expr_id=history_expr_id,
-                node=None,
-            )
-            nodes: list[NodeItemData] = [node_data]
+            return nodes, history_expr_id
 
-            next_history_expr_id = history_expr_id + 1
+        if not skip_params:
+            for param in expr_info.params:
+                param_data = NodeItemData(
+                    history_number=history_number,
+                    history_type=history_type,
+                    context=context,
+                    subcontext=subcontext,
+                    item_idx=item_idx,
+                    item_context=GENERAL_ITEM_CONTEXT_PARAM_IDX,
+                    node_value=param.index,
+                )
+                nodes.append(param_data)
 
-            return nodes, next_history_expr_id
-        else:
-            # TODO inform type and params
+        expr_nodes, _, history_expr_id = self._expr_subtree_data_list(
+            history_number=history_number,
+            history_type=history_type,
+            context=context,
+            subcontext=subcontext,
+            item_idx=item_idx,
+            item_context=GENERAL_ITEM_CONTEXT_EXPR_IDX,
+            history_expr_id=history_expr_id,
+            expr=expr_info.expr,
+        )
+        nodes += expr_nodes
 
-            nodes, _, next_history_expr_id = self._node_subtree_data_list(
-                history_number=history_number,
-                history_type=history_type,
-                context=context,
-                subcontext=subcontext,
-                item=item,
-                parent_node_idx=0,
-                node_idx=1,
-                history_expr_id=history_expr_id,
-                node=expr_info.expr,
-            )
+        return nodes, history_expr_id
 
-            return nodes, next_history_expr_id
-
-    def _node_subtree_data_list(
+    def _expr_subtree_data_list(
         self,
         history_number: int,
         history_type: int,
         context: int,
         subcontext: int,
-        item: int,
-        parent_node_idx: int,
-        node_idx: int,
+        item_idx: int,
+        item_context: int,
         history_expr_id: int,
-        node: BaseNode,
+        expr: BaseNode,
+        parent_node_idx: int = 0,
+        node_idx: int = 1,
     ) -> tuple[list[NodeItemData], int, int]:
-        assert node is not None
+        assert expr is not None
 
-        node_data = self._leaf_node_data(
+        node_data = self._expr_single_node_data(
             history_number=history_number,
             history_type=history_type,
             context=context,
             subcontext=subcontext,
-            item=item,
+            item_idx=item_idx,
+            item_context=item_context,
             parent_node_idx=parent_node_idx,
             node_idx=node_idx,
             history_expr_id=history_expr_id,
-            node=node,
+            expr=expr,
         )
         nodes: list[NodeItemData] = [node_data]
 
         next_node_idx = node_idx + 1
         next_history_expr_id = history_expr_id + 1
 
-        for arg in node.args:
-            inner_nodes, next_node_idx, next_history_expr_id = self._node_subtree_data_list(
+        for arg in expr.args:
+            inner_nodes, next_node_idx, next_history_expr_id = self._expr_subtree_data_list(
                 history_number=history_number,
                 history_type=history_type,
                 context=context,
                 subcontext=subcontext,
-                item=item,
+                item_idx=item_idx,
+                item_context=item_context,
                 parent_node_idx=node_idx,
                 node_idx=next_node_idx,
                 history_expr_id=next_history_expr_id,
-                node=arg,
+                expr=arg,
             )
 
             nodes += inner_nodes
 
         return nodes, next_node_idx, next_history_expr_id
 
-    def _leaf_node_data(
+    def _expr_single_node_data(
         self,
         history_number: int,
         history_type: int,
         context: int,
         subcontext: int,
-        item: int,
-        parent_node_idx: int,
-        node_idx: int,
+        item_idx: int,
+        item_context: int,
         history_expr_id: int | None,
-        node: BaseNode | None,
+        expr: BaseNode | None,
+        parent_node_idx: int = 0,
+        node_idx: int = 1,
     ) -> NodeItemData:
         meta = self._meta
 
-        if node is not None:
+        if expr is not None:
             # node_type_idx = 0 is for special node types (e.g: unknown, empty)
-            node_type_idxs = [i+1 for i, t in enumerate(meta.node_types) if isinstance(node, t)]
-            assert len(node_type_idxs) == 1, f"Invalid node type: {type(node)}"
-            atomic_node = int(len(node.args) == 0)
+            node_type_idxs = [i+1 for i, t in enumerate(meta.node_types) if isinstance(expr, t)]
+            assert len(node_type_idxs) == 1, f"Invalid node type: {type(expr)}"
+            atomic_node = int(len(expr.args) == 0)
             node_type_idx = node_type_idxs[0]
-            node_value = meta.node_type_handler.get_value(node)
+            node_value = meta.node_type_handler.get_value(expr)
         else:
             atomic_node = 1
             node_type_idx = UNKNOWN_OR_EMPTY_FIELD
-            node_value = 0
+            node_value = UNKNOWN_OR_EMPTY_FIELD
 
         result = NodeItemData(
             history_number=history_number,
             history_type=history_type,
             context=context,
             subcontext=subcontext,
-            item=item,
+            item_idx=item_idx,
+            item_context=item_context,
             parent_node_idx=parent_node_idx,
             node_idx=node_idx,
             atomic_node=atomic_node,
             node_type=node_type_idx,
             node_value=node_value,
             history_expr_id=history_expr_id,
-            node=node,
+            expr=expr,
         )
 
         return result
