@@ -1,7 +1,7 @@
 import typing
 import numpy as np
 from utils.logger import logger
-from .state import State, BaseNode, FunctionDefinition, ExprInfo
+from .state import State, BaseNode, FunctionDefinition, ExprInfo, ArgGroup
 from .action import (
     Action,
     InvalidActionException,
@@ -15,7 +15,7 @@ from .action import (
     ExpandDefinitionActionOutput,
     ReformulationActionOutput,
     PartialActionOutput)
-from .meta_env import NodeValueParams, EnvMetaInfo, ActionData, StateHistoryItem
+from .meta_env import EnvMetaInfo, ActionData, StateHistoryItem
 
 HISTORY_TYPE_META = 0
 HISTORY_TYPE_STATE = 1
@@ -60,8 +60,6 @@ action_output_types = [
     ReformulationActionOutput,
     PartialActionOutput,
 ]
-
-G = typing.TypeVar('G')
 
 # context index (e.g: main expression, definition expressions, temporary arguments, assumptions)
 # subcontext index (e.g: part of an action output, argument group of a argument item)
@@ -175,9 +173,7 @@ class FullState:
     ):
         assert len(meta.node_types) > 0, "No node types"
         assert len(meta.node_types) == len(set(meta.node_types)), "Duplicate node types"
-        assert len(meta.atomic_node_handlers) > 0, "No atomic node handlers"
-        assert len(meta.atomic_node_handlers) == len(set(meta.atomic_node_handlers)), \
-            "Duplicate atomic node handlers"
+        assert meta.node_type_handler is not None, "No node type handler specified"
         assert len(meta.action_types) > 0, "No action types"
         assert len(meta.action_types) == len(set(meta.action_types)), "Duplicate action types"
         self._meta = meta
@@ -185,13 +181,18 @@ class FullState:
         self._max_history_size = max_history_size
 
     @classmethod
-    def initial_history(cls, expr_info: ExprInfo) -> tuple[StateHistoryItem, ...]:
+    def initial_state(
+        cls,
+        initial_definitions: typing.Sequence[ExprInfo],
+    ) -> tuple[State, list[FunctionDefinition]]:
+        definition_keys = [FunctionDefinition(i+1) for i in range(len(initial_definitions))]
+        definitions = tuple(zip(definition_keys, initial_definitions))
         state = State(
-            definitions=tuple([(FunctionDefinition(1), expr_info)]),
+            definitions=definitions,
             partial_definitions=tuple(),
             arg_groups=tuple(),
             assumptions=tuple())
-        return (state,)
+        return state, definition_keys
 
     @property
     def last_state(self) -> State:
@@ -306,8 +307,6 @@ class FullState:
         return nodes
 
     def _node_data_list_state(self, history_number: int, state: State) -> list[NodeItemData]:
-        definition_keys = [d for d, _ in state.definitions or []]
-        symbols = list(state.expression.free_symbols or set())
         history_expr_id = 1
 
         definitions_nodes, history_expr_id = self._context_node_data_list(
@@ -315,10 +314,8 @@ class FullState:
             history_type=HISTORY_TYPE_STATE,
             context=STATE_DEFINITION_CONTEXT,
             subcontext=UNKNOWN_OR_EMPTY_FIELD,
-            expressions=[expr for _, expr in state.definitions or []],
+            expr_info_list=[expr_info for _, expr_info in state.definitions or []],
             history_expr_id=history_expr_id,
-            symbols=symbols,
-            definition_keys=definition_keys,
         )
 
         partial_definitions_nodes, history_expr_id = self._context_node_data_list(
@@ -326,10 +323,8 @@ class FullState:
             history_type=HISTORY_TYPE_STATE,
             context=STATE_PARTIAL_DEFINITION_CONTEXT,
             subcontext=UNKNOWN_OR_EMPTY_FIELD,
-            expressions=[expr for _, expr in state.partial_definitions or []],
+            expr_info_list=[expr_info for _, expr_info in state.partial_definitions or []],
             history_expr_id=history_expr_id,
-            symbols=symbols,
-            definition_keys=definition_keys,
         )
 
         arg_nodes, history_expr_id = self._context_node_data_groups(
@@ -339,29 +334,13 @@ class FullState:
             group_subcontext=UNKNOWN_OR_EMPTY_FIELD,
             expression_context=STATE_ARG_EXPR_CONTEXT,
             groups=list(state.arg_groups or []),
-            get_amount=lambda group: group.amount,
-            get_expressions=lambda group: group.expressions,
             history_expr_id=history_expr_id,
-            symbols=symbols,
-            definition_keys=definition_keys,
-        )
-
-        assumptions_nodes, history_expr_id = self._context_node_data_list(
-            history_number=history_number,
-            history_type=HISTORY_TYPE_STATE,
-            context=STATE_ASSUMPTION_CONTEXT,
-            subcontext=UNKNOWN_OR_EMPTY_FIELD,
-            expressions=list(state.assumptions or []),
-            history_expr_id=history_expr_id,
-            symbols=symbols,
-            definition_keys=definition_keys,
         )
 
         nodes: list[NodeItemData] = (
             definitions_nodes +
             partial_definitions_nodes +
-            arg_nodes +
-            assumptions_nodes)
+            arg_nodes)
 
         return nodes
 
@@ -430,17 +409,15 @@ class FullState:
                     node=None,
                 )
 
-            def create_node_tree(node: BaseNode, history_expr_id: int):
-                output_expr_nodes, history_expr_id = self._node_tree_data_list(
+            def create_expr_tree(expr_info: ExprInfo, history_expr_id: int):
+                output_expr_nodes, history_expr_id = self._expr_tree_data_list(
                     history_number=history_number,
                     history_type=HISTORY_TYPE_ACTION,
                     context=ACTION_OUTPUT_CONTEXT,
                     subcontext=ACTION_OUTPUT_SUBCONTEXT_NODE_EXPR,
                     item=UNKNOWN_OR_EMPTY_FIELD,
                     history_expr_id=history_expr_id,
-                    node=node,
-                    symbols=[],
-                    definition_keys=[],
+                    expr_info=expr_info,
                 )
                 return output_expr_nodes, history_expr_id
 
@@ -465,8 +442,8 @@ class FullState:
                     node_value=action_output.arg_group_idx,
                 ))
 
-                output_expr_nodes, history_expr_id = create_node_tree(
-                    node=action_output.new_expr_info,
+                output_expr_nodes, history_expr_id = create_expr_tree(
+                    expr_info=action_output.new_expr_info,
                     history_expr_id=history_expr_id,
                 )
                 action_output_nodes += output_expr_nodes
@@ -486,10 +463,10 @@ class FullState:
                     node_value=action_output.definition_idx,
                 ))
 
-                assert action_output.new_node is not None
+                assert action_output.new_expr_info is not None
 
-                output_expr_nodes, history_expr_id = create_node_tree(
-                    node=action_output.new_node,
+                output_expr_nodes, history_expr_id = create_expr_tree(
+                    expr_info=action_output.new_expr_info,
                     history_expr_id=history_expr_id,
                 )
                 action_output_nodes += output_expr_nodes
@@ -510,8 +487,8 @@ class FullState:
                     node_value=action_output.expr_id,
                 ))
 
-                output_expr_nodes, history_expr_id = create_node_tree(
-                    node=action_output.new_expr_info,
+                output_expr_nodes, history_expr_id = create_expr_tree(
+                    expr_info=action_output.new_expr_info,
                     history_expr_id=history_expr_id,
                 )
                 action_output_nodes += output_expr_nodes
@@ -530,18 +507,14 @@ class FullState:
         group_context: int,
         group_subcontext: int,
         expression_context: int,
-        groups: list[G],
-        get_amount: typing.Callable[[G], int],
-        get_expressions: typing.Callable[[G], tuple[BaseNode | None, ...]],
+        groups: list[ArgGroup],
         history_expr_id: int,
-        symbols: list[BaseNode],
-        definition_keys: list[FunctionDefinition],
     ) -> tuple[list[NodeItemData], int]:
         nodes: list[NodeItemData] = []
         next_history_expr_id = history_expr_id
 
         for i, group in enumerate(groups):
-            iter_nodes, next_history_expr_id = self._context_node_data_group(
+            iter_nodes, next_history_expr_id = self._context_arg_group(
                 history_number=history_number,
                 history_type=history_type,
                 group_context=group_context,
@@ -549,11 +522,7 @@ class FullState:
                 group_item=i+1,
                 expression_context=expression_context,
                 group=group,
-                get_amount=get_amount,
-                get_expressions=get_expressions,
                 history_expr_id=next_history_expr_id,
-                symbols=symbols,
-                definition_keys=definition_keys,
             )
 
             nodes += iter_nodes
@@ -561,7 +530,7 @@ class FullState:
         return nodes, next_history_expr_id
 
 
-    def _context_node_data_group(
+    def _context_arg_group(
         self,
         history_number: int,
         history_type: int,
@@ -569,16 +538,12 @@ class FullState:
         group_subcontext: int,
         group_item: int,
         expression_context: int,
-        group: G,
-        get_amount: typing.Callable[[G], int],
-        get_expressions: typing.Callable[[G], tuple[BaseNode | None, ...]],
+        group: ArgGroup,
         history_expr_id: int,
-        symbols: list[BaseNode],
-        definition_keys: list[FunctionDefinition],
     ) -> tuple[list[NodeItemData], int]:
         nodes: list[NodeItemData] = [NodeItemData(
             history_number=history_number,
-            history_type=HISTORY_TYPE_ACTION,
+            history_type=history_type,
             context=group_context,
             subcontext=group_subcontext,
             item=group_item,
@@ -586,24 +551,20 @@ class FullState:
             node_idx=1,
             atomic_node=1,
             node_type=UNKNOWN_OR_EMPTY_FIELD,
-            node_value=get_amount(group),
+            node_value=group.amount,
             history_expr_id=None,
             node=None,
         )]
 
-        expressions = get_expressions(group)
-
-        for i, node in enumerate(expressions):
-            iter_nodes, history_expr_id = self._node_tree_data_list(
+        for i, expr in enumerate(group.expressions):
+            iter_nodes, history_expr_id = self._expr_tree_data_list(
                 history_number=history_number,
                 history_type=history_type,
                 context=expression_context,
                 subcontext=group_item,
                 item=i+1,
                 history_expr_id=history_expr_id,
-                node=node,
-                symbols=symbols,
-                definition_keys=definition_keys,
+                expr_info=ExprInfo(expr=expr, params=group.params) if expr is not None else None,
             )
 
             nodes += iter_nodes
@@ -616,31 +577,27 @@ class FullState:
         history_type: int,
         context: int,
         subcontext: int,
-        expressions: list[BaseNode | None],
+        expr_info_list: list[ExprInfo | None],
         history_expr_id: int,
-        symbols: list[BaseNode],
-        definition_keys: list[FunctionDefinition],
     ) -> tuple[list[NodeItemData], int]:
         nodes: list[NodeItemData] = []
 
-        for i, node in enumerate(expressions):
-            iter_nodes, history_expr_id = self._node_tree_data_list(
+        for i, expr_info in enumerate(expr_info_list):
+            iter_nodes, history_expr_id = self._expr_tree_data_list(
                 history_number=history_number,
                 history_type=history_type,
                 context=context,
                 subcontext=subcontext,
                 item=i+1,
                 history_expr_id=history_expr_id,
-                node=node,
-                symbols=symbols,
-                definition_keys=definition_keys,
+                expr_info=expr_info,
             )
 
             nodes += iter_nodes
 
         return nodes, history_expr_id
 
-    def _node_tree_data_list(
+    def _expr_tree_data_list(
         self,
         history_number: int,
         history_type: int,
@@ -648,11 +605,9 @@ class FullState:
         subcontext: int,
         item: int,
         history_expr_id: int,
-        node: BaseNode | None,
-        symbols: list[BaseNode],
-        definition_keys: list[FunctionDefinition],
+        expr_info: ExprInfo | None,
     ) -> tuple[list[NodeItemData], int]:
-        if node is None:
+        if expr_info is None:
             node_data = self._leaf_node_data(
                 history_number=history_number,
                 history_type=history_type,
@@ -662,9 +617,7 @@ class FullState:
                 parent_node_idx=0,
                 node_idx=1,
                 history_expr_id=history_expr_id,
-                node=node,
-                symbols=symbols,
-                definition_keys=definition_keys,
+                node=None,
             )
             nodes: list[NodeItemData] = [node_data]
 
@@ -672,6 +625,8 @@ class FullState:
 
             return nodes, next_history_expr_id
         else:
+            # TODO inform type and params
+
             nodes, _, next_history_expr_id = self._node_subtree_data_list(
                 history_number=history_number,
                 history_type=history_type,
@@ -681,9 +636,7 @@ class FullState:
                 parent_node_idx=0,
                 node_idx=1,
                 history_expr_id=history_expr_id,
-                node=node,
-                symbols=symbols,
-                definition_keys=definition_keys,
+                node=expr_info.expr,
             )
 
             return nodes, next_history_expr_id
@@ -699,8 +652,6 @@ class FullState:
         node_idx: int,
         history_expr_id: int,
         node: BaseNode,
-        symbols: list[BaseNode],
-        definition_keys: list[FunctionDefinition],
     ) -> tuple[list[NodeItemData], int, int]:
         assert node is not None
 
@@ -714,8 +665,6 @@ class FullState:
             node_idx=node_idx,
             history_expr_id=history_expr_id,
             node=node,
-            symbols=symbols,
-            definition_keys=definition_keys,
         )
         nodes: list[NodeItemData] = [node_data]
 
@@ -733,8 +682,6 @@ class FullState:
                 node_idx=next_node_idx,
                 history_expr_id=next_history_expr_id,
                 node=arg,
-                symbols=symbols,
-                definition_keys=definition_keys,
             )
 
             nodes += inner_nodes
@@ -752,31 +699,19 @@ class FullState:
         node_idx: int,
         history_expr_id: int | None,
         node: BaseNode | None,
-        symbols: list[BaseNode],
-        definition_keys: list[FunctionDefinition],
     ) -> NodeItemData:
         meta = self._meta
 
         if node is not None:
-            node_type_idxs = [i for i, t in enumerate(meta.node_types) if isinstance(node, t)]
+            # node_type_idx = 0 is for special node types (e.g: unknown, empty)
+            node_type_idxs = [i+1 for i, t in enumerate(meta.node_types) if isinstance(node, t)]
             assert len(node_type_idxs) == 1, f"Invalid node type: {type(node)}"
-            node_type_idx = node_type_idxs[0]
-            handler = next(
-                h
-                for h in meta.atomic_node_handlers
-                if isinstance(node, h.node_type))
-            assert handler is not None, f"Handler not found for node: {node}"
             atomic_node = int(len(node.args) == 0)
-            # node_type = 0 is for special node types (e.g: unknown, empty)
-            node_type = node_type_idx + 1
-            node_value = handler.get_value(NodeValueParams(
-                node=node,
-                symbols=symbols,
-                definition_keys=definition_keys,
-            ))
+            node_type_idx = node_type_idxs[0]
+            node_value = meta.node_type_handler.get_value(node)
         else:
             atomic_node = 1
-            node_type = UNKNOWN_OR_EMPTY_FIELD
+            node_type_idx = UNKNOWN_OR_EMPTY_FIELD
             node_value = 0
 
         result = NodeItemData(
@@ -788,7 +723,7 @@ class FullState:
             parent_node_idx=parent_node_idx,
             node_idx=node_idx,
             atomic_node=atomic_node,
-            node_type=node_type,
+            node_type=node_type_idx,
             node_value=node_value,
             history_expr_id=history_expr_id,
             node=node,

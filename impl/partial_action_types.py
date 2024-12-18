@@ -8,7 +8,7 @@ from environment.action import (
     PartialActionOutput,
     InvalidActionArgException,
 )
-from environment.state import State, BaseNode
+from environment.state import State, ExprInfo
 
 ###########################################################
 ################### BASE IMPLEMENTATION ###################
@@ -52,7 +52,7 @@ class PartialDefinitionBaseAction(Action):
     def get_partial_definition_info(
         self,
         state: State,
-    ) -> tuple[BaseNode | None, BaseNode | None, int | None]:
+    ) -> tuple[ExprInfo | None, ExprInfo | None, int | None]:
         partial_definition_idx = self.partial_definition_idx
         partial_definitions_list = list(state.partial_definitions or [])
 
@@ -63,17 +63,29 @@ class PartialDefinitionBaseAction(Action):
             raise InvalidActionArgException(
                 f"Invalid partial definition: {partial_definition_idx}")
 
-        _, root = partial_definitions_list[partial_definition_idx]
+        _, root_info = partial_definitions_list[partial_definition_idx]
 
         if self.node_idx == 1:
-            return root, None, None
+            return root_info, None, None
 
-        if root is None:
+        if root_info is None:
             raise InvalidActionArgException(
                 f"Invalid node index: {self.node_idx}" \
                 + f" (empty partial definition: {partial_definition_idx})")
 
-        return state.get_expr_full_info(root=root, node_idx=self.node_idx)
+        expr, parent_expr, child_idx = state.get_expr_full_info(
+            root=root_info.expr,
+            node_idx=self.node_idx)
+        expr_info = (
+            ExprInfo(expr=expr, params=root_info.params)
+            if expr is not None
+            else None)
+        parent_expr_info = (
+            ExprInfo(expr=parent_expr, params=root_info.params)
+            if parent_expr is not None
+            else None)
+
+        return expr_info, parent_expr_info, child_idx
 
 class PartialDefinitionExprBaseAction(PartialDefinitionBaseAction):
 
@@ -128,8 +140,8 @@ class ReplaceNodeAction(PartialDefinitionExprBaseAction):
         node_idx = self.node_idx
         expr_id = self.expr_id
 
-        new_node = state.get_expr(expr_id)
-        if new_node is None:
+        new_expr_info = state.get_expr(expr_id)
+        if new_expr_info is None:
             raise InvalidActionArgException(
                 f"Invalid node index: {expr_id}" \
                 + f" (partial_definition_idx: {partial_definition_idx})")
@@ -138,11 +150,11 @@ class ReplaceNodeAction(PartialDefinitionExprBaseAction):
             return PartialActionOutput(
                 partial_definition_idx=partial_definition_idx,
                 node_idx=node_idx,
-                new_expr_info=new_node)
+                new_expr_info=new_expr_info)
 
-        node, _, _ = self.get_partial_definition_info(state)
+        expr_info, _, _ = self.get_partial_definition_info(state)
 
-        if node is None:
+        if expr_info is None:
             raise InvalidActionArgException(
                 f"Invalid node index: {node_idx}" \
                 + f" (partial_definition_idx: {partial_definition_idx})")
@@ -150,4 +162,4 @@ class ReplaceNodeAction(PartialDefinitionExprBaseAction):
         return PartialActionOutput(
             partial_definition_idx=partial_definition_idx,
             node_idx=node_idx,
-            new_expr_info=new_node)
+            new_expr_info=new_expr_info)

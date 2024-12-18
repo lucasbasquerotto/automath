@@ -1,30 +1,5 @@
 import typing
-from utils.types import BaseNode, FunctionDefinition, ParamVar, Assumption, ExprInfo
-
-class ArgGroup:
-    def __init__(
-        self,
-        amount: int,
-        params: tuple[ParamVar, ...],
-        expressions: tuple[BaseNode | None, ...],
-    ):
-        assert amount == len(expressions), \
-            f"Invalid amount of expressions: {amount} != {len(expressions)}"
-        self._amount = amount
-        self._params = params
-        self._expressions = expressions
-
-    @property
-    def amount(self) -> int:
-        return self._amount
-
-    @property
-    def params(self) -> tuple[ParamVar, ...]:
-        return self._params
-
-    @property
-    def expressions(self) -> tuple[BaseNode | None, ...]:
-        return self._expressions
+from utils.types import BaseNode, FunctionDefinition, ParamVar, Assumption, ExprInfo, ArgGroup
 
 class ExprWithArgs:
     def __init__(self, expr_info: ExprInfo, args: tuple[BaseNode, ...]):

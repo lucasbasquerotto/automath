@@ -54,3 +54,34 @@ class ExprInfo:
             for other_param, self_param in zip(other.params, self.params)
         })
 
+class ArgGroup:
+    def __init__(
+        self,
+        amount: int,
+        params: tuple[ParamVar, ...],
+        expressions: tuple[BaseNode | None, ...],
+    ):
+        assert amount == len(expressions), \
+            f"Invalid amount of expressions: {amount} != {len(expressions)}"
+        self._amount = amount
+        self._params = params
+        self._expressions = expressions
+
+    @property
+    def amount(self) -> int:
+        return self._amount
+
+    @property
+    def params(self) -> tuple[ParamVar, ...]:
+        return self._params
+
+    @property
+    def expressions(self) -> tuple[BaseNode | None, ...]:
+        return self._expressions
+
+
+BASIC_NODE_TYPES = (
+    FunctionDefinition,
+    ParamVar,
+    sympy.Integer,
+)

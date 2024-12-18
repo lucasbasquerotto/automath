@@ -1,4 +1,5 @@
 import sympy
+from environment.state import State, ExprInfo
 from environment.action import (
     ACTION_ARG_TYPE_GLOBAL_EXPRESSION,
     ACTION_ARG_TYPE_INT,
@@ -9,7 +10,6 @@ from environment.action import (
     InvalidActionArgsException,
     ReformulationActionOutput,
 )
-from environment.state import State
 from impl import node_types
 
 ###########################################################
@@ -118,23 +118,27 @@ class SwapAddAction(DoubleChildReformulationBaseAction):
         arg1 = self._arg1
         arg2 = self._arg2
 
-        parent_node = state.get_expr(parent_expr_id)
+        parent_expr_info = state.get_expr(parent_expr_id)
 
-        if not parent_node:
+        if not parent_expr_info:
             raise InvalidActionArgException(f"Invalid parent node index: {parent_expr_id}")
-        if not isinstance(parent_node, node_types.Add):
-            raise InvalidActionArgException(f"Invalid parent node type: {type(parent_node)}")
+        if not isinstance(parent_expr_info.expr, node_types.Add):
+            raise InvalidActionArgException(f"Invalid parent node type: {type(parent_expr_info)}")
         if not isinstance(arg1, int) or not isinstance(arg2, int):
             raise InvalidActionArgsException(
                 f"Invalid arg1 or arg2 type: {type(arg1)}, {type(arg2)}")
-        if arg1 < 0 or arg2 < 0:
+        if arg1 <= 0 or arg2 <= 0:
             raise InvalidActionArgsException(f"Invalid arg1 or arg2 min value: {arg1}, {arg2}")
-        if arg1 >= len(parent_node.args) or arg2 >= len(parent_node.args):
+        if arg1 > len(parent_expr_info.expr.args) or arg2 > len(parent_expr_info.expr.args):
             raise InvalidActionArgsException(
                 "Invalid arg1 or arg2 max value: "
-                + f"{arg1}, {arg2} (max {len(parent_node.args) - 1})")
+                + f"{arg1}, {arg2} (max {len(parent_expr_info.expr.args) - 1})")
 
-        new_args = list(parent_node.args)
-        new_args[arg1], new_args[arg2] = new_args[arg2], new_args[arg1]
+        new_args = list(parent_expr_info.expr.args)
+        new_args[arg1 - 1], new_args[arg2 - 1] = new_args[arg2 - 1], new_args[arg1 - 1]
 
-        return ReformulationActionOutput(expr_id=parent_expr_id, new_expr_info=node_types.Add(*new_args))
+        return ReformulationActionOutput(
+            expr_id=parent_expr_id,
+            new_expr_info=ExprInfo(
+                expr=node_types.Add(*new_args),
+                params=parent_expr_info.params))
