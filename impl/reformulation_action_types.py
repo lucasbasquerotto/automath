@@ -72,7 +72,7 @@ class SimplifyAddAction(DoubleChildReformulationBaseAction):
         arg1 = self.arg1
         arg2 = self.arg2
 
-        parent_node = state.get_node(parent_expr_id)
+        parent_node = state.get_expr(parent_expr_id)
 
         if not parent_node:
             raise InvalidActionArgException(f"Invalid parent node index: {parent_expr_id}")
@@ -106,10 +106,10 @@ class SimplifyAddAction(DoubleChildReformulationBaseAction):
         new_args = [arg for i, arg in enumerate(parent_node.args) if i not in [arg1, arg2]]
 
         if not new_args:
-            return ReformulationActionOutput(expr_id=parent_expr_id, new_node=sympy.Integer(0))
+            return ReformulationActionOutput(expr_id=parent_expr_id, new_expr_info=sympy.Integer(0))
         if len(new_args) == 1:
-            return ReformulationActionOutput(expr_id=parent_expr_id, new_node=new_args[0])
-        return ReformulationActionOutput(expr_id=parent_expr_id, new_node=sympy.Add(*new_args))
+            return ReformulationActionOutput(expr_id=parent_expr_id, new_expr_info=new_args[0])
+        return ReformulationActionOutput(expr_id=parent_expr_id, new_expr_info=sympy.Add(*new_args))
 
 class SwapAddAction(DoubleChildReformulationBaseAction):
 
@@ -118,7 +118,7 @@ class SwapAddAction(DoubleChildReformulationBaseAction):
         arg1 = self._arg1
         arg2 = self._arg2
 
-        parent_node = state.get_node(parent_expr_id)
+        parent_node = state.get_expr(parent_expr_id)
 
         if not parent_node:
             raise InvalidActionArgException(f"Invalid parent node index: {parent_expr_id}")
@@ -137,4 +137,4 @@ class SwapAddAction(DoubleChildReformulationBaseAction):
         new_args = list(parent_node.args)
         new_args[arg1], new_args[arg2] = new_args[arg2], new_args[arg1]
 
-        return ReformulationActionOutput(expr_id=parent_expr_id, new_node=node_types.Add(*new_args))
+        return ReformulationActionOutput(expr_id=parent_expr_id, new_expr_info=node_types.Add(*new_args))

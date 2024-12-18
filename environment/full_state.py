@@ -1,7 +1,7 @@
 import typing
 import numpy as np
 from utils.logger import logger
-from .state import State, BaseNode, FunctionDefinition
+from .state import State, BaseNode, FunctionDefinition, ExprInfo
 from .action import (
     Action,
     InvalidActionException,
@@ -25,7 +25,6 @@ META_MAIN_CONTEXT = 0
 META_ACTION_TYPE_CONTEXT = 1
 META_ACTION_ARG_CONTEXT = 2
 
-STATE_MAIN_CONTEXT = 0
 STATE_DEFINITION_CONTEXT = 1
 STATE_PARTIAL_DEFINITION_CONTEXT = 2
 STATE_ARG_GROUP_CONTEXT = 3
@@ -186,13 +185,12 @@ class FullState:
         self._max_history_size = max_history_size
 
     @classmethod
-    def initial_history(cls, expression: BaseNode) -> tuple[StateHistoryItem, ...]:
+    def initial_history(cls, expr_info: ExprInfo) -> tuple[StateHistoryItem, ...]:
         state = State(
-            expression=expression,
-            definitions=None,
-            partial_definitions=None,
-            arg_groups=None,
-            assumptions=None)
+            definitions=tuple([(FunctionDefinition(1), expr_info)]),
+            partial_definitions=tuple(),
+            arg_groups=tuple(),
+            assumptions=tuple())
         return (state,)
 
     @property
@@ -312,18 +310,6 @@ class FullState:
         symbols = list(state.expression.free_symbols or set())
         history_expr_id = 1
 
-        main_state_nodes, history_expr_id = self._node_tree_data_list(
-            history_number=history_number,
-            history_type=HISTORY_TYPE_STATE,
-            context=STATE_MAIN_CONTEXT,
-            subcontext=UNKNOWN_OR_EMPTY_FIELD,
-            item=UNKNOWN_OR_EMPTY_FIELD,
-            history_expr_id=history_expr_id,
-            node=state.expression,
-            symbols=symbols,
-            definition_keys=definition_keys,
-        )
-
         definitions_nodes, history_expr_id = self._context_node_data_list(
             history_number=history_number,
             history_type=HISTORY_TYPE_STATE,
@@ -372,7 +358,6 @@ class FullState:
         )
 
         nodes: list[NodeItemData] = (
-            main_state_nodes +
             definitions_nodes +
             partial_definitions_nodes +
             arg_nodes +
@@ -481,7 +466,7 @@ class FullState:
                 ))
 
                 output_expr_nodes, history_expr_id = create_node_tree(
-                    node=action_output.new_node,
+                    node=action_output.new_expr_info,
                     history_expr_id=history_expr_id,
                 )
                 action_output_nodes += output_expr_nodes
@@ -526,7 +511,7 @@ class FullState:
                 ))
 
                 output_expr_nodes, history_expr_id = create_node_tree(
-                    node=action_output.new_node,
+                    node=action_output.new_expr_info,
                     history_expr_id=history_expr_id,
                 )
                 action_output_nodes += output_expr_nodes
