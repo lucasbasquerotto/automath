@@ -29,7 +29,6 @@ STATE_DEFINITION_CONTEXT = 1
 STATE_PARTIAL_DEFINITION_CONTEXT = 2
 STATE_ARG_GROUP_CONTEXT = 3
 STATE_ARG_EXPR_CONTEXT = 4
-STATE_ASSUMPTION_CONTEXT = 5
 
 ACTION_TYPE_CONTEXT = 1
 ACTION_INPUT_CONTEXT = 2
@@ -66,9 +65,9 @@ action_output_types = [
     PartialActionOutput,
 ]
 
-# context index (e.g: main expression, definition expressions, temporary arguments, assumptions)
+# context index (e.g: main expression, definition expressions, temporary arguments)
 # subcontext index (e.g: part of an action output, argument group of a argument item)
-# item index (e.g: in a list, the index about which definition, which equality, which assumption)
+# item index (e.g: in a list, the index about which definition, which equality)
 # parent node index (0 for the root node of an expression)
 # atomic node (whether the node is atomic (no args, no operation) or not)
 # node type index (e.g: symbol/unknown, definition, integer, function/operator)
@@ -201,8 +200,7 @@ class FullState:
         state = State(
             definitions=definitions,
             partial_definitions=tuple(),
-            arg_groups=tuple(),
-            assumptions=tuple())
+            arg_groups=tuple())
         return state, definition_keys
 
     @property

@@ -98,10 +98,17 @@ class NewArgGroupActionOutput:
         return self._amount
 
 class ArgFromExprActionOutput:
-    def __init__(self, arg_group_idx: int, arg_idx: int, new_expr_info: ExprInfo):
+    def __init__(
+        self,
+        arg_group_idx: int,
+        arg_idx: int,
+        new_expr_info: ExprInfo,
+        new_expr_args: ArgGroup | None,
+    ):
         self._arg_group_idx = arg_group_idx
         self._arg_idx = arg_idx
         self._new_expr_info = new_expr_info
+        self._new_expr_args = new_expr_args
 
     @property
     def arg_group_idx(self) -> int:
@@ -114,6 +121,10 @@ class ArgFromExprActionOutput:
     @property
     def new_expr_info(self) -> ExprInfo:
         return self._new_expr_info
+
+    @property
+    def new_expr_args(self) -> ArgGroup | None:
+        return self._new_expr_args
 
 class NewDefinitionFromPartialActionOutput:
     def __init__(self, definition_idx: int, partial_definition_idx: int):
@@ -270,18 +281,17 @@ class Action:
                 f"Invalid partial definition index: {partial_definition_idx}"
 
             partial_definitions = list(state.partial_definitions or [])
-            partial_definitions.append((FunctionDefinition(partial_definition_idx), None))
+            partial_definitions.append(None)
 
             return State(
                 definitions=state.definitions,
                 partial_definitions=tuple(partial_definitions),
-                arg_groups=state.arg_groups,
-                assumptions=state.assumptions)
+                arg_groups=state.arg_groups)
         elif isinstance(output, NewArgGroupActionOutput):
             arg_group_idx = output.arg_group_idx
             amount = output.amount
 
-            assert arg_group_idx == len(state.arg_groups or []), \
+            assert arg_group_idx == len(state.arg_groups or []) + 1, \
                 f"Invalid arg group index: {arg_group_idx}"
 
             arg_groups = list(state.arg_groups or [])
@@ -296,30 +306,57 @@ class Action:
             return State(
                 definitions=state.definitions,
                 partial_definitions=state.partial_definitions,
-                arg_groups=tuple(arg_groups),
-                assumptions=state.assumptions)
+                arg_groups=tuple(arg_groups))
         elif isinstance(output, ArgFromExprActionOutput):
             arg_group_idx = output.arg_group_idx
             arg_idx = output.arg_idx
             new_expr_info = output.new_expr_info
+            new_expr_args = output.new_expr_args
 
             arg_groups = list(state.arg_groups or [])
-            if len(arg_groups) == 0:
-                raise InvalidActionArgException("No arg groups yet")
-            if arg_group_idx <= 0 or arg_group_idx > len(arg_groups):
-                raise InvalidActionArgException(f"Invalid arg group index: {arg_group_idx}")
-            arg_group = arg_groups[arg_group_idx - 1]
-            if arg_idx <= 0 or arg_idx > arg_group.amount:
-                raise InvalidActionArgException(f"Invalid arg index: {arg_idx}")
-            if len(new_expr_info.params) > len(arg_group.params):
-                raise InvalidActionArgException(
-                    "New expression amount of params invalid: "
-                    + f"{len(new_expr_info.params)} > {len(arg_group.params)}")
+            assert len(arg_groups) > 0, "No arg groups yet"
+            assert arg_group_idx > 0, f"Invalid arg group index: {arg_group_idx}"
+            assert arg_group_idx <= len(arg_groups), \
+                f"Invalid arg group index: {arg_group_idx} (max={len(arg_groups)})"
 
-            new_expr = new_expr_info.expr.subs({
-                new_param: arg_group.params[arg_idx - 1]
-                for new_param in new_expr_info.params
-            })
+            arg_group = arg_groups[arg_group_idx - 1]
+            assert arg_idx > 0, f"Invalid arg index: {arg_idx}"
+            assert arg_idx <= arg_group.amount, \
+                f"Invalid arg index: {arg_idx} (max={arg_group.amount})"
+
+            if new_expr_args is not None:
+                assert len(new_expr_info.params) <= len(new_expr_args.params), \
+                    "New expression amount of params invalid: " \
+                    + f"{len(new_expr_args.params)} > {len(arg_group.params)}"
+
+                new_expr = new_expr_info.expr.subs({
+                    old_param: new_expr_args.expressions[i]
+                    for i, old_param in enumerate(new_expr_info.params)
+                    if new_expr_args.expressions[i] is not None
+                })
+
+                old_params: set[ParamVar] = new_expr.atoms(ParamVar).intersection(
+                    new_expr_info.params)
+                old_params_idxs = sorted([p.index for p in old_params])
+                assert len(old_params) == 0, f"Old params not replaced: {old_params_idxs}"
+
+                assert len(new_expr_args.params) <= len(arg_group.params), \
+                    "New expression amount of params invalid (outer group): " \
+                    + f"{len(new_expr_args.params)} > {len(arg_group.params)}"
+
+                new_expr = new_expr_info.expr.subs({
+                    expr_group_param: arg_group.params[i]
+                    for i, expr_group_param in enumerate(new_expr_args.params)
+                })
+            else:
+                assert len(new_expr_info.params) <= len(arg_group.params), \
+                    "New expression amount of params invalid: " \
+                    + f"{len(new_expr_info.params)} > {len(arg_group.params)}"
+
+                new_expr = new_expr_info.expr.subs({
+                    old_param: arg_group.params[i]
+                    for i, old_param in enumerate(new_expr_info.params)
+                })
 
             arg_groups_list = list(arg_groups)
             arg_group_list = list(arg_group.expressions)
@@ -332,8 +369,7 @@ class Action:
             return State(
                 definitions=state.definitions,
                 partial_definitions=state.partial_definitions,
-                arg_groups=tuple(arg_groups_list),
-                assumptions=state.assumptions)
+                arg_groups=tuple(arg_groups_list))
         elif isinstance(output, NewDefinitionFromPartialActionOutput):
             definition_idx = output.definition_idx
             assert definition_idx == len(state.definitions or []) + 1, \
@@ -347,23 +383,23 @@ class Action:
                 f"Invalid partial definition index: {partial_definition_idx}"
 
             partial_definitions_list = list(state.partial_definitions or [])
-            key, expr = partial_definitions_list[partial_definition_idx - 1]
+            expr = partial_definitions_list[partial_definition_idx - 1]
             assert expr is not None, "Empty expression for partial definition"
 
             definitions_list = list(state.definitions or [])
-            definitions_list.append((key, expr))
+            definition_idx = len(definitions_list) + 1
+            definitions_list.append((FunctionDefinition(definition_idx), expr))
 
             partial_definitions_list = [
-                (key, expr)
-                for i, (key, expr) in enumerate(partial_definitions_list)
+                expr
+                for i, expr in enumerate(partial_definitions_list)
                 if i != partial_definition_idx
             ]
 
             return State(
                 definitions=tuple(definitions_list),
                 partial_definitions=tuple(partial_definitions_list),
-                arg_groups=state.arg_groups,
-                assumptions=state.assumptions)
+                arg_groups=state.arg_groups)
         elif isinstance(output, NewDefinitionFromExprActionOutput):
             definition_idx = output.definition_idx
             assert definition_idx == len(state.definitions or []) + 1, \
@@ -378,8 +414,7 @@ class Action:
             return State(
                 definitions=tuple(definitions_list),
                 partial_definitions=state.partial_definitions,
-                arg_groups=state.arg_groups,
-                assumptions=state.assumptions)
+                arg_groups=state.arg_groups)
         elif isinstance(output, ReplaceByDefinitionActionOutput):
             definition_idx = output.definition_idx
             expr_id = output.expr_id
@@ -409,7 +444,7 @@ class Action:
             expr_id = output.expr_id
             definitions = state.definitions
 
-            assert definitions is not None, "No definitions yet"
+            assert len(definitions) > 0, "No definitions yet"
             assert definition_idx is not None, "Empty definition index"
             assert definition_idx > 0, f"Invalid definition index: {definition_idx}"
             assert definition_idx <= len(definitions), \
@@ -439,8 +474,7 @@ class Action:
             assert partial_definition_idx <= len(partial_definitions_list), \
                 f"Invalid partial definition index: {partial_definition_idx}"
 
-            key, _ = partial_definitions_list[partial_definition_idx - 1]
-            partial_definitions_list[partial_definition_idx - 1] = (key, new_expr_info)
+            partial_definitions_list[partial_definition_idx - 1] = new_expr_info
 
             return state.change_partial_definition(
                 partial_definition_idx=partial_definition_idx,
@@ -503,7 +537,7 @@ class IntInputBaseAction(Action):
     def output(self, state: State) -> ActionOutput:
         raise NotImplementedError()
 
-class ArgFromExprBaseAction(Action):
+class ArgFromExprOuterParamsBaseAction(Action):
 
     @classmethod
     def metadata(cls) -> ActionArgsMetaInfo:
@@ -540,6 +574,65 @@ class ArgFromExprBaseAction(Action):
     @property
     def expr_id(self) -> int:
         return self._expr_id
+
+    @property
+    def input(self) -> ActionInput:
+        return self._input
+
+    def output(self, state: State) -> ArgFromExprActionOutput:
+        raise NotImplementedError()
+
+class ArgFromExprWithArgsBaseAction(Action):
+
+    @classmethod
+    def metadata(cls) -> ActionArgsMetaInfo:
+        return ActionArgsMetaInfo((
+            ACTION_ARG_TYPE_ARG_GROUP,
+            ACTION_ARG_TYPE_ARG_IDX,
+            ACTION_ARG_TYPE_GLOBAL_EXPRESSION,
+            ACTION_ARG_TYPE_ARG_GROUP,
+        ))
+
+    @classmethod
+    def create(cls, input: ActionInput) -> 'Action':
+        cls.validate_args_amount(input)
+        return cls(
+            input=input,
+            arg_group_idx=input.args[0].value,
+            arg_idx=input.args[1].value,
+            expr_id=input.args[1].value,
+            expr_arg_group_idx=input.args[3].value,
+        )
+
+    def __init__(
+        self,
+        input: ActionInput,
+        arg_group_idx: int,
+        arg_idx: int,
+        expr_id: int,
+        expr_arg_group_idx: int,
+    ):
+        self._input = input
+        self._arg_group_idx = arg_group_idx
+        self._arg_idx = arg_idx
+        self._expr_id = expr_id
+        self._expr_arg_group_idx = expr_arg_group_idx
+
+    @property
+    def arg_group_idx(self) -> int:
+        return self._arg_group_idx
+
+    @property
+    def arg_idx(self) -> int:
+        return self._arg_idx
+
+    @property
+    def expr_id(self) -> int:
+        return self._expr_id
+
+    @property
+    def expr_arg_group_idx(self) -> int:
+        return self._expr_arg_group_idx
 
     @property
     def input(self) -> ActionInput:
@@ -622,35 +715,89 @@ class DefinitionExprBaseAction(Action):
 class NewPartialDefinitionAction(EmptyArgsBaseAction):
 
     def output(self, state: State) -> ActionOutput:
-        partial_definition_idx = len(state.partial_definitions or [])
+        partial_definition_idx = len(state.partial_definitions or []) + 1
         return NewPartialDefinitionActionOutput(partial_definition_idx=partial_definition_idx)
 
 class NewArgGroupAction(IntInputBaseAction):
 
     def output(self, state: State) -> ActionOutput:
-        arg_group_idx = len(state.arg_groups or [])
+        arg_group_idx = len(state.arg_groups or []) + 1
         return NewArgGroupActionOutput(arg_group_idx=arg_group_idx, amount=self.value)
 
-class ArgFromExprAction(ArgFromExprBaseAction):
+class ArgFromExprOuterParamsAction(ArgFromExprOuterParamsBaseAction):
 
     def output(self, state: State) -> ArgFromExprActionOutput:
         arg_group_idx = self.arg_group_idx
         arg_idx = self.arg_idx
         expr_id = self.expr_id
         arg_groups = state.arg_groups
-        if arg_groups is None:
+
+        if len(arg_groups) == 0:
             raise InvalidActionArgException("No arg groups yet")
         if arg_group_idx <= 0 or arg_group_idx > len(arg_groups):
             raise InvalidActionArgException(f"Invalid arg group index: {arg_group_idx}")
+
         arg_group = arg_groups[arg_group_idx - 1]
         if arg_idx <= 0 or arg_idx > arg_group.amount:
             raise InvalidActionArgException(f"Invalid arg index: {arg_idx}")
+
         new_expr_info = state.get_expr(expr_id)
         assert new_expr_info is not None, f"Invalid node index: {expr_id}"
+
         return ArgFromExprActionOutput(
             arg_group_idx=arg_group_idx,
             arg_idx=arg_idx,
-            new_expr_info=new_expr_info)
+            new_expr_info=new_expr_info,
+            new_expr_args=None)
+
+class ArgFromExprWithArgsAction(ArgFromExprWithArgsBaseAction):
+
+    def output(self, state: State) -> ArgFromExprActionOutput:
+        arg_group_idx = self.arg_group_idx
+        arg_idx = self.arg_idx
+        expr_id = self.expr_id
+        expr_arg_group_idx = self.expr_arg_group_idx
+        arg_groups = state.arg_groups
+
+        if len(arg_groups) == 0:
+            raise InvalidActionArgException("No arg groups yet")
+        if arg_group_idx <= 0 or arg_group_idx > len(arg_groups):
+            raise InvalidActionArgException(f"Invalid arg group index: {arg_group_idx}")
+
+        arg_group = arg_groups[arg_group_idx - 1]
+        if arg_idx <= 0 or arg_idx > arg_group.amount:
+            raise InvalidActionArgException(f"Invalid arg index: {arg_idx}")
+
+        new_expr_info = state.get_expr(expr_id)
+        assert new_expr_info is not None, f"Invalid node index: {expr_id}"
+
+        if expr_arg_group_idx <= 0 or expr_arg_group_idx > len(arg_groups):
+            raise InvalidActionArgException(f"Invalid expr arg group index: {expr_arg_group_idx}")
+
+        new_expr_args = arg_groups[expr_arg_group_idx - 1]
+        if len(new_expr_info.params) > len(new_expr_args.params):
+            raise InvalidActionArgException(
+                "New expression amount of params invalid: " \
+                + f"{len(new_expr_args.params)} > {len(arg_group.params)}")
+        if len(new_expr_args.params) > len(arg_group.params):
+            raise InvalidActionArgException(
+                "New expression amount of params invalid (outer group): " \
+                + f"{len(new_expr_args.params)} > {len(arg_group.params)}")
+
+        dependencies: set[ParamVar] = new_expr_info.expr.atoms(ParamVar).intersection(
+            new_expr_info.params)
+        dependencies_idxs = sorted([p.index for p in dependencies])
+        for i, param in enumerate(new_expr_info.params):
+            arg_expr = new_expr_args.expressions[i]
+            if arg_expr is None and param in dependencies:
+                raise InvalidActionArgException(
+                    f"Missing param: {param.index} (need all of {dependencies_idxs})")
+
+        return ArgFromExprActionOutput(
+            arg_group_idx=arg_group_idx,
+            arg_idx=arg_idx,
+            new_expr_info=new_expr_info,
+            new_expr_args=new_expr_args)
 
 class NewDefinitionFromPartialAction(Action):
 
@@ -684,11 +831,11 @@ class NewDefinitionFromPartialAction(Action):
         if partial_definition_idx <= 0 or partial_definition_idx > len(partial_definitions):
             raise InvalidActionArgException(
                 f"Invalid partial definition index: {partial_definition_idx}")
-        _, partial_definition = partial_definitions[partial_definition_idx - 1]
+        partial_definition = partial_definitions[partial_definition_idx - 1]
         if not partial_definition:
             raise InvalidActionArgException(
                 f"Partial definition {partial_definition_idx} has no expression")
-        definition_idx = len(state.definitions or [])
+        definition_idx = len(state.definitions or []) + 1
         return NewDefinitionFromPartialActionOutput(
             definition_idx=definition_idx,
             partial_definition_idx=partial_definition_idx)
@@ -711,7 +858,7 @@ class ReplaceByDefinitionAction(DefinitionExprBaseAction):
         definition_idx = self.definition_idx
         expr_id = self.expr_id
         definitions = state.definitions
-        if definitions is None:
+        if len(definitions) == 0:
             raise InvalidActionArgException("No definitions yet")
         if definition_idx <= 0 or definition_idx > len(state.definitions or []):
             raise InvalidActionArgException(f"Invalid definition index: {definition_idx}")
@@ -731,7 +878,7 @@ class ExpandDefinitionAction(DefinitionExprBaseAction):
         definition_idx = self.definition_idx
         expr_id = self.expr_id
         definitions = state.definitions
-        if definitions is None:
+        if len(definitions) == 0:
             raise InvalidActionArgException("No definitions yet")
         if definition_idx <= 0 or definition_idx > len(state.definitions or []):
             raise InvalidActionArgException(f"Invalid definition index: {definition_idx}")

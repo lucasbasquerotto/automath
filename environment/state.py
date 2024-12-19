@@ -1,31 +1,5 @@
 import typing
-from utils.types import BaseNode, FunctionDefinition, ParamVar, Assumption, ExprInfo, ArgGroup
-
-class ExprWithArgs:
-    def __init__(self, expr_info: ExprInfo, args: tuple[BaseNode, ...]):
-        assert len(expr_info.params) == len(args), \
-            f"Invalid amount of arguments: {len(expr_info.params)} != {len(args)}"
-
-        args_dict: dict[ParamVar, BaseNode] = {
-            p: args[i]
-            for i, p in enumerate(expr_info.params)
-        }
-
-        self._expr_info = expr_info
-        self._args = args
-        self._args_dict = args_dict
-
-    @property
-    def expr(self) -> BaseNode:
-        return self._expr_info.expr
-
-    @property
-    def args(self) -> tuple[BaseNode, ...]:
-        return self._args
-
-    @property
-    def apply(self) -> BaseNode:
-        return self.expr.subs(self._args_dict)
+from utils.types import BaseNode, FunctionDefinition, ParamVar, ExprInfo, ArgGroup
 
 class State:
     def __init__(
@@ -33,14 +7,12 @@ class State:
         definitions: tuple[tuple[FunctionDefinition, ExprInfo], ...],
         partial_definitions: tuple[ExprInfo | None, ...],
         arg_groups: tuple[ArgGroup, ...],
-        assumptions: tuple[Assumption, ...],
     ):
         for i, (d, _) in enumerate(definitions):
             assert d.index == i + 1, f"Invalid definition index: {d.index} != {i + 1}"
         self._definitions = definitions
         self._partial_definitions = partial_definitions
         self._arg_groups = arg_groups
-        self._assumptions = assumptions
 
     @property
     def definitions(self) -> tuple[tuple[FunctionDefinition, ExprInfo], ...]:
@@ -53,10 +25,6 @@ class State:
     @property
     def arg_groups(self) -> tuple[ArgGroup, ...]:
         return self._arg_groups
-
-    @property
-    def assumptions(self) -> tuple[Assumption, ...]:
-        return self._assumptions
 
     @classmethod
     def index_to_expr(cls, root: BaseNode, index: int) -> BaseNode | None:
@@ -224,8 +192,7 @@ class State:
         return State(
             definitions=self.definitions,
             partial_definitions=tuple(partial_definitions_list),
-            arg_groups=self.arg_groups,
-            assumptions=self.assumptions)
+            arg_groups=self.arg_groups)
 
     def change_arg(
         self,
@@ -259,8 +226,7 @@ class State:
         return State(
             definitions=self.definitions,
             partial_definitions=self.partial_definitions,
-            arg_groups=tuple(arg_groups_list),
-            assumptions=self.assumptions)
+            arg_groups=tuple(arg_groups_list))
 
     def apply_new_expr(self, expr_id: int, new_expr_info: ExprInfo) -> 'State':
         assert expr_id is not None, "Empty expression id"
@@ -281,8 +247,7 @@ class State:
                 return State(
                     definitions=tuple(definitions_list),
                     partial_definitions=self.partial_definitions,
-                    arg_groups=self.arg_groups,
-                    assumptions=self.assumptions)
+                    arg_groups=self.arg_groups)
 
         partial_definitions_list = list(self.partial_definitions or [])
         for i, expr_info_p in enumerate(partial_definitions_list):
@@ -299,8 +264,7 @@ class State:
                     return State(
                         definitions=self.definitions,
                         partial_definitions=tuple(partial_definitions_list),
-                        arg_groups=self.arg_groups,
-                        assumptions=self.assumptions)
+                        arg_groups=self.arg_groups)
 
         arg_groups_list = list(self.arg_groups or [])
         for i, arg_group in enumerate(arg_groups_list):
@@ -323,8 +287,7 @@ class State:
                         return State(
                             definitions=self.definitions,
                             partial_definitions=self.partial_definitions,
-                            arg_groups=tuple(arg_groups_list),
-                            assumptions=self.assumptions)
+                            arg_groups=tuple(arg_groups_list))
 
         raise ValueError(f"Invalid expr_id: {expr_id}")
 
