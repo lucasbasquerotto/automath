@@ -1,7 +1,7 @@
 import sympy
 from environment.state import State, ExprInfo
 from environment.action import (
-    ACTION_ARG_TYPE_ORIGIN_EXPRESSION,
+    ACTION_ARG_TYPE_EXPRESSION_TARGET,
     ACTION_ARG_TYPE_INT,
     Action,
     ActionInput,
@@ -21,14 +21,13 @@ class DoubleChildReformulationBaseAction(Action):
     @classmethod
     def metadata(cls) -> ActionArgsMetaInfo:
         return ActionArgsMetaInfo((
-            ACTION_ARG_TYPE_ORIGIN_EXPRESSION,
+            ACTION_ARG_TYPE_EXPRESSION_TARGET,
             ACTION_ARG_TYPE_INT,
             ACTION_ARG_TYPE_INT,
         ))
 
     @classmethod
-    def create(cls, input: ActionInput) -> 'Action':
-        cls.validate_args_amount(input)
+    def _create(cls, input: ActionInput) -> 'Action':
         return cls(
             input=input,
             parent_expr_id=input.args[0].value,
@@ -58,7 +57,7 @@ class DoubleChildReformulationBaseAction(Action):
     def input(self) -> ActionInput:
         return self._input
 
-    def output(self, state: State) -> ReformulationActionOutput:
+    def _output(self, state: State) -> ReformulationActionOutput:
         raise NotImplementedError()
 
 ###########################################################
@@ -67,29 +66,32 @@ class DoubleChildReformulationBaseAction(Action):
 
 class SimplifyAddAction(DoubleChildReformulationBaseAction):
 
-    def output(self, state: State) -> ReformulationActionOutput:
+    def _output(self, state: State) -> ReformulationActionOutput:
         parent_expr_id = self.parent_expr_id
         arg1 = self.arg1
         arg2 = self.arg2
 
-        parent_node = state.get_expr(parent_expr_id)
+        parent_expr_info = state.get_expr(parent_expr_id)
 
-        if not parent_node:
+        if not parent_expr_info:
             raise InvalidActionArgException(f"Invalid parent node index: {parent_expr_id}")
-        if not isinstance(parent_node, sympy.Add):
-            raise InvalidActionArgException(f"Invalid parent node type: {type(parent_node)}")
+        if parent_expr_info.readonly:
+            raise InvalidActionArgException(f"Parent node is readonly: {parent_expr_id}")
+        if not isinstance(parent_expr_info, sympy.Add):
+            raise InvalidActionArgException(f"Invalid parent node type: {type(parent_expr_info)}")
         if not isinstance(arg1, int):
             raise InvalidActionArgsException(f"Invalid arg1 type: {type(arg1)}")
         if arg1 == arg2:
             raise InvalidActionArgsException(f"Invalid arg2 type: {type(arg2)}")
         if arg1 < 0 or arg2 < 0:
             raise InvalidActionArgsException(f"Invalid arg1 or arg2 min value: {arg1}, {arg2}")
-        if arg1 > len(parent_node.args) or arg2 > len(parent_node.args):
+        if arg1 > len(parent_expr_info.args) or arg2 > len(parent_expr_info.args):
             raise InvalidActionArgsException(
-                f"Invalid arg1 or arg2 max value: {arg1}, {arg2} (max {len(parent_node.args)})")
+                f"Invalid arg1 or arg2 max value: {arg1}, {arg2} " + \
+                f"(max {len(parent_expr_info.args)})")
 
-        node1 = parent_node.args[arg1]
-        node2 = parent_node.args[arg2]
+        node1 = parent_expr_info.args[arg1]
+        node2 = parent_expr_info.args[arg2]
 
         if not isinstance(node1, sympy.Expr):
             raise InvalidActionArgsException(f"Invalid node1 type: {type(node1)}")
@@ -103,7 +105,7 @@ class SimplifyAddAction(DoubleChildReformulationBaseAction):
                 + "(should be the same expression with opposite values): "
                 + f"{node1}, {node2}")
 
-        new_args = [arg for i, arg in enumerate(parent_node.args) if i not in [arg1, arg2]]
+        new_args = [arg for i, arg in enumerate(parent_expr_info.args) if i not in [arg1, arg2]]
 
         if not new_args:
             return ReformulationActionOutput(expr_id=parent_expr_id, new_expr_info=sympy.Integer(0))
@@ -113,7 +115,7 @@ class SimplifyAddAction(DoubleChildReformulationBaseAction):
 
 class SwapAddAction(DoubleChildReformulationBaseAction):
 
-    def output(self, state: State) -> ReformulationActionOutput:
+    def _output(self, state: State) -> ReformulationActionOutput:
         parent_expr_id = self.parent_expr_id
         arg1 = self._arg1
         arg2 = self._arg2
@@ -122,6 +124,8 @@ class SwapAddAction(DoubleChildReformulationBaseAction):
 
         if not parent_expr_info:
             raise InvalidActionArgException(f"Invalid parent node index: {parent_expr_id}")
+        if parent_expr_info.readonly:
+            raise InvalidActionArgException(f"Parent node is readonly: {parent_expr_id}")
         if not isinstance(parent_expr_info.expr, node_types.Add):
             raise InvalidActionArgException(f"Invalid parent node type: {type(parent_expr_info)}")
         if not isinstance(arg1, int) or not isinstance(arg2, int):

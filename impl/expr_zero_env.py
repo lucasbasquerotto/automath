@@ -1,7 +1,7 @@
 import sympy
 from utils.types import BASIC_NODE_TYPES
 from environment.state import State, ExprInfo
-from environment.action import DEFAULT_ACTIONS
+from environment.action import BASIC_ACTIONS
 from environment.reward import DefaultRewardEvaluator
 from environment.full_state import FullState
 from environment.environment import Environment
@@ -36,7 +36,7 @@ class ExprZeroEnv(Environment):
                 node_types.Add,
             ]),
             node_type_handler=DefaultNodeTypeHandler(),
-            action_types=tuple(list(DEFAULT_ACTIONS) + [
+            action_types=tuple(list(BASIC_ACTIONS) + [
                 reformulation_action_types.SimplifyAddAction,
             ]),
             reward_evaluator=DefaultRewardEvaluator(is_terminal),

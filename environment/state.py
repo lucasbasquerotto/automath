@@ -119,6 +119,13 @@ class State:
 
         return None, index
 
+    @classmethod
+    def get_partial_definition_node(cls, root_info: ExprInfo | None, index: int) -> BaseNode | None:
+        if root_info is None:
+            return None
+        node, _, __ = cls._index_to_expr(root_info.expr, index, parent=False)
+        return node
+
     def get_expr(self, expr_id: int) -> ExprStatusInfo | None:
         index = expr_id
         assert index > 0, f"Invalid index for node: {expr_id}"

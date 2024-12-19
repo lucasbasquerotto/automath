@@ -1,7 +1,7 @@
 import typing
 from utils.types import BASIC_NODE_TYPES, IndexedElem, Integer
 from .state import State, BaseNode
-from .action import DEFAULT_ACTIONS, Action, ActionMetaInfo, ActionInput, ActionOutput
+from .action import BASIC_ACTIONS, Action, ActionMetaInfo, ActionInput, ActionOutput
 from .reward import RewardEvaluator
 
 class ActionData:
@@ -84,7 +84,7 @@ class FullEnvMetaInfo(EnvMetaInfo):
         is_terminal: typing.Callable[[State], bool],
         node_types: tuple[typing.Type[BaseNode], ...] = BASIC_NODE_TYPES,
         node_type_handler: NodeTypeHandler = DefaultNodeTypeHandler(),
-        action_types: tuple[typing.Type[Action], ...] = DEFAULT_ACTIONS,
+        action_types: tuple[typing.Type[Action], ...] = BASIC_ACTIONS,
     ):
         super().__init__(
             main_context=main_context,
