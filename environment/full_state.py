@@ -47,9 +47,10 @@ ACTION_STATUS_SKIP_ID = 0
 ACTION_STATUS_SUCCESS_ID = 1
 ACTION_STATUS_FAIL_ID = 2
 
-GENERAL_ITEM_CONTEXT_TYPE_IDX = 1
-GENERAL_ITEM_CONTEXT_PARAM_IDX = 2
-GENERAL_ITEM_CONTEXT_EXPR_IDX = 3
+GENERAL_ITEM_CONTEXT_SYMBOL_IDX = 1
+GENERAL_ITEM_CONTEXT_TYPE_IDX = 2
+GENERAL_ITEM_CONTEXT_PARAM_IDX = 3
+GENERAL_ITEM_CONTEXT_EXPR_IDX = 4
 
 UNKNOWN_OR_EMPTY_FIELD = 0
 
@@ -310,24 +311,43 @@ class FullState:
 
     def _node_data_list_state(self, history_number: int, state: State) -> list[NodeItemData]:
         history_expr_id = 1
+        expr_info: ExprInfo | None = None
 
-        definitions_nodes, history_expr_id = self._context_node_data_list(
-            history_number=history_number,
-            history_type=HISTORY_TYPE_STATE,
-            context=STATE_DEFINITION_CONTEXT,
-            subcontext=UNKNOWN_OR_EMPTY_FIELD,
-            expr_info_list=[expr_info for _, expr_info in state.definitions or []],
-            history_expr_id=history_expr_id,
-        )
+        definitions_nodes: list[NodeItemData] = []
+        for i, (definition, expr_info) in enumerate(state.definitions):
+            definitions_nodes.append(NodeItemData(
+                history_number=history_number,
+                history_type=HISTORY_TYPE_STATE,
+                context=STATE_DEFINITION_CONTEXT,
+                subcontext=UNKNOWN_OR_EMPTY_FIELD,
+                item_idx=i+1,
+                item_context=GENERAL_ITEM_CONTEXT_SYMBOL_IDX,
+                node_type=UNKNOWN_OR_EMPTY_FIELD,
+                node_value=definition.index,
+            ))
+            iter_nodes, history_expr_id = self._expr_tree_data_list(
+                history_number=history_number,
+                history_type=HISTORY_TYPE_STATE,
+                context=STATE_DEFINITION_CONTEXT,
+                subcontext=UNKNOWN_OR_EMPTY_FIELD,
+                item_idx=i+1,
+                history_expr_id=history_expr_id,
+                expr_info=expr_info,
+            )
+            definitions_nodes += iter_nodes
 
-        partial_definitions_nodes, history_expr_id = self._context_node_data_list(
-            history_number=history_number,
-            history_type=HISTORY_TYPE_STATE,
-            context=STATE_PARTIAL_DEFINITION_CONTEXT,
-            subcontext=UNKNOWN_OR_EMPTY_FIELD,
-            expr_info_list=[expr_info for _, expr_info in state.partial_definitions or []],
-            history_expr_id=history_expr_id,
-        )
+        partial_definitions_nodes: list[NodeItemData] = []
+        for i, expr_info in enumerate(state.partial_definitions):
+            iter_nodes, history_expr_id = self._expr_tree_data_list(
+                history_number=history_number,
+                history_type=HISTORY_TYPE_STATE,
+                context=STATE_PARTIAL_DEFINITION_CONTEXT,
+                subcontext=UNKNOWN_OR_EMPTY_FIELD,
+                item_idx=i+1,
+                history_expr_id=history_expr_id,
+                expr_info=expr_info,
+            )
+            partial_definitions_nodes += iter_nodes
 
         arg_nodes, history_expr_id = self._context_node_data_groups(
             history_number=history_number,
@@ -552,32 +572,6 @@ class FullState:
                 history_expr_id=history_expr_id,
                 expr_info=ExprInfo(expr=expr, params=group.params) if expr is not None else None,
                 skip_params=True,
-            )
-
-            nodes += iter_nodes
-
-        return nodes, history_expr_id
-
-    def _context_node_data_list(
-        self,
-        history_number: int,
-        history_type: int,
-        context: int,
-        subcontext: int,
-        expr_info_list: list[ExprInfo | None],
-        history_expr_id: int,
-    ) -> tuple[list[NodeItemData], int]:
-        nodes: list[NodeItemData] = []
-
-        for i, expr_info in enumerate(expr_info_list):
-            iter_nodes, history_expr_id = self._expr_tree_data_list(
-                history_number=history_number,
-                history_type=history_type,
-                context=context,
-                subcontext=subcontext,
-                item_idx=i+1,
-                history_expr_id=history_expr_id,
-                expr_info=expr_info,
             )
 
             nodes += iter_nodes

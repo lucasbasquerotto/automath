@@ -31,10 +31,12 @@ class State:
     def __init__(
         self,
         definitions: tuple[tuple[FunctionDefinition, ExprInfo], ...],
-        partial_definitions: tuple[tuple[FunctionDefinition, ExprInfo | None], ...],
+        partial_definitions: tuple[ExprInfo | None, ...],
         arg_groups: tuple[ArgGroup, ...],
         assumptions: tuple[Assumption, ...],
     ):
+        for i, (d, _) in enumerate(definitions):
+            assert d.index == i + 1, f"Invalid definition index: {d.index} != {i + 1}"
         self._definitions = definitions
         self._partial_definitions = partial_definitions
         self._arg_groups = arg_groups
@@ -45,7 +47,7 @@ class State:
         return self._definitions
 
     @property
-    def partial_definitions(self) -> tuple[tuple[FunctionDefinition, ExprInfo | None], ...]:
+    def partial_definitions(self) -> tuple[ExprInfo | None, ...]:
         return self._partial_definitions
 
     @property
@@ -151,7 +153,7 @@ class State:
             for _, expr_info in self.definitions or []]
         partial_definitions: list[ExprInfo] = [
             expr_info
-            for _, expr_info in self.partial_definitions or []
+            for expr_info in self.partial_definitions or []
             if expr_info is not None]
         arg_exprs: list[ExprInfo] = [
             ExprInfo(expr=expr, params=group.params)
@@ -210,7 +212,7 @@ class State:
             f"Invalid partial definition: {partial_definition_idx}"
         assert partial_definition_idx <= len(partial_definitions_list), \
             f"Invalid partial definition: {partial_definition_idx}"
-        key, root_info = partial_definitions_list[partial_definition_idx - 1]
+        root_info = partial_definitions_list[partial_definition_idx - 1]
         new_root, index = self._replace_expr_index(
             root_info=root_info,
             index=node_idx,
@@ -218,7 +220,7 @@ class State:
         assert index == 0, f"Node {node_idx} not found " \
             + f"in partial definition: {partial_definition_idx}"
         assert new_root is not None, "Invalid new root node"
-        partial_definitions_list[partial_definition_idx - 1] = (key, new_root)
+        partial_definitions_list[partial_definition_idx - 1] = new_root
         return State(
             definitions=self.definitions,
             partial_definitions=tuple(partial_definitions_list),
@@ -283,7 +285,7 @@ class State:
                     assumptions=self.assumptions)
 
         partial_definitions_list = list(self.partial_definitions or [])
-        for i, (key, expr_info_p) in enumerate(partial_definitions_list):
+        for i, expr_info_p in enumerate(partial_definitions_list):
             if expr_info_p is not None:
                 expr_info = expr_info_p
                 new_root_info, index = self._replace_expr_index(
@@ -293,7 +295,7 @@ class State:
                 assert index >= 0, f"Invalid index for node: {index}"
                 if index == 0:
                     assert new_root_info is not None, "Invalid new root node (partial definition)"
-                    partial_definitions_list[i] = (key, new_root_info)
+                    partial_definitions_list[i] = new_root_info
                     return State(
                         definitions=self.definitions,
                         partial_definitions=tuple(partial_definitions_list),
@@ -369,10 +371,10 @@ class State:
         same_partial_definitions = self.same_definitions(
             my_definitions=[
                 expr_info
-                for _, expr_info in list(self.partial_definitions or [])],
+                for expr_info in list(self.partial_definitions or [])],
             other_definitions=[
                 expr_info
-                for _, expr_info in list(other.partial_definitions or [])])
+                for expr_info in list(other.partial_definitions or [])])
 
         if not same_partial_definitions:
             return False
