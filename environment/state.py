@@ -1,6 +1,15 @@
 import typing
 from utils.types import BaseNode, FunctionDefinition, ParamVar, ExprInfo, ArgGroup
 
+class ExprStatusInfo(ExprInfo):
+    def __init__(self, expr: BaseNode, params: tuple[ParamVar, ...], readonly: bool):
+        super().__init__(expr=expr, params=params)
+        self._readonly = readonly
+
+    @property
+    def readonly(self) -> bool:
+        return self._readonly
+
 class State:
     def __init__(
         self,
@@ -110,15 +119,31 @@ class State:
 
         return None, index
 
-    def _get_expr_info(
-        self,
-        index: int,
-        parent: bool = False,
-    ) -> tuple[ExprInfo | None, int | None]:
-        initial_index = index
-        definitions: list[ExprInfo] = [
-            expr_info
-            for _, expr_info in self.definitions or []]
+    def get_expr(self, expr_id: int) -> ExprStatusInfo | None:
+        index = expr_id
+        assert index > 0, f"Invalid index for node: {expr_id}"
+
+        for definition_key, expr_info in self.definitions:
+            index -= 1
+            if index == 0:
+                assert expr_info is not None, "Invalid node"
+                return ExprStatusInfo(
+                    expr=definition_key,
+                    params=expr_info.params,
+                    readonly=True)
+
+            new_expr, index, _ = self._index_to_expr(
+                root=expr_info.expr,
+                index=index,
+                parent=False)
+            assert index >= 0, f"Invalid index for node: {expr_id}"
+            if index == 0:
+                assert new_expr is not None, "Invalid node"
+                return ExprStatusInfo(
+                    expr=new_expr,
+                    params=expr_info.params,
+                    readonly=False)
+
         partial_definitions: list[ExprInfo] = [
             expr_info
             for expr_info in self.partial_definitions or []
@@ -129,21 +154,20 @@ class State:
             for expr in group.expressions
             if expr is not None]
 
-        for expr_info in definitions + partial_definitions + arg_exprs:
-            new_expr, index, child_index = self._index_to_expr(
+        for expr_info in partial_definitions + arg_exprs:
+            new_expr, index, _ = self._index_to_expr(
                 root=expr_info.expr,
                 index=index,
-                parent=parent)
-            assert index >= 0, f"Invalid index for node: {initial_index}"
+                parent=False)
+            assert index >= 0, f"Invalid index for node: {expr_id}"
             if index == 0:
                 assert new_expr is not None, "Invalid node"
-                return ExprInfo(expr=new_expr, params=expr_info.params), child_index
+                return ExprStatusInfo(
+                    expr=new_expr,
+                    params=expr_info.params,
+                    readonly=False)
 
-        return None, None
-
-    def get_expr(self, index: int) -> ExprInfo | None:
-        new_expr, _ = self._get_expr_info(index=index)
-        return new_expr
+        return None
 
     def get_expr_full_info(
         self,
@@ -236,6 +260,10 @@ class State:
 
         definitions_list = list(self.definitions or [])
         for i, (key, expr_info) in enumerate(definitions_list):
+            index -= 1
+            assert index > 0, "Replacing the function symbol (key) is forbidden" \
+                f" (index: {index})"
+
             new_root_info, index = self._replace_expr_index(
                 root_info=expr_info,
                 index=index,

@@ -48,8 +48,8 @@ class ExprInfo:
             return False
 
         return self.expr == other.expr.subs({
-            other_param: self_param
-            for other_param, self_param in zip(other.params, self.params)
+            other.params[i]: self.params[i]
+            for i in range(min(len(other.params), len(self.params)))
         })
 
 class ArgGroup:

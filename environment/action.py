@@ -432,6 +432,7 @@ class Action:
 
             assert definition_info is not None, "Empty definition node"
             assert target_expr_info is not None, "Empty target node"
+            assert not target_expr_info.readonly, "Target node is readonly"
             assert definition_info == target_expr_info, \
                 f"Invalid definition node: {definition_info.expr}" + \
                 f" (expected {target_expr_info.expr})"
@@ -454,6 +455,7 @@ class Action:
             key, definition_info = definitions[definition_idx - 1]
             target_expr_info = state.get_expr(expr_id)
             assert target_expr_info is not None, f"Target node not found (expr_id={expr_id})"
+            assert not target_expr_info.readonly, "Target node is readonly"
             assert key == target_expr_info.expr, \
                 f"Invalid target node: {target_expr_info.expr} (expected {key})"
 
@@ -742,7 +744,8 @@ class ArgFromExprOuterParamsAction(ArgFromExprOuterParamsBaseAction):
             raise InvalidActionArgException(f"Invalid arg index: {arg_idx}")
 
         new_expr_info = state.get_expr(expr_id)
-        assert new_expr_info is not None, f"Invalid node index: {expr_id}"
+        if new_expr_info is None:
+            raise InvalidActionArgException(f"Node with index not found: {expr_id}")
 
         return ArgFromExprActionOutput(
             arg_group_idx=arg_group_idx,
@@ -840,7 +843,7 @@ class NewDefinitionFromPartialAction(Action):
             definition_idx=definition_idx,
             partial_definition_idx=partial_definition_idx)
 
-class NewDefinitionFromNodeAction(SingleExprBaseAction):
+class NewDefinitionFromExprAction(SingleExprBaseAction):
 
     def output(self, state: State) -> ActionOutput:
         expr_id = self.expr_id
@@ -862,14 +865,16 @@ class ReplaceByDefinitionAction(DefinitionExprBaseAction):
             raise InvalidActionArgException("No definitions yet")
         if definition_idx <= 0 or definition_idx > len(state.definitions or []):
             raise InvalidActionArgException(f"Invalid definition index: {definition_idx}")
-        key, definition_node = definitions[definition_idx - 1]
-        target_node = state.get_expr(expr_id)
-        if not target_node:
+        key, definition_expr_info = definitions[definition_idx - 1]
+        target_expr_info = state.get_expr(expr_id)
+        if not target_expr_info:
             raise InvalidActionArgException(f"Invalid target node index: {expr_id}")
-        if definition_node != target_node:
+        if target_expr_info.readonly:
+            raise InvalidActionArgException(f"Target {expr_id} is readonly")
+        if definition_expr_info != target_expr_info:
             raise InvalidActionArgException(
-                f"Invalid target node: {target_node} "
-                + f"(expected {definition_node} from definition {key})")
+                f"Invalid target node: {target_expr_info} "
+                + f"(expected {definition_expr_info} from definition {key})")
         return ReplaceByDefinitionActionOutput(definition_idx=definition_idx, expr_id=expr_id)
 
 class ExpandDefinitionAction(DefinitionExprBaseAction):
@@ -882,21 +887,23 @@ class ExpandDefinitionAction(DefinitionExprBaseAction):
             raise InvalidActionArgException("No definitions yet")
         if definition_idx <= 0 or definition_idx > len(state.definitions or []):
             raise InvalidActionArgException(f"Invalid definition index: {definition_idx}")
-        key, definition_node = definitions[definition_idx - 1]
-        if not definition_node:
+        definition_key, definition_expr_info = definitions[definition_idx - 1]
+        if not definition_expr_info:
             raise InvalidActionArgException(f"Definition {definition_idx} has no expression")
-        target_node = state.get_expr(expr_id)
-        if not target_node:
-            raise InvalidActionArgException(f"Invalid target node index: {expr_id}")
-        if key != target_node:
+        target_expr_info = state.get_expr(expr_id)
+        if target_expr_info is None:
+            raise InvalidActionArgException(f"No target node found with index: {expr_id}")
+        if target_expr_info.readonly:
+            raise InvalidActionArgException(f"Target {expr_id} is readonly")
+        if definition_key != target_expr_info:
             raise InvalidActionArgException(
-                f"Invalid target node: {target_node} (expected {key})")
+                f"Invalid target node: {target_expr_info} (expected {definition_key})")
         return ExpandDefinitionActionOutput(definition_idx=definition_idx, expr_id=expr_id)
 
 DEFAULT_ACTIONS = [
     NewPartialDefinitionAction,
     NewDefinitionFromPartialAction,
-    NewDefinitionFromNodeAction,
+    NewDefinitionFromExprAction,
     ReplaceByDefinitionAction,
     ExpandDefinitionAction,
 ]

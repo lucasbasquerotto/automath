@@ -322,6 +322,7 @@ class FullState:
                 item_context=GENERAL_ITEM_CONTEXT_SYMBOL_IDX,
                 node_type=UNKNOWN_OR_EMPTY_FIELD,
                 node_value=definition.index,
+                history_expr_id=history_expr_id,
             ))
             iter_nodes, history_expr_id = self._expr_tree_data_list(
                 history_number=history_number,
