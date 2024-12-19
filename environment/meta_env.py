@@ -1,6 +1,7 @@
 import typing
+from utils.types import BASIC_NODE_TYPES, IndexedElem, Integer
 from .state import State, BaseNode
-from .action import Action, ActionMetaInfo, ActionInput, ActionOutput
+from .action import DEFAULT_ACTIONS, Action, ActionMetaInfo, ActionInput, ActionOutput
 from .reward import RewardEvaluator
 
 class ActionData:
@@ -26,6 +27,14 @@ StateHistoryItem = State | ActionData
 class NodeTypeHandler:
     def get_value(self, node: BaseNode) -> int:
         raise NotImplementedError()
+
+class DefaultNodeTypeHandler(NodeTypeHandler):
+    def get_value(self, node: BaseNode) -> int:
+        if isinstance(node, IndexedElem):
+            return node.index
+        if isinstance(node, Integer):
+            return int(node)
+        return 0
 
 class EnvMetaInfo:
     def __init__(
@@ -70,12 +79,12 @@ class FullEnvMetaInfo(EnvMetaInfo):
     def __init__(
         self,
         main_context: int,
-        node_types: tuple[typing.Type[BaseNode], ...],
-        node_type_handler: NodeTypeHandler,
-        action_types: tuple[typing.Type[Action], ...],
         reward_evaluator: RewardEvaluator,
         initial_history: tuple[StateHistoryItem, ...],
         is_terminal: typing.Callable[[State], bool],
+        node_types: tuple[typing.Type[BaseNode], ...] = BASIC_NODE_TYPES,
+        node_type_handler: NodeTypeHandler = DefaultNodeTypeHandler(),
+        action_types: tuple[typing.Type[Action], ...] = DEFAULT_ACTIONS,
     ):
         super().__init__(
             main_context=main_context,

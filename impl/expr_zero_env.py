@@ -5,12 +5,10 @@ from environment.action import DEFAULT_ACTIONS
 from environment.reward import DefaultRewardEvaluator
 from environment.full_state import FullState
 from environment.environment import Environment
-from environment.meta_env import FullEnvMetaInfo
+from environment.meta_env import FullEnvMetaInfo, DefaultNodeTypeHandler
 from impl import (
-    node_type_handler,
     node_types,
-    reformulation_action_types,
-    partial_action_types)
+    reformulation_action_types)
 
 class ExprZeroEnv(Environment):
     def __init__(
@@ -37,10 +35,9 @@ class ExprZeroEnv(Environment):
             node_types=tuple(list(BASIC_NODE_TYPES) + [
                 node_types.Add,
             ]),
-            node_type_handler=node_type_handler.DefaultNodeTypeHandler(),
-            action_types=tuple(DEFAULT_ACTIONS + [
+            node_type_handler=DefaultNodeTypeHandler(),
+            action_types=tuple(list(DEFAULT_ACTIONS) + [
                 reformulation_action_types.SimplifyAddAction,
-                partial_action_types.ReplaceNodeAction,
             ]),
             reward_evaluator=DefaultRewardEvaluator(is_terminal),
             initial_history=(initial_state,),

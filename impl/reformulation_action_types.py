@@ -1,7 +1,7 @@
 import sympy
 from environment.state import State, ExprInfo
 from environment.action import (
-    ACTION_ARG_TYPE_GLOBAL_EXPRESSION,
+    ACTION_ARG_TYPE_ORIGIN_EXPRESSION,
     ACTION_ARG_TYPE_INT,
     Action,
     ActionInput,
@@ -21,7 +21,7 @@ class DoubleChildReformulationBaseAction(Action):
     @classmethod
     def metadata(cls) -> ActionArgsMetaInfo:
         return ActionArgsMetaInfo((
-            ACTION_ARG_TYPE_GLOBAL_EXPRESSION,
+            ACTION_ARG_TYPE_ORIGIN_EXPRESSION,
             ACTION_ARG_TYPE_INT,
             ACTION_ARG_TYPE_INT,
         ))

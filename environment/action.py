@@ -9,17 +9,25 @@ ACTION_ARG_TYPE_PARTIAL_DEFINITION = 1
 ACTION_ARG_TYPE_ARG_GROUP = 2
 ACTION_ARG_TYPE_ARG_IDX = 3
 ACTION_ARG_TYPE_DEFINITION = 4
-ACTION_ARG_TYPE_GLOBAL_EXPRESSION = 5
-ACTION_ARG_TYPE_NODE = 6
-ACTION_ARG_TYPE_INT = 7
+ACTION_ARG_TYPE_EXPRESSION_ORIGIN = 5
+ACTION_ARG_TYPE_EXPRESSION_TARGET = 6
+ACTION_ARG_TYPE_NODE = 7
+ACTION_ARG_TYPE_INT = 8
 
 ARG_TYPES = [
     ACTION_ARG_TYPE_PARTIAL_DEFINITION,
+    ACTION_ARG_TYPE_ARG_GROUP,
+    ACTION_ARG_TYPE_ARG_IDX,
     ACTION_ARG_TYPE_DEFINITION,
-    ACTION_ARG_TYPE_GLOBAL_EXPRESSION,
+    ACTION_ARG_TYPE_EXPRESSION_ORIGIN,
+    ACTION_ARG_TYPE_EXPRESSION_TARGET,
     ACTION_ARG_TYPE_NODE,
     ACTION_ARG_TYPE_INT,
 ]
+def _validate_args():
+    for i, arg in enumerate(ARG_TYPES):
+        assert arg == i + 1, f"Invalid arg type: {arg} (expected: {i + 1})"
+_validate_args()
 
 ###########################################################
 ###################### ACTION INPUT #######################
@@ -546,7 +554,7 @@ class ArgFromExprOuterParamsBaseAction(Action):
         return ActionArgsMetaInfo((
             ACTION_ARG_TYPE_ARG_GROUP,
             ACTION_ARG_TYPE_ARG_IDX,
-            ACTION_ARG_TYPE_GLOBAL_EXPRESSION,
+            ACTION_ARG_TYPE_EXPRESSION_ORIGIN,
         ))
 
     @classmethod
@@ -556,14 +564,14 @@ class ArgFromExprOuterParamsBaseAction(Action):
             input=input,
             arg_group_idx=input.args[0].value,
             arg_idx=input.args[1].value,
-            expr_id=input.args[1].value,
+            origin_expr_id=input.args[1].value,
         )
 
-    def __init__(self, input: ActionInput, arg_group_idx: int, arg_idx: int, expr_id: int):
+    def __init__(self, input: ActionInput, arg_group_idx: int, arg_idx: int, origin_expr_id: int):
         self._input = input
         self._arg_group_idx = arg_group_idx
         self._arg_idx = arg_idx
-        self._expr_id = expr_id
+        self._origin_expr_id = origin_expr_id
 
     @property
     def arg_group_idx(self) -> int:
@@ -574,8 +582,8 @@ class ArgFromExprOuterParamsBaseAction(Action):
         return self._arg_idx
 
     @property
-    def expr_id(self) -> int:
-        return self._expr_id
+    def origin_expr_id(self) -> int:
+        return self._origin_expr_id
 
     @property
     def input(self) -> ActionInput:
@@ -591,7 +599,7 @@ class ArgFromExprWithArgsBaseAction(Action):
         return ActionArgsMetaInfo((
             ACTION_ARG_TYPE_ARG_GROUP,
             ACTION_ARG_TYPE_ARG_IDX,
-            ACTION_ARG_TYPE_GLOBAL_EXPRESSION,
+            ACTION_ARG_TYPE_EXPRESSION_ORIGIN,
             ACTION_ARG_TYPE_ARG_GROUP,
         ))
 
@@ -602,7 +610,7 @@ class ArgFromExprWithArgsBaseAction(Action):
             input=input,
             arg_group_idx=input.args[0].value,
             arg_idx=input.args[1].value,
-            expr_id=input.args[1].value,
+            origin_expr_id=input.args[1].value,
             expr_arg_group_idx=input.args[3].value,
         )
 
@@ -611,13 +619,13 @@ class ArgFromExprWithArgsBaseAction(Action):
         input: ActionInput,
         arg_group_idx: int,
         arg_idx: int,
-        expr_id: int,
+        origin_expr_id: int,
         expr_arg_group_idx: int,
     ):
         self._input = input
         self._arg_group_idx = arg_group_idx
         self._arg_idx = arg_idx
-        self._expr_id = expr_id
+        self._origin_expr_id = origin_expr_id
         self._expr_arg_group_idx = expr_arg_group_idx
 
     @property
@@ -629,8 +637,8 @@ class ArgFromExprWithArgsBaseAction(Action):
         return self._arg_idx
 
     @property
-    def expr_id(self) -> int:
-        return self._expr_id
+    def origin_expr_id(self) -> int:
+        return self._origin_expr_id
 
     @property
     def expr_arg_group_idx(self) -> int:
@@ -643,27 +651,27 @@ class ArgFromExprWithArgsBaseAction(Action):
     def output(self, state: State) -> ArgFromExprActionOutput:
         raise NotImplementedError()
 
-class SingleExprBaseAction(Action):
+class SingleOriginExprBaseAction(Action):
 
     @classmethod
     def metadata(cls) -> ActionArgsMetaInfo:
-        return ActionArgsMetaInfo((ACTION_ARG_TYPE_GLOBAL_EXPRESSION,))
+        return ActionArgsMetaInfo((ACTION_ARG_TYPE_EXPRESSION_ORIGIN,))
 
     @classmethod
     def create(cls, input: ActionInput) -> 'Action':
         cls.validate_args_amount(input)
         return cls(
             input=input,
-            expr_id=input.args[0].value,
+            origin_expr_id=input.args[0].value,
         )
 
-    def __init__(self, input: ActionInput, expr_id: int):
+    def __init__(self, input: ActionInput, origin_expr_id: int):
         self._input = input
-        self._expr_id = expr_id
+        self._origin_expr_id = origin_expr_id
 
     @property
-    def expr_id(self) -> int:
-        return self._expr_id
+    def origin_expr_id(self) -> int:
+        return self._origin_expr_id
 
     @property
     def input(self) -> ActionInput:
@@ -678,7 +686,7 @@ class DefinitionExprBaseAction(Action):
     def metadata(cls) -> ActionArgsMetaInfo:
         return ActionArgsMetaInfo((
             ACTION_ARG_TYPE_DEFINITION,
-            ACTION_ARG_TYPE_GLOBAL_EXPRESSION,
+            ACTION_ARG_TYPE_EXPRESSION_TARGET,
         ))
 
     @classmethod
@@ -687,27 +695,142 @@ class DefinitionExprBaseAction(Action):
         return cls(
             input=input,
             definition_idx=input.args[0].value,
-            expr_id=input.args[1].value,
+            target_expr_id=input.args[1].value,
         )
 
-    def __init__(self, input: ActionInput, definition_idx: int, expr_id: int):
+    def __init__(self, input: ActionInput, definition_idx: int, target_expr_id: int):
         self._input = input
         self._definition_idx = definition_idx
-        self._expr_id = expr_id
+        self._target_expr_id = target_expr_id
 
     @property
     def definition_idx(self) -> int:
         return self._definition_idx
 
     @property
-    def expr_id(self) -> int:
-        return self._expr_id
+    def target_expr_id(self) -> int:
+        return self._target_expr_id
 
     @property
     def input(self) -> ActionInput:
         return self._input
 
     def output(self, state: State) -> ActionOutput:
+        raise NotImplementedError()
+
+class PartialDefinitionBaseAction(Action):
+
+    @classmethod
+    def metadata(cls) -> ActionArgsMetaInfo:
+        raise NotImplementedError()
+
+    @classmethod
+    def create(cls, input: ActionInput) -> 'Action':
+        raise NotImplementedError()
+
+    def __init__(
+        self,
+        input: ActionInput,
+        partial_definition_idx: int,
+        node_idx: int,
+    ):
+        self._input = input
+        self._partial_definition_idx = partial_definition_idx
+        self._node_idx = node_idx
+
+    @property
+    def partial_definition_idx(self) -> int:
+        return self._partial_definition_idx
+
+    @property
+    def node_idx(self) -> int:
+        return self._node_idx
+
+    @property
+    def input(self) -> ActionInput:
+        return self._input
+
+    def output(self, state: State) -> PartialActionOutput:
+        raise NotImplementedError()
+
+    def get_partial_definition_info(
+        self,
+        state: State,
+    ) -> tuple[ExprInfo | None, ExprInfo | None, int | None]:
+        partial_definition_idx = self.partial_definition_idx
+        partial_definitions_list = list(state.partial_definitions or [])
+
+        if partial_definition_idx < 0:
+            raise InvalidActionArgException(
+                f"Invalid partial definition: {partial_definition_idx}")
+        if partial_definition_idx >= len(partial_definitions_list):
+            raise InvalidActionArgException(
+                f"Invalid partial definition: {partial_definition_idx}")
+
+        root_info = partial_definitions_list[partial_definition_idx]
+
+        if self.node_idx == 1:
+            return root_info, None, None
+
+        if root_info is None:
+            raise InvalidActionArgException(
+                f"Invalid node index: {self.node_idx}" \
+                + f" (empty partial definition: {partial_definition_idx})")
+
+        expr, parent_expr, child_idx = state.get_expr_full_info(
+            root=root_info.expr,
+            node_idx=self.node_idx)
+        expr_info = (
+            ExprInfo(expr=expr, params=root_info.params)
+            if expr is not None
+            else None)
+        parent_expr_info = (
+            ExprInfo(expr=parent_expr, params=root_info.params)
+            if parent_expr is not None
+            else None)
+
+        return expr_info, parent_expr_info, child_idx
+
+class PartialDefinitionOriginExprBaseAction(PartialDefinitionBaseAction):
+
+    @classmethod
+    def metadata(cls) -> ActionArgsMetaInfo:
+        return ActionArgsMetaInfo((
+            ACTION_ARG_TYPE_PARTIAL_DEFINITION,
+            ACTION_ARG_TYPE_NODE,
+            ACTION_ARG_TYPE_EXPRESSION_ORIGIN,
+        ))
+
+    @classmethod
+    def create(cls, input: ActionInput) -> 'Action':
+        cls.validate_args_amount(input)
+        return cls(
+            input=input,
+            partial_definition_idx=input.args[0].value,
+            node_idx=input.args[1].value,
+            origin_expr_id=input.args[2].value,
+        )
+
+    def __init__(
+        self,
+        input: ActionInput,
+        partial_definition_idx: int,
+        node_idx: int,
+        origin_expr_id: int,
+    ):
+        super().__init__(
+            input=input,
+            partial_definition_idx=partial_definition_idx,
+            node_idx=node_idx,
+        )
+
+        self._origin_expr_id = origin_expr_id
+
+    @property
+    def origin_expr_id(self) -> int:
+        return self._origin_expr_id
+
+    def output(self, state: State) -> PartialActionOutput:
         raise NotImplementedError()
 
 ###########################################################
@@ -731,7 +854,7 @@ class ArgFromExprOuterParamsAction(ArgFromExprOuterParamsBaseAction):
     def output(self, state: State) -> ArgFromExprActionOutput:
         arg_group_idx = self.arg_group_idx
         arg_idx = self.arg_idx
-        expr_id = self.expr_id
+        expr_id = self.origin_expr_id
         arg_groups = state.arg_groups
 
         if len(arg_groups) == 0:
@@ -758,7 +881,7 @@ class ArgFromExprWithArgsAction(ArgFromExprWithArgsBaseAction):
     def output(self, state: State) -> ArgFromExprActionOutput:
         arg_group_idx = self.arg_group_idx
         arg_idx = self.arg_idx
-        expr_id = self.expr_id
+        expr_id = self.origin_expr_id
         expr_arg_group_idx = self.expr_arg_group_idx
         arg_groups = state.arg_groups
 
@@ -843,10 +966,10 @@ class NewDefinitionFromPartialAction(Action):
             definition_idx=definition_idx,
             partial_definition_idx=partial_definition_idx)
 
-class NewDefinitionFromExprAction(SingleExprBaseAction):
+class NewDefinitionFromExprAction(SingleOriginExprBaseAction):
 
     def output(self, state: State) -> ActionOutput:
-        expr_id = self.expr_id
+        expr_id = self.origin_expr_id
         new_expr_info = state.get_expr(expr_id)
         if not new_expr_info:
             raise InvalidActionArgException(f"Invalid node index: {expr_id}")
@@ -859,29 +982,29 @@ class ReplaceByDefinitionAction(DefinitionExprBaseAction):
 
     def output(self, state: State) -> ActionOutput:
         definition_idx = self.definition_idx
-        expr_id = self.expr_id
+        target_expr_id = self.target_expr_id
         definitions = state.definitions
         if len(definitions) == 0:
             raise InvalidActionArgException("No definitions yet")
         if definition_idx <= 0 or definition_idx > len(state.definitions or []):
             raise InvalidActionArgException(f"Invalid definition index: {definition_idx}")
         key, definition_expr_info = definitions[definition_idx - 1]
-        target_expr_info = state.get_expr(expr_id)
+        target_expr_info = state.get_expr(target_expr_id)
         if not target_expr_info:
-            raise InvalidActionArgException(f"Invalid target node index: {expr_id}")
+            raise InvalidActionArgException(f"Invalid target node index: {target_expr_id}")
         if target_expr_info.readonly:
-            raise InvalidActionArgException(f"Target {expr_id} is readonly")
+            raise InvalidActionArgException(f"Target {target_expr_id} is readonly")
         if definition_expr_info != target_expr_info:
             raise InvalidActionArgException(
                 f"Invalid target node: {target_expr_info} "
                 + f"(expected {definition_expr_info} from definition {key})")
-        return ReplaceByDefinitionActionOutput(definition_idx=definition_idx, expr_id=expr_id)
+        return ReplaceByDefinitionActionOutput(definition_idx=definition_idx, expr_id=target_expr_id)
 
 class ExpandDefinitionAction(DefinitionExprBaseAction):
 
     def output(self, state: State) -> ActionOutput:
         definition_idx = self.definition_idx
-        expr_id = self.expr_id
+        target_expr_id = self.target_expr_id
         definitions = state.definitions
         if len(definitions) == 0:
             raise InvalidActionArgException("No definitions yet")
@@ -890,20 +1013,52 @@ class ExpandDefinitionAction(DefinitionExprBaseAction):
         definition_key, definition_expr_info = definitions[definition_idx - 1]
         if not definition_expr_info:
             raise InvalidActionArgException(f"Definition {definition_idx} has no expression")
-        target_expr_info = state.get_expr(expr_id)
+        target_expr_info = state.get_expr(target_expr_id)
         if target_expr_info is None:
-            raise InvalidActionArgException(f"No target node found with index: {expr_id}")
+            raise InvalidActionArgException(f"No target node found with index: {target_expr_id}")
         if target_expr_info.readonly:
-            raise InvalidActionArgException(f"Target {expr_id} is readonly")
+            raise InvalidActionArgException(f"Target {target_expr_id} is readonly")
         if definition_key != target_expr_info:
             raise InvalidActionArgException(
                 f"Invalid target node: {target_expr_info} (expected {definition_key})")
-        return ExpandDefinitionActionOutput(definition_idx=definition_idx, expr_id=expr_id)
+        return ExpandDefinitionActionOutput(definition_idx=definition_idx, expr_id=target_expr_id)
 
-DEFAULT_ACTIONS = [
+class ReplaceNodeAction(PartialDefinitionOriginExprBaseAction):
+
+    def output(self, state: State) -> PartialActionOutput:
+        partial_definition_idx = self.partial_definition_idx
+        node_idx = self.node_idx
+        expr_id = self.origin_expr_id
+
+        new_expr_info = state.get_expr(expr_id)
+        if new_expr_info is None:
+            raise InvalidActionArgException(
+                f"Invalid node index: {expr_id}" \
+                + f" (partial_definition_idx: {partial_definition_idx})")
+
+        if node_idx == 1:
+            return PartialActionOutput(
+                partial_definition_idx=partial_definition_idx,
+                node_idx=node_idx,
+                new_expr_info=new_expr_info)
+
+        expr_info, _, _ = self.get_partial_definition_info(state)
+
+        if expr_info is None:
+            raise InvalidActionArgException(
+                f"Invalid node index: {node_idx}" \
+                + f" (partial_definition_idx: {partial_definition_idx})")
+
+        return PartialActionOutput(
+            partial_definition_idx=partial_definition_idx,
+            node_idx=node_idx,
+            new_expr_info=new_expr_info)
+
+DEFAULT_ACTIONS = (
     NewPartialDefinitionAction,
     NewDefinitionFromPartialAction,
     NewDefinitionFromExprAction,
     ReplaceByDefinitionAction,
     ExpandDefinitionAction,
-]
+    ReplaceNodeAction,
+)

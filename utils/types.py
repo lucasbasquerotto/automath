@@ -2,6 +2,8 @@ import sympy
 
 BaseNode = sympy.Basic
 
+Integer = sympy.Integer
+
 class IndexedElem(sympy.Basic):
     @classmethod
     def prefix(cls):
