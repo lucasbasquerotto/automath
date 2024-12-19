@@ -7,14 +7,15 @@ from .action import (
     InvalidActionException,
     ActionOutput,
     NewPartialDefinitionActionOutput,
+    PartialActionOutput,
+    RemovePartialDefinitionActionOutput,
     NewArgGroupActionOutput,
     ArgFromExprActionOutput,
+    RemoveArgGroupActionOutput,
     NewDefinitionFromPartialActionOutput,
-    NewDefinitionFromExprActionOutput,
     ReplaceByDefinitionActionOutput,
     ExpandDefinitionActionOutput,
-    ReformulationActionOutput,
-    PartialActionOutput)
+    ReformulationActionOutput)
 from .meta_env import EnvMetaInfo, ActionData, StateHistoryItem
 
 HISTORY_TYPE_META = 0
@@ -28,23 +29,29 @@ META_ACTION_ARG_CONTEXT = 2
 STATE_DEFINITION_CONTEXT = 1
 STATE_PARTIAL_DEFINITION_CONTEXT = 2
 STATE_ARG_GROUP_CONTEXT = 3
-STATE_ARG_EXPR_CONTEXT = 4
 
 ACTION_TYPE_CONTEXT = 1
 ACTION_INPUT_CONTEXT = 2
 ACTION_OUTPUT_CONTEXT = 3
-ACTION_STATUS_CONTEXT = 4
+ACTION_OUTPUT_ARG_GROUP_CONTEXT = 4
+ACTION_STATUS_CONTEXT = 5
 
 ACTION_OUTPUT_SUBCONTEXT_PARTIAL_DEFINITION_IDX = 1
 ACTION_OUTPUT_SUBCONTEXT_DEFINITION_IDX = 2
 ACTION_OUTPUT_SUBCONTEXT_ARG_GROUP_IDX = 3
 ACTION_OUTPUT_SUBCONTEXT_ARG_AMOUNT = 4
 ACTION_OUTPUT_SUBCONTEXT_EXPR_ID = 5
-ACTION_OUTPUT_SUBCONTEXT_NODE_EXPR = 6
+ACTION_OUTPUT_SUBCONTEXT_NODE_IDX = 6
+ACTION_OUTPUT_SUBCONTEXT_NODE_EXPR = 7
+ACTION_OUTPUT_SUBCONTEXT_ARG_GROUP = 8
+ACTION_OUTPUT_SUBCONTEXT_EXPR_GROUP = 9
 
 ACTION_STATUS_SKIP_ID = 0
 ACTION_STATUS_SUCCESS_ID = 1
 ACTION_STATUS_FAIL_ID = 2
+
+GENERAL_ARG_GROUP_MAIN_SUBCONTEXT = 1
+GENERAL_ARG_GROUP_EXPR_SUBCONTEXT = 2
 
 GENERAL_ITEM_CONTEXT_SYMBOL_IDX = 1
 GENERAL_ITEM_CONTEXT_TYPE_IDX = 2
@@ -55,14 +62,15 @@ UNKNOWN_OR_EMPTY_FIELD = 0
 
 action_output_types = [
     NewPartialDefinitionActionOutput,
+    PartialActionOutput,
+    RemovePartialDefinitionActionOutput,
     NewArgGroupActionOutput,
     ArgFromExprActionOutput,
+    RemoveArgGroupActionOutput,
     NewDefinitionFromPartialActionOutput,
-    NewDefinitionFromExprActionOutput,
     ReplaceByDefinitionActionOutput,
     ExpandDefinitionActionOutput,
     ReformulationActionOutput,
-    PartialActionOutput,
 ]
 
 # context index (e.g: main expression, definition expressions, temporary arguments)
@@ -85,6 +93,7 @@ class NodeItemData:
         atomic_node: int = 1,
         parent_node_idx: int = 0,
         node_idx: int = 1,
+        group_idx: int = UNKNOWN_OR_EMPTY_FIELD,
         node_type: int = UNKNOWN_OR_EMPTY_FIELD,
         node_value: int = UNKNOWN_OR_EMPTY_FIELD,
         expr: BaseNode | None = None,
@@ -97,7 +106,8 @@ class NodeItemData:
         self._history_type = history_type
         self._context = context
         self._subcontext = subcontext
-        self._item = item_idx
+        self._group_idx = group_idx
+        self._item_idx = item_idx
         self._item_context = item_context
         self._parent_node_idx = parent_node_idx
         self._node_idx = node_idx
@@ -124,8 +134,12 @@ class NodeItemData:
         return self._subcontext
 
     @property
-    def item(self) -> int:
-        return self._item
+    def group_idx(self) -> int:
+        return self._group_idx
+
+    @property
+    def item_idx(self) -> int:
+        return self._item_idx
 
     @property
     def item_context(self) -> int:
@@ -165,7 +179,7 @@ class NodeItemData:
             self._history_type,
             self._context,
             self._subcontext,
-            self._item,
+            self._item_idx,
             self._parent_node_idx,
             self._node_idx,
             self._atomic_node,
@@ -329,6 +343,7 @@ class FullState:
                 history_type=HISTORY_TYPE_STATE,
                 context=STATE_DEFINITION_CONTEXT,
                 subcontext=UNKNOWN_OR_EMPTY_FIELD,
+                group_idx=UNKNOWN_OR_EMPTY_FIELD,
                 item_idx=i+1,
                 history_expr_id=history_expr_id,
                 expr_info=expr_info,
@@ -342,6 +357,7 @@ class FullState:
                 history_type=HISTORY_TYPE_STATE,
                 context=STATE_PARTIAL_DEFINITION_CONTEXT,
                 subcontext=UNKNOWN_OR_EMPTY_FIELD,
+                group_idx=UNKNOWN_OR_EMPTY_FIELD,
                 item_idx=i+1,
                 history_expr_id=history_expr_id,
                 expr_info=expr_info,
@@ -352,9 +368,7 @@ class FullState:
             history_number=history_number,
             history_type=HISTORY_TYPE_STATE,
             group_context=STATE_ARG_GROUP_CONTEXT,
-            group_subcontext=UNKNOWN_OR_EMPTY_FIELD,
-            expression_context=STATE_ARG_EXPR_CONTEXT,
-            groups=list(state.arg_groups or []),
+            groups=state.arg_groups,
             history_expr_id=history_expr_id,
         )
 
@@ -424,6 +438,7 @@ class FullState:
                     history_type=HISTORY_TYPE_ACTION,
                     context=ACTION_OUTPUT_CONTEXT,
                     subcontext=ACTION_OUTPUT_SUBCONTEXT_NODE_EXPR,
+                    group_idx=UNKNOWN_OR_EMPTY_FIELD,
                     item_idx=UNKNOWN_OR_EMPTY_FIELD,
                     history_expr_id=history_expr_id,
                     expr_info=expr_info,
@@ -431,6 +446,37 @@ class FullState:
                 return output_expr_nodes, history_expr_id
 
             if isinstance(action_output, NewPartialDefinitionActionOutput):
+                action_output_nodes.append(create_node(
+                    subcontext=ACTION_OUTPUT_SUBCONTEXT_PARTIAL_DEFINITION_IDX,
+                    node_value=action_output.partial_definition_idx,
+                ))
+            elif isinstance(action_output, PartialActionOutput):
+                action_output_nodes.append(create_node(
+                    subcontext=ACTION_OUTPUT_SUBCONTEXT_PARTIAL_DEFINITION_IDX,
+                    node_value=action_output.partial_definition_idx,
+                ))
+
+                action_output_nodes.append(create_node(
+                    subcontext=ACTION_OUTPUT_SUBCONTEXT_NODE_IDX,
+                    node_value=action_output.node_idx,
+                ))
+
+                output_expr_nodes, history_expr_id = create_expr_tree(
+                    expr_info=action_output.new_expr_info,
+                    history_expr_id=history_expr_id,
+                )
+                action_output_nodes += output_expr_nodes
+
+                if action_output.new_expr_args is not None:
+                    arg_group_nodes, history_expr_id = self._context_node_data_groups(
+                        history_number=history_number,
+                        history_type=HISTORY_TYPE_ACTION,
+                        group_context=ACTION_OUTPUT_ARG_GROUP_CONTEXT,
+                        groups=[action_output.new_expr_args],
+                        history_expr_id=history_expr_id,
+                    )
+                    action_output_nodes += arg_group_nodes
+            elif isinstance(action_output, RemovePartialDefinitionActionOutput):
                 action_output_nodes.append(create_node(
                     subcontext=ACTION_OUTPUT_SUBCONTEXT_PARTIAL_DEFINITION_IDX,
                     node_value=action_output.partial_definition_idx,
@@ -456,6 +502,11 @@ class FullState:
                     history_expr_id=history_expr_id,
                 )
                 action_output_nodes += output_expr_nodes
+            elif isinstance(action_output, RemoveArgGroupActionOutput):
+                action_output_nodes.append(create_node(
+                    subcontext=ACTION_OUTPUT_SUBCONTEXT_ARG_GROUP_IDX,
+                    node_value=action_output.arg_group_idx,
+                ))
             elif isinstance(action_output, NewDefinitionFromPartialActionOutput):
                 action_output_nodes.append(create_node(
                     subcontext=ACTION_OUTPUT_SUBCONTEXT_DEFINITION_IDX,
@@ -466,19 +517,6 @@ class FullState:
                     subcontext=ACTION_OUTPUT_SUBCONTEXT_PARTIAL_DEFINITION_IDX,
                     node_value=action_output.partial_definition_idx,
                 ))
-            elif isinstance(action_output, NewDefinitionFromExprActionOutput):
-                action_output_nodes.append(create_node(
-                    subcontext=ACTION_OUTPUT_SUBCONTEXT_DEFINITION_IDX,
-                    node_value=action_output.definition_idx,
-                ))
-
-                assert action_output.new_expr_info is not None
-
-                output_expr_nodes, history_expr_id = create_expr_tree(
-                    expr_info=action_output.new_expr_info,
-                    history_expr_id=history_expr_id,
-                )
-                action_output_nodes += output_expr_nodes
             elif isinstance(action_output, ReplaceByDefinitionActionOutput):
                 action_output_nodes.append(create_node(
                     subcontext=ACTION_OUTPUT_SUBCONTEXT_DEFINITION_IDX,
@@ -490,6 +528,16 @@ class FullState:
                         subcontext=ACTION_OUTPUT_SUBCONTEXT_EXPR_ID,
                         node_value=action_output.expr_id,
                     ))
+            elif isinstance(action_output, ExpandDefinitionActionOutput):
+                action_output_nodes.append(create_node(
+                    subcontext=ACTION_OUTPUT_SUBCONTEXT_DEFINITION_IDX,
+                    node_value=action_output.definition_idx,
+                ))
+
+                action_output_nodes.append(create_node(
+                    subcontext=ACTION_OUTPUT_SUBCONTEXT_EXPR_ID,
+                    node_value=action_output.expr_id,
+                ))
             elif isinstance(action_output, ReformulationActionOutput):
                 action_output_nodes.append(create_node(
                     subcontext=ACTION_OUTPUT_SUBCONTEXT_EXPR_ID,
@@ -514,9 +562,7 @@ class FullState:
         history_number: int,
         history_type: int,
         group_context: int,
-        group_subcontext: int,
-        expression_context: int,
-        groups: list[ArgGroup],
+        groups: typing.Sequence[ArgGroup],
         history_expr_id: int,
     ) -> tuple[list[NodeItemData], int]:
         nodes: list[NodeItemData] = []
@@ -527,13 +573,12 @@ class FullState:
                 history_number=history_number,
                 history_type=history_type,
                 group_context=group_context,
-                group_subcontext=group_subcontext,
-                group_item=i+1,
-                expression_context=expression_context,
+                group_main_subcontext=GENERAL_ARG_GROUP_MAIN_SUBCONTEXT,
+                group_expr_subcontext=GENERAL_ARG_GROUP_EXPR_SUBCONTEXT,
+                group_idx=i+1,
                 group=group,
                 history_expr_id=next_history_expr_id,
             )
-
             nodes += iter_nodes
 
         return nodes, next_history_expr_id
@@ -544,9 +589,9 @@ class FullState:
         history_number: int,
         history_type: int,
         group_context: int,
-        group_subcontext: int,
-        group_item: int,
-        expression_context: int,
+        group_main_subcontext: int,
+        group_expr_subcontext: int,
+        group_idx: int,
         group: ArgGroup,
         history_expr_id: int,
     ) -> tuple[list[NodeItemData], int]:
@@ -554,8 +599,8 @@ class FullState:
             history_number=history_number,
             history_type=history_type,
             context=group_context,
-            subcontext=group_subcontext,
-            item_idx=group_item,
+            subcontext=group_main_subcontext,
+            item_idx=group_idx,
             item_context=UNKNOWN_OR_EMPTY_FIELD,
             node_type=UNKNOWN_OR_EMPTY_FIELD,
             node_value=group.amount,
@@ -565,8 +610,9 @@ class FullState:
             iter_nodes, history_expr_id = self._expr_tree_data_list(
                 history_number=history_number,
                 history_type=history_type,
-                context=expression_context,
-                subcontext=group_item,
+                context=group_context,
+                subcontext=group_expr_subcontext,
+                group_idx=group_idx,
                 item_idx=i+1,
                 history_expr_id=history_expr_id,
                 expr_info=ExprInfo(expr=expr, params=group.params) if expr is not None else None,
@@ -583,6 +629,7 @@ class FullState:
         history_type: int,
         context: int,
         subcontext: int,
+        group_idx: int,
         item_idx: int,
         history_expr_id: int,
         expr_info: ExprInfo | None,
@@ -593,6 +640,7 @@ class FullState:
             history_type=history_type,
             context=context,
             subcontext=subcontext,
+            group_idx=group_idx,
             item_idx=item_idx,
             item_context=GENERAL_ITEM_CONTEXT_TYPE_IDX,
             expr=expr_info.expr if expr_info is not None else None,
@@ -610,6 +658,7 @@ class FullState:
                     history_type=history_type,
                     context=context,
                     subcontext=subcontext,
+                    group_idx=group_idx,
                     item_idx=item_idx,
                     item_context=GENERAL_ITEM_CONTEXT_PARAM_IDX,
                     node_value=param.index,
@@ -621,6 +670,7 @@ class FullState:
             history_type=history_type,
             context=context,
             subcontext=subcontext,
+            group_idx=group_idx,
             item_idx=item_idx,
             item_context=GENERAL_ITEM_CONTEXT_EXPR_IDX,
             history_expr_id=history_expr_id,
@@ -636,6 +686,7 @@ class FullState:
         history_type: int,
         context: int,
         subcontext: int,
+        group_idx: int,
         item_idx: int,
         item_context: int,
         history_expr_id: int,
@@ -650,6 +701,7 @@ class FullState:
             history_type=history_type,
             context=context,
             subcontext=subcontext,
+            group_idx=group_idx,
             item_idx=item_idx,
             item_context=item_context,
             parent_node_idx=parent_node_idx,
@@ -668,6 +720,7 @@ class FullState:
                 history_type=history_type,
                 context=context,
                 subcontext=subcontext,
+                group_idx=group_idx,
                 item_idx=item_idx,
                 item_context=item_context,
                 parent_node_idx=node_idx,
@@ -675,7 +728,6 @@ class FullState:
                 history_expr_id=next_history_expr_id,
                 expr=arg,
             )
-
             nodes += inner_nodes
 
         return nodes, next_node_idx, next_history_expr_id
@@ -686,6 +738,7 @@ class FullState:
         history_type: int,
         context: int,
         subcontext: int,
+        group_idx: int,
         item_idx: int,
         item_context: int,
         history_expr_id: int | None,
@@ -712,6 +765,7 @@ class FullState:
             history_type=history_type,
             context=context,
             subcontext=subcontext,
+            group_idx=group_idx,
             item_idx=item_idx,
             item_context=item_context,
             parent_node_idx=parent_node_idx,
