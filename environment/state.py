@@ -119,7 +119,11 @@ class State:
         return None, index
 
     @classmethod
-    def get_partial_definition_node(cls, root_info: ExprInfo | None, index: int) -> BaseNode | None:
+    def get_partial_definition_node(
+        cls,
+        root_info: ExprInfo | None,
+        index: int,
+    ) -> BaseNode | None:
         if root_info is None:
             return None
         node, _, __ = cls._index_to_expr(root_info.expr, index, parent=False)
@@ -129,38 +133,29 @@ class State:
         index = expr_id
         assert index > 0
 
-        for definition_key, expr_info in self.definitions:
-            index -= 1
-            if index == 0:
-                assert expr_info is not None
-                return ExprStatusInfo(
-                    expr=definition_key,
-                    params=expr_info.params,
-                    readonly=True)
-
-            new_expr, index, _ = self._index_to_expr(
-                root=expr_info.expr,
-                index=index,
-                parent=False)
-            assert index >= 0
-            if index == 0:
-                assert new_expr is not None
-                return ExprStatusInfo(
-                    expr=new_expr,
-                    params=expr_info.params,
-                    readonly=False)
-
-        partial_definitions: list[ExprInfo] = [
-            expr_info
-            for expr_info in self.partial_definitions or []
+        expr_list: list[tuple[FunctionDefinition | None, ExprInfo]] = []
+        expr_list += list(self.definitions)
+        expr_list += [
+            (None, expr_info)
+            for expr_info in self.partial_definitions
             if expr_info is not None]
-        arg_exprs: list[ExprInfo] = [
-            ExprInfo(expr=expr, params=group.params)
-            for group in self.arg_groups or []
+        expr_list += [
+            (None, ExprInfo(expr=expr, params=group.params))
+            for group in self.arg_groups
             for expr in group.expressions
             if expr is not None]
 
-        for expr_info in partial_definitions + arg_exprs:
+        for definition_key, expr_info in expr_list:
+            if definition_key is not None:
+                index -= 1
+                assert index >= 0
+                if index == 0:
+                    assert expr_info is not None
+                    return ExprStatusInfo(
+                        expr=definition_key,
+                        params=expr_info.params,
+                        readonly=True)
+
             new_expr, index, _ = self._index_to_expr(
                 root=expr_info.expr,
                 index=index,
