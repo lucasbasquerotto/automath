@@ -26,10 +26,10 @@ ARG_TYPES = [
     ACTION_ARG_TYPE_INT,
 ]
 
-def _validate_args():
-    for i, arg in enumerate(ARG_TYPES):
+def _validate_indexes(idx_list: list[int]):
+    for i, arg in enumerate(idx_list):
         assert arg == i + 1, f"Invalid arg type: {arg} (expected: {i + 1})"
-_validate_args()
+_validate_indexes(ARG_TYPES)
 
 ###########################################################
 ###################### ACTION INPUT #######################
