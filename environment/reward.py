@@ -19,13 +19,13 @@ class DefaultRewardEvaluator(RewardEvaluator):
             return self._goal_reward  # Reached the objective
 
         weight = 1
-        for _, expr_info in next_state.definitions:
+        for _, function_info in next_state.definitions:
             weight += 100
-            weight += 10*len(expr_info.expr.atoms(BaseNode))
-        for expr_info_p in current_state.partial_definitions:
+            weight += 10*len(function_info.expr.atoms(BaseNode))
+        for function_info_p in current_state.partial_definitions:
             weight += 10
-            if expr_info_p is not None:
-                weight += len(expr_info_p.expr.atoms(BaseNode))
+            if function_info_p is not None:
+                weight += len(function_info_p.expr.atoms(BaseNode))
         for arg_group in current_state.arg_groups:
             for expr in arg_group.expressions:
                 weight += 10

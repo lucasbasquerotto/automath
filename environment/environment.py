@@ -5,7 +5,7 @@ class Environment:
     def __init__(
         self,
         meta: FullEnvMetaInfo,
-        max_steps: int = 100000,
+        max_steps: int | None = None,
         max_history_size: int | None = None,
     ):
         self._meta = meta
@@ -16,6 +16,10 @@ class Environment:
         self._current_state = self._initial_state
         self._max_steps = max_steps
         self._current_step = 0
+
+    @property
+    def current_state(self) -> FullState:
+        return self._current_state
 
     def reset(self) -> FullState:
         self._current_state = self._initial_state
@@ -33,6 +37,10 @@ class Environment:
         last_state = next_state.last_state
         assert last_state is not None
         terminated = meta.is_terminal(last_state)
-        truncated = self._current_step >= self._max_steps and not terminated
+        truncated = (
+            (self._current_step >= self._max_steps and not terminated)
+            if self._max_steps is not None
+            else False
+            )
         self._current_state = next_state
         return next_state, reward, terminated, truncated

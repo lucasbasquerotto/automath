@@ -1,7 +1,7 @@
 import typing
-from utils.types import BaseNode, FunctionDefinition, ParamVar, ExprInfo, ArgGroup
+from utils.types import BaseNode, FunctionDefinition, ParamVar, FunctionInfo, ArgGroup, UniqueElem
 
-class ExprStatusInfo(ExprInfo):
+class ExprStatusInfo(FunctionInfo):
     def __init__(self, expr: BaseNode, params: tuple[ParamVar, ...], readonly: bool):
         super().__init__(expr=expr, params=params)
         self._readonly = readonly
@@ -13,22 +13,22 @@ class ExprStatusInfo(ExprInfo):
 class State:
     def __init__(
         self,
-        definitions: tuple[tuple[FunctionDefinition, ExprInfo], ...],
-        partial_definitions: tuple[ExprInfo | None, ...],
+        definitions: tuple[tuple[FunctionDefinition, FunctionInfo], ...],
+        partial_definitions: tuple[FunctionInfo | None, ...],
         arg_groups: tuple[ArgGroup, ...],
     ):
         for i, (d, _) in enumerate(definitions):
-            assert d.index == i + 1
+            assert d.value == i + 1
         self._definitions = definitions
         self._partial_definitions = partial_definitions
         self._arg_groups = arg_groups
 
     @property
-    def definitions(self) -> tuple[tuple[FunctionDefinition, ExprInfo], ...]:
+    def definitions(self) -> tuple[tuple[FunctionDefinition, FunctionInfo], ...]:
         return self._definitions
 
     @property
-    def partial_definitions(self) -> tuple[ExprInfo | None, ...]:
+    def partial_definitions(self) -> tuple[FunctionInfo | None, ...]:
         return self._partial_definitions
 
     @property
@@ -57,7 +57,8 @@ class State:
 
         if index > 0:
             parent_expr = root
-            for i, arg in enumerate(root.args):
+            args = tuple() if isinstance(expr, UniqueElem) else root.args
+            for i, arg in enumerate(args):
                 # recursive call each node arg to traverse its subtree
                 expr, index, child_index = cls._index_to_expr(
                     root=arg,
@@ -76,37 +77,38 @@ class State:
     @classmethod
     def _replace_expr_index(
         cls,
-        root_info: ExprInfo | None,
+        root_info: FunctionInfo | None,
         index: int,
-        new_expr_info: ExprInfo,
-    ) -> tuple[ExprInfo | None, int]:
+        new_function_info: FunctionInfo,
+    ) -> tuple[FunctionInfo | None, int]:
         assert index > 0
         assert isinstance(index, int)
         index -= 1
 
         if index == 0:
             outer_params = root_info.params if root_info is not None else tuple()
-            assert len(new_expr_info.params) <= len(outer_params)
-            new_expr = new_expr_info.expr.subs({
+            assert len(new_function_info.params) <= len(outer_params)
+            new_expr = new_function_info.expr.subs({
                 p: outer_params[i]
-                for i, p in enumerate(new_expr_info.params)
+                for i, p in enumerate(new_function_info.params)
             })
             new_params: tuple[ParamVar, ...] = (
                 root_info.params
                 if root_info is not None
                 else tuple())
-            return ExprInfo(expr=new_expr, params=new_params), index
+            return FunctionInfo(expr=new_expr, params=new_params), index
 
         assert root_info is not None
 
-        args_list: list[BaseNode] = list(root_info.expr.args)
+        args = tuple() if isinstance(root_info.expr, UniqueElem) else root_info.expr.args
+        args_list: list[BaseNode] = list(args)
 
         for i, arg in enumerate(args_list):
             # recursive call each node arg to traverse its subtree
             new_arg_info, index = cls._replace_expr_index(
-                root_info=ExprInfo(expr=arg, params=root_info.params),
+                root_info=FunctionInfo(expr=arg, params=root_info.params),
                 index=index,
-                new_expr_info=new_expr_info)
+                new_function_info=new_function_info)
             assert index >= 0
             # it will end when index = 0 (it's the actual node, if any)
             # otherwise, it will go to the next arg
@@ -121,7 +123,7 @@ class State:
     @classmethod
     def get_partial_definition_node(
         cls,
-        root_info: ExprInfo | None,
+        root_info: FunctionInfo | None,
         index: int,
     ) -> BaseNode | None:
         if root_info is None:
@@ -133,31 +135,31 @@ class State:
         index = expr_id
         assert index > 0
 
-        expr_list: list[tuple[FunctionDefinition | None, ExprInfo]] = []
+        expr_list: list[tuple[FunctionDefinition | None, FunctionInfo]] = []
         expr_list += list(self.definitions)
         expr_list += [
-            (None, expr_info)
-            for expr_info in self.partial_definitions
-            if expr_info is not None]
+            (None, function_info)
+            for function_info in self.partial_definitions
+            if function_info is not None]
         expr_list += [
-            (None, ExprInfo(expr=expr, params=group.params))
+            (None, FunctionInfo(expr=expr, params=group.params))
             for group in self.arg_groups
             for expr in group.expressions
             if expr is not None]
 
-        for definition_key, expr_info in expr_list:
+        for definition_key, function_info in expr_list:
             if definition_key is not None:
                 index -= 1
                 assert index >= 0
                 if index == 0:
-                    assert expr_info is not None
+                    assert function_info is not None
                     return ExprStatusInfo(
                         expr=definition_key,
-                        params=expr_info.params,
+                        params=function_info.params,
                         readonly=True)
 
             new_expr, index, _ = self._index_to_expr(
-                root=expr_info.expr,
+                root=function_info.expr,
                 index=index,
                 parent=False)
             assert index >= 0
@@ -165,7 +167,7 @@ class State:
                 assert new_expr is not None
                 return ExprStatusInfo(
                     expr=new_expr,
-                    params=expr_info.params,
+                    params=function_info.params,
                     readonly=False)
 
         return None
@@ -198,7 +200,7 @@ class State:
         self,
         partial_definition_idx: int,
         node_idx: int,
-        new_expr_info: ExprInfo,
+        new_function_info: FunctionInfo,
     ) -> 'State':
         partial_definitions_list = list(self.partial_definitions or [])
         assert partial_definition_idx > 0
@@ -207,7 +209,7 @@ class State:
         new_root, index = self._replace_expr_index(
             root_info=root_info,
             index=node_idx,
-            new_expr_info=new_expr_info)
+            new_function_info=new_function_info)
         assert index == 0
         assert new_root is not None
         partial_definitions_list[partial_definition_idx - 1] = new_root
@@ -220,48 +222,48 @@ class State:
         self,
         arg_group_idx: int,
         arg_idx: int,
-        new_expr_info: ExprInfo,
+        new_function_info: FunctionInfo,
     ) -> 'State':
         arg_groups_list = list(self.arg_groups or [])
         assert arg_group_idx > 0
         assert arg_group_idx <= len(arg_groups_list)
         arg_group = arg_groups_list[arg_group_idx - 1]
-        expr_info_list = list(arg_group.expressions)
+        function_info_list = list(arg_group.expressions)
         assert arg_group.amount == len(arg_group.params)
-        assert arg_group.amount == len(expr_info_list)
+        assert arg_group.amount == len(function_info_list)
         assert arg_idx > 0
         assert arg_idx <= len(arg_group.expressions)
-        assert isinstance(new_expr_info.expr, BaseNode)
-        assert len(new_expr_info.params) <= len(arg_group.params)
-        new_expr = new_expr_info.expr.subs({
+        assert isinstance(new_function_info.expr, BaseNode)
+        assert len(new_function_info.params) <= len(arg_group.params)
+        new_expr = new_function_info.expr.subs({
             p: arg_group.params[i]
-            for i, p in enumerate(new_expr_info.params)
+            for i, p in enumerate(new_function_info.params)
         })
-        expr_info_list[arg_idx - 1] = new_expr
+        function_info_list[arg_idx - 1] = new_expr
         arg_groups_list[arg_group_idx] = ArgGroup(
             amount=arg_group.amount,
             params=arg_group.params,
-            expressions=tuple(expr_info_list))
+            expressions=tuple(function_info_list))
         return State(
             definitions=self.definitions,
             partial_definitions=self.partial_definitions,
             arg_groups=tuple(arg_groups_list))
 
-    def apply_new_expr(self, expr_id: int, new_expr_info: ExprInfo) -> 'State':
+    def apply_new_expr(self, expr_id: int, new_function_info: FunctionInfo) -> 'State':
         assert expr_id is not None
         assert expr_id > 0
 
         index = expr_id
 
         definitions_list = list(self.definitions or [])
-        for i, (key, expr_info) in enumerate(definitions_list):
+        for i, (key, function_info) in enumerate(definitions_list):
             index -= 1
             assert index > 0
 
             new_root_info, index = self._replace_expr_index(
-                root_info=expr_info,
+                root_info=function_info,
                 index=index,
-                new_expr_info=new_expr_info)
+                new_function_info=new_function_info)
             assert index >= 0
             if index == 0:
                 assert new_root_info is not None
@@ -272,13 +274,13 @@ class State:
                     arg_groups=self.arg_groups)
 
         partial_definitions_list = list(self.partial_definitions or [])
-        for i, expr_info_p in enumerate(partial_definitions_list):
-            if expr_info_p is not None:
-                expr_info = expr_info_p
+        for i, function_info_p in enumerate(partial_definitions_list):
+            if function_info_p is not None:
+                function_info = function_info_p
                 new_root_info, index = self._replace_expr_index(
-                    root_info=expr_info,
+                    root_info=function_info,
                     index=index,
-                    new_expr_info=new_expr_info)
+                    new_function_info=new_function_info)
                 assert index >= 0
                 if index == 0:
                     assert new_root_info is not None
@@ -295,9 +297,9 @@ class State:
                 if expr_p is not None:
                     expr = expr_p
                     new_root_info, index = self._replace_expr_index(
-                        root_info=ExprInfo(expr=expr, params=arg_group.params),
+                        root_info=FunctionInfo(expr=expr, params=arg_group.params),
                         index=index,
-                        new_expr_info=new_expr_info)
+                        new_function_info=new_function_info)
                     assert index >= 0
                     if index == 0:
                         assert new_root_info is not None
@@ -316,26 +318,26 @@ class State:
     @classmethod
     def same_definitions(
         cls,
-        my_definitions: typing.Sequence[ExprInfo | None],
-        other_definitions: typing.Sequence[ExprInfo | None],
+        my_definitions: typing.Sequence[FunctionInfo | None],
+        other_definitions: typing.Sequence[FunctionInfo | None],
     ) -> bool:
         if len(my_definitions) != len(other_definitions):
             return False
 
         return all(
-            (expr_info == other_expr_info == None)
+            (function_info == other_function_info == None)
             or
             (
-                expr_info is not None
+                function_info is not None
                 and
-                other_expr_info is not None
+                other_function_info is not None
                 and
-                expr_info.expr == other_expr_info.expr.subs({
-                    other_expr_info.params[i]: expr_info.params[i]
-                    for i in range(min(len(expr_info.params), len(other_expr_info.params)))
+                function_info.expr == other_function_info.expr.subs({
+                    other_function_info.params[i]: function_info.params[i]
+                    for i in range(min(len(function_info.params), len(other_function_info.params)))
                 })
             )
-            for expr_info, other_expr_info in zip(my_definitions, other_definitions)
+            for function_info, other_function_info in zip(my_definitions, other_definitions)
         )
 
     def __eq__(self, other) -> bool:
@@ -344,22 +346,22 @@ class State:
 
         same_definitions = self.same_definitions(
             my_definitions=[
-                expr_info
-                for _, expr_info in list(self.definitions or [])],
+                function_info
+                for _, function_info in list(self.definitions or [])],
             other_definitions=[
-                expr_info
-                for _, expr_info in list(other.definitions or [])])
+                function_info
+                for _, function_info in list(other.definitions or [])])
 
         if not same_definitions:
             return False
 
         same_partial_definitions = self.same_definitions(
             my_definitions=[
-                expr_info
-                for expr_info in list(self.partial_definitions or [])],
+                function_info
+                for function_info in list(self.partial_definitions or [])],
             other_definitions=[
-                expr_info
-                for expr_info in list(other.partial_definitions or [])])
+                function_info
+                for function_info in list(other.partial_definitions or [])])
 
         if not same_partial_definitions:
             return False

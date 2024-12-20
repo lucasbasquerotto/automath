@@ -1,8 +1,12 @@
 import typing
-from utils.types import BASIC_NODE_TYPES, IndexedElem, Integer
+from utils.types import BASIC_NODE_TYPES, UniqueElem, Integer, InheritableNode
 from .state import State, BaseNode
-from .action import BASIC_ACTIONS, Action, ActionMetaInfo, ActionInput, ActionOutput
-from .reward import RewardEvaluator
+from .action import BASIC_ACTION_TYPES, Action, ActionMetaInfo, ActionInput, ActionOutput
+from .reward import RewardEvaluator, DefaultRewardEvaluator
+
+class GoalNode(InheritableNode):
+    def evaluate(self, state: State) -> bool:
+        raise NotImplementedError()
 
 class ActionData:
     def __init__(self, type: int, input: ActionInput, output: ActionOutput | None):
@@ -30,8 +34,8 @@ class NodeTypeHandler:
 
 class DefaultNodeTypeHandler(NodeTypeHandler):
     def get_value(self, node: BaseNode) -> int:
-        if isinstance(node, IndexedElem):
-            return node.index
+        if isinstance(node, UniqueElem):
+            return node.value
         if isinstance(node, Integer):
             return int(node)
         return 0
@@ -39,25 +43,25 @@ class DefaultNodeTypeHandler(NodeTypeHandler):
 class EnvMetaInfo:
     def __init__(
         self,
-        main_context: int,
+        goal: GoalNode,
         node_types: tuple[typing.Type[BaseNode], ...],
         node_type_handler: NodeTypeHandler,
         action_types: tuple[typing.Type[Action], ...],
     ):
-        self._main_context = main_context
+        self._goal = goal
         self._node_types = node_types
         self._node_type_handler = node_type_handler
         self._action_types = action_types
         self._action_types_info = tuple([
             ActionMetaInfo(
-                type_idx=i,
+                type_idx=i+1,
                 arg_types=action.metadata().arg_types,
             ) for i, action in enumerate(action_types)
         ])
 
     @property
-    def main_context(self) -> int:
-        return self._main_context
+    def goal(self) -> GoalNode:
+        return self._goal
 
     @property
     def node_types(self) -> tuple[typing.Type[BaseNode], ...]:
@@ -78,22 +82,26 @@ class EnvMetaInfo:
 class FullEnvMetaInfo(EnvMetaInfo):
     def __init__(
         self,
-        main_context: int,
-        reward_evaluator: RewardEvaluator,
-        initial_history: tuple[StateHistoryItem, ...],
-        is_terminal: typing.Callable[[State], bool],
+        goal: GoalNode,
+        reward_evaluator: RewardEvaluator | None = None,
+        initial_history: tuple[StateHistoryItem, ...] = tuple(),
         node_types: tuple[typing.Type[BaseNode], ...] = BASIC_NODE_TYPES,
         node_type_handler: NodeTypeHandler = DefaultNodeTypeHandler(),
-        action_types: tuple[typing.Type[Action], ...] = BASIC_ACTIONS,
+        action_types: tuple[typing.Type[Action], ...] = BASIC_ACTION_TYPES,
     ):
         super().__init__(
-            main_context=main_context,
+            goal=goal,
             node_types=node_types,
             node_type_handler=node_type_handler,
             action_types=action_types)
+
+        reward_evaluator = (
+            reward_evaluator
+            if reward_evaluator is not None
+            else DefaultRewardEvaluator(goal.evaluate))
+
         self._reward_evaluator = reward_evaluator
         self._initial_history = initial_history
-        self._is_terminal = is_terminal
 
     @property
     def reward_evaluator(self) -> RewardEvaluator:
@@ -104,4 +112,4 @@ class FullEnvMetaInfo(EnvMetaInfo):
         return self._initial_history
 
     def is_terminal(self, state: State) -> bool:
-        return self._is_terminal(state)
+        return self.goal.evaluate(state)

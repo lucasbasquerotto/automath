@@ -1,7 +1,8 @@
 import typing
 import numpy as np
 from utils.logger import logger
-from .state import State, BaseNode, FunctionDefinition, ExprInfo, ArgGroup
+from utils.types import UniqueElem
+from .state import State, BaseNode, FunctionDefinition, FunctionInfo, ArgGroup
 from .action import (
     Action,
     InvalidActionException,
@@ -161,7 +162,7 @@ class NodeItemData:
         history_expr_id: int | None,
         expr: BaseNode | None,
     ):
-        assert history_number > 0
+        assert history_number >= 0
         assert history_type in ALL_HISTORY_TYPES
         assert context in ALL_CONTEXTS
         assert subcontext in ALL_SUBCONTEXTS + [UNDEFINED_OR_EMPTY_FIELD]
@@ -326,11 +327,17 @@ class NodeItemData:
             self._history_expr_id or UNDEFINED_OR_EMPTY_FIELD,
         ])
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, NodeItemData):
+            return False
+        return np.array_equal(self.to_array(), other.to_array())
+
 class FullState:
     def __init__(
         self,
         meta: EnvMetaInfo,
         history: tuple[StateHistoryItem, ...],
+        last_history_idx: int | None = None,
         max_history_state_size: int | None = None,
     ):
         assert len(meta.node_types) > 0
@@ -340,14 +347,18 @@ class FullState:
         assert len(meta.action_types) == len(set(meta.action_types))
         if max_history_state_size is not None:
             assert max_history_state_size >= 0
+
+        last_history_idx = last_history_idx if last_history_idx is not None else len(history)
+
         self._meta = meta
         self._history = history
+        self._last_history_idx = last_history_idx
         self._max_history_state_size = max_history_state_size
 
     @classmethod
     def initial_state(
         cls,
-        initial_definitions: typing.Sequence[ExprInfo],
+        initial_definitions: typing.Sequence[FunctionInfo],
     ) -> tuple[State, list[FunctionDefinition]]:
         definition_keys = [FunctionDefinition(i+1) for i in range(len(initial_definitions))]
         definitions = tuple(zip(definition_keys, initial_definitions))
@@ -395,6 +406,8 @@ class FullState:
         history.append(action_data)
         history.append(next_state)
 
+        last_history_idx = self._last_history_idx + len(history) - len(self._history)
+
         if self._max_history_state_size is not None:
             amount = 0
             for i, item in enumerate(history[::-1]):
@@ -407,6 +420,7 @@ class FullState:
         return FullState(
             meta=self._meta,
             history=tuple(history),
+            last_history_idx=last_history_idx,
             max_history_state_size=self._max_history_state_size,
         )
 
@@ -419,16 +433,19 @@ class FullState:
         nodes_meta = self._node_data_list_meta_main(history_number=0)
         nodes_states: list[NodeItemData] = []
         nodes_actions: list[NodeItemData] = []
+        last_history_idx = self._last_history_idx
+        history_amount = len(self._history)
 
         for i, history_item in enumerate(self._history):
+            history_number = last_history_idx - history_amount + i + 1
             if isinstance(history_item, State):
                 nodes_state = self._node_data_list_state(
-                    history_number=i+1,
+                    history_number=history_number,
                     state=history_item)
                 nodes_states += nodes_state
             elif isinstance(history_item, ActionData):
                 nodes_action = self._node_data_list_action(
-                    history_number=i+1,
+                    history_number=history_number,
                     action_data=history_item)
                 nodes_actions += nodes_action
 
@@ -469,10 +486,10 @@ class FullState:
 
     def _node_data_list_state(self, history_number: int, state: State) -> list[NodeItemData]:
         history_expr_id = 1
-        expr_info: ExprInfo | None = None
+        function_info: FunctionInfo | None = None
 
         definitions_nodes: list[NodeItemData] = []
-        for i, (definition, expr_info) in enumerate(state.definitions):
+        for i, (definition, function_info) in enumerate(state.definitions):
             definitions_nodes.append(NodeItemData.with_defaults(
                 history_number=history_number,
                 history_type=HISTORY_TYPE_STATE,
@@ -480,7 +497,7 @@ class FullState:
                 subcontext=UNDEFINED_OR_EMPTY_FIELD,
                 item_idx=i+1,
                 item_context=ITEM_CONTEXT_SYMBOL_IDX,
-                node_value=definition.index,
+                node_value=definition.value,
                 history_expr_id=history_expr_id,
             ))
             iter_nodes, history_expr_id = self._expr_tree_data_list(
@@ -489,19 +506,19 @@ class FullState:
                 context=CONTEXT_STATE_DEFINITION,
                 item_idx=i+1,
                 history_expr_id=history_expr_id,
-                expr_info=expr_info,
+                function_info=function_info,
             )
             definitions_nodes += iter_nodes
 
         partial_definitions_nodes: list[NodeItemData] = []
-        for i, expr_info in enumerate(state.partial_definitions):
+        for i, function_info in enumerate(state.partial_definitions):
             iter_nodes, history_expr_id = self._expr_tree_data_list(
                 history_number=history_number,
                 history_type=HISTORY_TYPE_STATE,
                 context=CONTEXT_STATE_PARTIAL_DEFINITION,
                 item_idx=i+1,
                 history_expr_id=history_expr_id,
-                expr_info=expr_info,
+                function_info=function_info,
             )
             partial_definitions_nodes += iter_nodes
 
@@ -574,14 +591,14 @@ class FullState:
                     node_value=node_value,
                 )
 
-            def create_expr_tree(expr_info: ExprInfo, history_expr_id: int):
+            def create_expr_tree(function_info: FunctionInfo, history_expr_id: int):
                 output_expr_nodes, history_expr_id = self._expr_tree_data_list(
                     history_number=history_number,
                     history_type=HISTORY_TYPE_ACTION,
                     context=CONTEXT_ACTION_OUTPUT,
                     subcontext=SUBCONTEXT_ACTION_OUTPUT_NODE_EXPR,
                     history_expr_id=history_expr_id,
-                    expr_info=expr_info,
+                    function_info=function_info,
                 )
                 return output_expr_nodes, history_expr_id
 
@@ -602,7 +619,7 @@ class FullState:
                 ))
 
                 output_expr_nodes, history_expr_id = create_expr_tree(
-                    expr_info=action_output.new_expr_info,
+                    function_info=action_output.new_function_info,
                     history_expr_id=history_expr_id,
                 )
                 action_output_nodes += output_expr_nodes
@@ -640,7 +657,7 @@ class FullState:
                 ))
 
                 output_expr_nodes, history_expr_id = create_expr_tree(
-                    expr_info=action_output.new_expr_info,
+                    function_info=action_output.new_function_info,
                     history_expr_id=history_expr_id,
                 )
                 action_output_nodes += output_expr_nodes
@@ -687,7 +704,7 @@ class FullState:
                 ))
 
                 output_expr_nodes, history_expr_id = create_expr_tree(
-                    expr_info=action_output.new_expr_info,
+                    function_info=action_output.new_function_info,
                     history_expr_id=history_expr_id,
                 )
                 action_output_nodes += output_expr_nodes
@@ -761,7 +778,10 @@ class FullState:
                 group_subcontext=GROUP_SUBCONTEXT_ARG_GROUP_EXPR,
                 item_idx=i+1,
                 history_expr_id=history_expr_id,
-                expr_info=ExprInfo(expr=expr, params=group.params) if expr is not None else None,
+                function_info=(
+                    FunctionInfo(expr=expr, params=group.params)
+                    if expr is not None
+                    else None),
                 skip_params=True,
             )
 
@@ -775,7 +795,7 @@ class FullState:
         history_type: int,
         context: int,
         history_expr_id: int,
-        expr_info: ExprInfo | None,
+        function_info: FunctionInfo | None,
         subcontext: int = UNDEFINED_OR_EMPTY_FIELD,
         group_idx: int = UNDEFINED_OR_EMPTY_FIELD,
         group_context: int = UNDEFINED_OR_EMPTY_FIELD,
@@ -793,16 +813,16 @@ class FullState:
             group_subcontext=group_subcontext,
             item_idx=item_idx,
             item_context=ITEM_CONTEXT_TYPE_IDX,
-            expr=expr_info.expr if expr_info is not None else None,
-            node_value=len(expr_info.params) if expr_info is not None else 0,
+            expr=function_info.expr if function_info is not None else None,
+            node_value=len(function_info.params) if function_info is not None else 0,
         )
         nodes: list[NodeItemData] = [type_data]
 
-        if expr_info is None:
+        if function_info is None:
             return nodes, history_expr_id
 
         if not skip_params:
-            for param in expr_info.params:
+            for param in function_info.params:
                 param_data = NodeItemData.with_defaults(
                     history_number=history_number,
                     history_type=history_type,
@@ -813,7 +833,7 @@ class FullState:
                     group_subcontext=group_subcontext,
                     item_idx=item_idx,
                     item_context=ITEM_CONTEXT_PARAM_IDX,
-                    node_value=param.index,
+                    node_value=param.value,
                 )
                 nodes.append(param_data)
 
@@ -828,7 +848,7 @@ class FullState:
             item_idx=item_idx,
             item_context=ITEM_CONTEXT_EXPR_IDX,
             history_expr_id=history_expr_id,
-            expr=expr_info.expr,
+            expr=function_info.expr,
         )
         nodes += expr_nodes
 
@@ -872,8 +892,9 @@ class FullState:
         parent_node_idx = node_idx
         next_node_idx = node_idx + 1
         next_history_expr_id = history_expr_id + 1
+        args = tuple() if isinstance(expr, UniqueElem) else expr.args
 
-        for arg in expr.args:
+        for arg in args:
             inner_nodes, next_node_idx, next_history_expr_id = self._expr_subtree_data_list(
                 history_number=history_number,
                 history_type=history_type,
@@ -914,9 +935,15 @@ class FullState:
         if expr is not None:
             node_type_idxs = [i+1 for i, t in enumerate(meta.node_types) if isinstance(expr, t)]
             assert len(node_type_idxs) == 1
-            composite_node = int(len(expr.args) > 0)
+            composite_node = (
+                False
+                if isinstance(expr, UniqueElem)
+                else int(len(expr.args) > 0))
             node_type_idx = node_type_idxs[0]
-            node_value = meta.node_type_handler.get_value(expr)
+            node_value = (
+                expr.value
+                if isinstance(expr, UniqueElem)
+                else meta.node_type_handler.get_value(expr))
         else:
             composite_node = UNDEFINED_OR_EMPTY_FIELD
             node_type_idx = UNDEFINED_OR_EMPTY_FIELD
