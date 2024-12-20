@@ -118,7 +118,7 @@ ALL_ACTION_STATUSES = [
 
 def _validate_indexes(idx_list: list[int]):
     for i, arg in enumerate(idx_list):
-        assert arg == i + 1, f"Invalid arg type: {arg} (expected: {i + 1})"
+        assert arg == i + 1
 _validate_indexes(ALL_HISTORY_TYPES)
 _validate_indexes(ALL_CONTEXTS)
 _validate_indexes(ALL_SUBCONTEXTS)
@@ -160,12 +160,31 @@ class NodeItemData:
         history_expr_id: int | None,
         expr: BaseNode | None,
     ):
-        assert history_number > 0, f"Invalid history number: {history_number}"
+        assert history_number > 0
+        assert history_type in ALL_HISTORY_TYPES
+        assert context in ALL_CONTEXTS
+        assert subcontext in ALL_SUBCONTEXTS + [UNDEFINED_OR_EMPTY_FIELD]
+        assert group_idx >= 0
+        assert group_context in ALL_GROUP_CONTEXTS + [UNDEFINED_OR_EMPTY_FIELD]
+        assert group_subcontext in ALL_GROUP_SUBCONTEXTS + [UNDEFINED_OR_EMPTY_FIELD]
+        assert item_idx >= 0
+        assert item_context in ALL_ITEM_CONTEXTS + [UNDEFINED_OR_EMPTY_FIELD]
 
         if history_expr_id is not None:
-            assert history_expr_id > 0, f"Invalid history expression id: {history_expr_id}"
+            assert parent_node_idx > 0
+            assert node_idx > 0
+            assert atomic_node in [0, 1]
+            assert node_type > 0
+            assert history_expr_id > 0
+            assert expr is not None
+        else:
+            assert parent_node_idx == UNDEFINED_OR_EMPTY_FIELD
+            assert node_idx == UNDEFINED_OR_EMPTY_FIELD
+            assert atomic_node == UNDEFINED_OR_EMPTY_FIELD
+            assert node_type == UNDEFINED_OR_EMPTY_FIELD
+            assert expr is None
 
-        assert (expr is None) == (history_expr_id is None), "Invalid expr and history_expr_id"
+        assert node_value >= 0
 
         self._history_number = history_number
         self._history_type = history_type
@@ -317,7 +336,7 @@ class FullState:
         assert len(meta.node_types) == len(set(meta.node_types))
         assert meta.node_type_handler is not None
         assert len(meta.action_types) > 0
-        assert len(meta.action_types) == len(set(meta.action_types)), "Duplicate action types"
+        assert len(meta.action_types) == len(set(meta.action_types))
         self._meta = meta
         self._history = history
         self._max_history_size = max_history_size
@@ -349,9 +368,8 @@ class FullState:
         assert isinstance(last_state, State)
 
         action_types = self._meta.action_types
-        # action type index (0 is for no action)
         action_type = action_types.index(type(action)) + 1
-        assert action_type >= 1, f"Action type not found: {type(action)}"
+        assert action_type >= 1
 
         action_input = action.input
         action_output: ActionOutput | None
@@ -532,7 +550,7 @@ class FullState:
 
         if action_output is not None:
             action_output_type = ACTION_OUTPUT_TYPES.index(type(action_output)) + 1
-            assert action_output_type >= 1, f"Action output type not found: {type(action_output)}"
+            assert action_output_type >= 1
 
             def create_node(subcontext: int, node_value: int):
                 return NodeItemData.with_defaults(
@@ -882,9 +900,8 @@ class FullState:
         meta = self._meta
 
         if expr is not None:
-            # node_type_idx = 0 is for special node types (e.g: unknown, empty)
             node_type_idxs = [i+1 for i, t in enumerate(meta.node_types) if isinstance(expr, t)]
-            assert len(node_type_idxs) == 1, f"Invalid node type: {type(expr)}"
+            assert len(node_type_idxs) == 1
             atomic_node = int(len(expr.args) == 0)
             node_type_idx = node_type_idxs[0]
             node_value = meta.node_type_handler.get_value(expr)

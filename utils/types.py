@@ -61,8 +61,7 @@ class ArgGroup:
         params: tuple[ParamVar, ...],
         expressions: tuple[BaseNode | None, ...],
     ):
-        assert amount == len(expressions), \
-            f"Invalid amount of expressions: {amount} != {len(expressions)}"
+        assert amount == len(expressions)
         self._amount = amount
         self._params = params
         self._expressions = expressions

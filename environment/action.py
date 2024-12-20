@@ -28,7 +28,7 @@ ARG_TYPES = [
 
 def _validate_indexes(idx_list: list[int]):
     for i, arg in enumerate(idx_list):
-        assert arg == i + 1, f"Invalid arg type: {arg} (expected: {i + 1})"
+        assert arg == i + 1
 _validate_indexes(ARG_TYPES)
 
 ###########################################################
@@ -337,7 +337,6 @@ class Action:
                     if node_idx <= 0:
                         raise InvalidActionArgException(f"Invalid node index: {expr_id}")
 
-                    # Must be right after a partial definition
                     if i == 0:
                         raise InvalidActionArgException(
                             "The argument index must be right after a partial definition " + \
@@ -408,8 +407,7 @@ class Action:
         if isinstance(output, NewPartialDefinitionActionOutput):
             partial_definition_idx = output.partial_definition_idx
 
-            assert partial_definition_idx == len(state.partial_definitions or []) + 1, \
-                f"Invalid partial definition index: {partial_definition_idx}"
+            assert partial_definition_idx == len(state.partial_definitions or []) + 1
 
             partial_definitions = list(state.partial_definitions or [])
             partial_definitions.append(None)
@@ -425,16 +423,12 @@ class Action:
             new_expr_args = output.new_expr_args
             partial_definitions_list = list(state.partial_definitions or [])
 
-            assert partial_definition_idx is not None, "Empty partial definition index"
-            assert partial_definition_idx > 0, \
-                f"Invalid partial definition index: {partial_definition_idx}"
-            assert partial_definition_idx <= len(partial_definitions_list), \
-                f"Invalid partial definition index: {partial_definition_idx}"
+            assert partial_definition_idx is not None
+            assert partial_definition_idx > 0
+            assert partial_definition_idx <= len(partial_definitions_list)
 
             if new_expr_args is not None:
-                assert len(new_expr_info.params) <= len(new_expr_args.params), \
-                    "New expression amount of params invalid: " \
-                    + f"{len(new_expr_info.params)} > {len(new_expr_args.params)}"
+                assert len(new_expr_info.params) <= len(new_expr_args.params)
 
                 new_expr = new_expr_info.expr.subs({
                     old_param: new_expr_args.expressions[i]
@@ -445,7 +439,7 @@ class Action:
                 old_params: set[ParamVar] = new_expr.atoms(ParamVar).intersection(
                     new_expr_info.params)
                 old_params_idxs = sorted([p.index for p in old_params])
-                assert len(old_params) == 0, f"Old params not replaced: {old_params_idxs}"
+                assert len(old_params) == 0
 
                 return state.change_partial_definition(
                     partial_definition_idx=partial_definition_idx,
@@ -462,11 +456,9 @@ class Action:
             partial_definition_idx = output.partial_definition_idx
             partial_definitions_list = list(state.partial_definitions or [])
 
-            assert partial_definition_idx is not None, "Empty partial definition index"
-            assert partial_definition_idx > 0, \
-                f"Invalid partial definition index: {partial_definition_idx}"
-            assert partial_definition_idx <= len(partial_definitions_list), \
-                f"Invalid partial definition index: {partial_definition_idx}"
+            assert partial_definition_idx is not None
+            assert partial_definition_idx > 0
+            assert partial_definition_idx <= len(partial_definitions_list)
 
             partial_definitions_list = [
                 expr
@@ -482,8 +474,7 @@ class Action:
             arg_group_idx = output.arg_group_idx
             amount = output.amount
 
-            assert arg_group_idx == len(state.arg_groups or []) + 1, \
-                f"Invalid arg group index: {arg_group_idx}"
+            assert arg_group_idx == len(state.arg_groups or []) + 1
 
             arg_groups = list(state.arg_groups or [])
             arg_groups.append(ArgGroup(
@@ -504,19 +495,15 @@ class Action:
             new_expr_info = output.new_expr_info
 
             arg_groups = list(state.arg_groups or [])
-            assert len(arg_groups) > 0, "No arg groups yet"
-            assert arg_group_idx > 0, f"Invalid arg group index: {arg_group_idx}"
-            assert arg_group_idx <= len(arg_groups), \
-                f"Invalid arg group index: {arg_group_idx} (max={len(arg_groups)})"
+            assert len(arg_groups) > 0
+            assert arg_group_idx > 0
+            assert arg_group_idx <= len(arg_groups)
 
             arg_group = arg_groups[arg_group_idx - 1]
-            assert arg_idx > 0, f"Invalid arg index: {arg_idx}"
-            assert arg_idx <= arg_group.amount, \
-                f"Invalid arg index: {arg_idx} (max={arg_group.amount})"
+            assert arg_idx > 0
+            assert arg_idx <= arg_group.amount
 
-            assert len(new_expr_info.params) <= len(arg_group.params), \
-                "New expression amount of params invalid: " \
-                + f"{len(new_expr_info.params)} > {len(arg_group.params)}"
+            assert len(new_expr_info.params) <= len(arg_group.params)
 
             new_expr = new_expr_info.expr.subs({
                 old_param: arg_group.params[i]
@@ -539,9 +526,8 @@ class Action:
             arg_group_idx = output.arg_group_idx
             arg_groups = list(state.arg_groups or [])
 
-            assert arg_group_idx > 0, f"Invalid arg group index: {arg_group_idx}"
-            assert arg_group_idx <= len(arg_groups), \
-                f"Invalid arg group index: {arg_group_idx} (max={len(arg_groups)})"
+            assert arg_group_idx > 0
+            assert arg_group_idx <= len(arg_groups)
 
             arg_groups_list = [
                 arg_group
@@ -555,19 +541,16 @@ class Action:
                 arg_groups=tuple(arg_groups_list))
         elif isinstance(output, NewDefinitionFromPartialActionOutput):
             definition_idx = output.definition_idx
-            assert definition_idx == len(state.definitions or []) + 1, \
-                f"Invalid definition index: {definition_idx}"
+            assert definition_idx == len(state.definitions or []) + 1
 
             partial_definition_idx = output.partial_definition_idx
-            assert partial_definition_idx is not None, "Empty partial definition index"
-            assert partial_definition_idx > 0, \
-                f"Invalid partial definition index: {partial_definition_idx}"
-            assert partial_definition_idx <= len(state.partial_definitions or []), \
-                f"Invalid partial definition index: {partial_definition_idx}"
+            assert partial_definition_idx is not None
+            assert partial_definition_idx > 0
+            assert partial_definition_idx <= len(state.partial_definitions or [])
 
             partial_definitions_list = list(state.partial_definitions or [])
             expr = partial_definitions_list[partial_definition_idx - 1]
-            assert expr is not None, "Empty expression for partial definition"
+            assert expr is not None
 
             definitions_list = list(state.definitions or [])
             definition_idx = len(definitions_list) + 1
@@ -588,25 +571,20 @@ class Action:
             expr_id = output.expr_id
             definitions = state.definitions
 
-            assert definitions is not None, "No definitions yet"
-            assert definition_idx is not None, "Empty definition index"
-            assert definition_idx > 0, f"Invalid definition index: {definition_idx}"
-            assert definition_idx <= len(definitions), \
-                f"Invalid definition index: {definition_idx}"
-            assert expr_id is not None, "Empty expression id"
+            assert definitions is not None
+            assert definition_idx is not None
+            assert definition_idx > 0
+            assert definition_idx <= len(definitions)
+            assert expr_id is not None
 
             key, definition_info = definitions[definition_idx - 1]
             target_expr_info = state.get_expr(expr_id)
 
-            assert definition_info is not None, "Empty definition node"
-            assert target_expr_info is not None, "Empty target node"
-            assert not target_expr_info.readonly, "Target node is readonly"
-            assert len(definition_info.params) <= len(target_expr_info.params), \
-                "Definition amount of params invalid: " \
-                + f"{len(definition_info.params)} > {len(target_expr_info.params)}"
-            assert definition_info == target_expr_info, \
-                f"Invalid definition node: {definition_info.expr}" + \
-                f" (expected {target_expr_info.expr})"
+            assert definition_info is not None
+            assert target_expr_info is not None
+            assert not target_expr_info.readonly
+            assert len(definition_info.params) <= len(target_expr_info.params)
+            assert definition_info == target_expr_info
 
             return state.apply_new_expr(
                 expr_id=expr_id,
@@ -616,19 +594,17 @@ class Action:
             expr_id = output.expr_id
             definitions = state.definitions
 
-            assert len(definitions) > 0, "No definitions yet"
-            assert definition_idx is not None, "Empty definition index"
-            assert definition_idx > 0, f"Invalid definition index: {definition_idx}"
-            assert definition_idx <= len(definitions), \
-                f"Invalid definition index: {definition_idx}"
-            assert expr_id is not None, "Empty expression id"
+            assert len(definitions) > 0
+            assert definition_idx is not None
+            assert definition_idx > 0
+            assert definition_idx <= len(definitions)
+            assert expr_id is not None
 
             key, definition_info = definitions[definition_idx - 1]
             target_expr_info = state.get_expr(expr_id)
-            assert target_expr_info is not None, f"Target node not found (expr_id={expr_id})"
-            assert not target_expr_info.readonly, "Target node is readonly"
-            assert key == target_expr_info.expr, \
-                f"Invalid target node: {target_expr_info.expr} (expected {key})"
+            assert target_expr_info is not None
+            assert not target_expr_info.readonly
+            assert key == target_expr_info.expr
 
             return state.apply_new_expr(expr_id=expr_id, new_expr_info=definition_info)
         elif isinstance(output, ReformulationActionOutput):
