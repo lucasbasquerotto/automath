@@ -400,9 +400,12 @@ class Action:
     def _output(self, state: State) -> ActionOutput:
         raise NotImplementedError()
 
-
-    def apply(self, state: State) -> 'State':
+    def apply(self, state: State) -> tuple[State, ActionOutput]:
         output = self.output(state)
+        new_state = self._apply(state, output)
+        return new_state, output
+
+    def _apply(self, state: State, output: ActionOutput) -> State:
 
         if isinstance(output, NewPartialDefinitionActionOutput):
             partial_definition_idx = output.partial_definition_idx
@@ -436,9 +439,8 @@ class Action:
                     if new_expr_args.expressions[i] is not None
                 })
 
-                old_params: set[ParamVar] = new_expr.atoms(ParamVar).intersection(
+                old_params = new_expr.atoms(ParamVar).intersection(
                     new_expr_info.params)
-                old_params_idxs = sorted([p.index for p in old_params])
                 assert len(old_params) == 0
 
                 return state.change_partial_definition(

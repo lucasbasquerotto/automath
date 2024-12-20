@@ -12,7 +12,7 @@ class Environment:
         self._initial_state = FullState(
             meta=meta,
             history=meta.initial_history,
-            max_history_size=max_history_size)
+            max_history_state_size=max_history_size)
         self._current_state = self._initial_state
         self._max_steps = max_steps
         self._current_step = 0

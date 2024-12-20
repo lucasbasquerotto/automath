@@ -38,7 +38,7 @@ CONTEXT_ACTION_TYPE = 5
 CONTEXT_ACTION_INPUT = 6
 CONTEXT_ACTION_OUTPUT = 7
 CONTEXT_ACTION_STATUS = 8
-CONTEXT_META_ACTION_TYPE = 9
+CONTEXT_META_TRANSITION = 9
 
 ALL_CONTEXTS = [
     CONTEXT_META_MAIN,
@@ -49,7 +49,6 @@ ALL_CONTEXTS = [
     CONTEXT_ACTION_INPUT,
     CONTEXT_ACTION_OUTPUT,
     CONTEXT_ACTION_STATUS,
-    CONTEXT_META_ACTION_TYPE,
 ]
 
 SUBCONTEXT_ACTION_INPUT_AMOUNT = 1
@@ -62,6 +61,7 @@ SUBCONTEXT_ACTION_OUTPUT_ARG_GROUP = 7
 SUBCONTEXT_ACTION_OUTPUT_EXPR_ID = 8
 SUBCONTEXT_ACTION_OUTPUT_NODE_IDX = 9
 SUBCONTEXT_ACTION_OUTPUT_NODE_EXPR = 10
+SUBCONTEXT_META_ACTION_TYPE = 11
 
 ALL_SUBCONTEXTS = [
     SUBCONTEXT_ACTION_INPUT_AMOUNT,
@@ -74,6 +74,7 @@ ALL_SUBCONTEXTS = [
     SUBCONTEXT_ACTION_OUTPUT_EXPR_ID,
     SUBCONTEXT_ACTION_OUTPUT_NODE_IDX,
     SUBCONTEXT_ACTION_OUTPUT_NODE_EXPR,
+    SUBCONTEXT_META_ACTION_TYPE,
 ]
 
 GROUP_CONTEXT_ARG_GROUP = 1
@@ -154,7 +155,7 @@ class NodeItemData:
         item_context: int,
         parent_node_idx: int,
         node_idx: int,
-        atomic_node: int,
+        composite_node: int,
         node_type: int,
         node_value: int,
         history_expr_id: int | None,
@@ -173,14 +174,14 @@ class NodeItemData:
         if history_expr_id is not None:
             assert parent_node_idx > 0
             assert node_idx > 0
-            assert atomic_node in [0, 1]
+            assert composite_node in [0, 1]
             assert node_type > 0
             assert history_expr_id > 0
             assert expr is not None
         else:
             assert parent_node_idx == UNDEFINED_OR_EMPTY_FIELD
             assert node_idx == UNDEFINED_OR_EMPTY_FIELD
-            assert atomic_node == UNDEFINED_OR_EMPTY_FIELD
+            assert composite_node == UNDEFINED_OR_EMPTY_FIELD
             assert node_type == UNDEFINED_OR_EMPTY_FIELD
             assert expr is None
 
@@ -197,7 +198,7 @@ class NodeItemData:
         self._item_context = item_context
         self._parent_node_idx = parent_node_idx
         self._node_idx = node_idx
-        self._atomic_node = atomic_node
+        self._composite_node = composite_node
         self._node_type = node_type
         self._node_value = node_value
         self._history_expr_id = history_expr_id
@@ -209,15 +210,15 @@ class NodeItemData:
         history_number: int,
         history_type: int,
         context: int,
-        parent_node_idx: int = 0,
-        node_idx: int = 1,
-        atomic_node: int = 1,
         subcontext: int = UNDEFINED_OR_EMPTY_FIELD,
         group_idx: int = UNDEFINED_OR_EMPTY_FIELD,
         group_context: int = UNDEFINED_OR_EMPTY_FIELD,
         group_subcontext: int = UNDEFINED_OR_EMPTY_FIELD,
         item_idx: int = UNDEFINED_OR_EMPTY_FIELD,
         item_context: int = UNDEFINED_OR_EMPTY_FIELD,
+        parent_node_idx: int = UNDEFINED_OR_EMPTY_FIELD,
+        node_idx: int = UNDEFINED_OR_EMPTY_FIELD,
+        composite_node: int = UNDEFINED_OR_EMPTY_FIELD,
         node_type: int = UNDEFINED_OR_EMPTY_FIELD,
         node_value: int = UNDEFINED_OR_EMPTY_FIELD,
         history_expr_id: int | None = None,
@@ -235,7 +236,7 @@ class NodeItemData:
             item_context=item_context,
             parent_node_idx=parent_node_idx,
             node_idx=node_idx,
-            atomic_node=atomic_node,
+            composite_node=composite_node,
             node_type=node_type,
             node_value=node_value,
             history_expr_id=history_expr_id,
@@ -287,8 +288,8 @@ class NodeItemData:
         return self._node_idx
 
     @property
-    def atomic_node(self) -> int:
-        return self._atomic_node
+    def composite_node(self) -> int:
+        return self._composite_node
 
     @property
     def node_type(self) -> int:
@@ -319,7 +320,7 @@ class NodeItemData:
             self._item_context,
             self._parent_node_idx,
             self._node_idx,
-            self._atomic_node,
+            self._composite_node,
             self._node_type,
             self._node_value,
             self._history_expr_id or UNDEFINED_OR_EMPTY_FIELD,
@@ -330,16 +331,18 @@ class FullState:
         self,
         meta: EnvMetaInfo,
         history: tuple[StateHistoryItem, ...],
-        max_history_size: int | None = None,
+        max_history_state_size: int | None = None,
     ):
         assert len(meta.node_types) > 0
         assert len(meta.node_types) == len(set(meta.node_types))
         assert meta.node_type_handler is not None
         assert len(meta.action_types) > 0
         assert len(meta.action_types) == len(set(meta.action_types))
+        if max_history_state_size is not None:
+            assert max_history_state_size >= 0
         self._meta = meta
         self._history = history
-        self._max_history_size = max_history_size
+        self._max_history_state_size = max_history_state_size
 
     @classmethod
     def initial_state(
@@ -356,15 +359,15 @@ class FullState:
 
     @property
     def last_state(self) -> State:
-        for i in range(len(self._history) - 1, -1, -1):
-            item = self._history[i]
-            if isinstance(item, State):
-                return item
-
-        raise ValueError("No state found in history")
+        state: State | None = next(
+            (item for item in self._history[::-1] if isinstance(item, State)),
+            None
+        )
+        assert state is not None
+        return state
 
     def apply(self, action: Action) -> 'FullState':
-        last_state = self._history[-1]
+        last_state = self.last_state
         assert isinstance(last_state, State)
 
         action_types = self._meta.action_types
@@ -375,7 +378,7 @@ class FullState:
         action_output: ActionOutput | None
 
         try:
-            next_state = action.apply(last_state)
+            next_state, action_output = action.apply(last_state)
         except InvalidActionException as e:
             logger.debug(f"Invalid action: {e}")
             action_type = 0
@@ -392,13 +395,19 @@ class FullState:
         history.append(action_data)
         history.append(next_state)
 
-        if self._max_history_size is not None:
-            history = history[-self._max_history_size:]
+        if self._max_history_state_size is not None:
+            amount = 0
+            for i, item in enumerate(history[::-1]):
+                if isinstance(item, State):
+                    amount += 1
+                    if amount > self._max_history_state_size:
+                        history = history[len(history)-(i+1):]
+                        break
 
         return FullState(
             meta=self._meta,
             history=tuple(history),
-            max_history_size=self._max_history_size,
+            max_history_state_size=self._max_history_state_size,
         )
 
     def raw_data(self) -> np.ndarray[np.int_, np.dtype]:
@@ -407,7 +416,7 @@ class FullState:
         return data
 
     def node_data_list(self) -> list[NodeItemData]:
-        nodes_meta = self._node_data_list_meta(history_number=0)
+        nodes_meta = self._node_data_list_meta_main(history_number=0)
         nodes_states: list[NodeItemData] = []
         nodes_actions: list[NodeItemData] = []
 
@@ -427,7 +436,7 @@ class FullState:
 
         return nodes
 
-    def _node_data_list_meta(self, history_number: int) -> list[NodeItemData]:
+    def _node_data_list_meta_main(self, history_number: int) -> list[NodeItemData]:
         meta = self._meta
         nodes: list[NodeItemData] = []
 
@@ -435,7 +444,8 @@ class FullState:
             nodes.append(NodeItemData.with_defaults(
                 history_number=history_number,
                 history_type=HISTORY_TYPE_META,
-                context=CONTEXT_META_ACTION_TYPE,
+                context=CONTEXT_META_MAIN,
+                subcontext=SUBCONTEXT_META_ACTION_TYPE,
                 group_idx=action_info.type_idx,
                 group_context=GROUP_CONTEXT_ACTION_TYPE,
                 group_subcontext=GROUP_SUBCONTEXT_ACTION_TYPE_MAIN,
@@ -446,7 +456,8 @@ class FullState:
                 nodes.append(NodeItemData.with_defaults(
                     history_number=history_number,
                     history_type=HISTORY_TYPE_META,
-                    context=CONTEXT_META_ACTION_TYPE,
+                    context=CONTEXT_META_MAIN,
+                    subcontext=SUBCONTEXT_META_ACTION_TYPE,
                     group_idx=action_info.type_idx,
                     group_context=GROUP_CONTEXT_ACTION_TYPE,
                     group_subcontext=GROUP_SUBCONTEXT_ACTION_TYPE_ARG,
@@ -858,6 +869,7 @@ class FullState:
         )
         nodes: list[NodeItemData] = [node_data]
 
+        parent_node_idx = node_idx
         next_node_idx = node_idx + 1
         next_history_expr_id = history_expr_id + 1
 
@@ -902,11 +914,11 @@ class FullState:
         if expr is not None:
             node_type_idxs = [i+1 for i, t in enumerate(meta.node_types) if isinstance(expr, t)]
             assert len(node_type_idxs) == 1
-            atomic_node = int(len(expr.args) == 0)
+            composite_node = int(len(expr.args) > 0)
             node_type_idx = node_type_idxs[0]
             node_value = meta.node_type_handler.get_value(expr)
         else:
-            atomic_node = 1
+            composite_node = UNDEFINED_OR_EMPTY_FIELD
             node_type_idx = UNDEFINED_OR_EMPTY_FIELD
             node_value = UNDEFINED_OR_EMPTY_FIELD
 
@@ -922,7 +934,7 @@ class FullState:
             item_context=item_context,
             parent_node_idx=parent_node_idx,
             node_idx=node_idx,
-            atomic_node=atomic_node,
+            composite_node=composite_node,
             node_type=node_type_idx,
             node_value=node_value,
             history_expr_id=history_expr_id,
