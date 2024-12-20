@@ -2,7 +2,7 @@ import typing
 import numpy as np
 from utils.logger import logger
 from utils.types import UniqueElem
-from .state import State, BaseNode, FunctionDefinition, FunctionInfo, ArgGroup
+from .state import State, BaseNode, FunctionInfo, ArgGroup
 from .action import (
     Action,
     InvalidActionException,
@@ -31,17 +31,19 @@ ALL_HISTORY_TYPES = [
     HISTORY_TYPE_ACTION,
 ]
 
-CONTEXT_META_MAIN = 1
-CONTEXT_STATE_DEFINITION = 2
-CONTEXT_STATE_PARTIAL_DEFINITION = 3
-CONTEXT_STATE_ARG_GROUP = 4
-CONTEXT_ACTION_TYPE = 5
-CONTEXT_ACTION_INPUT = 6
-CONTEXT_ACTION_OUTPUT = 7
-CONTEXT_ACTION_STATUS = 8
-CONTEXT_META_TRANSITION = 9
+CONTEXT_HISTORY_TYPE = 1
+CONTEXT_META_MAIN = 2
+CONTEXT_STATE_DEFINITION = 3
+CONTEXT_STATE_PARTIAL_DEFINITION = 4
+CONTEXT_STATE_ARG_GROUP = 5
+CONTEXT_ACTION_TYPE = 6
+CONTEXT_ACTION_INPUT = 7
+CONTEXT_ACTION_OUTPUT = 8
+CONTEXT_ACTION_STATUS = 9
+CONTEXT_META_TRANSITION = 10
 
 ALL_CONTEXTS = [
+    CONTEXT_HISTORY_TYPE,
     CONTEXT_META_MAIN,
     CONTEXT_STATE_DEFINITION,
     CONTEXT_STATE_PARTIAL_DEFINITION,
@@ -50,6 +52,7 @@ ALL_CONTEXTS = [
     CONTEXT_ACTION_INPUT,
     CONTEXT_ACTION_OUTPUT,
     CONTEXT_ACTION_STATUS,
+    CONTEXT_META_TRANSITION,
 ]
 
 SUBCONTEXT_ACTION_INPUT_AMOUNT = 1
@@ -348,25 +351,23 @@ class FullState:
         if max_history_state_size is not None:
             assert max_history_state_size >= 0
 
+        if len(history) == 0:
+            history = (
+                State(
+                    definitions=tuple(),
+                    partial_definitions=tuple(),
+                    arg_groups=tuple()
+                ),
+            )
+
+        assert any(isinstance(item, State) for item in history)
+
         last_history_idx = last_history_idx if last_history_idx is not None else len(history)
 
         self._meta = meta
         self._history = history
         self._last_history_idx = last_history_idx
         self._max_history_state_size = max_history_state_size
-
-    @classmethod
-    def initial_state(
-        cls,
-        initial_definitions: typing.Sequence[FunctionInfo],
-    ) -> tuple[State, list[FunctionDefinition]]:
-        definition_keys = [FunctionDefinition(i+1) for i in range(len(initial_definitions))]
-        definitions = tuple(zip(definition_keys, initial_definitions))
-        state = State(
-            definitions=definitions,
-            partial_definitions=tuple(),
-            arg_groups=tuple())
-        return state, definition_keys
 
     @property
     def last_state(self) -> State:
@@ -430,7 +431,21 @@ class FullState:
         return data
 
     def node_data_list(self) -> list[NodeItemData]:
-        nodes_meta = self._node_data_list_meta_main(history_number=0)
+        history_number = 0
+
+        def create_node_history_type(history_type: int) -> NodeItemData:
+            return NodeItemData.with_defaults(
+                history_number=history_number,
+                history_type=history_type,
+                context=CONTEXT_HISTORY_TYPE,
+                node_value=history_type,
+            )
+
+        node_history_type = create_node_history_type(HISTORY_TYPE_META)
+        nodes_meta: list[NodeItemData] = [node_history_type]
+
+        nodes_meta += self._node_data_list_meta_main(
+            history_number=history_number)
         nodes_states: list[NodeItemData] = []
         nodes_actions: list[NodeItemData] = []
         last_history_idx = self._last_history_idx
@@ -439,11 +454,15 @@ class FullState:
         for i, history_item in enumerate(self._history):
             history_number = last_history_idx - history_amount + i + 1
             if isinstance(history_item, State):
+                node_history_type = create_node_history_type(HISTORY_TYPE_STATE)
+                nodes_states.append(node_history_type)
                 nodes_state = self._node_data_list_state(
                     history_number=history_number,
                     state=history_item)
                 nodes_states += nodes_state
             elif isinstance(history_item, ActionData):
+                node_history_type = create_node_history_type(HISTORY_TYPE_ACTION)
+                nodes_states.append(node_history_type)
                 nodes_action = self._node_data_list_action(
                     history_number=history_number,
                     action_data=history_item)

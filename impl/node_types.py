@@ -69,4 +69,3 @@ class Add(sympy.Expr):
 
     def _eval_nseries(self, x, n, logx, cdir):
         return sympy.Add(*self.args).series(x, n, logx, cdir)
-
