@@ -18,3 +18,6 @@ def test_env():
 
     env = GoalEnv(goal)
     print(env.current_state.raw_data())
+
+def test():
+    test_env()
