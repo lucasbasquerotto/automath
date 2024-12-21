@@ -60,12 +60,13 @@ SUBCONTEXT_ACTION_INPUT_ARG = 2
 SUBCONTEXT_ACTION_OUTPUT_PARTIAL_DEFINITION_IDX = 3
 SUBCONTEXT_ACTION_OUTPUT_DEFINITION_IDX = 4
 SUBCONTEXT_ACTION_OUTPUT_ARG_GROUP_IDX = 5
-SUBCONTEXT_ACTION_OUTPUT_ARG_AMOUNT = 6
-SUBCONTEXT_ACTION_OUTPUT_ARG_GROUP = 7
-SUBCONTEXT_ACTION_OUTPUT_EXPR_ID = 8
-SUBCONTEXT_ACTION_OUTPUT_NODE_IDX = 9
-SUBCONTEXT_ACTION_OUTPUT_NODE_EXPR = 10
-SUBCONTEXT_META_ACTION_TYPE = 11
+SUBCONTEXT_ACTION_OUTPUT_ARG_GROUP_PARAMS_AMOUNT = 6
+SUBCONTEXT_ACTION_OUTPUT_ARG_GROUP_ARGS_AMOUNT = 7
+SUBCONTEXT_ACTION_OUTPUT_ARG_GROUP = 8
+SUBCONTEXT_ACTION_OUTPUT_EXPR_ID = 9
+SUBCONTEXT_ACTION_OUTPUT_NODE_IDX = 10
+SUBCONTEXT_ACTION_OUTPUT_NODE_EXPR = 11
+SUBCONTEXT_META_ACTION_TYPE = 12
 
 ALL_SUBCONTEXTS = [
     SUBCONTEXT_ACTION_INPUT_AMOUNT,
@@ -73,7 +74,8 @@ ALL_SUBCONTEXTS = [
     SUBCONTEXT_ACTION_OUTPUT_PARTIAL_DEFINITION_IDX,
     SUBCONTEXT_ACTION_OUTPUT_DEFINITION_IDX,
     SUBCONTEXT_ACTION_OUTPUT_ARG_GROUP_IDX,
-    SUBCONTEXT_ACTION_OUTPUT_ARG_AMOUNT,
+    SUBCONTEXT_ACTION_OUTPUT_ARG_GROUP_PARAMS_AMOUNT,
+    SUBCONTEXT_ACTION_OUTPUT_ARG_GROUP_ARGS_AMOUNT,
     SUBCONTEXT_ACTION_OUTPUT_ARG_GROUP,
     SUBCONTEXT_ACTION_OUTPUT_EXPR_ID,
     SUBCONTEXT_ACTION_OUTPUT_NODE_IDX,
@@ -90,12 +92,16 @@ ALL_GROUP_CONTEXTS = [
 ]
 
 GROUP_SUBCONTEXT_ARG_GROUP_MAIN = 1
-GROUP_SUBCONTEXT_ARG_GROUP_EXPR = 2
-GROUP_SUBCONTEXT_ACTION_TYPE_MAIN = 3
-GROUP_SUBCONTEXT_ACTION_TYPE_ARG = 4
+GROUP_SUBCONTEXT_ARG_GROUP_PARAMS_AMOUNT = 2
+GROUP_SUBCONTEXT_ARG_GROUP_ARGS_AMOUNT = 3
+GROUP_SUBCONTEXT_ARG_GROUP_EXPR = 4
+GROUP_SUBCONTEXT_ACTION_TYPE_MAIN = 5
+GROUP_SUBCONTEXT_ACTION_TYPE_ARG = 6
 
 ALL_GROUP_SUBCONTEXTS = [
     GROUP_SUBCONTEXT_ARG_GROUP_MAIN,
+    GROUP_SUBCONTEXT_ARG_GROUP_PARAMS_AMOUNT,
+    GROUP_SUBCONTEXT_ARG_GROUP_ARGS_AMOUNT,
     GROUP_SUBCONTEXT_ARG_GROUP_EXPR,
     GROUP_SUBCONTEXT_ACTION_TYPE_MAIN,
     GROUP_SUBCONTEXT_ACTION_TYPE_ARG,
@@ -643,14 +649,14 @@ class FullState:
                 )
                 action_output_nodes += output_expr_nodes
 
-                if action_output.new_expr_args is not None:
+                if action_output.new_expr_arg_group is not None:
                     arg_group_nodes, history_expr_id = self._context_arg_group(
                         history_number=history_number,
                         history_type=HISTORY_TYPE_ACTION,
                         context=CONTEXT_ACTION_OUTPUT,
                         subcontext=SUBCONTEXT_ACTION_OUTPUT_ARG_GROUP,
                         group_idx=UNDEFINED_OR_EMPTY_FIELD,
-                        group=action_output.new_expr_args,
+                        group=action_output.new_expr_arg_group,
                         history_expr_id=history_expr_id,
                     )
                     action_output_nodes += arg_group_nodes
@@ -666,8 +672,13 @@ class FullState:
                 ))
 
                 action_output_nodes.append(create_node(
-                    subcontext=SUBCONTEXT_ACTION_OUTPUT_ARG_AMOUNT,
-                    node_value=action_output.amount,
+                    subcontext=SUBCONTEXT_ACTION_OUTPUT_ARG_GROUP_PARAMS_AMOUNT,
+                    node_value=action_output.params_amount,
+                ))
+
+                action_output_nodes.append(create_node(
+                    subcontext=SUBCONTEXT_ACTION_OUTPUT_ARG_GROUP_ARGS_AMOUNT,
+                    node_value=action_output.args_amount,
                 ))
             elif isinstance(action_output, ArgFromExprActionOutput):
                 action_output_nodes.append(create_node(
@@ -772,21 +783,37 @@ class FullState:
         group: ArgGroup,
         history_expr_id: int,
     ) -> tuple[list[NodeItemData], int]:
-        nodes: list[NodeItemData] = [NodeItemData.with_defaults(
-            history_number=history_number,
-            history_type=history_type,
-            context=context,
-            subcontext=subcontext,
-            group_idx=group_idx,
-            group_context=GROUP_CONTEXT_ARG_GROUP,
+        def create_node(group_subcontext: int, node_value: int):
+            return NodeItemData.with_defaults(
+                history_number=history_number,
+                history_type=history_type,
+                context=context,
+                subcontext=subcontext,
+                group_idx=group_idx,
+                group_context=GROUP_CONTEXT_ARG_GROUP,
+                group_subcontext=group_subcontext,
+                item_idx=group_idx,
+                item_context=UNDEFINED_OR_EMPTY_FIELD,
+                node_type=UNDEFINED_OR_EMPTY_FIELD,
+                node_value=node_value,
+            )
+
+        nodes: list[NodeItemData] = [create_node(
             group_subcontext=GROUP_SUBCONTEXT_ARG_GROUP_MAIN,
-            item_idx=group_idx,
-            item_context=UNDEFINED_OR_EMPTY_FIELD,
-            node_type=UNDEFINED_OR_EMPTY_FIELD,
-            node_value=group.amount,
+            node_value=group_idx,
         )]
 
-        for i, expr in enumerate(group.expressions):
+        nodes += [create_node(
+            group_subcontext=GROUP_SUBCONTEXT_ARG_GROUP_PARAMS_AMOUNT,
+            node_value=len(group.outer_params),
+        )]
+
+        nodes += [create_node(
+            group_subcontext=GROUP_SUBCONTEXT_ARG_GROUP_ARGS_AMOUNT,
+            node_value=len(group.inner_args),
+        )]
+
+        for i, expr in enumerate(group.inner_args):
             iter_nodes, history_expr_id = self._expr_tree_data_list(
                 history_number=history_number,
                 history_type=history_type,
@@ -798,7 +825,7 @@ class FullState:
                 item_idx=i+1,
                 history_expr_id=history_expr_id,
                 function_info=(
-                    FunctionInfo(expr=expr, params=group.params)
+                    FunctionInfo(expr=expr, params=group.outer_params)
                     if expr is not None
                     else None),
                 skip_params=True,

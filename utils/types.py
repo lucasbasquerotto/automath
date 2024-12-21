@@ -112,27 +112,19 @@ class FunctionInfo:
 class ArgGroup:
     def __init__(
         self,
-        amount: int,
-        params: tuple[ParamVar, ...],
-        expressions: tuple[BaseNode | None, ...],
+        outer_params: tuple[ParamVar, ...],
+        inner_args: tuple[BaseNode | None, ...],
     ):
-        assert amount == len(expressions)
-        self._amount = amount
-        self._params = params
-        self._expressions = expressions
+        self._outer_params = outer_params
+        self._inner_args = inner_args
 
     @property
-    def amount(self) -> int:
-        return self._amount
+    def outer_params(self) -> tuple[ParamVar, ...]:
+        return self._outer_params
 
     @property
-    def params(self) -> tuple[ParamVar, ...]:
-        return self._params
-
-    @property
-    def expressions(self) -> tuple[BaseNode | None, ...]:
-        return self._expressions
-
+    def inner_args(self) -> tuple[BaseNode | None, ...]:
+        return self._inner_args
 
 BASIC_NODE_TYPES = (
     FunctionDefinition,
