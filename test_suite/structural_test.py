@@ -45,12 +45,19 @@ from impl.node_types import HaveDefinition, AndNode, OrNode, TrueNode
 
 
 def test_env():
-    def same_data(env: GoalEnv, histories: list[NodeItemData]):
+    def same_data(env: GoalEnv, test_data_list: list[NodeItemData]):
         env_data = env.current_state.raw_data()
-        test_data = np.array(histories)
+        test_data = np.array([d.to_array() for d in test_data_list])
         if not np.array_equal(env_data, test_data):
-            print('env_data:', env_data)
-            print('test_data:', test_data)
+            print('='*80)
+            print('env_data')
+            print('-'*80)
+            print(env_data)
+            print('='*80)
+            print('test_data')
+            print('-'*80)
+            print(test_data)
+            print('='*80)
         assert np.array_equal(env_data, test_data)
 
     params = (ParamVar(1), ParamVar(2), ParamVar(3))
@@ -83,7 +90,7 @@ def test_env():
             NodeItemData.with_defaults(
                 history_number=0,
                 history_type=HISTORY_TYPE_META,
-                context=CONTEXT_ACTION_TYPE,
+                context=CONTEXT_META_MAIN,
                 subcontext=SUBCONTEXT_META_ACTION_TYPE,
                 group_idx=i+1,
                 group_context=GROUP_CONTEXT_ACTION_TYPE,
@@ -97,7 +104,7 @@ def test_env():
                 NodeItemData.with_defaults(
                     history_number=0,
                     history_type=HISTORY_TYPE_META,
-                    context=CONTEXT_ACTION_TYPE,
+                    context=CONTEXT_META_MAIN,
                     subcontext=SUBCONTEXT_META_ACTION_TYPE,
                     group_idx=i+1,
                     group_context=GROUP_CONTEXT_ACTION_TYPE,
@@ -117,7 +124,7 @@ def test_env():
         )
     ]
 
-    same_data(env=env, histories=history_0_meta + history_1_meta)
+    same_data(env=env, test_data_list=history_0_meta + history_1_meta)
 
 def test():
     test_env()
