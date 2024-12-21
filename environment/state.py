@@ -1,5 +1,5 @@
 import typing
-from utils.types import BaseNode, FunctionDefinition, ParamVar, FunctionInfo, ArgGroup, UniqueElem
+from utils.types import BaseNode, FunctionDefinition, ParamVar, FunctionInfo, ArgGroup, ScopedNode
 
 class ExprStatusInfo(FunctionInfo):
     def __init__(self, expr: BaseNode, params: tuple[ParamVar, ...], readonly: bool):
@@ -57,7 +57,7 @@ class State:
 
         if index > 0:
             parent_expr = root
-            args = tuple() if isinstance(expr, UniqueElem) else root.args
+            args = tuple() if isinstance(expr, ScopedNode) else root.args
             for i, arg in enumerate(args):
                 # recursive call each node arg to traverse its subtree
                 expr, index, child_index = cls._index_to_expr(
@@ -100,7 +100,7 @@ class State:
 
         assert root_info is not None
 
-        args = tuple() if isinstance(root_info.expr, UniqueElem) else root_info.expr.args
+        args = tuple() if isinstance(root_info.expr, ScopedNode) else root_info.expr.args
         args_list: list[BaseNode] = list(args)
 
         for i, arg in enumerate(args_list):
@@ -142,9 +142,9 @@ class State:
             for function_info in self.partial_definitions
             if function_info is not None]
         expr_list += [
-            (None, FunctionInfo(expr=expr, params=group.params))
+            (None, FunctionInfo(expr=expr, params=group.outer_params))
             for group in self.arg_groups
-            for expr in group.expressions
+            for expr in group.inner_args
             if expr is not None]
 
         for definition_key, function_info in expr_list:
@@ -228,22 +228,19 @@ class State:
         assert arg_group_idx > 0
         assert arg_group_idx <= len(arg_groups_list)
         arg_group = arg_groups_list[arg_group_idx - 1]
-        function_info_list = list(arg_group.expressions)
-        assert arg_group.amount == len(arg_group.params)
-        assert arg_group.amount == len(function_info_list)
+        arg_list = list(arg_group.inner_args)
         assert arg_idx > 0
-        assert arg_idx <= len(arg_group.expressions)
+        assert arg_idx <= len(arg_list)
         assert isinstance(new_function_info.expr, BaseNode)
-        assert len(new_function_info.params) <= len(arg_group.params)
+        assert len(new_function_info.params) <= len(arg_group.outer_params)
         new_expr = new_function_info.expr.subs({
-            p: arg_group.params[i]
+            p: arg_group.outer_params[i]
             for i, p in enumerate(new_function_info.params)
         })
-        function_info_list[arg_idx - 1] = new_expr
+        arg_list[arg_idx - 1] = new_expr
         arg_groups_list[arg_group_idx] = ArgGroup(
-            amount=arg_group.amount,
-            params=arg_group.params,
-            expressions=tuple(function_info_list))
+            outer_params=arg_group.outer_params,
+            inner_args=tuple(arg_list))
         return State(
             definitions=self.definitions,
             partial_definitions=self.partial_definitions,
@@ -292,12 +289,12 @@ class State:
 
         arg_groups_list = list(self.arg_groups or [])
         for i, arg_group in enumerate(arg_groups_list):
-            expressions = list(arg_group.expressions)
+            expressions = list(arg_group.inner_args)
             for j, expr_p in enumerate(expressions):
                 if expr_p is not None:
                     expr = expr_p
                     new_root_info, index = self._replace_expr_index(
-                        root_info=FunctionInfo(expr=expr, params=arg_group.params),
+                        root_info=FunctionInfo(expr=expr, params=arg_group.outer_params),
                         index=index,
                         new_function_info=new_function_info)
                     assert index >= 0
@@ -305,9 +302,8 @@ class State:
                         assert new_root_info is not None
                         expressions[j] = new_root_info.expr
                         arg_groups_list[i] = ArgGroup(
-                            amount=arg_group.amount,
-                            params=arg_group.params,
-                            expressions=tuple(expressions))
+                            outer_params=arg_group.outer_params,
+                            inner_args=tuple(expressions))
                         return State(
                             definitions=self.definitions,
                             partial_definitions=self.partial_definitions,
@@ -370,26 +366,26 @@ class State:
             return False
 
         for my_arg_group, other_arg_group in zip(self.arg_groups, other.arg_groups):
-            if my_arg_group.amount != other_arg_group.amount:
+            if len(my_arg_group.outer_params) != len(other_arg_group.outer_params):
                 return False
-            if len(my_arg_group.params) != len(other_arg_group.params):
-                return False
-            if len(my_arg_group.expressions) != len(other_arg_group.expressions):
+            if len(my_arg_group.inner_args) != len(other_arg_group.inner_args):
                 return False
             for my_expr, other_expr in zip(
-                my_arg_group.expressions,
-                other_arg_group.expressions,
+                my_arg_group.inner_args,
+                other_arg_group.inner_args,
             ):
                 if my_expr is None and other_expr is None:
                     continue
                 if my_expr is None or other_expr is None:
                     return False
 
-                min_params = min(len(my_arg_group.params), len(other_arg_group.params))
+                min_params = min(
+                    len(my_arg_group.outer_params),
+                    len(other_arg_group.outer_params))
 
                 if my_expr != other_expr.subs(
                     {
-                        other_arg_group.params[i]: my_arg_group.params[i]
+                        other_arg_group.outer_params[i]: my_arg_group.outer_params[i]
                         for i in range(min_params)
                     }
                 ):

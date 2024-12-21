@@ -1,5 +1,5 @@
 import typing
-from utils.types import BASIC_NODE_TYPES, UniqueElem, Integer, InheritableNode
+from utils.types import BASIC_NODE_TYPES, ScopedNode, Integer, InheritableNode
 from .state import State, BaseNode
 from .action import BASIC_ACTION_TYPES, Action, ActionMetaInfo, ActionInput, ActionOutput
 from .reward import RewardEvaluator, DefaultRewardEvaluator
@@ -34,7 +34,7 @@ class NodeTypeHandler:
 
 class DefaultNodeTypeHandler(NodeTypeHandler):
     def get_value(self, node: BaseNode) -> int:
-        if isinstance(node, UniqueElem):
+        if isinstance(node, ScopedNode):
             return node.value
         if isinstance(node, Integer):
             return int(node)

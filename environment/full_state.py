@@ -1,7 +1,7 @@
 import typing
 import numpy as np
 from utils.logger import logger
-from utils.types import UniqueElem
+from utils.types import ScopedNode
 from .state import State, BaseNode, FunctionInfo, ArgGroup
 from .action import (
     Action,
@@ -938,7 +938,7 @@ class FullState:
         parent_node_idx = node_idx
         next_node_idx = node_idx + 1
         next_history_expr_id = history_expr_id + 1
-        args = tuple() if isinstance(expr, UniqueElem) else expr.args
+        args = tuple() if isinstance(expr, ScopedNode) else expr.args
 
         for arg in args:
             inner_nodes, next_node_idx, next_history_expr_id = self._expr_subtree_data_list(
@@ -983,12 +983,12 @@ class FullState:
             assert len(node_type_idxs) == 1
             composite_node = (
                 False
-                if isinstance(expr, UniqueElem)
+                if isinstance(expr, ScopedNode)
                 else int(len(expr.args) > 0))
             node_type_idx = node_type_idxs[0]
             node_value = (
                 expr.value
-                if isinstance(expr, UniqueElem)
+                if isinstance(expr, ScopedNode)
                 else meta.node_type_handler.get_value(expr))
         else:
             composite_node = UNDEFINED_OR_EMPTY_FIELD

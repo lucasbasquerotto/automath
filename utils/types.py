@@ -11,14 +11,13 @@ class InheritableNode(sympy.Basic):
         super().__init__()
         self._args = args
 
-class UniqueElem(InheritableNode):
+class ScopedNode(InheritableNode):
     @classmethod
     def prefix(cls):
         return 'unk'
 
     def __init__(self, value: int):
-        super().__init__()
-        self._args = (sympy.Integer(value), sympy.Dummy())
+        super().__init__(sympy.Integer(value), sympy.Dummy())
 
     def _latex(self, printer): # pylint: disable=unused-argument
         return r"%s_{%s}" % (self.prefix(), self.args[0])
@@ -29,12 +28,12 @@ class UniqueElem(InheritableNode):
         assert isinstance(value, sympy.Integer)
         return int(value)
 
-class FunctionDefinition(UniqueElem):
+class FunctionDefinition(ScopedNode):
     @classmethod
     def prefix(cls):
         return 'f'
 
-class ParamVar(UniqueElem):
+class ParamVar(ScopedNode):
     @classmethod
     def prefix(cls):
         return 'p'
