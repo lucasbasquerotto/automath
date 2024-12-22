@@ -1,10 +1,11 @@
 import typing
 import numpy as np
 from utils.logger import logger
-from utils.types import ScopedNode
-from .state import State, BaseNode, FunctionInfo, ArgGroup
+from utils.types import ScopedNode, InheritableNode
+from .state import State, BaseNode, FunctionInfo, FunctionParams, ParamsArgsGroup
 from .action import (
     Action,
+    ActionInfo,
     InvalidActionException,
     ActionOutput,
     NewPartialDefinitionActionOutput,
@@ -17,7 +18,56 @@ from .action import (
     ReplaceByDefinitionActionOutput,
     ExpandDefinitionActionOutput,
     ReformulationActionOutput)
-from .meta_env import EnvMetaInfo, ActionData, StateHistoryItem
+from .meta_env import EnvMetaInfo, ActionData, StateHistoryItem, MetaInfoNode
+
+class HistoryNode(InheritableNode):
+    def __init__(self, state: State, action: ActionInfo | None):
+        assert isinstance(state, State)
+        if action is not None:
+            assert isinstance(action, ActionInfo)
+            super().__init__(state, action)
+        else:
+            super().__init__(state)
+
+    @property
+    def state(self) -> State:
+        state = self.args[0]
+        assert isinstance(state, State)
+        return state
+
+class HistoryGroupNode(InheritableNode):
+    def __init__(self, *args: HistoryNode):
+        assert all(isinstance(arg, HistoryNode) for arg in args)
+        super().__init__(*args)
+
+    @property
+    def expand(self) -> tuple[HistoryNode, ...]:
+        return typing.cast(tuple[HistoryNode, ...], self.args)
+
+class FullStateNode(InheritableNode):
+    def __init__(self, meta: MetaInfoNode, current: HistoryNode, history: HistoryGroupNode):
+        assert isinstance(meta, EnvMetaInfo)
+        assert isinstance(current, HistoryNode)
+        assert isinstance(history, HistoryGroupNode)
+        super().__init__(meta, current, history)
+
+    @property
+    def meta(self) -> EnvMetaInfo:
+        meta = self.args[0]
+        assert isinstance(meta, EnvMetaInfo)
+        return meta
+
+    @property
+    def current(self) -> HistoryNode:
+        current = self.args[1]
+        assert isinstance(current, HistoryNode)
+        return current
+
+    @property
+    def history(self) -> HistoryGroupNode:
+        history = self.args[2]
+        assert isinstance(history, HistoryGroupNode)
+        return history
 
 UNDEFINED_OR_EMPTY_FIELD = 0
 
@@ -359,7 +409,7 @@ class FullState:
 
         if len(history) == 0:
             history = (
-                State(
+                State.from_raw(
                     definitions=tuple(),
                     partial_definitions=tuple(),
                     arg_groups=tuple()
@@ -752,7 +802,7 @@ class FullState:
         history_type: int,
         context: int,
         subcontext: int,
-        groups: typing.Sequence[ArgGroup],
+        groups: typing.Sequence[ParamsArgsGroup],
         history_expr_id: int,
     ) -> tuple[list[NodeItemData], int]:
         nodes: list[NodeItemData] = []
@@ -780,7 +830,7 @@ class FullState:
         context: int,
         subcontext: int,
         group_idx: int,
-        group: ArgGroup,
+        group: ParamsArgsGroup,
         history_expr_id: int,
     ) -> tuple[list[NodeItemData], int]:
         def create_node(group_subcontext: int, node_value: int):
@@ -825,7 +875,7 @@ class FullState:
                 item_idx=i+1,
                 history_expr_id=history_expr_id,
                 function_info=(
-                    FunctionInfo(expr=expr, params=group.outer_params)
+                    FunctionInfo(expr, FunctionParams(*group.outer_params))
                     if expr is not None
                     else None),
                 skip_params=True,

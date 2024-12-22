@@ -1,44 +1,159 @@
 import typing
-from utils.types import BaseNode, FunctionDefinition, ParamVar, FunctionInfo, ArgGroup, ScopedNode
+from utils.types import (
+    BaseNode,
+    InheritableNode,
+    FunctionDefinition,
+    ParamVar,
+    FunctionInfo,
+    FunctionParams,
+    ParamsArgsGroup,
+    ParamsGroup,
+    ArgsGroup,
+    ScopedNode,
+    EmptyNode)
 
-class ExprStatusInfo(FunctionInfo):
-    def __init__(self, expr: BaseNode, params: tuple[ParamVar, ...], readonly: bool):
-        super().__init__(expr=expr, params=params)
+class ExprStatusInfo:
+    def __init__(self, function_info: FunctionInfo, readonly: bool):
+        self._function_info = function_info
         self._readonly = readonly
+
+    @property
+    def function_info(self) -> FunctionInfo:
+        return self._function_info
 
     @property
     def readonly(self) -> bool:
         return self._readonly
 
-class State:
+class FunctionDefinitionNode(InheritableNode):
+    def __init__(self, definition_key: FunctionDefinition, function_info: FunctionInfo):
+        assert isinstance(definition_key, FunctionDefinition)
+        assert isinstance(function_info, FunctionInfo)
+        super().__init__(definition_key, function_info)
+
+    @property
+    def definition_key(self) -> FunctionDefinition:
+        key = self.args[0]
+        assert isinstance(key, FunctionDefinition)
+        return key
+
+    @property
+    def function_info(self) -> FunctionInfo:
+        f = self.args[1]
+        assert isinstance(f, FunctionInfo)
+        return f
+
+class FunctionDefinitionGroup(InheritableNode):
+    def __init__(self, *args: FunctionDefinitionNode):
+        assert all(isinstance(arg, FunctionDefinitionNode) for arg in args)
+        super().__init__(*args)
+
+    @property
+    def expanded(self) -> tuple[tuple[FunctionDefinition, FunctionInfo], ...]:
+        args = typing.cast(tuple[FunctionDefinitionNode, ...], self._args)
+        return tuple((arg.definition_key, arg.function_info) for arg in args)
+
+    @classmethod
+    def from_definitions(
+        cls,
+        definitions: tuple[tuple[FunctionDefinition, FunctionInfo], ...],
+    ) -> 'FunctionDefinitionGroup':
+        return cls(*[
+            FunctionDefinitionNode(definition_key, function_info)
+            for definition_key, function_info in definitions
+        ])
+
+class PartialDefinitionNode(InheritableNode):
+    def __init__(self, function_info: FunctionInfo):
+        assert isinstance(function_info, FunctionInfo)
+        super().__init__(function_info)
+
+    @property
+    def function_info(self) -> FunctionInfo:
+        f = self.args[0]
+        assert isinstance(f, FunctionInfo)
+        return f
+
+class PartialDefinitionGroup(InheritableNode):
+    def __init__(self, *args: PartialDefinitionNode | EmptyNode):
+        assert all(
+            (isinstance(arg, PartialDefinitionNode) or isinstance(arg, EmptyNode))
+            for arg in args)
+        super().__init__(*args)
+
+    @property
+    def expanded(self) -> tuple[FunctionInfo | None, ...]:
+        return tuple(
+            arg.function_info if isinstance(arg, PartialDefinitionNode) else None
+            for arg in self.args)
+
+    @classmethod
+    def from_definitions(
+        cls,
+        definitions: tuple[FunctionInfo | None, ...],
+    ) -> 'PartialDefinitionGroup':
+        nodes: list[PartialDefinitionNode | EmptyNode] = [
+            PartialDefinitionNode(definition)
+            if definition is not None
+            else EmptyNode()
+            for definition in definitions
+        ]
+        return cls(*nodes)
+
+class ParamsArgsOuterGroup(InheritableNode):
+    def __init__(self, *args: ParamsArgsGroup):
+        assert all(isinstance(arg, ParamsArgsGroup) for arg in args)
+        super().__init__(*args)
+
+    @property
+    def expanded(self) -> tuple[ParamsArgsGroup, ...]:
+        return typing.cast(tuple[ParamsArgsGroup, ...], self._args)
+
+class State(InheritableNode):
     def __init__(
         self,
-        definitions: tuple[tuple[FunctionDefinition, FunctionInfo], ...],
-        partial_definitions: tuple[FunctionInfo | None, ...],
-        arg_groups: tuple[ArgGroup, ...],
+        definitions: FunctionDefinitionGroup,
+        partial_definitions: PartialDefinitionGroup,
+        arg_groups: ParamsArgsOuterGroup,
     ):
-        for i, (d, _) in enumerate(definitions):
+        for i, (d, _) in enumerate(definitions.expanded):
             assert d.value == i + 1
-        self._definitions = definitions
-        self._partial_definitions = partial_definitions
-        self._arg_groups = arg_groups
+        super().__init__(definitions, partial_definitions, arg_groups)
 
     @property
     def definitions(self) -> tuple[tuple[FunctionDefinition, FunctionInfo], ...]:
-        return self._definitions
+        definitions = self.args[0]
+        assert isinstance(definitions, FunctionDefinitionGroup)
+        return definitions.expanded
 
     @property
     def partial_definitions(self) -> tuple[FunctionInfo | None, ...]:
-        return self._partial_definitions
+        partial_definitions = self.args[1]
+        assert isinstance(partial_definitions, PartialDefinitionGroup)
+        return partial_definitions.expanded
 
     @property
-    def arg_groups(self) -> tuple[ArgGroup, ...]:
-        return self._arg_groups
+    def arg_groups(self) -> tuple[ParamsArgsGroup, ...]:
+        arg_groups = self.args[2]
+        assert isinstance(arg_groups, ParamsArgsOuterGroup)
+        return arg_groups.expanded
 
     @classmethod
     def index_to_expr(cls, root: BaseNode, index: int) -> BaseNode | None:
         expr, _, __ = cls._index_to_expr(root, index, parent=False)
         return expr
+
+    @classmethod
+    def from_raw(
+        cls,
+        definitions: tuple[tuple[FunctionDefinition, FunctionInfo], ...],
+        partial_definitions: tuple[FunctionInfo | None, ...],
+        arg_groups: tuple[ParamsArgsGroup, ...],
+    ) -> 'State':
+        return cls(
+            FunctionDefinitionGroup.from_definitions(definitions),
+            PartialDefinitionGroup.from_definitions(partial_definitions),
+            ParamsArgsOuterGroup(*arg_groups))
 
     @classmethod
     def _index_to_expr(
@@ -96,7 +211,7 @@ class State:
                 root_info.params
                 if root_info is not None
                 else tuple())
-            return FunctionInfo(expr=new_expr, params=new_params), index
+            return FunctionInfo(new_expr, FunctionParams(*new_params)), index
 
         assert root_info is not None
 
@@ -106,7 +221,7 @@ class State:
         for i, arg in enumerate(args_list):
             # recursive call each node arg to traverse its subtree
             new_arg_info, index = cls._replace_expr_index(
-                root_info=FunctionInfo(expr=arg, params=root_info.params),
+                root_info=FunctionInfo(arg, FunctionParams(*root_info.params)),
                 index=index,
                 new_function_info=new_function_info)
             assert index >= 0
@@ -142,7 +257,7 @@ class State:
             for function_info in self.partial_definitions
             if function_info is not None]
         expr_list += [
-            (None, FunctionInfo(expr=expr, params=group.outer_params))
+            (None, FunctionInfo(expr, FunctionParams(*group.outer_params)))
             for group in self.arg_groups
             for expr in group.inner_args
             if expr is not None]
@@ -154,8 +269,9 @@ class State:
                 if index == 0:
                     assert function_info is not None
                     return ExprStatusInfo(
-                        expr=definition_key,
-                        params=function_info.params,
+                        function_info=FunctionInfo(
+                            definition_key,
+                            FunctionParams(*function_info.params)),
                         readonly=True)
 
             new_expr, index, _ = self._index_to_expr(
@@ -166,8 +282,9 @@ class State:
             if index == 0:
                 assert new_expr is not None
                 return ExprStatusInfo(
-                    expr=new_expr,
-                    params=function_info.params,
+                    function_info=FunctionInfo(
+                        new_expr,
+                        FunctionParams(*function_info.params)),
                     readonly=False)
 
         return None
@@ -213,7 +330,7 @@ class State:
         assert index == 0
         assert new_root is not None
         partial_definitions_list[partial_definition_idx - 1] = new_root
-        return State(
+        return State.from_raw(
             definitions=self.definitions,
             partial_definitions=tuple(partial_definitions_list),
             arg_groups=self.arg_groups)
@@ -238,10 +355,10 @@ class State:
             for i, p in enumerate(new_function_info.params)
         })
         arg_list[arg_idx - 1] = new_expr
-        arg_groups_list[arg_group_idx] = ArgGroup(
-            outer_params=arg_group.outer_params,
-            inner_args=tuple(arg_list))
-        return State(
+        arg_groups_list[arg_group_idx] = ParamsArgsGroup(
+            ParamsGroup(*arg_group.outer_params),
+            ArgsGroup.from_args(arg_list))
+        return State.from_raw(
             definitions=self.definitions,
             partial_definitions=self.partial_definitions,
             arg_groups=tuple(arg_groups_list))
@@ -265,7 +382,7 @@ class State:
             if index == 0:
                 assert new_root_info is not None
                 definitions_list[i] = (key, new_root_info)
-                return State(
+                return State.from_raw(
                     definitions=tuple(definitions_list),
                     partial_definitions=self.partial_definitions,
                     arg_groups=self.arg_groups)
@@ -282,7 +399,7 @@ class State:
                 if index == 0:
                     assert new_root_info is not None
                     partial_definitions_list[i] = new_root_info
-                    return State(
+                    return State.from_raw(
                         definitions=self.definitions,
                         partial_definitions=tuple(partial_definitions_list),
                         arg_groups=self.arg_groups)
@@ -294,17 +411,19 @@ class State:
                 if expr_p is not None:
                     expr = expr_p
                     new_root_info, index = self._replace_expr_index(
-                        root_info=FunctionInfo(expr=expr, params=arg_group.outer_params),
+                        root_info=FunctionInfo(
+                            expr,
+                            FunctionParams(*arg_group.outer_params)),
                         index=index,
                         new_function_info=new_function_info)
                     assert index >= 0
                     if index == 0:
                         assert new_root_info is not None
                         expressions[j] = new_root_info.expr
-                        arg_groups_list[i] = ArgGroup(
-                            outer_params=arg_group.outer_params,
-                            inner_args=tuple(expressions))
-                        return State(
+                        arg_groups_list[i] = ParamsArgsGroup(
+                            ParamsGroup(*arg_group.outer_params),
+                            ArgsGroup.from_args(expressions))
+                        return State.from_raw(
                             definitions=self.definitions,
                             partial_definitions=self.partial_definitions,
                             arg_groups=tuple(arg_groups_list))

@@ -1,5 +1,5 @@
 import numpy as np
-from utils.types import FunctionInfo, ParamVar
+from utils.types import FunctionInfo, FunctionParams, ParamVar
 from environment.full_state import (
     UNDEFINED_OR_EMPTY_FIELD,
     HISTORY_TYPE_META,
@@ -20,7 +20,8 @@ from environment.full_state import (
     SUBCONTEXT_ACTION_OUTPUT_PARTIAL_DEFINITION_IDX,
     SUBCONTEXT_ACTION_OUTPUT_DEFINITION_IDX,
     SUBCONTEXT_ACTION_OUTPUT_ARG_GROUP_IDX,
-    SUBCONTEXT_ACTION_OUTPUT_ARG_AMOUNT,
+    SUBCONTEXT_ACTION_OUTPUT_ARG_GROUP_PARAMS_AMOUNT,
+    SUBCONTEXT_ACTION_OUTPUT_ARG_GROUP_ARGS_AMOUNT,
     SUBCONTEXT_ACTION_OUTPUT_ARG_GROUP,
     SUBCONTEXT_ACTION_OUTPUT_EXPR_ID,
     SUBCONTEXT_ACTION_OUTPUT_NODE_IDX,
@@ -64,12 +65,12 @@ def test_env():
     p1, p2, p3 = params
     goal = HaveDefinition(
         FunctionInfo(
-            params=params,
-            expr=OrNode(
+            OrNode(
                 AndNode(p1, p2, TrueNode()),
                 AndNode(p2, p3),
             ),
-        ).to_expr()
+            FunctionParams(*params),
+        )
     )
 
     env = GoalEnv(goal)

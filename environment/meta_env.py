@@ -1,5 +1,5 @@
 import typing
-from utils.types import BASIC_NODE_TYPES, ScopedNode, Integer, InheritableNode
+from utils.types import BASIC_NODE_TYPES, ScopedNode, Integer, InheritableNode, ValueNode
 from .state import State, BaseNode
 from .action import BASIC_ACTION_TYPES, Action, ActionMetaInfo, ActionInput, ActionOutput
 from .reward import RewardEvaluator, DefaultRewardEvaluator
@@ -40,6 +40,26 @@ class DefaultNodeTypeHandler(NodeTypeHandler):
             return int(node)
         return 0
 
+class NodeType(ValueNode):
+    pass
+
+class ActionType(ValueNode):
+    pass
+
+class NodeTypeGroup(InheritableNode):
+    @classmethod
+    def from_types(cls, amount: int) -> 'NodeTypeGroup':
+        return cls(*[NodeType(i+1) for i in range(amount)])
+
+class ActionTypeGroup(InheritableNode):
+    @classmethod
+    def from_types(cls, amount: int) -> 'ActionTypeGroup':
+        return cls(*[ActionType(i+1) for i in range(amount)])
+
+class MetaInfoNode(InheritableNode):
+    def __init__(self, goal: GoalNode, node_types: NodeTypeGroup, action_types: ActionTypeGroup):
+        super().__init__(goal, node_types, action_types)
+
 class EnvMetaInfo:
     def __init__(
         self,
@@ -78,6 +98,13 @@ class EnvMetaInfo:
     @property
     def action_types_info(self) -> tuple[ActionMetaInfo, ...]:
         return self._action_types_info
+
+    def to_node(self) -> MetaInfoNode:
+        return MetaInfoNode(
+            self.goal,
+            NodeTypeGroup.from_types(len(self.node_types)),
+            ActionTypeGroup.from_types(len(self.action_types)),
+        )
 
 class FullEnvMetaInfo(EnvMetaInfo):
     def __init__(
