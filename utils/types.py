@@ -12,8 +12,21 @@ class BaseNode:
                 or isinstance(arg, int)
                 or (isinstance(arg, type) and issubclass(arg, BaseNode))
             )
-            for arg in args)
+            for arg in args
+        )
+
+        if any(
+            (
+                isinstance(arg, int)
+                or (isinstance(arg, type) and issubclass(arg, BaseNode))
+            )
+            for arg in args
+        ):
+            assert len(args) == 1
+
         self._args = args
+        self._cached_length: int | None = None
+        self._cached_hash: int | None = None
 
     @property
     def args(self) -> tuple[int | BaseNode | typing.Type[BaseNode], ...]:
@@ -34,6 +47,42 @@ class BaseNode:
             if arg != other.args[i]:
                 return False
         return True
+
+    def _inner_getitem(self, index: int) -> tuple[BaseNode | None, int]:
+        if index == 0:
+            return self, index
+        index -= 1
+        for arg in self.args:
+            if isinstance(arg, BaseNode):
+                # pylint: disable=protected-access
+                node, index = arg._inner_getitem(index)
+                if index == 0:
+                    return node, index
+        return None, index
+
+    def __getitem__(self, index: int) -> BaseNode:
+        node, index = self._inner_getitem(index)
+        if node is None:
+            raise IndexError(f"Index out of range: {index}")
+        return node
+
+    def __len__(self) -> int:
+        if self._cached_length is not None:
+            return self._cached_length
+        length = 1 + sum(
+            len(arg)
+            for arg in self.args
+            if isinstance(arg, BaseNode)
+        )
+        self._cached_length = length
+        return length
+
+    def __hash__(self) -> int:
+        if self._cached_hash is not None:
+            return self._cached_hash
+        hash_value = hash((self.func, self.args))
+        self._cached_hash = hash_value
+        return hash_value
 
     def subs(self, mapping: dict[BaseNode, BaseNode]) -> BaseNode:
         return self.func(*[
