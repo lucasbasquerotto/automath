@@ -8,8 +8,7 @@ from utils.types import (
     ArgsGroup,
     InheritableNode,
     Integer,
-    TypeGroup,
-    ValueGroup,
+    IntValueGroup,
     IntTypeGroup)
 from environment.state import State, ParamsArgsGroup
 
@@ -120,7 +119,7 @@ class ActionInfo(InheritableNode):
 ###################### ACTION INPUT #######################
 ###########################################################
 
-class ActionInput(ValueGroup):
+class ActionInput(IntValueGroup):
     pass
 
 ###########################################################
@@ -423,18 +422,21 @@ class Action:
 
 
     @classmethod
-    def to_input(cls, action: tuple[int, ...]) -> ActionInput:
-        if len(action) != len(cls.metadata().arg_types):
+    def input_from_raw(cls, action: tuple[int, ...]) -> ActionInput:
+        arg_types = cls.metadata().arg_types
+
+        if len(action) != len(arg_types):
             raise InvalidActionArgsException(f"Invalid action length: {len(action)}")
 
         args = [
-            TypeValueNode(type, ValueNode(value))
-            for type, value in zip(cls.metadata().arg_types, action)
+            arg_type.type(value)
+            for arg_type, value in zip(arg_types, action)
         ]
         return ActionInput(*args)
 
     @classmethod
     def create(cls, input: ActionInput) -> 'Action':
+        input.validate(cls.metadata())
         cls.validate_args(input=input, state=None)
         return cls._create(input)
 
@@ -487,12 +489,12 @@ class Action:
                 assert len(new_function_info.params) <= len(new_expr_args.inner_args)
 
                 new_expr = new_function_info.expr.subs({
-                    old_param: new_expr_args.inner_args[i]
+                    old_param: new_arg
                     for i, old_param in enumerate(new_function_info.params)
-                    if new_expr_args.inner_args[i] is not None
+                    if (new_arg := new_expr_args.inner_args[i]) is not None
                 })
 
-                old_params = new_expr.atoms(Param).intersection(
+                old_params = new_expr.find(Param).intersection(
                     new_function_info.params)
                 assert len(old_params) == 0
 
@@ -675,8 +677,8 @@ class Action:
 class EmptyArgsBaseAction(Action):
 
     @classmethod
-    def metadata(cls) -> TypeGroup:
-        return TypeGroup()
+    def metadata(cls) -> IntTypeGroup:
+        return IntTypeGroup()
 
     @classmethod
     def _create(cls, input: ActionInput) -> 'Action':
@@ -696,8 +698,11 @@ class EmptyArgsBaseAction(Action):
 class DoubleIntInputBaseAction(Action):
 
     @classmethod
-    def metadata(cls) -> TypeGroup:
-        return TypeGroup(ACTION_ARG_TYPE_INT, ACTION_ARG_TYPE_INT)
+    def metadata(cls) -> IntTypeGroup:
+        return IntTypeGroup.from_types(
+            ActionArgInt,
+            ActionArgInt,
+        )
 
     @classmethod
     def _create(cls, input: ActionInput) -> 'Action':
@@ -730,7 +735,7 @@ class DoubleIntInputBaseAction(Action):
 class ValueTypeBaseAction(Action):
 
     @classmethod
-    def metadata(cls) -> TypeGroup:
+    def metadata(cls) -> IntTypeGroup:
         raise NotImplementedError()
 
     @classmethod
@@ -806,12 +811,12 @@ class ValueTypeBaseAction(Action):
 class ArgValueTypeBaseAction(ValueTypeBaseAction):
 
     @classmethod
-    def metadata(cls) -> TypeGroup:
-        return TypeGroup(
-            ACTION_ARG_TYPE_ARG_GROUP,
-            ACTION_ARG_TYPE_ARG_IDX,
-            ACTION_ARG_TYPE_VALUE_TYPE,
-            ACTION_ARG_TYPE_INT,
+    def metadata(cls) -> IntTypeGroup:
+        return IntTypeGroup.from_types(
+            ActionArgArgGroup,
+            ActionArgArgIdx,
+            ActionArgValueType,
+            ActionArgInt,
         )
 
     @classmethod
@@ -855,11 +860,11 @@ class ArgValueTypeBaseAction(ValueTypeBaseAction):
 class PartialDefinitionValueTypeBaseAction(ValueTypeBaseAction):
 
     @classmethod
-    def metadata(cls) -> TypeGroup:
-        return TypeGroup(
-            ACTION_ARG_TYPE_PARTIAL_DEFINITION,
-            ACTION_ARG_TYPE_VALUE_TYPE,
-            ACTION_ARG_TYPE_INT,
+    def metadata(cls) -> IntTypeGroup:
+        return IntTypeGroup.from_types(
+            ActionArgPartialDefinition,
+            ActionArgValueType,
+            ActionArgInt,
         )
 
     @classmethod
@@ -896,10 +901,10 @@ class PartialDefinitionValueTypeBaseAction(ValueTypeBaseAction):
 class DefinitionExprBaseAction(Action):
 
     @classmethod
-    def metadata(cls) -> TypeGroup:
-        return TypeGroup(
-            ACTION_ARG_TYPE_DEFINITION,
-            ACTION_ARG_TYPE_EXPRESSION_TARGET,
+    def metadata(cls) -> IntTypeGroup:
+        return IntTypeGroup.from_types(
+            ActionArgDefinition,
+            ActionArgExpressionTarget,
         )
 
     @classmethod
@@ -933,7 +938,7 @@ class DefinitionExprBaseAction(Action):
 class PartialDefinitionBaseAction(Action):
 
     @classmethod
-    def metadata(cls) -> TypeGroup:
+    def metadata(cls) -> IntTypeGroup:
         raise NotImplementedError()
 
     @classmethod
@@ -1006,11 +1011,11 @@ class PartialDefinitionBaseAction(Action):
 class PartialNodeFromExprOuterParamsBaseAction(PartialDefinitionBaseAction):
 
     @classmethod
-    def metadata(cls) -> TypeGroup:
-        return TypeGroup(
-            ACTION_ARG_TYPE_PARTIAL_DEFINITION,
-            ACTION_ARG_TYPE_PARTIAL_NODE,
-            ACTION_ARG_TYPE_EXPRESSION_ORIGIN,
+    def metadata(cls) -> IntTypeGroup:
+        return IntTypeGroup.from_types(
+            ActionArgPartialDefinition,
+            ActionArgPartialNode,
+            ActionArgExpressionOrigin,
         )
 
     @classmethod
@@ -1047,12 +1052,12 @@ class PartialNodeFromExprOuterParamsBaseAction(PartialDefinitionBaseAction):
 class PartialNodeFromExprWithArgsBaseAction(PartialDefinitionBaseAction):
 
     @classmethod
-    def metadata(cls) -> TypeGroup:
-        return TypeGroup(
-            ACTION_ARG_TYPE_PARTIAL_DEFINITION,
-            ACTION_ARG_TYPE_PARTIAL_NODE,
-            ACTION_ARG_TYPE_EXPRESSION_ORIGIN,
-            ACTION_ARG_TYPE_ARG_GROUP,
+    def metadata(cls) -> IntTypeGroup:
+        return IntTypeGroup.from_types(
+            ActionArgPartialDefinition,
+            ActionArgPartialNode,
+            ActionArgExpressionOrigin,
+            ActionArgArgGroup,
         )
 
     @classmethod
@@ -1169,7 +1174,7 @@ class PartialNodeFromExprWithArgsAction(PartialNodeFromExprWithArgsBaseAction):
                 "New expression amount of params invalid: " \
                 + f"{len(new_info.function_info.params)} > {len(new_expr_args.inner_args)}")
 
-        dependencies: set[Param] = new_info.function_info.expr.atoms(Param).intersection(
+        dependencies = new_info.function_info.expr.find(Param).intersection(
             new_info.function_info.params)
         dependencies_idxs = sorted([p.value for p in dependencies])
         for i, param in enumerate(new_info.function_info.params):
@@ -1219,8 +1224,8 @@ class ArgValueTypeAction(ArgValueTypeBaseAction):
 class NewDefinitionFromPartialAction(Action):
 
     @classmethod
-    def metadata(cls) -> TypeGroup:
-        return TypeGroup(ACTION_ARG_TYPE_PARTIAL_DEFINITION)
+    def metadata(cls) -> IntTypeGroup:
+        return IntTypeGroup.from_types(ActionArgPartialDefinition)
 
     @classmethod
     def _create(cls, input: ActionInput) -> 'Action':

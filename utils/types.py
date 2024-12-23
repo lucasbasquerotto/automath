@@ -2,6 +2,8 @@ from __future__ import annotations
 import typing
 import sympy
 
+T = typing.TypeVar('T', bound='BaseNode')
+
 class BaseNode:
     def __init__(self, *args: int | BaseNode | typing.Type[BaseNode]):
         assert all(
@@ -46,6 +48,18 @@ class BaseNode:
             )
             for arg in self.args
         ])
+
+    def find(self, node_type: type[T]) -> set[T]:
+        return {
+            node
+            for node in self.args
+            if isinstance(node, node_type)
+        }.union({
+            node
+            for parent_node in self.args
+            if isinstance(parent_node, BaseNode)
+            for node in parent_node.find(node_type)
+        })
 
     def eval(self) -> sympy.Basic:
         name = self.func.__name__
@@ -256,6 +270,10 @@ class IntTypeGroup(TypeGroup):
     def arg_types(self) -> tuple[IntTypeNode, ...]:
         return typing.cast(tuple[IntTypeNode, ...], self.args)
 
+    @classmethod
+    def from_types(cls, *types: type[Integer]) -> 'IntTypeGroup':
+        return cls(*[IntTypeNode(t) for t in types])
+
 class ValueGroup(InheritableNode):
     def validate(self, type_group: TypeGroup):
         assert isinstance(type_group, TypeGroup)
@@ -265,6 +283,15 @@ class ValueGroup(InheritableNode):
             assert isinstance(arg, BaseNode)
             assert isinstance(t_arg, TypeNode)
             assert isinstance(arg, t_arg.type)
+
+class IntValueGroup(ValueGroup):
+    def __init__(self, *args: Integer):
+        assert all(isinstance(arg, Integer) for arg in args)
+        super().__init__(*args)
+
+    @property
+    def args(self) -> tuple[Integer, ...]:
+        return typing.cast(tuple[Integer, ...], self.args)
 
 class GroupWithArgTypes(InheritableNode):
     def __init__(self, group_type: TypeNode, arg_type_group: TypeGroup):
