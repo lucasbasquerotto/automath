@@ -310,16 +310,18 @@ class Action:
 
     @classmethod
     def validate_args(cls, input: ActionInput, state: State | None) -> None:
-        arg_types = cls.metadata().arg_types
+        arg_types = cls.metadata().as_tuple
+
         if len(input.args) != len(arg_types):
             raise InvalidActionArgsException(f"Invalid action length: {len(input.args)}")
+
         for i, arg_type in enumerate(arg_types):
             arg_info = input.args[i]
-            if not arg_type.type in NEW_ACTION_ARG_TYPES:
-                raise InvalidActionArgException(f"Invalid action arg type: {arg_type}")
-            if arg_type.type != type(arg_info):
+
+            if not isinstance(arg_info, arg_type.type):
                 raise InvalidActionArgException(
                     f"Invalid action arg type: {arg_type.type} != {type(arg_info)}")
+
             if state is not None:
                 if isinstance(arg_info, ActionArgPartialDefinition):
                     partial_definition_idx = arg_info.value
@@ -418,7 +420,7 @@ class Action:
                 elif isinstance(arg_info, ActionArgInt):
                     pass
                 else:
-                    raise InvalidActionArgException(f"Invalid action arg type: {arg_type}")
+                    pass
 
 
     @classmethod
@@ -461,7 +463,6 @@ class Action:
         return new_state, output
 
     def _apply(self, state: State, output: ActionOutput) -> State:
-
         if isinstance(output, NewPartialDefinitionActionOutput):
             partial_definition_idx = output.partial_definition_idx
 

@@ -1,5 +1,5 @@
 import typing
-from utils.types import BASIC_NODE_TYPES, ScopedIntegerNode, Integer, InheritableNode, Integer, TypeGroup
+from utils.types import BASIC_NODE_TYPES, Integer, InheritableNode
 from .state import State, BaseNode
 from .action import BASIC_ACTION_TYPES, Action, ActionInput, ActionOutput
 from .reward import RewardEvaluator, DefaultRewardEvaluator
@@ -28,18 +28,6 @@ class ActionData:
 
 StateHistoryItem = State | ActionData
 
-class NodeTypeHandler:
-    def get_value(self, node: BaseNode) -> int:
-        raise NotImplementedError()
-
-class DefaultNodeTypeHandler(NodeTypeHandler):
-    def get_value(self, node: BaseNode) -> int:
-        if isinstance(node, ScopedIntegerNode):
-            return node.value
-        if isinstance(node, Integer):
-            return int(node)
-        return 0
-
 class NodeType(Integer):
     pass
 
@@ -65,19 +53,13 @@ class EnvMetaInfo:
         self,
         goal: GoalNode,
         node_types: tuple[typing.Type[BaseNode], ...],
-        node_type_handler: NodeTypeHandler,
-        action_types: tuple[typing.Type[Action], ...],
+        allowed_nodes: tuple[typing.Type[BaseNode], ...],
+        allowed_actions: tuple[typing.Type[Action], ...],
     ):
         self._goal = goal
         self._node_types = node_types
-        self._node_type_handler = node_type_handler
-        self._action_types = action_types
-        self._action_types_info = tuple([
-            ArgTypeGroup(
-                type_idx=i+1,
-                arg_types=action.metadata().arg_types,
-            ) for i, action in enumerate(action_types)
-        ])
+        self._allowed_nodes = allowed_nodes
+        self._allowed_actions = allowed_actions
 
     @property
     def goal(self) -> GoalNode:
@@ -88,22 +70,18 @@ class EnvMetaInfo:
         return self._node_types
 
     @property
-    def node_type_handler(self) -> NodeTypeHandler:
-        return self._node_type_handler
+    def allowed_nodes(self) -> tuple[typing.Type[BaseNode], ...]:
+        return self._allowed_nodes
 
     @property
-    def action_types(self) -> tuple[typing.Type[Action], ...]:
-        return self._action_types
-
-    @property
-    def action_types_info(self) -> tuple[ArgTypeGroup, ...]:
-        return self._action_types_info
+    def allowed_actions(self) -> tuple[typing.Type[Action], ...]:
+        return self._allowed_actions
 
     def to_node(self) -> MetaInfoNode:
         return MetaInfoNode(
             self.goal,
             NodeTypeGroup.from_types(len(self.node_types)),
-            ActionTypeGroup.from_types(len(self.action_types)),
+            ActionTypeGroup.from_types(len(self.allowed_actions)),
         )
 
 class FullEnvMetaInfo(EnvMetaInfo):
@@ -113,14 +91,14 @@ class FullEnvMetaInfo(EnvMetaInfo):
         reward_evaluator: RewardEvaluator | None = None,
         initial_history: tuple[StateHistoryItem, ...] = tuple(),
         node_types: tuple[typing.Type[BaseNode], ...] = BASIC_NODE_TYPES,
-        node_type_handler: NodeTypeHandler = DefaultNodeTypeHandler(),
-        action_types: tuple[typing.Type[Action], ...] = BASIC_ACTION_TYPES,
+        allowed_nodes: tuple[typing.Type[BaseNode], ...] = tuple(),
+        allowed_actions: tuple[typing.Type[Action], ...] = BASIC_ACTION_TYPES,
     ):
         super().__init__(
             goal=goal,
             node_types=node_types,
-            node_type_handler=node_type_handler,
-            action_types=action_types)
+            allowed_nodes=allowed_nodes,
+            allowed_actions=allowed_actions)
 
         reward_evaluator = (
             reward_evaluator
