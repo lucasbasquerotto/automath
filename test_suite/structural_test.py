@@ -1,5 +1,5 @@
 import numpy as np
-from utils.types import FunctionInfo, FunctionParams, ParamVar
+from utils.types import FunctionInfo, FunctionParams, Param
 from environment.full_state import (
     UNDEFINED_OR_EMPTY_FIELD,
     HISTORY_TYPE_META,
@@ -61,7 +61,7 @@ def test_env():
             print('='*80)
         assert np.array_equal(env_data, test_data)
 
-    params = (ParamVar(1), ParamVar(2), ParamVar(3))
+    params = (Param(1), Param(2), Param(3))
     p1, p2, p3 = params
     goal = HaveDefinition(
         FunctionInfo(

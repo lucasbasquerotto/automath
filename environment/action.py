@@ -1,13 +1,16 @@
 # pylint: disable=C0302
 from utils.types import (
     FunctionDefinition,
-    ParamVar,
+    Param,
     FunctionInfo,
     FunctionParams,
     ParamsGroup,
     ArgsGroup,
     InheritableNode,
-    ValueNode)
+    Integer,
+    TypeGroup,
+    ValueGroup,
+    IntTypeGroup)
 from environment.state import State, ParamsArgsGroup
 
 ###########################################################
@@ -63,7 +66,7 @@ def _validate_indexes(idx_list: list[int]):
 _validate_indexes(ARG_TYPES)
 _validate_indexes(VALUE_TYPES)
 
-class NewActionArg(ValueNode):
+class NewActionArg(Integer):
     pass
 
 class ActionArgPartialDefinition(NewActionArg):
@@ -117,52 +120,8 @@ class ActionInfo(InheritableNode):
 ###################### ACTION INPUT #######################
 ###########################################################
 
-ActionArgType = int
-
-class ActionArgsMetaInfo:
-    def __init__(
-        self,
-        arg_types: tuple[ActionArgType, ...],
-    ):
-        self._arg_types = arg_types
-
-    @property
-    def arg_types(self) -> tuple[ActionArgType, ...]:
-        return self._arg_types
-
-class ActionMetaInfo(ActionArgsMetaInfo):
-    def __init__(
-        self,
-        type_idx: int,
-        arg_types: tuple[ActionArgType, ...],
-    ):
-        super().__init__(arg_types=arg_types)
-        self._type_idx = type_idx
-
-    @property
-    def type_idx(self) -> int:
-        return self._type_idx
-
-class ActionArg:
-    def __init__(self, type: ActionArgType, value: int):
-        if type not in ARG_TYPES:
-            raise InvalidActionArgException(f"Invalid action arg type: {type}")
-        if not isinstance(value, int):
-            raise InvalidActionArgException(f"Invalid action arg value: {value}")
-        self._type = type
-        self._value = value
-
-    @property
-    def type(self) -> ActionArgType:
-        return self._type
-
-    @property
-    def value(self) -> int:
-        return self._value
-
-class ActionInput:
-    def __init__(self, args: tuple[ActionArg, ...]):
-        self.args = args
+class ActionInput(ValueGroup):
+    pass
 
 ###########################################################
 ###################### ACTION OUTPUT ######################
@@ -347,7 +306,7 @@ class InvalidActionArgsException(InvalidActionException):
 class Action:
 
     @classmethod
-    def metadata(cls) -> ActionArgsMetaInfo:
+    def metadata(cls) -> IntTypeGroup:
         raise NotImplementedError()
 
     @classmethod
@@ -357,13 +316,13 @@ class Action:
             raise InvalidActionArgsException(f"Invalid action length: {len(input.args)}")
         for i, arg_type in enumerate(arg_types):
             arg_info = input.args[i]
-            if not arg_type in ARG_TYPES:
+            if not arg_type.type in NEW_ACTION_ARG_TYPES:
                 raise InvalidActionArgException(f"Invalid action arg type: {arg_type}")
-            if arg_type != arg_info.type:
+            if arg_type.type != type(arg_info):
                 raise InvalidActionArgException(
-                    f"Invalid action arg type: {arg_type} != {input.args[i].type}")
+                    f"Invalid action arg type: {arg_type.type} != {type(arg_info)}")
             if state is not None:
-                if arg_type == ACTION_ARG_TYPE_PARTIAL_DEFINITION:
+                if isinstance(arg_info, ActionArgPartialDefinition):
                     partial_definition_idx = arg_info.value
                     if partial_definition_idx <= 0:
                         raise InvalidActionArgException(
@@ -371,13 +330,13 @@ class Action:
                     if partial_definition_idx > len(state.partial_definitions or []):
                         raise InvalidActionArgException(
                             f"Invalid partial definition: {partial_definition_idx}")
-                elif arg_type == ACTION_ARG_TYPE_ARG_GROUP:
+                elif isinstance(arg_info, ActionArgArgGroup):
                     arg_group_idx = arg_info.value
                     if arg_group_idx <= 0:
                         raise InvalidActionArgException(f"Invalid arg group: {arg_group_idx}")
                     if arg_group_idx > len(state.arg_groups or []):
                         raise InvalidActionArgException(f"Invalid arg group: {arg_group_idx}")
-                elif arg_type == ACTION_ARG_TYPE_ARG_IDX:
+                elif isinstance(arg_info, ActionArgArgIdx):
                     arg_idx = arg_info.value
                     if arg_idx <= 0:
                         raise InvalidActionArgException(f"Invalid arg index: {arg_idx}")
@@ -393,7 +352,9 @@ class Action:
                             f"Invalid argument order: {expected_group} != " + \
                             f"{ACTION_ARG_TYPE_ARG_GROUP}")
 
-                    arg_group_idx = input.args[i - 1].value
+                    last_arg = input.args[i - 1]
+                    assert isinstance(last_arg, ActionArgArgGroup)
+                    arg_group_idx = last_arg.value
                     assert arg_group_idx > 0
                     assert arg_group_idx <= len(state.arg_groups)
 
@@ -402,27 +363,27 @@ class Action:
                         raise InvalidActionArgException(
                             f"Invalid arg index: {arg_idx} (group={arg_group_idx}, " + \
                             f"max={len(arg_group.inner_args)})")
-                elif arg_type == ACTION_ARG_TYPE_DEFINITION:
+                elif isinstance(arg_info, ActionArgDefinition):
                     definition_idx = arg_info.value
                     if definition_idx <= 0:
                         raise InvalidActionArgException(f"Invalid definition: {definition_idx}")
                     if definition_idx > len(state.definitions or []):
                         raise InvalidActionArgException(f"Invalid definition: {definition_idx}")
-                elif arg_type == ACTION_ARG_TYPE_EXPRESSION_ORIGIN:
+                elif isinstance(arg_info, ActionArgExpressionOrigin):
                     expr_id = arg_info.value
                     if expr_id <= 0:
                         raise InvalidActionArgException(f"Invalid origin expr: {expr_id}")
                     function_info = state.get_expr(expr_id)
                     if not function_info:
                         raise InvalidActionArgException(f"Invalid origin expr: {expr_id}")
-                elif arg_type == ACTION_ARG_TYPE_EXPRESSION_TARGET:
+                elif isinstance(arg_info, ActionArgExpressionTarget):
                     expr_id = arg_info.value
                     if expr_id <= 0:
                         raise InvalidActionArgException(f"Invalid target expr: {expr_id}")
                     function_info = state.get_expr(expr_id)
                     if function_info and function_info.readonly:
                         raise InvalidActionArgException(f"Target expr is readonly: {expr_id}")
-                elif arg_type == ACTION_ARG_TYPE_PARTIAL_NODE:
+                elif isinstance(arg_info, ActionArgPartialNode):
                     node_idx = arg_info.value
                     if node_idx <= 0:
                         raise InvalidActionArgException(f"Invalid node index: {expr_id}")
@@ -438,7 +399,9 @@ class Action:
                             f"Invalid argument order: {expected_partial_definition} != " + \
                             f"{ACTION_ARG_TYPE_PARTIAL_DEFINITION}")
 
-                    partial_definition_idx = input.args[i - 1].value
+                    last_arg = input.args[i - 1]
+                    assert isinstance(last_arg, ActionArgPartialDefinition)
+                    partial_definition_idx = last_arg.value
                     if partial_definition_idx <= 0:
                         raise InvalidActionArgException(
                             f"Invalid partial definition: {partial_definition_idx}")
@@ -453,7 +416,7 @@ class Action:
                             raise InvalidActionArgException(
                                 f"Invalid node index: {node_idx} " + \
                                 f"(partial={partial_definition_idx})")
-                elif arg_type == ACTION_ARG_TYPE_INT:
+                elif isinstance(arg_info, ActionArgInt):
                     pass
                 else:
                     raise InvalidActionArgException(f"Invalid action arg type: {arg_type}")
@@ -465,10 +428,10 @@ class Action:
             raise InvalidActionArgsException(f"Invalid action length: {len(action)}")
 
         args = [
-            ActionArg(type, value)
+            TypeValueNode(type, ValueNode(value))
             for type, value in zip(cls.metadata().arg_types, action)
         ]
-        return ActionInput(tuple(args))
+        return ActionInput(*args)
 
     @classmethod
     def create(cls, input: ActionInput) -> 'Action':
@@ -529,7 +492,7 @@ class Action:
                     if new_expr_args.inner_args[i] is not None
                 })
 
-                old_params = new_expr.atoms(ParamVar).intersection(
+                old_params = new_expr.atoms(Param).intersection(
                     new_function_info.params)
                 assert len(old_params) == 0
 
@@ -572,7 +535,7 @@ class Action:
             arg_groups = list(state.arg_groups or [])
             arg_groups.append(ParamsArgsGroup(
                 ParamsGroup(*[
-                    ParamVar(i + 1)
+                    Param(i + 1)
                     for i in range(params_amount)
                 ]),
                 ArgsGroup.from_args([None] * args_amount)))
@@ -712,8 +675,8 @@ class Action:
 class EmptyArgsBaseAction(Action):
 
     @classmethod
-    def metadata(cls) -> ActionArgsMetaInfo:
-        return ActionArgsMetaInfo(tuple())
+    def metadata(cls) -> TypeGroup:
+        return TypeGroup()
 
     @classmethod
     def _create(cls, input: ActionInput) -> 'Action':
@@ -733,8 +696,8 @@ class EmptyArgsBaseAction(Action):
 class DoubleIntInputBaseAction(Action):
 
     @classmethod
-    def metadata(cls) -> ActionArgsMetaInfo:
-        return ActionArgsMetaInfo((ACTION_ARG_TYPE_INT, ACTION_ARG_TYPE_INT))
+    def metadata(cls) -> TypeGroup:
+        return TypeGroup(ACTION_ARG_TYPE_INT, ACTION_ARG_TYPE_INT)
 
     @classmethod
     def _create(cls, input: ActionInput) -> 'Action':
@@ -767,7 +730,7 @@ class DoubleIntInputBaseAction(Action):
 class ValueTypeBaseAction(Action):
 
     @classmethod
-    def metadata(cls) -> ActionArgsMetaInfo:
+    def metadata(cls) -> TypeGroup:
         raise NotImplementedError()
 
     @classmethod
@@ -801,9 +764,9 @@ class ValueTypeBaseAction(Action):
 
     def get_function_info(self, state: State) -> FunctionInfo:
         if self.value_type == VALUE_TYPE_INT:
-            return FunctionInfo(ParamVar(self.value), FunctionParams())
+            return FunctionInfo(Param(self.value), FunctionParams())
         elif self.value_type == VALUE_TYPE_PARAM:
-            return FunctionInfo(ParamVar(self.value), FunctionParams())
+            return FunctionInfo(Param(self.value), FunctionParams())
         elif self.value_type == VALUE_TYPE_META_DEFINITION:
             raise NotImplementedError()
         elif self.value_type == VALUE_TYPE_META_PROPOSITION:
@@ -843,13 +806,13 @@ class ValueTypeBaseAction(Action):
 class ArgValueTypeBaseAction(ValueTypeBaseAction):
 
     @classmethod
-    def metadata(cls) -> ActionArgsMetaInfo:
-        return ActionArgsMetaInfo((
+    def metadata(cls) -> TypeGroup:
+        return TypeGroup(
             ACTION_ARG_TYPE_ARG_GROUP,
             ACTION_ARG_TYPE_ARG_IDX,
             ACTION_ARG_TYPE_VALUE_TYPE,
             ACTION_ARG_TYPE_INT,
-        ))
+        )
 
     @classmethod
     def _create(cls, input: ActionInput) -> 'Action':
@@ -892,12 +855,12 @@ class ArgValueTypeBaseAction(ValueTypeBaseAction):
 class PartialDefinitionValueTypeBaseAction(ValueTypeBaseAction):
 
     @classmethod
-    def metadata(cls) -> ActionArgsMetaInfo:
-        return ActionArgsMetaInfo((
+    def metadata(cls) -> TypeGroup:
+        return TypeGroup(
             ACTION_ARG_TYPE_PARTIAL_DEFINITION,
             ACTION_ARG_TYPE_VALUE_TYPE,
             ACTION_ARG_TYPE_INT,
-        ))
+        )
 
     @classmethod
     def _create(cls, input: ActionInput) -> 'Action':
@@ -933,11 +896,11 @@ class PartialDefinitionValueTypeBaseAction(ValueTypeBaseAction):
 class DefinitionExprBaseAction(Action):
 
     @classmethod
-    def metadata(cls) -> ActionArgsMetaInfo:
-        return ActionArgsMetaInfo((
+    def metadata(cls) -> TypeGroup:
+        return TypeGroup(
             ACTION_ARG_TYPE_DEFINITION,
             ACTION_ARG_TYPE_EXPRESSION_TARGET,
-        ))
+        )
 
     @classmethod
     def _create(cls, input: ActionInput) -> 'Action':
@@ -970,7 +933,7 @@ class DefinitionExprBaseAction(Action):
 class PartialDefinitionBaseAction(Action):
 
     @classmethod
-    def metadata(cls) -> ActionArgsMetaInfo:
+    def metadata(cls) -> TypeGroup:
         raise NotImplementedError()
 
     @classmethod
@@ -1043,12 +1006,12 @@ class PartialDefinitionBaseAction(Action):
 class PartialNodeFromExprOuterParamsBaseAction(PartialDefinitionBaseAction):
 
     @classmethod
-    def metadata(cls) -> ActionArgsMetaInfo:
-        return ActionArgsMetaInfo((
+    def metadata(cls) -> TypeGroup:
+        return TypeGroup(
             ACTION_ARG_TYPE_PARTIAL_DEFINITION,
             ACTION_ARG_TYPE_PARTIAL_NODE,
             ACTION_ARG_TYPE_EXPRESSION_ORIGIN,
-        ))
+        )
 
     @classmethod
     def _create(cls, input: ActionInput) -> 'Action':
@@ -1084,13 +1047,13 @@ class PartialNodeFromExprOuterParamsBaseAction(PartialDefinitionBaseAction):
 class PartialNodeFromExprWithArgsBaseAction(PartialDefinitionBaseAction):
 
     @classmethod
-    def metadata(cls) -> ActionArgsMetaInfo:
-        return ActionArgsMetaInfo((
+    def metadata(cls) -> TypeGroup:
+        return TypeGroup(
             ACTION_ARG_TYPE_PARTIAL_DEFINITION,
             ACTION_ARG_TYPE_PARTIAL_NODE,
             ACTION_ARG_TYPE_EXPRESSION_ORIGIN,
             ACTION_ARG_TYPE_ARG_GROUP,
-        ))
+        )
 
     @classmethod
     def _create(cls, input: ActionInput) -> 'Action':
@@ -1206,7 +1169,7 @@ class PartialNodeFromExprWithArgsAction(PartialNodeFromExprWithArgsBaseAction):
                 "New expression amount of params invalid: " \
                 + f"{len(new_info.function_info.params)} > {len(new_expr_args.inner_args)}")
 
-        dependencies: set[ParamVar] = new_info.function_info.expr.atoms(ParamVar).intersection(
+        dependencies: set[Param] = new_info.function_info.expr.atoms(Param).intersection(
             new_info.function_info.params)
         dependencies_idxs = sorted([p.value for p in dependencies])
         for i, param in enumerate(new_info.function_info.params):
@@ -1256,8 +1219,8 @@ class ArgValueTypeAction(ArgValueTypeBaseAction):
 class NewDefinitionFromPartialAction(Action):
 
     @classmethod
-    def metadata(cls) -> ActionArgsMetaInfo:
-        return ActionArgsMetaInfo((ACTION_ARG_TYPE_PARTIAL_DEFINITION,))
+    def metadata(cls) -> TypeGroup:
+        return TypeGroup(ACTION_ARG_TYPE_PARTIAL_DEFINITION)
 
     @classmethod
     def _create(cls, input: ActionInput) -> 'Action':

@@ -1,66 +1,127 @@
+from __future__ import annotations
 import typing
 import sympy
 
-BaseNode = sympy.Basic
-
-Integer = sympy.Integer
-
-class ParamBaseNode(sympy.Basic):
-    def __init__(self, *args: BaseNode):
-        assert all(isinstance(arg, sympy.Basic) for arg in args)
-        super().__init__()
+class BaseNode:
+    def __init__(self, *args: int | BaseNode | typing.Type[BaseNode]):
+        assert all(
+            (
+                isinstance(arg, BaseNode)
+                or isinstance(arg, int)
+                or (isinstance(arg, type) and issubclass(arg, BaseNode))
+            )
+            for arg in args)
         self._args = args
 
-class InheritableNode(sympy.Basic):
-    def __init__(self, *args: BaseNode):
-        assert all(isinstance(arg, sympy.Basic) for arg in args)
-        super().__init__()
-        self._args = args
+    @property
+    def args(self) -> tuple[int | BaseNode | typing.Type[BaseNode], ...]:
+        return self._args
 
-class EmptyNode(InheritableNode):
+    @property
+    def func(self) -> typing.Type[typing.Self]:
+        return type(self)
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, BaseNode):
+            return False
+        if not self.func == other.func:
+            return False
+        if not len(self.args) == len(other.args):
+            return False
+        for i, arg in enumerate(self.args):
+            if arg != other.args[i]:
+                return False
+        return True
+
+    def subs(self, mapping: dict[BaseNode, BaseNode]) -> BaseNode:
+        return self.func(*[
+            (
+                (
+                    mapping[arg]
+                    if arg in mapping
+                    else arg
+                )
+                if isinstance(arg, BaseNode)
+                else arg
+            )
+            for arg in self.args
+        ])
+
+    def eval(self) -> sympy.Basic:
+        name = self.func.__name__
+        if len(self.args) == 0:
+            return sympy.Symbol(name)
+
+        def eval_arg(arg: int | BaseNode | typing.Type[BaseNode]):
+            if isinstance(arg, BaseNode):
+                return arg.eval()
+            if isinstance(arg, int):
+                return sympy.Integer(arg)
+            if isinstance(arg, type) and issubclass(arg, BaseNode):
+                return sympy.Symbol(arg.__name__)
+            raise ValueError(f"Invalid argument: {arg}")
+
+        fn = sympy.Function(name)
+        args: list[sympy.Basic] = [eval_arg(arg) for arg in self.args]
+        # pylint: disable=not-callable
+        return fn(*args)
+
+class VoidNode(BaseNode):
     def __init__(self):
         super().__init__()
 
-class ValueNode(InheritableNode):
-    @classmethod
-    def prefix(cls):
-        return 'unk'
-
+class Integer(BaseNode):
     def __init__(self, value: int):
-        super().__init__(sympy.Integer(value))
+        super().__init__(value)
 
     @property
     def value(self) -> int:
         value = self.args[0]
-        assert isinstance(value, sympy.Integer)
-        return int(value)
+        assert isinstance(value, int)
+        return value
 
-class ScopedNode(InheritableNode):
-    @classmethod
-    def prefix(cls):
-        return 'unk'
+class ScopedIntegerNode(Integer):
+    def __eq__(self, other) -> bool:
+        return self == other
 
-    def __init__(self, value: int):
-        super().__init__(sympy.Integer(value), sympy.Dummy())
-
-    def _latex(self, printer): # pylint: disable=unused-argument
-        return r"%s_{%s}" % (self.prefix(), self.args[0])
-
-    @property
-    def value(self) -> int:
-        value = self.args[0]
-        assert isinstance(value, sympy.Integer)
-        return int(value)
-
-class FunctionDefinition(ScopedNode):
-    @classmethod
-    def prefix(cls):
-        return 'f'
-
-class ParamVar(ScopedNode):
+class Param(ScopedIntegerNode):
     @classmethod
     def prefix(cls):
         return 'p'
+
+class TypeNode(BaseNode):
+    def __init__(self, type: typing.Type[BaseNode]):
+        super().__init__(type)
+
+    @property
+    def type(self) -> typing.Type[BaseNode]:
+        t = self.args[0]
+        assert isinstance(t, type) and issubclass(t, BaseNode)
+        return t
+
+class IntTypeNode(TypeNode):
+    def __init__(self, type: typing.Type[Integer]):
+        super().__init__(type)
+
+    @property
+    def type(self) -> typing.Type[Integer]:
+        t = self.args[0]
+        assert isinstance(t, type) and issubclass(t, Integer)
+        return t
+
+class InheritableNode(BaseNode):
+    def __init__(self, *args: BaseNode):
+        assert all(isinstance(arg, BaseNode) for arg in args)
+        super().__init__(*args)
+
+    @property
+    def args(self) -> tuple[BaseNode, ...]:
+        return typing.cast(tuple[BaseNode, ...], self._args)
+
+class FunctionDefinition(ScopedIntegerNode):
+    @classmethod
+    def prefix(cls):
+        return 'f'
 
 class BooleanNode(InheritableNode):
     @property
@@ -78,13 +139,13 @@ class MultiArgBooleanNode(BooleanNode):
         raise NotImplementedError
 
 class FunctionParams(InheritableNode):
-    def __init__(self, *params: ParamVar):
-        assert all(isinstance(param, ParamVar) for param in params)
+    def __init__(self, *params: Param):
+        assert all(isinstance(param, Param) for param in params)
         super().__init__(*params)
 
     @property
-    def params(self) -> tuple[ParamVar, ...]:
-        return typing.cast(tuple[ParamVar, ...], self._args)
+    def params(self) -> tuple[Param, ...]:
+        return typing.cast(tuple[Param, ...], self._args)
 
 class FunctionInfo(InheritableNode):
     def __init__(self, expr: BaseNode, params: FunctionParams):
@@ -94,7 +155,9 @@ class FunctionInfo(InheritableNode):
 
     @property
     def expr(self) -> BaseNode:
-        return self.args[0]
+        expr = self.args[0]
+        assert isinstance(expr, BaseNode)
+        return expr
 
     @property
     def params_group(self) -> FunctionParams:
@@ -103,7 +166,7 @@ class FunctionInfo(InheritableNode):
         return params
 
     @property
-    def params(self) -> tuple[ParamVar, ...]:
+    def params(self) -> tuple[Param, ...]:
         group = self.params_group
         return group.params
 
@@ -120,13 +183,13 @@ class FunctionInfo(InheritableNode):
         })
 
 class ParamsGroup(InheritableNode):
-    def __init__(self, *args: ParamVar):
-        assert all(isinstance(arg, ParamVar) for arg in args)
+    def __init__(self, *args: Param):
+        assert all(isinstance(arg, Param) for arg in args)
         super().__init__(*args)
 
     @property
-    def params(self) -> tuple[ParamVar, ...]:
-        return typing.cast(tuple[ParamVar, ...], self._args)
+    def params(self) -> tuple[Param, ...]:
+        return typing.cast(tuple[Param, ...], self._args)
 
 class ArgsGroup(InheritableNode):
     def __init__(self, *args: BaseNode):
@@ -139,7 +202,7 @@ class ArgsGroup(InheritableNode):
 
     @classmethod
     def from_args(cls, args: typing.Sequence[BaseNode | None]) -> 'ArgsGroup':
-        return ArgsGroup(*[arg if arg is not None else EmptyNode() for arg in args])
+        return ArgsGroup(*[arg if arg is not None else VoidNode() for arg in args])
 
 class ParamsArgsGroup(InheritableNode):
     def __init__(
@@ -162,7 +225,7 @@ class ParamsArgsGroup(InheritableNode):
         return inner_args
 
     @property
-    def outer_params(self) -> tuple[ParamVar, ...]:
+    def outer_params(self) -> tuple[Param, ...]:
         outer_params = self._args[0]
         assert isinstance(outer_params, ParamsGroup)
         return outer_params.params
@@ -172,11 +235,95 @@ class ParamsArgsGroup(InheritableNode):
         inner_args_group = self.inner_args_group
         arg_list = inner_args_group.arg_list
         return tuple([
-            (a if not isinstance(a, EmptyNode) else None)
+            (a if not isinstance(a, VoidNode) else None)
             for a in arg_list])
 
-BASIC_NODE_TYPES = (
+class TypeGroup(InheritableNode):
+    def __init__(self, *args: TypeNode):
+        assert all(isinstance(arg, TypeNode) for arg in args)
+        super().__init__(*args)
+
+    @property
+    def arg_types(self) -> tuple[TypeNode, ...]:
+        return typing.cast(tuple[TypeNode, ...], self.args)
+
+class IntTypeGroup(TypeGroup):
+    def __init__(self, *args: IntTypeNode):
+        assert all(isinstance(arg, IntTypeNode) for arg in args)
+        super().__init__(*args)
+
+    @property
+    def arg_types(self) -> tuple[IntTypeNode, ...]:
+        return typing.cast(tuple[IntTypeNode, ...], self.args)
+
+class ValueGroup(InheritableNode):
+    def validate(self, type_group: TypeGroup):
+        assert isinstance(type_group, TypeGroup)
+        assert len(self.args) == len(type_group.args)
+        for i, arg in enumerate(self.args):
+            t_arg = type_group.args[i]
+            assert isinstance(arg, BaseNode)
+            assert isinstance(t_arg, TypeNode)
+            assert isinstance(arg, t_arg.type)
+
+class GroupWithArgTypes(InheritableNode):
+    def __init__(self, group_type: TypeNode, arg_type_group: TypeGroup):
+        assert isinstance(group_type, TypeNode)
+        assert isinstance(arg_type_group, TypeGroup)
+        super().__init__(group_type, arg_type_group)
+
+    @property
+    def group_type(self) -> TypeNode:
+        group_type = self.args[0]
+        assert isinstance(group_type, TypeNode)
+        return group_type
+
+    @property
+    def arg_types(self) -> tuple[TypeNode, ...]:
+        arg_type_group = self.args[1]
+        assert isinstance(arg_type_group, TypeGroup)
+        return arg_type_group.arg_types
+
+class GroupWithArgs(InheritableNode):
+    def __init__(self, group_type: TypeNode, arg_group: ValueGroup):
+        assert isinstance(group_type, TypeNode)
+        assert isinstance(arg_group, ValueGroup)
+        super().__init__(group_type, arg_group)
+
+    @property
+    def group_type(self) -> TypeNode:
+        group_type = self.args[0]
+        assert isinstance(group_type, TypeNode)
+        return group_type
+
+    @property
+    def arg_group(self) -> ValueGroup:
+        arg_group = self.args[1]
+        assert isinstance(arg_group, ValueGroup)
+        return arg_group
+
+    @property
+    def arg_values(self) -> tuple[BaseNode, ...]:
+        return self.arg_group.args
+
+BASIC_NODE_TYPES: tuple[type[BaseNode], ...] = (
+    BaseNode,
+    VoidNode,
+    Integer,
+    ScopedIntegerNode,
+    Param,
+    TypeNode,
+    InheritableNode,
     FunctionDefinition,
-    ParamVar,
-    sympy.Integer,
+    BooleanNode,
+    MultiArgBooleanNode,
+    FunctionParams,
+    FunctionInfo,
+    ParamsGroup,
+    ArgsGroup,
+    ParamsArgsGroup,
+    TypeGroup,
+    ValueGroup,
+    GroupWithArgTypes,
+    GroupWithArgs,
 )

@@ -1,7 +1,7 @@
 import typing
-from utils.types import BASIC_NODE_TYPES, ScopedNode, Integer, InheritableNode, ValueNode
+from utils.types import BASIC_NODE_TYPES, ScopedIntegerNode, Integer, InheritableNode, Integer, TypeGroup
 from .state import State, BaseNode
-from .action import BASIC_ACTION_TYPES, Action, ActionMetaInfo, ActionInput, ActionOutput
+from .action import BASIC_ACTION_TYPES, Action, ActionInput, ActionOutput
 from .reward import RewardEvaluator, DefaultRewardEvaluator
 
 class GoalNode(InheritableNode):
@@ -34,16 +34,16 @@ class NodeTypeHandler:
 
 class DefaultNodeTypeHandler(NodeTypeHandler):
     def get_value(self, node: BaseNode) -> int:
-        if isinstance(node, ScopedNode):
+        if isinstance(node, ScopedIntegerNode):
             return node.value
         if isinstance(node, Integer):
             return int(node)
         return 0
 
-class NodeType(ValueNode):
+class NodeType(Integer):
     pass
 
-class ActionType(ValueNode):
+class ActionType(Integer):
     pass
 
 class NodeTypeGroup(InheritableNode):
@@ -73,7 +73,7 @@ class EnvMetaInfo:
         self._node_type_handler = node_type_handler
         self._action_types = action_types
         self._action_types_info = tuple([
-            ActionMetaInfo(
+            ArgTypeGroup(
                 type_idx=i+1,
                 arg_types=action.metadata().arg_types,
             ) for i, action in enumerate(action_types)
@@ -96,7 +96,7 @@ class EnvMetaInfo:
         return self._action_types
 
     @property
-    def action_types_info(self) -> tuple[ActionMetaInfo, ...]:
+    def action_types_info(self) -> tuple[ArgTypeGroup, ...]:
         return self._action_types_info
 
     def to_node(self) -> MetaInfoNode:

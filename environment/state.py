@@ -3,14 +3,14 @@ from utils.types import (
     BaseNode,
     InheritableNode,
     FunctionDefinition,
-    ParamVar,
+    Param,
     FunctionInfo,
     FunctionParams,
     ParamsArgsGroup,
     ParamsGroup,
     ArgsGroup,
-    ScopedNode,
-    EmptyNode)
+    ScopedIntegerNode,
+    VoidNode)
 
 class ExprStatusInfo:
     def __init__(self, function_info: FunctionInfo, readonly: bool):
@@ -75,9 +75,9 @@ class PartialDefinitionNode(InheritableNode):
         return f
 
 class PartialDefinitionGroup(InheritableNode):
-    def __init__(self, *args: PartialDefinitionNode | EmptyNode):
+    def __init__(self, *args: PartialDefinitionNode | VoidNode):
         assert all(
-            (isinstance(arg, PartialDefinitionNode) or isinstance(arg, EmptyNode))
+            (isinstance(arg, PartialDefinitionNode) or isinstance(arg, VoidNode))
             for arg in args)
         super().__init__(*args)
 
@@ -92,10 +92,10 @@ class PartialDefinitionGroup(InheritableNode):
         cls,
         definitions: tuple[FunctionInfo | None, ...],
     ) -> 'PartialDefinitionGroup':
-        nodes: list[PartialDefinitionNode | EmptyNode] = [
+        nodes: list[PartialDefinitionNode | VoidNode] = [
             PartialDefinitionNode(definition)
             if definition is not None
-            else EmptyNode()
+            else VoidNode()
             for definition in definitions
         ]
         return cls(*nodes)
@@ -172,7 +172,7 @@ class State(InheritableNode):
 
         if index > 0:
             parent_expr = root
-            args = tuple() if isinstance(expr, ScopedNode) else root.args
+            args = tuple() if isinstance(expr, ScopedIntegerNode) else root.args
             for i, arg in enumerate(args):
                 # recursive call each node arg to traverse its subtree
                 expr, index, child_index = cls._index_to_expr(
@@ -207,7 +207,7 @@ class State(InheritableNode):
                 p: outer_params[i]
                 for i, p in enumerate(new_function_info.params)
             })
-            new_params: tuple[ParamVar, ...] = (
+            new_params: tuple[Param, ...] = (
                 root_info.params
                 if root_info is not None
                 else tuple())
@@ -215,7 +215,7 @@ class State(InheritableNode):
 
         assert root_info is not None
 
-        args = tuple() if isinstance(root_info.expr, ScopedNode) else root_info.expr.args
+        args = tuple() if isinstance(root_info.expr, ScopedIntegerNode) else root_info.expr.args
         args_list: list[BaseNode] = list(args)
 
         for i, arg in enumerate(args_list):
