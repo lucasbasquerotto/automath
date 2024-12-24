@@ -1,6 +1,6 @@
 # pylint: disable=C0302
 from environment.core import (
-    FunctionDefinition,
+    BaseNodeMainIndex,
     Param,
     FunctionInfo,
     FunctionParams,
@@ -10,7 +10,13 @@ from environment.core import (
     Integer,
     IntValueGroup,
     IntTypeGroup)
-from environment.state import State, ParamsArgsGroup
+from environment.state import (
+    State,
+    FunctionDefinitionGroup,
+    FunctionDefinitionNode,
+    PartialDefinitionGroup,
+    ParamsArgsGroup,
+    ParamsArgsOuterGroup)
 
 ###########################################################
 ######################## CONSTANTS ########################
@@ -356,10 +362,11 @@ class Action:
                     last_arg = input.args[i - 1]
                     assert isinstance(last_arg, ActionArgArgGroup)
                     arg_group_idx = last_arg.value
+                    arg_groups = state.arg_groups.as_tuple
                     assert arg_group_idx > 0
-                    assert arg_group_idx <= len(state.arg_groups)
+                    assert arg_group_idx <= len(arg_groups)
 
-                    arg_group = state.arg_groups[arg_group_idx - 1]
+                    arg_group = arg_groups[arg_group_idx - 1]
                     if arg_idx > len(arg_group.inner_args):
                         raise InvalidActionArgException(
                             f"Invalid arg index: {arg_idx} (group={arg_group_idx}, " + \
@@ -403,16 +410,21 @@ class Action:
                     last_arg = input.args[i - 1]
                     assert isinstance(last_arg, ActionArgPartialDefinition)
                     partial_definition_idx = last_arg.value
+                    partial_definitions = state.partial_definitions.as_tuple
                     if partial_definition_idx <= 0:
                         raise InvalidActionArgException(
                             f"Invalid partial definition: {partial_definition_idx}")
-                    if partial_definition_idx > len(state.partial_definitions or []):
+                    if partial_definition_idx > len(partial_definitions or []):
                         raise InvalidActionArgException(
                             f"Invalid partial definition: {partial_definition_idx}")
 
                     if node_idx > 1:
-                        partial_definition = state.partial_definitions[partial_definition_idx - 1]
-                        node = State.get_partial_definition_node(partial_definition, node_idx)
+                        partial_definition = partial_definitions[partial_definition_idx - 1]
+                        if partial_definition is None:
+                            raise InvalidActionArgException(
+                                f"Invalid node index: {node_idx} " + \
+                                f"(partial={partial_definition_idx})")
+                        node = partial_definition.expr[BaseNodeMainIndex.from_int(node_idx)]
                         if node is None:
                             raise InvalidActionArgException(
                                 f"Invalid node index: {node_idx} " + \
@@ -425,7 +437,7 @@ class Action:
 
     @classmethod
     def input_from_raw(cls, action: tuple[int, ...]) -> ActionInput:
-        arg_types = cls.metadata().arg_types
+        arg_types = cls.metadata().as_tuple
 
         if len(action) != len(arg_types):
             raise InvalidActionArgsException(f"Invalid action length: {len(action)}")
@@ -468,19 +480,19 @@ class Action:
 
             assert partial_definition_idx == len(state.partial_definitions or []) + 1
 
-            partial_definitions = list(state.partial_definitions or [])
+            partial_definitions = list(state.partial_definitions.as_tuple)
             partial_definitions.append(None)
 
-            return State.from_raw(
+            return State(
                 definitions=state.definitions,
-                partial_definitions=tuple(partial_definitions),
+                partial_definitions=PartialDefinitionGroup.from_items(partial_definitions),
                 arg_groups=state.arg_groups)
         elif isinstance(output, PartialActionOutput):
             partial_definition_idx = output.partial_definition_idx
             node_idx = output.node_idx
             new_function_info = output.new_function_info
             new_expr_args = output.new_expr_arg_group
-            partial_definitions_list = list(state.partial_definitions or [])
+            partial_definitions_list = list(state.partial_definitions.as_tuple)
 
             assert partial_definition_idx is not None
             assert partial_definition_idx > 0
@@ -490,8 +502,8 @@ class Action:
                 assert len(new_function_info.params) <= len(new_expr_args.inner_args)
 
                 new_expr = new_function_info.expr.subs({
-                    old_param: new_arg
-                    for i, old_param in enumerate(new_function_info.params)
+                    old_param.param: new_arg
+                    for i, old_param in enumerate(new_function_info.params.as_tuple)
                     if (new_arg := new_expr_args.inner_args[i]) is not None
                 })
 
@@ -552,7 +564,7 @@ class Action:
             arg_idx = output.arg_idx
             new_function_info = output.new_function_info
 
-            arg_groups = list(state.arg_groups or [])
+            arg_groups = list(state.arg_groups.as_tuple)
             assert len(arg_groups) > 0
             assert arg_group_idx > 0
             assert arg_group_idx <= len(arg_groups)
@@ -564,8 +576,8 @@ class Action:
             assert len(new_function_info.params) <= len(arg_group.outer_params)
 
             new_expr = new_function_info.expr.subs({
-                old_param: arg_group.outer_params[i]
-                for i, old_param in enumerate(new_function_info.params)
+                old_param.param: arg_group.outer_params[i]
+                for i, old_param in enumerate(new_function_info.params.as_tuple)
             })
 
             arg_groups_list = list(arg_groups)
@@ -575,13 +587,13 @@ class Action:
                 ParamsGroup(*arg_group.outer_params),
                 ArgsGroup.from_items(arg_group_args))
 
-            return State.from_raw(
+            return State(
                 definitions=state.definitions,
                 partial_definitions=state.partial_definitions,
-                arg_groups=tuple(arg_groups_list))
+                arg_groups=ParamsArgsOuterGroup.from_items(arg_groups_list))
         elif isinstance(output, RemoveArgGroupActionOutput):
             arg_group_idx = output.arg_group_idx
-            arg_groups = list(state.arg_groups or [])
+            arg_groups = list(state.arg_groups.as_tuple)
 
             assert arg_group_idx > 0
             assert arg_group_idx <= len(arg_groups)
@@ -592,10 +604,10 @@ class Action:
                 if i != arg_group_idx - 1
             ]
 
-            return State.from_raw(
+            return State(
                 definitions=state.definitions,
                 partial_definitions=state.partial_definitions,
-                arg_groups=tuple(arg_groups_list))
+                arg_groups=ParamsArgsOuterGroup.from_items(arg_groups_list))
         elif isinstance(output, NewDefinitionFromPartialActionOutput):
             definition_idx = output.definition_idx
             assert definition_idx == len(state.definitions or []) + 1
@@ -605,13 +617,14 @@ class Action:
             assert partial_definition_idx > 0
             assert partial_definition_idx <= len(state.partial_definitions or [])
 
-            partial_definitions_list = list(state.partial_definitions or [])
-            expr = partial_definitions_list[partial_definition_idx - 1]
-            assert expr is not None
+            partial_definitions_list = list(state.partial_definitions.as_tuple)
+            function_info = partial_definitions_list[partial_definition_idx - 1]
+            assert function_info is not None
 
-            definitions_list = list(state.definitions or [])
-            definition_idx = len(definitions_list) + 1
-            definitions_list.append((FunctionDefinition(definition_idx), expr))
+            definitions_list = list(state.definitions.as_tuple)
+            definitions_list.append(FunctionDefinitionNode(
+                FunctionKey(),
+                function_info))
 
             partial_definitions_list = [
                 expr
@@ -619,14 +632,14 @@ class Action:
                 if i != partial_definition_idx - 1
             ]
 
-            return State.from_raw(
-                definitions=tuple(definitions_list),
-                partial_definitions=tuple(partial_definitions_list),
+            return State(
+                definitions=FunctionDefinitionGroup.from_items(definitions_list),
+                partial_definitions=PartialDefinitionGroup.from_items(partial_definitions_list),
                 arg_groups=state.arg_groups)
         elif isinstance(output, ReplaceByDefinitionActionOutput):
             definition_idx = output.definition_idx
             expr_id = output.expr_id
-            definitions = state.definitions
+            definitions = state.definitions.as_tuple
 
             assert definitions is not None
             assert definition_idx is not None
@@ -634,10 +647,13 @@ class Action:
             assert definition_idx <= len(definitions)
             assert expr_id is not None
 
-            key, definition_info = definitions[definition_idx - 1]
+            definition_node = definitions[definition_idx - 1]
+            assert definition_node is not None
+
+            key = definition_node.definition_key
+            definition_info = definition_node.function_info
             target = state.get_expr(expr_id)
 
-            assert definition_info is not None
             assert target is not None
             assert not target.readonly
             assert len(definition_info.params) <= len(target.function_info.params)
@@ -649,7 +665,7 @@ class Action:
         elif isinstance(output, ExpandDefinitionActionOutput):
             definition_idx = output.definition_idx
             expr_id = output.expr_id
-            definitions = state.definitions
+            definitions = state.definitions.as_tuple
 
             assert len(definitions) > 0
             assert definition_idx is not None
@@ -657,11 +673,17 @@ class Action:
             assert definition_idx <= len(definitions)
             assert expr_id is not None
 
-            key, definition_info = definitions[definition_idx - 1]
+            definition_node = definitions[definition_idx - 1]
+            assert definition_node is not None
+
+            key = definition_node.definition_key
+            definition_info = definition_node.function_info
             target = state.get_expr(expr_id)
+
             assert target is not None
             assert not target.readonly
-            assert key == target.function_info.expr
+            target_expr = target.function_info.expr
+            assert key(target_expr.args) == target_expr
 
             return state.apply_new_expr(expr_id=expr_id, new_function_info=definition_info)
         elif isinstance(output, ReformulationActionOutput):
@@ -779,27 +801,34 @@ class ValueTypeBaseAction(Action):
             raise NotImplementedError()
         elif self.value_type == VALUE_TYPE_DEFINITION_KEY:
             definition_idx = self.value
+            definitions = state.definitions.as_tuple
             if definition_idx <= 0:
                 raise InvalidActionArgException(f"Invalid definition: {definition_idx}")
-            if definition_idx > len(state.definitions or []):
+            if definition_idx > len(definitions or []):
                 raise InvalidActionArgException(f"Invalid definition: {definition_idx}")
-            definition_key, definition_expr = state.definitions[definition_idx]
-            return FunctionInfo(definition_key, FunctionParams(*definition_expr.params))
+            definition_node = definitions[definition_idx]
+            definition_key = definition_node.definition_key
+            function_info = definition_node.function_info
+            # TODO instantiate the type of key (use wrap)
+            # when replacing the key, also replace the wrapper
+            return FunctionInfo(definition_key, function_info.params)
         elif self.value_type == VALUE_TYPE_DEFINITION_EXPR:
             definition_idx = self.value
+            definitions = state.definitions.as_tuple
             if definition_idx <= 0:
                 raise InvalidActionArgException(f"Invalid definition: {definition_idx}")
-            if definition_idx > len(state.definitions or []):
+            if definition_idx > len(definitions or []):
                 raise InvalidActionArgException(f"Invalid definition: {definition_idx}")
-            _, definition_expr = state.definitions[definition_idx]
-            return definition_expr
+            definition_node = definitions[definition_idx]
+            return definition_node.function_info
         elif self.value_type == VALUE_TYPE_PARTIAL_DEFINITION:
             definition_idx = self.value
+            partial_definitions = state.partial_definitions.as_tuple
             if definition_idx <= 0:
                 raise InvalidActionArgException(f"Invalid partial definition: {definition_idx}")
-            if definition_idx > len(state.partial_definitions or []):
+            if definition_idx > len(partial_definitions):
                 raise InvalidActionArgException(f"Invalid partial definition: {definition_idx}")
-            definition_expr_p = state.partial_definitions[definition_idx]
+            definition_expr_p = partial_definitions[definition_idx]
             if definition_expr_p is None:
                 raise InvalidActionArgException(f"Empty partial definition: {definition_idx}")
             return definition_expr_p
@@ -976,7 +1005,7 @@ class PartialDefinitionBaseAction(Action):
         state: State,
     ) -> tuple[FunctionInfo | None, FunctionInfo | None, int | None]:
         partial_definition_idx = self.partial_definition_idx
-        partial_definitions_list = list(state.partial_definitions or [])
+        partial_definitions_list = list(state.partial_definitions.as_tuple)
 
         if partial_definition_idx < 0:
             raise InvalidActionArgException(
@@ -999,11 +1028,11 @@ class PartialDefinitionBaseAction(Action):
             root=root_info.expr,
             node_idx=self.node_idx)
         function_info = (
-            FunctionInfo(expr, FunctionParams(*root_info.params))
+            FunctionInfo(expr, root_info.params)
             if expr is not None
             else None)
         parent_function_info = (
-            FunctionInfo(parent_expr, FunctionParams(*root_info.params))
+            FunctionInfo(parent_expr, root_info.params)
             if parent_expr is not None
             else None)
 
@@ -1162,14 +1191,16 @@ class PartialNodeFromExprWithArgsAction(PartialNodeFromExprWithArgsBaseAction):
         expr_id = self.origin_expr_id
         expr_arg_group_idx = self.expr_arg_group_idx
 
+        arg_groups = state.arg_groups.as_tuple
+
         new_info = state.get_expr(expr_id)
         if new_info is None:
             raise InvalidActionArgException(f"Invalid node index: {expr_id}")
 
-        if expr_arg_group_idx <= 0 or expr_arg_group_idx > len(state.arg_groups):
+        if expr_arg_group_idx <= 0 or expr_arg_group_idx > len(arg_groups):
             raise InvalidActionArgException(f"Invalid expr arg group index: {expr_arg_group_idx}")
 
-        new_expr_args = state.arg_groups[expr_arg_group_idx - 1]
+        new_expr_args = arg_groups[expr_arg_group_idx - 1]
         if len(new_info.function_info.params) > len(new_expr_args.inner_args):
             raise InvalidActionArgException(
                 "New expression amount of params invalid: " \
@@ -1204,7 +1235,7 @@ class ArgValueTypeAction(ArgValueTypeBaseAction):
     def _output(self, state: State) -> ArgFromExprActionOutput:
         arg_group_idx = self.arg_group_idx
         arg_idx = self.arg_idx
-        arg_groups = state.arg_groups
+        arg_groups = state.arg_groups.as_tuple
 
         if len(arg_groups) == 0:
             raise InvalidActionArgException("No arg groups yet")
@@ -1251,7 +1282,7 @@ class NewDefinitionFromPartialAction(Action):
         self.validate_args(input=self.input, state=state)
 
         partial_definition_idx = self.partial_definition_idx
-        partial_definitions = list(state.partial_definitions or [])
+        partial_definitions = list(state.partial_definitions.as_tuple)
         if partial_definition_idx <= 0 or partial_definition_idx > len(partial_definitions):
             raise InvalidActionArgException(
                 f"Invalid partial definition index: {partial_definition_idx}")
@@ -1269,25 +1300,27 @@ class ReplaceByDefinitionAction(DefinitionExprBaseAction):
     def _output(self, state: State) -> ActionOutput:
         definition_idx = self.definition_idx
         target_expr_id = self.target_expr_id
-        definitions = state.definitions
+        definitions = state.definitions.as_tuple
         if len(definitions) == 0:
             raise InvalidActionArgException("No definitions yet")
         if definition_idx <= 0 or definition_idx > len(state.definitions or []):
             raise InvalidActionArgException(f"Invalid definition index: {definition_idx}")
-        key, definition_function_info = definitions[definition_idx - 1]
+        definition_node = definitions[definition_idx - 1]
+        key = definition_node.definition_key
+        definition_info = definition_node.function_info
         target = state.get_expr(target_expr_id)
         if not target:
             raise InvalidActionArgException(f"Invalid target node index: {target_expr_id}")
         if target.readonly:
             raise InvalidActionArgException(f"Target {target_expr_id} is readonly")
-        if len(definition_function_info.params) > len(target.function_info.params):
+        if len(definition_info.params) > len(target.function_info.params):
             raise InvalidActionArgException(
-                f"Invalid amount of params: {len(definition_function_info.params)} > "
+                f"Invalid amount of params: {len(definition_info.params)} > "
                 + f"(expected {len(target.function_info.params)})")
-        if definition_function_info != target:
+        if definition_info != target:
             raise InvalidActionArgException(
                 f"Invalid target node: {target} "
-                + f"(expected {definition_function_info} from definition {key})")
+                + f"(expected {definition_info} from definition {key})")
         return ReplaceByDefinitionActionOutput(
             definition_idx=definition_idx,
             expr_id=target_expr_id)
@@ -1297,7 +1330,7 @@ class ExpandDefinitionAction(DefinitionExprBaseAction):
     def _output(self, state: State) -> ActionOutput:
         definition_idx = self.definition_idx
         target_expr_id = self.target_expr_id
-        definitions = state.definitions
+        definitions = state.definitions.as_tuple
         if len(definitions) == 0:
             raise InvalidActionArgException("No definitions yet")
         if definition_idx <= 0 or definition_idx > len(state.definitions or []):

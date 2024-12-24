@@ -2,28 +2,36 @@ import typing
 from environment.core import (
     BaseNode,
     InheritableNode,
-    FunctionDefinition,
     FunctionInfo,
     ParamsArgsGroup,
     StrictGroup,
     OptionalGroup,
     BaseNodeIndex,
     BaseNodeArgIndex,
-    Integer)
+    Integer,
+    UniqueNode,
+    UnknownTypeNode,
+    UniqueTypeNode,
+    UniqueWrapperNode)
 
 T = typing.TypeVar('T', bound=BaseNode)
 K = typing.TypeVar('K', bound=BaseNode)
 
+class FunctionCall(UniqueNode):
+    pass
+
 class FunctionDefinitionNode(InheritableNode):
-    def __init__(self, definition_key: FunctionDefinition, function_info: FunctionInfo):
-        assert isinstance(definition_key, FunctionDefinition)
+    def __init__(self, definition_key: UniqueTypeNode[FunctionCall], function_info: FunctionInfo):
+        assert isinstance(definition_key, UniqueTypeNode)
+        assert isinstance(definition_key.type, FunctionCall)
         assert isinstance(function_info, FunctionInfo)
         super().__init__(definition_key, function_info)
 
     @property
-    def definition_key(self) -> FunctionDefinition:
+    def definition_key(self) -> UniqueTypeNode[FunctionCall]:
         key = self.args[0]
-        assert isinstance(key, FunctionDefinition)
+        assert isinstance(key, UniqueTypeNode)
+        assert isinstance(key.type, FunctionCall)
         return key
 
     @property
@@ -31,6 +39,14 @@ class FunctionDefinitionNode(InheritableNode):
         f = self.args[1]
         assert isinstance(f, FunctionInfo)
         return f
+
+    def with_args(self, *args: BaseNode) -> UniqueWrapperNode[FunctionCall]:
+        params = self.function_info.params.as_tuple
+        assert len(args) == len(params)
+        for param_info, arg in zip(params, args):
+            if param_info.type is not UnknownTypeNode:
+                assert isinstance(arg, param_info.type)
+        return self.definition_key.wrap(*args)
 
 class FunctionDefinitionGroup(StrictGroup[FunctionDefinitionNode]):
     @classmethod

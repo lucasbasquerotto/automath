@@ -1,7 +1,7 @@
 import typing
 import numpy as np
 from utils.logger import logger
-from environment.core import ScopedIntegerNode, InheritableNode
+from environment.core import UniqueIntegerNode, InheritableNode
 from .state import State, BaseNode, FunctionInfo, FunctionParams, ParamsArgsGroup
 from .action import (
     Action,
@@ -988,7 +988,7 @@ class FullState:
         parent_node_idx = node_idx
         next_node_idx = node_idx + 1
         next_history_expr_id = history_expr_id + 1
-        args = tuple() if isinstance(expr, ScopedIntegerNode) else expr.args
+        args = tuple() if isinstance(expr, UniqueIntegerNode) else expr.args
 
         for arg in args:
             inner_nodes, next_node_idx, next_history_expr_id = self._expr_subtree_data_list(
@@ -1033,12 +1033,12 @@ class FullState:
             assert len(node_type_idxs) == 1
             composite_node = (
                 False
-                if isinstance(expr, ScopedIntegerNode)
+                if isinstance(expr, UniqueIntegerNode)
                 else int(len(expr.args) > 0))
             node_type_idx = node_type_idxs[0]
             node_value = (
                 expr.value
-                if isinstance(expr, ScopedIntegerNode)
+                if isinstance(expr, UniqueIntegerNode)
                 else meta.node_type_handler.get_value(expr))
         else:
             composite_node = UNDEFINED_OR_EMPTY_FIELD

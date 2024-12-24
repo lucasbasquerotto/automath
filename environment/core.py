@@ -10,10 +10,11 @@ T = typing.TypeVar('T', bound='BaseNode')
 ###########################################################
 
 class BaseNode:
-    def __init__(self, *args: int | BaseNode | typing.Type[BaseNode]):
+    def __init__(self, *args: int | BaseNode | typing.Type[BaseNode] | None):
         assert all(
             (
-                isinstance(arg, BaseNode)
+                arg is None
+                or isinstance(arg, BaseNode)
                 or isinstance(arg, int)
                 or (isinstance(arg, type) and issubclass(arg, BaseNode))
             )
@@ -22,7 +23,8 @@ class BaseNode:
 
         if any(
             (
-                isinstance(arg, int)
+                arg is None
+                or isinstance(arg, int)
                 or (isinstance(arg, type) and issubclass(arg, BaseNode))
             )
             for arg in args
@@ -34,7 +36,7 @@ class BaseNode:
         self._cached_hash: int | None = None
 
     @property
-    def args(self) -> tuple[int | BaseNode | typing.Type[BaseNode], ...]:
+    def args(self) -> tuple[int | BaseNode | typing.Type[BaseNode] | None, ...]:
         return self._args
 
     @property
@@ -108,7 +110,7 @@ class BaseNode:
         if len(self.args) == 0:
             return sympy.Symbol(name)
 
-        def eval_arg(arg: int | BaseNode | typing.Type[BaseNode]):
+        def eval_arg(arg: int | BaseNode | typing.Type[BaseNode] | None):
             if isinstance(arg, BaseNode):
                 return arg.eval()
             if isinstance(arg, int):
@@ -123,31 +125,16 @@ class BaseNode:
         return fn(*args)
 
     def as_function(self) -> 'FunctionInfo':
-        params = self.find(Param)
+        params = self.find(ParamInfo)
         amount_params = max(param.value for param in params)
-        new_params = [Param(i+1) for i in range(amount_params)]
+        new_params = [ParamInfo(Param(i+1), UnknownTypeNode()) for i in range(amount_params)]
         new_expr = self.subs({
-            old_param: new_params[old_param.value - 1]
+            old_param.param: new_params[old_param.value - 1].param
             for old_param in params
         })
         return FunctionInfo(
             new_expr,
             FunctionParams(*new_params))
-
-
-###########################################################
-###################### SPECIAL NODES ######################
-###########################################################
-
-class VoidNode(BaseNode):
-    def __init__(self):
-        super().__init__()
-
-class ScopedNode(BaseNode):
-    def __eq__(self, other) -> bool:
-        # do not use == because it will cause infinite recursion
-        return self is other
-
 
 ###########################################################
 ######################## INT NODE #########################
@@ -163,38 +150,19 @@ class Integer(BaseNode):
         assert isinstance(value, int)
         return value
 
-class ScopedIntegerNode(Integer):
-    def __eq__(self, other) -> bool:
-        # do not use == because it will cause infinite recursion
-        return self is other
-
-class Param(ScopedIntegerNode):
-    pass
-
 ###########################################################
 ######################## TYPE NODE ########################
 ###########################################################
 
-class TypeNode(BaseNode):
-    def __init__(self, type: typing.Type[BaseNode]):
+class TypeNode(BaseNode, typing.Generic[T]):
+    def __init__(self, type: type[T]):
         super().__init__(type)
 
     @property
-    def type(self) -> typing.Type[BaseNode]:
+    def type(self) -> type[T]:
         t = self.args[0]
         assert isinstance(t, type) and issubclass(t, BaseNode)
-        return t
-
-class IntTypeNode(TypeNode):
-    def __init__(self, type: typing.Type[Integer]):
-        super().__init__(type)
-
-    @property
-    def type(self) -> typing.Type[Integer]:
-        t = self.args[0]
-        assert isinstance(t, type) and issubclass(t, Integer)
-        return t
-
+        return typing.cast(type[T], t)
 
 ###########################################################
 ######################## MAIN NODE ########################
@@ -231,6 +199,49 @@ class InheritableNode(BaseNode):
         return super().replace(index, new_node)
 
 ###########################################################
+###################### SPECIAL NODES ######################
+###########################################################
+
+class UniqueNode(InheritableNode):
+    def __eq__(self, other) -> bool:
+        # do not use == because it will cause infinite recursion
+        return self is other
+
+class VoidNode(InheritableNode):
+    def __init__(self):
+        super().__init__()
+
+class UnknownTypeNode(TypeNode[BaseNode]):
+    def __init__(self):
+        super().__init__(self.__class__)
+
+class IntTypeNode(TypeNode[Integer]):
+    pass
+
+class UniqueTypeNode(TypeNode[T], typing.Generic[T]):
+    def __eq__(self, other) -> bool:
+        # do not use == because it will cause infinite recursion
+        return self is other
+
+    def wrap(self, *args: BaseNode) -> UniqueWrapperNode[T]:
+        node: T = self.type(*args)
+        return UniqueWrapperNode(self, node)
+
+class UniqueWrapperNode(InheritableNode, typing.Generic[T]):
+    def __init__(self, unique_node: UniqueTypeNode[T], node: BaseNode):
+        assert isinstance(unique_node, UniqueTypeNode)
+        assert isinstance(node, BaseNode)
+        super().__init__(unique_node, node)
+
+class UniqueIntegerNode(Integer):
+    def __eq__(self, other) -> bool:
+        # do not use == because it will cause infinite recursion
+        return self is other
+
+class Param(UniqueIntegerNode):
+    pass
+
+###########################################################
 ######################## NODE IDXS ########################
 ###########################################################
 
@@ -261,6 +272,10 @@ class BaseNodeIntIndex(BaseNodeIndex):
 
     def replace_target(self, target_node: BaseNode, new_node: BaseNode) -> BaseNode | None:
         raise NotImplementedError
+
+    @classmethod
+    def from_int(cls, value: int) -> typing.Self:
+        return cls(Integer(value))
 
 class BaseNodeMainIndex(BaseNodeIntIndex):
     @classmethod
@@ -349,58 +364,6 @@ class BaseNodeArgIndex(BaseNodeIntIndex):
             assert isinstance(new_target, type(target_node))
             return typing.cast(T, new_target)
         return None
-
-
-###########################################################
-###################### FUNCTION NODE ######################
-###########################################################
-
-class FunctionDefinition(ScopedNode):
-    pass
-
-class FunctionParams(InheritableNode):
-    def __init__(self, *params: Param):
-        assert all(isinstance(param, Param) for param in params)
-        super().__init__(*params)
-
-    @property
-    def params(self) -> tuple[Param, ...]:
-        return typing.cast(tuple[Param, ...], self._args)
-
-class FunctionInfo(InheritableNode):
-    def __init__(self, expr: BaseNode, params: FunctionParams):
-        assert isinstance(params, FunctionParams)
-        assert isinstance(expr, BaseNode)
-        super().__init__(params, expr)
-
-    @property
-    def expr(self) -> BaseNode:
-        expr = self.args[0]
-        assert isinstance(expr, BaseNode)
-        return expr
-
-    @property
-    def params_group(self) -> FunctionParams:
-        params = self.args[1]
-        assert isinstance(params, FunctionParams)
-        return params
-
-    @property
-    def params(self) -> tuple[Param, ...]:
-        group = self.params_group
-        return group.params
-
-    def __eq__(self, other) -> bool:
-        if not isinstance(other, FunctionInfo):
-            return False
-
-        my_params = self.params
-        other_params = other.params
-
-        return self.expr == other.expr.subs({
-            other_params[i]: my_params[i]
-            for i in range(min(len(other_params), len(my_params)))
-        })
 
 ###########################################################
 ###################### BOOLEAN NODE #######################
@@ -602,6 +565,67 @@ class GroupWithArgs(InheritableNode):
         return self.arg_group.args
 
 ###########################################################
+###################### FUNCTION NODE ######################
+###########################################################
+
+class ParamInfo(InheritableNode):
+    def __init__(self, param: Param, type_node: TypeNode[BaseNode]):
+        assert isinstance(param, Param)
+        assert isinstance(type_node, TypeNode)
+        super().__init__(param, type_node)
+
+    @property
+    def param(self) -> Param:
+        param = self.args[0]
+        assert isinstance(param, Param)
+        return param
+
+    @property
+    def type(self) -> type[BaseNode]:
+        type_node = self.args[1]
+        assert isinstance(type_node, TypeNode)
+        return type_node.type
+
+    @property
+    def value(self) -> int:
+        return self.param.value
+
+class FunctionParams(StrictGroup[ParamInfo]):
+    @classmethod
+    def item_type(cls):
+        return ParamInfo
+
+class FunctionInfo(InheritableNode):
+    def __init__(self, expr: BaseNode, params: FunctionParams):
+        assert isinstance(params, FunctionParams)
+        assert isinstance(expr, BaseNode)
+        super().__init__(params, expr)
+
+    @property
+    def expr(self) -> BaseNode:
+        expr = self.args[0]
+        assert isinstance(expr, BaseNode)
+        return expr
+
+    @property
+    def params(self) -> FunctionParams:
+        params = self.args[1]
+        assert isinstance(params, FunctionParams)
+        return params
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, FunctionInfo):
+            return False
+
+        my_params = self.params.as_tuple
+        other_params = other.params.as_tuple
+
+        return self.expr == other.expr.subs({
+            other_params[i].param: my_params[i].param
+            for i in range(min(len(other_params), len(my_params)))
+        })
+
+###########################################################
 ####################### BASIC NODES #######################
 ###########################################################
 
@@ -609,11 +633,10 @@ BASIC_NODE_TYPES: tuple[type[BaseNode], ...] = (
     BaseNode,
     VoidNode,
     Integer,
-    ScopedIntegerNode,
+    UniqueIntegerNode,
     Param,
     TypeNode,
     InheritableNode,
-    FunctionDefinition,
     BooleanNode,
     MultiArgBooleanNode,
     FunctionParams,
