@@ -1,5 +1,5 @@
 # pylint: disable=C0302
-from utils.types import (
+from environment.core import (
     FunctionDefinition,
     Param,
     FunctionInfo,
@@ -541,7 +541,7 @@ class Action:
                     Param(i + 1)
                     for i in range(params_amount)
                 ]),
-                ArgsGroup.from_args([None] * args_amount)))
+                ArgsGroup.from_items([None] * args_amount)))
 
             return State.from_raw(
                 definitions=state.definitions,
@@ -573,7 +573,7 @@ class Action:
             arg_group_args[arg_idx - 1] = new_expr
             arg_groups_list[arg_group_idx - 1] = ParamsArgsGroup(
                 ParamsGroup(*arg_group.outer_params),
-                ArgsGroup.from_args(arg_group_args))
+                ArgsGroup.from_items(arg_group_args))
 
             return State.from_raw(
                 definitions=state.definitions,

@@ -1,5 +1,5 @@
 import numpy as np
-from utils.types import FunctionInfo, FunctionParams, Param
+from environment.core import FunctionInfo, FunctionParams, Param
 from environment.full_state import (
     UNDEFINED_OR_EMPTY_FIELD,
     HISTORY_TYPE_META,

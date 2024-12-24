@@ -1,7 +1,7 @@
 import typing
 import numpy as np
 from utils.logger import logger
-from utils.types import ScopedIntegerNode, InheritableNode
+from environment.core import ScopedIntegerNode, InheritableNode
 from .state import State, BaseNode, FunctionInfo, FunctionParams, ParamsArgsGroup
 from .action import (
     Action,

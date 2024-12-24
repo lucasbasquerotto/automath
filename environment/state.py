@@ -1,5 +1,5 @@
 import typing
-from utils.types import (
+from environment.core import (
     BaseNode,
     InheritableNode,
     FunctionDefinition,
@@ -7,7 +7,7 @@ from utils.types import (
     ParamsArgsGroup,
     StrictGroup,
     OptionalGroup,
-    NodeIndex)
+    BaseNodeIndex)
 
 T = typing.TypeVar('T', bound=BaseNode)
 
@@ -44,7 +44,7 @@ class ParamsArgsOuterGroup(StrictGroup[ParamsArgsGroup]):
     def item_type(cls):
         return ParamsArgsGroup
 
-class StateIndex(NodeIndex, typing.Generic[T]):
+class StateIndex(BaseNodeIndex, typing.Generic[T]):
     def find_in_state(self, state: 'State') -> T | None:
         raise NotImplementedError()
 
@@ -148,12 +148,12 @@ class State(InheritableNode):
     def arg_groups(self) -> tuple[ParamsArgsGroup, ...]:
         return self.args_outer_group.as_tuple
 
-    def __getitem__(self, index: NodeIndex) -> BaseNode | None:
+    def __getitem__(self, index: BaseNodeIndex) -> BaseNode | None:
         if isinstance(index, StateIndex):
             return index.find_in_state(self)
         return super().__getitem__(index)
 
-    def replace(self, index: 'NodeIndex', new_node: BaseNode) -> BaseNode | None:
+    def replace(self, index: 'BaseNodeIndex', new_node: BaseNode) -> BaseNode | None:
         if isinstance(index, StateIndex):
             return index.replace_in_state(self, new_node)
         return super().replace(index, new_node)

@@ -90,14 +90,14 @@ class BaseNode:
         ancestors, index = self._ancestors(index)
         return tuple(ancestors)
 
-    def __getitem__(self, index: 'NodeIndex') -> BaseNode | None:
-        if isinstance(index, BaseNodeIndex):
+    def __getitem__(self, index: 'BaseNodeIndex') -> BaseNode | None:
+        if isinstance(index, BaseNodeMainIndex):
             node, _ = self._inner_getitem(index.value)
             return node
         raise ValueError(f"Invalid index: {index}")
 
-    def replace(self, index: 'NodeIndex', new_node: BaseNode) -> BaseNode | None:
-        if isinstance(index, BaseNodeIndex):
+    def replace(self, index: 'BaseNodeIndex', new_node: BaseNode) -> BaseNode | None:
+        if isinstance(index, BaseNodeMainIndex):
             new_self, _ = self._replace(index.value, new_node)
             return new_self
         raise ValueError(f"Invalid index: {index}")
@@ -165,6 +165,18 @@ class BaseNode:
         # pylint: disable=not-callable
         return fn(*args)
 
+    def as_function(self) -> 'FunctionInfo':
+        params = self.find(Param)
+        amount_params = max(param.value for param in params)
+        new_params = [Param(i+1) for i in range(amount_params)]
+        new_expr = self.subs({
+            old_param: new_params[old_param.value - 1]
+            for old_param in params
+        })
+        return FunctionInfo(
+            new_expr,
+            FunctionParams(*new_params))
+
 class VoidNode(BaseNode):
     def __init__(self):
         super().__init__()
@@ -179,12 +191,11 @@ class Integer(BaseNode):
         assert isinstance(value, int)
         return value
 
-class NodeIndex(Integer):
-    pass
-
 class BaseNodeIndex(Integer):
     pass
 
+class BaseNodeMainIndex(Integer):
+    pass
 
 class ScopedIntegerNode(Integer):
     def __eq__(self, other) -> bool:

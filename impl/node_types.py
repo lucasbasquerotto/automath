@@ -1,5 +1,5 @@
 import sympy
-from utils.types import FunctionInfo, BooleanNode, MultiArgBooleanNode
+from environment.core import FunctionInfo, BooleanNode, MultiArgBooleanNode
 from environment.state import State
 from environment.meta_env import GoalNode
 
