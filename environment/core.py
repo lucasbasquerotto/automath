@@ -4,6 +4,11 @@ import sympy
 
 T = typing.TypeVar('T', bound='BaseNode')
 
+
+###########################################################
+######################## BASE NODE ########################
+###########################################################
+
 class BaseNode:
     def __init__(self, *args: int | BaseNode | typing.Type[BaseNode]):
         assert all(
@@ -129,9 +134,24 @@ class BaseNode:
             new_expr,
             FunctionParams(*new_params))
 
+
+###########################################################
+###################### SPECIAL NODES ######################
+###########################################################
+
 class VoidNode(BaseNode):
     def __init__(self):
         super().__init__()
+
+class ScopedNode(BaseNode):
+    def __eq__(self, other) -> bool:
+        # do not use == because it will cause infinite recursion
+        return self is other
+
+
+###########################################################
+######################## INT NODE #########################
+###########################################################
 
 class Integer(BaseNode):
     def __init__(self, value: int):
@@ -149,9 +169,11 @@ class ScopedIntegerNode(Integer):
         return self is other
 
 class Param(ScopedIntegerNode):
-    @classmethod
-    def prefix(cls):
-        return 'p'
+    pass
+
+###########################################################
+######################## TYPE NODE ########################
+###########################################################
 
 class TypeNode(BaseNode):
     def __init__(self, type: typing.Type[BaseNode]):
@@ -172,6 +194,11 @@ class IntTypeNode(TypeNode):
         t = self.args[0]
         assert isinstance(t, type) and issubclass(t, Integer)
         return t
+
+
+###########################################################
+######################## MAIN NODE ########################
+###########################################################
 
 class InheritableNode(BaseNode):
     def __init__(self, *args: BaseNode):
@@ -202,6 +229,10 @@ class InheritableNode(BaseNode):
                 ])
             return None
         return super().replace(index, new_node)
+
+###########################################################
+######################## NODE IDXS ########################
+###########################################################
 
 class BaseNodeIndex(InheritableNode):
     def from_item(self, node: BaseNode) -> BaseNode | None:
@@ -319,25 +350,13 @@ class BaseNodeArgIndex(BaseNodeIntIndex):
             return typing.cast(T, new_target)
         return None
 
-class FunctionDefinition(ScopedIntegerNode):
-    @classmethod
-    def prefix(cls):
-        return 'f'
 
-class BooleanNode(InheritableNode):
-    @property
-    def value(self) -> bool | None:
-        raise NotImplementedError
+###########################################################
+###################### FUNCTION NODE ######################
+###########################################################
 
-class MultiArgBooleanNode(BooleanNode):
-    def __init__(self, *args: BaseNode):
-        assert len(args) > 0
-        assert all(isinstance(arg, sympy.Basic) for arg in args)
-        super().__init__(*args)
-
-    @property
-    def value(self) -> bool | None:
-        raise NotImplementedError
+class FunctionDefinition(ScopedNode):
+    pass
 
 class FunctionParams(InheritableNode):
     def __init__(self, *params: Param):
@@ -382,6 +401,29 @@ class FunctionInfo(InheritableNode):
             other_params[i]: my_params[i]
             for i in range(min(len(other_params), len(my_params)))
         })
+
+###########################################################
+###################### BOOLEAN NODE #######################
+###########################################################
+
+class BooleanNode(InheritableNode):
+    @property
+    def value(self) -> bool | None:
+        raise NotImplementedError
+
+class MultiArgBooleanNode(BooleanNode):
+    def __init__(self, *args: BaseNode):
+        assert len(args) > 0
+        assert all(isinstance(arg, sympy.Basic) for arg in args)
+        super().__init__(*args)
+
+    @property
+    def value(self) -> bool | None:
+        raise NotImplementedError
+
+###########################################################
+####################### GROUP NODE ########################
+###########################################################
 
 class StrictGroup(InheritableNode, typing.Generic[T]):
     @classmethod
@@ -558,6 +600,10 @@ class GroupWithArgs(InheritableNode):
     @property
     def arg_values(self) -> tuple[BaseNode, ...]:
         return self.arg_group.args
+
+###########################################################
+####################### BASIC NODES #######################
+###########################################################
 
 BASIC_NODE_TYPES: tuple[type[BaseNode], ...] = (
     BaseNode,
