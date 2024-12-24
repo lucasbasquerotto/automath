@@ -48,59 +48,11 @@ class BaseNode:
                 return False
         return True
 
-    def _inner_getitem(self, index: int) -> tuple[BaseNode | None, int]:
-        if index == 0:
-            return self, index
-        index -= 1
-        for arg in self.args:
-            if isinstance(arg, BaseNode):
-                # pylint: disable=protected-access
-                node, index = arg._inner_getitem(index)
-                if index == 0 and node is not None:
-                    return node, index
-        return None, index
-
-    def _replace(self, index: int, new_node: BaseNode) -> tuple[BaseNode | None, int]:
-        if index == 0:
-            return new_node, index
-        index -= 1
-        for i, arg in enumerate(self.args):
-            if isinstance(arg, BaseNode):
-                new_arg, index = arg._replace(index, new_node)
-                if index == 0 and new_arg is not None:
-                    return self.func(*[
-                        (new_arg if i == j else old_arg)
-                        for j, old_arg in enumerate(self.args)
-                    ]), index
-        return None, index
-
-    def _ancestors(self, index: int) -> tuple[list[BaseNode], int]:
-        if index == 0:
-            return [self], index
-        index -= 1
-        for arg in self.args:
-            if isinstance(arg, BaseNode):
-                # pylint: disable=protected-access
-                ancestors, index = arg._ancestors(index)
-                if index == 0:
-                    return [self] + ancestors, index
-        return [], index
-
-    def ancestors(self, index: int) -> tuple[BaseNode, ...]:
-        ancestors, index = self._ancestors(index)
-        return tuple(ancestors)
-
     def __getitem__(self, index: 'BaseNodeIndex') -> BaseNode | None:
-        if isinstance(index, BaseNodeMainIndex):
-            node, _ = self._inner_getitem(index.value)
-            return node
-        raise ValueError(f"Invalid index: {index}")
+        return index.from_item(self)
 
     def replace(self, index: 'BaseNodeIndex', new_node: BaseNode) -> BaseNode | None:
-        if isinstance(index, BaseNodeMainIndex):
-            new_self, _ = self._replace(index.value, new_node)
-            return new_self
-        raise ValueError(f"Invalid index: {index}")
+        return index.replace_target(self, new_node)
 
     def __len__(self) -> int:
         if self._cached_length is not None:
@@ -191,12 +143,6 @@ class Integer(BaseNode):
         assert isinstance(value, int)
         return value
 
-class BaseNodeIndex(Integer):
-    pass
-
-class BaseNodeMainIndex(Integer):
-    pass
-
 class ScopedIntegerNode(Integer):
     def __eq__(self, other) -> bool:
         # do not use == because it will cause infinite recursion
@@ -235,6 +181,143 @@ class InheritableNode(BaseNode):
     @property
     def args(self) -> tuple[BaseNode, ...]:
         return typing.cast(tuple[BaseNode, ...], self._args)
+
+    def __getitem__(self, index: 'BaseNodeIndex') -> BaseNode | None:
+        if isinstance(index, BaseNodeArgIndex):
+            args = self.args
+            if index.value > 0 and index.value <= len(args):
+                return args[index.value - 1]
+            return None
+        return super().__getitem__(index)
+
+    def replace(self, index: 'BaseNodeIndex', new_node: BaseNode) -> BaseNode | None:
+        assert isinstance(index, BaseNodeIndex)
+        assert isinstance(new_node, BaseNode)
+        if isinstance(index, BaseNodeArgIndex):
+            args = self.args
+            if index.value >= 0 and index.value <= len(args):
+                return self.func(*[
+                    (new_node if i == index.value - 1 else arg)
+                    for i, arg in enumerate(args)
+                ])
+            return None
+        return super().replace(index, new_node)
+
+class BaseNodeIndex(InheritableNode):
+    def from_item(self, node: BaseNode) -> BaseNode | None:
+        raise NotImplementedError
+
+    def replace_target(self, target_node: BaseNode, new_node: BaseNode) -> BaseNode | None:
+        raise NotImplementedError
+
+class BaseNodeIntIndex(BaseNodeIndex):
+    def __init__(self, index: Integer):
+        assert isinstance(index, Integer)
+        super().__init__(index)
+
+    @property
+    def index(self) -> Integer:
+        index = self.args[0]
+        assert isinstance(index, Integer)
+        return index
+
+    @property
+    def value(self) -> int:
+        return self.index.value
+
+    def from_item(self, node: BaseNode) -> BaseNode | None:
+        raise NotImplementedError
+
+    def replace_target(self, target_node: BaseNode, new_node: BaseNode) -> BaseNode | None:
+        raise NotImplementedError
+
+class BaseNodeMainIndex(BaseNodeIntIndex):
+    @classmethod
+    def _inner_getitem(cls, node: BaseNode, index: int) -> tuple[BaseNode | None, int]:
+        assert index > 0
+        index -= 1
+        if index == 0:
+            return node, index
+        for arg in node.args:
+            if isinstance(arg, BaseNode):
+                arg_item, index = cls._inner_getitem(arg, index)
+                if index == 0:
+                    return arg_item, index
+        return None, index
+
+    @classmethod
+    def _replace(
+        cls,
+        target_node: BaseNode,
+        new_node: BaseNode,
+        index: int,
+    ) -> tuple[BaseNode | None, int]:
+        assert index > 0
+        index -= 1
+        if index == 0:
+            return new_node, index
+        for i, arg in enumerate(target_node.args):
+            if isinstance(arg, BaseNode):
+                new_arg, index = cls._replace(arg, new_node, index)
+                if index == 0:
+                    if new_arg is None:
+                        return None, index
+                    return target_node.func(*[
+                        (new_arg if i == j else old_arg)
+                        for j, old_arg in enumerate(target_node.args)
+                    ]), index
+        return None, index
+
+    @classmethod
+    def _ancestors(cls, node: BaseNode, index: int) -> tuple[list[BaseNode], int]:
+        assert index > 0
+        index -= 1
+        if index == 0:
+            return [node], index
+        for arg in node.args:
+            if isinstance(arg, BaseNode):
+                ancestors, index = cls._ancestors(node, index)
+                if index == 0:
+                    if len(ancestors) == 0:
+                        return [], index
+                    return [node] + ancestors, index
+        return [], index
+
+    def from_item(self, node: BaseNode) -> BaseNode | None:
+        item, _ = self._inner_getitem(node, self.value)
+        return item
+
+    def replace_target(self, target_node: BaseNode, new_node: BaseNode) -> BaseNode | None:
+        new_target, _ = self._replace(target_node, new_node, self.value)
+        return new_target
+
+    def ancestors(self, node: BaseNode) -> tuple[BaseNode, ...]:
+        ancestors, _ = self._ancestors(node, self.value)
+        return tuple(ancestors)
+
+class BaseNodeArgIndex(BaseNodeIntIndex):
+    def from_item(self, node: BaseNode) -> BaseNode | None:
+        index = self.value
+        if not isinstance(node, InheritableNode):
+            return None
+        args = node.args
+        if index > 0 and index <= len(args):
+            return args[index - 1]
+        return None
+
+    def replace_target(self, target_node: T, new_node: BaseNode) -> T | None:
+        if not isinstance(target_node, InheritableNode):
+            return None
+        index = self.value
+        args = target_node.args
+        if index > 0 and index <= len(args):
+            new_target = target_node.func(*[
+                (new_node if i == index - 1 else arg)
+                for i, arg in enumerate(args)
+            ])
+            assert isinstance(new_target, type(target_node))
+            return typing.cast(T, new_target)
+        return None
 
 class FunctionDefinition(ScopedIntegerNode):
     @classmethod
@@ -319,7 +402,7 @@ class StrictGroup(InheritableNode, typing.Generic[T]):
         return self.args
 
     @classmethod
-    def from_items(cls, items: typing.Sequence[T]) -> 'StrictGroup':
+    def from_items(cls, items: typing.Sequence[T]) -> typing.Self:
         return cls(*items)
 
 class OptionalGroup(InheritableNode, typing.Generic[T]):
