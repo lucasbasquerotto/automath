@@ -10,6 +10,10 @@ T = typing.TypeVar('T', bound='BaseNode')
 ###########################################################
 
 class BaseNode:
+    @classmethod
+    def arg_types(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(RestTypeGroup(UnknownTypeNode()))
+
     def __init__(self, *args: int | BaseNode | typing.Type[BaseNode] | None):
         assert all(
             (
@@ -124,24 +128,31 @@ class BaseNode:
         # pylint: disable=not-callable
         return fn(*args)
 
-    def as_function(self) -> 'FunctionInfo':
-        params = self.find(ParamInfo)
-        amount_params = max(param.value for param in params)
-        new_params = [ParamInfo(Param(i+1), UnknownTypeNode()) for i in range(amount_params)]
-        new_expr = self.subs({
-            old_param.param: new_params[old_param.value - 1].param
-            for old_param in params
-        })
+    @classmethod
+    def type_as_function(
+        cls,
+        *args: int | BaseNode | typing.Type[BaseNode] | None,
+    ) -> 'FunctionInfo':
         return FunctionInfo(
-            new_expr,
-            FunctionParams(*new_params))
+            cls.arg_types(),
+            cls(*args))
+
+    def as_function(self) -> 'FunctionInfo':
+        return FunctionInfo(
+            self.arg_types(),
+            self)
 
 ###########################################################
 ######################## INT NODE #########################
 ###########################################################
 
 class Integer(BaseNode):
+    @classmethod
+    def arg_types(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup())
+
     def __init__(self, value: int):
+        assert isinstance(value, int)
         super().__init__(value)
 
     @property
@@ -155,7 +166,12 @@ class Integer(BaseNode):
 ###########################################################
 
 class TypeNode(BaseNode, typing.Generic[T]):
+    @classmethod
+    def arg_types(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup())
+
     def __init__(self, type: type[T]):
+        assert isinstance(type, type) and issubclass(type, BaseNode)
         super().__init__(type)
 
     @property
@@ -171,6 +187,7 @@ class TypeNode(BaseNode, typing.Generic[T]):
 class InheritableNode(BaseNode):
     def __init__(self, *args: BaseNode):
         assert all(isinstance(arg, BaseNode) for arg in args)
+        BaseValueGroup(*args).validate(self.arg_types())
         super().__init__(*args)
 
     @property
@@ -215,23 +232,12 @@ class UnknownTypeNode(TypeNode[BaseNode]):
     def __init__(self):
         super().__init__(self.__class__)
 
+class UnknownValue(InheritableNode):
+    def __init__(self):
+        super().__init__()
+
 class IntTypeNode(TypeNode[Integer]):
     pass
-
-class UniqueTypeNode(TypeNode[T], typing.Generic[T]):
-    def __eq__(self, other) -> bool:
-        # do not use == because it will cause infinite recursion
-        return self is other
-
-    def wrap(self, *args: BaseNode) -> UniqueWrapperNode[T]:
-        node: T = self.type(*args)
-        return UniqueWrapperNode(self, node)
-
-class UniqueWrapperNode(InheritableNode, typing.Generic[T]):
-    def __init__(self, unique_node: UniqueTypeNode[T], node: BaseNode):
-        assert isinstance(unique_node, UniqueTypeNode)
-        assert isinstance(node, BaseNode)
-        super().__init__(unique_node, node)
 
 class UniqueIntegerNode(Integer):
     def __eq__(self, other) -> bool:
@@ -478,33 +484,58 @@ class ParamsArgsGroup(InheritableNode):
     def inner_args(self) -> tuple[BaseNode | None, ...]:
         return self.inner_args_group.as_tuple
 
-class TypeGroup(StrictGroup[TypeNode]):
+class CountableTypeGroup(StrictGroup[TypeNode[T]], typing.Generic[T]):
     @classmethod
-    def item_type(cls):
+    def item_type(cls) -> type[TypeNode[T]]:
         return TypeNode
 
-class IntTypeGroup(TypeGroup):
-    @classmethod
-    def item_type(cls):
-        return IntTypeNode
+class RestTypeGroup(InheritableNode, typing.Generic[T]):
+    def __init__(self, type_node: TypeNode[T]):
+        assert isinstance(type_node, TypeNode)
+        super().__init__(type_node)
 
-    @classmethod
-    def from_types(cls, *types: type[Integer]) -> 'IntTypeGroup':
-        return cls(*[IntTypeNode(t) for t in types])
+    @property
+    def type(self) -> TypeNode[T]:
+        type_node = self.args[0]
+        assert isinstance(type_node, TypeNode)
+        return type_node
+
+class ExtendedTypeGroup(InheritableNode, typing.Generic[T]):
+    def __init__(self, group: CountableTypeGroup[T] | RestTypeGroup[T]):
+        assert isinstance(group, CountableTypeGroup) or isinstance(group, RestTypeGroup)
+        super().__init__(group)
+
+    @property
+    def group(self) -> CountableTypeGroup[T] | RestTypeGroup[T]:
+        group = self.args[1]
+        assert isinstance(group, CountableTypeGroup) or isinstance(group, RestTypeGroup)
+        return group
 
 class BaseValueGroup(StrictGroup[T]):
     @classmethod
     def item_type(cls):
         raise NotImplementedError
 
-    def validate(self, type_group: TypeGroup):
-        assert isinstance(type_group, TypeGroup)
-        assert len(self.args) == len(type_group.args)
-        for i, arg in enumerate(self.args):
-            t_arg = type_group.args[i]
-            assert isinstance(arg, BaseNode)
-            assert isinstance(t_arg, TypeNode)
-            assert isinstance(arg, t_arg.type)
+    def validate(self, types: ExtendedTypeGroup):
+        group = types.group
+
+        if isinstance(group, CountableTypeGroup):
+            assert len(self.args) == len(group.args)
+            for i, arg in enumerate(self.args):
+                t_arg = group.args[i]
+                assert isinstance(arg, BaseNode)
+                assert isinstance(t_arg, TypeNode)
+                if t_arg.type is not UnknownTypeNode:
+                    assert isinstance(arg, t_arg.type)
+        elif isinstance(group, RestTypeGroup):
+            t_arg = group.type
+            if t_arg.type is not UnknownTypeNode:
+                for arg in self.args:
+                    assert isinstance(arg, BaseNode)
+                    assert isinstance(t_arg, TypeNode)
+                    assert isinstance(arg, t_arg.type)
+        else:
+            raise ValueError(f"Invalid group type: {group}")
 
 class ValueGroup(BaseValueGroup[BaseNode]):
     @classmethod
@@ -523,24 +554,6 @@ class IntValueGroup(BaseValueGroup[Integer]):
     @property
     def args(self) -> tuple[Integer, ...]:
         return typing.cast(tuple[Integer, ...], self.args)
-
-class GroupWithArgTypes(InheritableNode):
-    def __init__(self, group_type: TypeNode, arg_type_group: TypeGroup):
-        assert isinstance(group_type, TypeNode)
-        assert isinstance(arg_type_group, TypeGroup)
-        super().__init__(group_type, arg_type_group)
-
-    @property
-    def group_type(self) -> TypeNode:
-        group_type = self.args[0]
-        assert isinstance(group_type, TypeNode)
-        return group_type
-
-    @property
-    def arg_types(self) -> tuple[TypeNode, ...]:
-        arg_type_group = self.args[1]
-        assert isinstance(arg_type_group, TypeGroup)
-        return arg_type_group.as_tuple
 
 class GroupWithArgs(InheritableNode):
     def __init__(self, group_type: TypeNode, arg_group: ValueGroup):
@@ -590,16 +603,17 @@ class ParamInfo(InheritableNode):
     def value(self) -> int:
         return self.param.value
 
-class FunctionParams(StrictGroup[ParamInfo]):
-    @classmethod
-    def item_type(cls):
-        return ParamInfo
-
 class FunctionInfo(InheritableNode):
-    def __init__(self, expr: BaseNode, params: FunctionParams):
-        assert isinstance(params, FunctionParams)
+    def __init__(self, param_types: ExtendedTypeGroup, expr: BaseNode):
+        assert isinstance(param_types, ExtendedTypeGroup)
         assert isinstance(expr, BaseNode)
-        super().__init__(params, expr)
+        super().__init__(param_types, expr)
+
+    @property
+    def param_types(self) -> ExtendedTypeGroup:
+        param_types = self.args[1]
+        assert isinstance(param_types, ExtendedTypeGroup)
+        return param_types
 
     @property
     def expr(self) -> BaseNode:
@@ -607,23 +621,10 @@ class FunctionInfo(InheritableNode):
         assert isinstance(expr, BaseNode)
         return expr
 
-    @property
-    def params(self) -> FunctionParams:
-        params = self.args[1]
-        assert isinstance(params, FunctionParams)
-        return params
-
     def __eq__(self, other) -> bool:
         if not isinstance(other, FunctionInfo):
             return False
-
-        my_params = self.params.as_tuple
-        other_params = other.params.as_tuple
-
-        return self.expr == other.expr.subs({
-            other_params[i].param: my_params[i].param
-            for i in range(min(len(other_params), len(my_params)))
-        })
+        return self.expr == other.expr
 
 ###########################################################
 ####################### BASIC NODES #######################
@@ -639,13 +640,11 @@ BASIC_NODE_TYPES: tuple[type[BaseNode], ...] = (
     InheritableNode,
     BooleanNode,
     MultiArgBooleanNode,
-    FunctionParams,
     FunctionInfo,
     ParamsGroup,
     ArgsGroup,
     ParamsArgsGroup,
-    TypeGroup,
+    CountableTypeGroup,
     ValueGroup,
-    GroupWithArgTypes,
     GroupWithArgs,
 )

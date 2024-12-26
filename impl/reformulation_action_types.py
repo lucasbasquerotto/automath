@@ -58,7 +58,7 @@ class DoubleChildReformulationBaseAction(Action):
         return self._input
 
     def _output(self, state: State) -> ReformulationActionOutput:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 ###########################################################
 ##################### IMPLEMENTATION ######################

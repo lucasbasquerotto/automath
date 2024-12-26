@@ -3,7 +3,7 @@ from .state import State, BaseNode
 
 class RewardEvaluator:
     def __call__(self, current_state: State, next_state: State) -> float:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 class DefaultRewardEvaluator(RewardEvaluator):
     def __init__(

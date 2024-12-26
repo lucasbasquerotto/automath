@@ -9,7 +9,9 @@ from environment.core import (
     InheritableNode,
     Integer,
     IntValueGroup,
-    IntTypeGroup)
+    IntTypeGroup,
+    BaseNodeIndex,
+    BaseNode)
 from environment.state import (
     State,
     FunctionDefinitionGroup,
@@ -312,7 +314,7 @@ class Action:
 
     @classmethod
     def metadata(cls) -> IntTypeGroup:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @classmethod
     def validate_args(cls, input: ActionInput, state: State | None) -> None:
@@ -456,18 +458,35 @@ class Action:
 
     @classmethod
     def _create(cls, input: ActionInput) -> 'Action':
-        raise NotImplementedError()
+        raise NotImplementedError
+
+    def from_index(self, index: BaseNodeIndex, node: BaseNode) -> BaseNode:
+        result = index.from_item(node)
+        if result is None:
+            raise InvalidActionArgException(f"Empty result from index: {index}")
+        return result
+
+    def replace_target(
+        self,
+        index: BaseNodeIndex,
+        target_node: BaseNode,
+        new_node: BaseNode,
+    ) -> BaseNode:
+        result = index.replace_target(target_node, new_node)
+        if result is None:
+            raise InvalidActionArgException(f"Target with index [{index}] not replaced")
+        return result
 
     @property
     def input(self) -> ActionInput:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def output(self, state: State) -> ActionOutput:
         self.validate_args(input=self.input, state=state)
         return self._output(state)
 
     def _output(self, state: State) -> ActionOutput:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def apply(self, state: State) -> tuple[State, ActionOutput]:
         output = self.output(state)
@@ -716,7 +735,7 @@ class EmptyArgsBaseAction(Action):
         return self._input
 
     def _output(self, state: State) -> ActionOutput:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 class DoubleIntInputBaseAction(Action):
 
@@ -753,17 +772,17 @@ class DoubleIntInputBaseAction(Action):
         return self._input
 
     def _output(self, state: State) -> ActionOutput:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 class ValueTypeBaseAction(Action):
 
     @classmethod
     def metadata(cls) -> IntTypeGroup:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @classmethod
     def _create(cls, input: ActionInput) -> 'Action':
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def __init__(
         self,
@@ -788,7 +807,7 @@ class ValueTypeBaseAction(Action):
         return self._input
 
     def _output(self, state: State) -> ActionOutput:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def get_function_info(self, state: State) -> FunctionInfo:
         if self.value_type == VALUE_TYPE_INT:
@@ -796,9 +815,9 @@ class ValueTypeBaseAction(Action):
         elif self.value_type == VALUE_TYPE_PARAM:
             return FunctionInfo(Param(self.value), FunctionParams())
         elif self.value_type == VALUE_TYPE_META_DEFINITION:
-            raise NotImplementedError()
+            raise NotImplementedError
         elif self.value_type == VALUE_TYPE_META_PROPOSITION:
-            raise NotImplementedError()
+            raise NotImplementedError
         elif self.value_type == VALUE_TYPE_DEFINITION_KEY:
             definition_idx = self.value
             definitions = state.definitions.as_tuple
@@ -833,7 +852,7 @@ class ValueTypeBaseAction(Action):
                 raise InvalidActionArgException(f"Empty partial definition: {definition_idx}")
             return definition_expr_p
         elif self.value_type == VALUE_TYPE_PROPOSITION:
-            raise NotImplementedError()
+            raise NotImplementedError
         else:
             raise InvalidActionArgException(
                 f"Invalid value type: {self.value_type}")
@@ -885,7 +904,7 @@ class ArgValueTypeBaseAction(ValueTypeBaseAction):
         return self._arg_idx
 
     def _output(self, state: State) -> ArgFromExprActionOutput:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 class PartialDefinitionValueTypeBaseAction(ValueTypeBaseAction):
 
@@ -926,7 +945,7 @@ class PartialDefinitionValueTypeBaseAction(ValueTypeBaseAction):
         return self._partial_definition_idx
 
     def _output(self, state: State) -> PartialActionOutput:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 class DefinitionExprBaseAction(Action):
 
@@ -963,17 +982,17 @@ class DefinitionExprBaseAction(Action):
         return self._input
 
     def _output(self, state: State) -> ActionOutput:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 class PartialDefinitionBaseAction(Action):
 
     @classmethod
     def metadata(cls) -> IntTypeGroup:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @classmethod
     def _create(cls, input: ActionInput) -> 'Action':
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def __init__(
         self,
@@ -998,7 +1017,7 @@ class PartialDefinitionBaseAction(Action):
         return self._input
 
     def _output(self, state: State) -> PartialActionOutput:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def get_partial_definition_info(
         self,
@@ -1077,7 +1096,7 @@ class PartialNodeFromExprOuterParamsBaseAction(PartialDefinitionBaseAction):
         return self._origin_expr_id
 
     def _output(self, state: State) -> PartialActionOutput:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 class PartialNodeFromExprWithArgsBaseAction(PartialDefinitionBaseAction):
 
@@ -1126,7 +1145,7 @@ class PartialNodeFromExprWithArgsBaseAction(PartialDefinitionBaseAction):
         return self._expr_arg_group_idx
 
     def _output(self, state: State) -> PartialActionOutput:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 ###########################################################
 ################## IMPLEMENTATION (MAIN) ##################

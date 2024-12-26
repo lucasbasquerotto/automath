@@ -9,7 +9,7 @@ from environment.core import (
     BaseNodeIndex,
     BaseNodeArgIndex,
     Integer,
-    UniqueNode,
+    ValueGroup,
     UnknownTypeNode,
     UniqueTypeNode,
     UniqueWrapperNode)
@@ -17,13 +17,30 @@ from environment.core import (
 T = typing.TypeVar('T', bound=BaseNode)
 K = typing.TypeVar('K', bound=BaseNode)
 
-class FunctionCall(UniqueNode):
+class FunctionKey(Integer):
     pass
 
+class FunctionCall(InheritableNode):
+    def __init__(self, key: FunctionKey, arg_group: ValueGroup):
+        assert isinstance(key, Integer)
+        assert isinstance(arg_group, ValueGroup)
+        super().__init__(key, arg_group)
+
+    @property
+    def key(self) -> FunctionKey:
+        key = self.args[0]
+        assert isinstance(key, FunctionKey)
+        return key
+
+    @property
+    def arg_group(self) -> ValueGroup:
+        arg_group = self.args[1]
+        assert isinstance(arg_group, ValueGroup)
+        return arg_group
+
 class FunctionDefinitionNode(InheritableNode):
-    def __init__(self, definition_key: UniqueTypeNode[FunctionCall], function_info: FunctionInfo):
-        assert isinstance(definition_key, UniqueTypeNode)
-        assert isinstance(definition_key.type, FunctionCall)
+    def __init__(self, definition_key: FunctionKey, function_info: FunctionInfo):
+        assert isinstance(definition_key, FunctionKey)
         assert isinstance(function_info, FunctionInfo)
         super().__init__(definition_key, function_info)
 
@@ -105,7 +122,7 @@ class State(InheritableNode):
 class StateIndex(BaseNodeIndex, typing.Generic[T]):
     @classmethod
     def item_type(cls) -> type[T]:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def from_item(self, node: BaseNode) -> BaseNode | None:
         assert isinstance(node, State)
@@ -117,15 +134,15 @@ class StateIndex(BaseNodeIndex, typing.Generic[T]):
         return self.replace_in_state(target_node, new_node)
 
     def find_in_state(self, state: State) -> T | None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def replace_in_state(self, state: State, new_node: T) -> State | None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 class StateIntIndex(StateIndex[T], typing.Generic[T]):
     @classmethod
     def item_type(cls) -> type[T]:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def __init__(self, index: Integer):
         assert isinstance(index, Integer)
@@ -142,10 +159,10 @@ class StateIntIndex(StateIndex[T], typing.Generic[T]):
         return self.index.value
 
     def find_in_state(self, state: State) -> T | None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def replace_in_state(self, state: State, new_node: T) -> State | None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def find_arg(self, node: BaseNode) -> T | None:
         result = BaseNodeArgIndex(self.index).from_item(node)

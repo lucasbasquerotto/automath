@@ -6,7 +6,7 @@ from .reward import RewardEvaluator, DefaultRewardEvaluator
 
 class GoalNode(InheritableNode):
     def evaluate(self, state: State) -> bool:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 class ActionData:
     def __init__(self, type: int, input: ActionInput, output: ActionOutput | None):
