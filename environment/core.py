@@ -102,17 +102,29 @@ class BaseNode:
     def find(self, node_type: type[T]) -> set[T]:
         return self.find_until(node_type, None)
 
-    def replace(self, before: BaseNode, after: BaseNode) -> BaseNode:
+    def replace_until(
+        self,
+        before: BaseNode,
+        after: BaseNode,
+        until_type: type[BaseNode] | None,
+    ) -> BaseNode:
         if self == before:
             return after
         return self.func(*[
             (
                 arg.replace(before, after)
-                if isinstance(arg, BaseNode)
+                if (
+                    isinstance(arg, BaseNode)
+                    and
+                    (until_type is None or not isinstance(arg, until_type))
+                )
                 else arg
             )
             for arg in self.args
         ])
+
+    def replace(self, before: BaseNode, after: BaseNode) -> BaseNode:
+        return self.replace_until(before, after, None)
 
     def subs(self, mapping: dict[BaseNode, BaseNode]) -> BaseNode:
         node = self
@@ -261,7 +273,7 @@ class Scope(InheritableNode):
         raise NotImplementedError
 
     def replace_id(self, new_id: ScopeId) -> typing.Self:
-        node = self.replace(self.id, new_id)
+        node = self.replace_until(self.id, new_id, OpaqueScope)
         assert isinstance(node, self.__class__)
         return node
 
@@ -288,11 +300,12 @@ class SimpleScope(Scope, typing.Generic[T]):
 class OpaqueScope(SimpleScope[T], typing.Generic[T]):
 
     @classmethod
-    def _normalize(cls, node: BaseNode, next_id: int) -> BaseNode:
+    def normalize_from(cls, node: BaseNode, next_id: int) -> BaseNode:
         if isinstance(node, OpaqueScope):
             return node.normalize()
+        child_scope_id = (next_id+1) if isinstance(node, Scope) else next_id
         new_args = [
-            cls._normalize(child, next_id+1)
+            cls.normalize_from(child, child_scope_id)
             if isinstance(child, BaseNode)
             else child
             for child in node.args
@@ -305,16 +318,16 @@ class OpaqueScope(SimpleScope[T], typing.Generic[T]):
     def normalize(self) -> typing.Self:
         next_id = 1
         child_args = [
-            self._normalize(child, next_id+1)
+            self.normalize_from(child, next_id+1)
             if isinstance(child, BaseNode)
             else child
             for child in self.child.args
         ]
         child = self.child.func(*child_args)
         node = self.func(TemporaryScopeId(next_id), child)
-        tmp_ids = node.find(TemporaryScopeId)
+        tmp_ids = node.find_until(TemporaryScopeId, OpaqueScope)
         for tmp_id in tmp_ids:
-            node_aux = node.replace(tmp_id, ScopeId(tmp_id.value))
+            node_aux = node.replace_until(tmp_id, ScopeId(tmp_id.value), OpaqueScope)
             assert isinstance(node_aux, self.__class__)
             node = node_aux
         return node
@@ -708,7 +721,7 @@ class Function(InheritableNode, typing.Generic[T]):
     def owned_params(self) -> typing.Sequence[Param]:
         params = [
             param
-            for param in self.expr.find(Param)
+            for param in self.expr.find_until(Param, OpaqueScope)
             if param.parent_scope_id == self.scope_id]
         params = sorted(params, key=lambda param: param.index.value)
         return params
@@ -724,31 +737,16 @@ class Function(InheritableNode, typing.Generic[T]):
             assert index > 0
             assert index <= len(args)
             arg = args[index-1]
-            scope_aux = scope.replace(param, arg)
+            scope_aux = scope.replace_until(param, arg, OpaqueScope)
             assert isinstance(scope_aux, SimpleScope)
             scope = scope_aux
         assert not scope.has_dependency()
         return scope.child
 
-    @classmethod
-    def equal(cls, a: BaseNode, b: BaseNode) -> bool:
-        if a.func != b.func:
-            return False
-        if len(a.args) != len(b.args):
-            return False
-        if isinstance(a, Scope) and isinstance(b, Scope):
-            b = b.replace_id(a.id)
-        return all(
-            cls.equal(a_arg, b_arg)
-            if isinstance(a_arg, BaseNode) and isinstance(b_arg, BaseNode)
-            else a_arg == b_arg
-            for a_arg, b_arg in zip(a.args, b.args)
-        )
-
     def __eq__(self, other) -> bool:
         if not isinstance(other, Function):
             return False
-        return self.equal(self, other)
+        return OpaqueScope.normalize_from(self, 1) == OpaqueScope.normalize_from(other, 1)
 
 class FunctionId(Integer):
     pass
