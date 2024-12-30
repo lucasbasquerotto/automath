@@ -11,7 +11,7 @@ T = typing.TypeVar('T', bound='BaseNode')
 
 class BaseNode:
     @classmethod
-    def arg_types(cls) -> ExtendedTypeGroup:
+    def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(RestTypeGroup(UnknownTypeNode()))
 
     def __init__(self, *args: int | BaseNode | typing.Type[BaseNode] | None):
@@ -83,7 +83,7 @@ class BaseNode:
         self._cached_hash = hash_value
         return hash_value
 
-    def find(self, node_type: type[T]) -> set[T]:
+    def find_until(self, node_type: type[T], until_type: type[BaseNode] | None) -> set[T]:
         return {
             node
             for node in self.args
@@ -91,9 +91,16 @@ class BaseNode:
         }.union({
             node
             for parent_node in self.args
-            if isinstance(parent_node, BaseNode)
-            for node in parent_node.find(node_type)
+            if (
+                isinstance(parent_node, BaseNode)
+                and
+                (until_type is None or not isinstance(parent_node, until_type))
+            )
+            for node in parent_node.find_until(node_type, until_type)
         })
+
+    def find(self, node_type: type[T]) -> set[T]:
+        return self.find_until(node_type, None)
 
     def replace(self, before: BaseNode, after: BaseNode) -> BaseNode:
         if self == before:
@@ -115,6 +122,9 @@ class BaseNode:
 
     def has(self, node: BaseNode) -> bool:
         return node in self.find(node.__class__)
+
+    def has_until(self, node: BaseNode, until_type: type[BaseNode] | None) -> bool:
+        return node in self.find_until(node.__class__, until_type)
 
     def eval(self) -> sympy.Basic:
         name = self.func.__name__
@@ -141,7 +151,7 @@ class BaseNode:
 
 class Integer(BaseNode):
     @classmethod
-    def arg_types(cls) -> ExtendedTypeGroup:
+    def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup())
 
     def __init__(self, value: int):
@@ -160,7 +170,7 @@ class Integer(BaseNode):
 
 class TypeNode(BaseNode, typing.Generic[T]):
     @classmethod
-    def arg_types(cls) -> ExtendedTypeGroup:
+    def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup())
 
     def __init__(self, type: type[T]):
@@ -180,7 +190,7 @@ class TypeNode(BaseNode, typing.Generic[T]):
 class InheritableNode(BaseNode):
     def __init__(self, *args: BaseNode):
         assert all(isinstance(arg, BaseNode) for arg in args)
-        BaseValueGroup(*args).validate(self.arg_types())
+        self.arg_type_group().validate(BaseValueGroup(*args))
         super().__init__(*args)
 
     @property
@@ -239,25 +249,21 @@ class IntTypeNode(TypeNode[Integer]):
 class ScopeId(Integer):
     pass
 
+class TemporaryScopeId(ScopeId):
+    pass
+
 class Scope(InheritableNode):
     @property
     def id(self) -> ScopeId:
+        raise NotImplementedError
+
+    def has_dependency(self) -> bool:
         raise NotImplementedError
 
     def replace_id(self, new_id: ScopeId) -> typing.Self:
         node = self.replace(self.id, new_id)
         assert isinstance(node, self.__class__)
         return node
-
-    def migrate(self, get_next_id: typing.Iterator[ScopeId]) -> typing.Self:
-        node = self
-        for scope in self.find(Scope):
-            next_id = next(get_next_id)
-            new_scope = scope.replace_id(next_id)
-            node_aux = node.replace(scope, new_scope)
-            assert isinstance(node_aux, self.__class__)
-            node = node_aux
-        return node.replace_id(next(get_next_id))
 
 class SimpleScope(Scope, typing.Generic[T]):
     def __init__(self, id: ScopeId, child: T):
@@ -275,6 +281,43 @@ class SimpleScope(Scope, typing.Generic[T]):
     def child(self) -> T:
         child = self.args[1]
         return typing.cast(T, child)
+
+    def has_dependency(self) -> bool:
+        return self.child.has_until(self.id, OpaqueScope)
+
+class OpaqueScope(SimpleScope[T], typing.Generic[T]):
+
+    @classmethod
+    def _normalize(cls, node: BaseNode, next_id: int) -> BaseNode:
+        if isinstance(node, OpaqueScope):
+            return node.normalize()
+        new_args = [
+            cls._normalize(child, next_id+1)
+            if isinstance(child, BaseNode)
+            else child
+            for child in node.args
+        ]
+        node = node.func(*new_args)
+        if isinstance(node, Scope):
+            node = node.replace_id(TemporaryScopeId(next_id))
+        return node
+
+    def normalize(self) -> typing.Self:
+        next_id = 1
+        child_args = [
+            self._normalize(child, next_id+1)
+            if isinstance(child, BaseNode)
+            else child
+            for child in self.child.args
+        ]
+        child = self.child.func(*child_args)
+        node = self.func(TemporaryScopeId(next_id), child)
+        tmp_ids = node.find(TemporaryScopeId)
+        for tmp_id in tmp_ids:
+            node_aux = node.replace(tmp_id, ScopeId(tmp_id.value))
+            assert isinstance(node_aux, self.__class__)
+            node = node_aux
+        return node
 
 class Param(InheritableNode, typing.Generic[T]):
     def __init__(self, parent_scope: ScopeId, index: Integer, type_node: TypeNode[T]):
@@ -554,6 +597,11 @@ class RestTypeGroup(InheritableNode, typing.Generic[T]):
         assert isinstance(type_node, TypeNode)
         return type_node
 
+class BaseValueGroup(StrictGroup[T], typing.Generic[T]):
+    @classmethod
+    def item_type(cls):
+        raise NotImplementedError
+
 class ExtendedTypeGroup(InheritableNode, typing.Generic[T]):
     def __init__(self, group: CountableTypeGroup[T] | RestTypeGroup[T]):
         assert isinstance(group, CountableTypeGroup) or isinstance(group, RestTypeGroup)
@@ -565,17 +613,13 @@ class ExtendedTypeGroup(InheritableNode, typing.Generic[T]):
         assert isinstance(group, CountableTypeGroup) or isinstance(group, RestTypeGroup)
         return group
 
-class BaseValueGroup(StrictGroup[T]):
-    @classmethod
-    def item_type(cls):
-        raise NotImplementedError
-
-    def validate(self, types: ExtendedTypeGroup):
-        group = types.group
+    def validate(self, values: BaseValueGroup):
+        group = self.group
+        args = values.args
 
         if isinstance(group, CountableTypeGroup):
-            assert len(self.args) == len(group.args)
-            for i, arg in enumerate(self.args):
+            assert len(args) == len(group.args)
+            for i, arg in enumerate(args):
                 t_arg = group.args[i]
                 assert isinstance(arg, BaseNode)
                 assert isinstance(t_arg, TypeNode)
@@ -584,7 +628,7 @@ class BaseValueGroup(StrictGroup[T]):
         elif isinstance(group, RestTypeGroup):
             t_arg = group.type
             if t_arg.type is not UnknownTypeNode:
-                for arg in self.args:
+                for arg in args:
                     assert isinstance(arg, BaseNode)
                     assert isinstance(t_arg, TypeNode)
                     assert isinstance(arg, t_arg.type)
@@ -635,20 +679,17 @@ class GroupWithArgs(InheritableNode):
 ###################### FUNCTION NODE ######################
 ###########################################################
 
-class FunctionId(Integer):
-    pass
-
 class Function(InheritableNode, typing.Generic[T]):
-    def __init__(self, param_types: ExtendedTypeGroup, scope: SimpleScope[T]):
-        assert isinstance(param_types, ExtendedTypeGroup)
+    def __init__(self, param_type_group: ExtendedTypeGroup, scope: SimpleScope[T]):
+        assert isinstance(param_type_group, ExtendedTypeGroup)
         assert isinstance(scope, SimpleScope)
-        super().__init__(param_types, scope)
+        super().__init__(param_type_group, scope)
 
     @property
-    def param_types(self) -> ExtendedTypeGroup:
-        param_types = self.args[1]
-        assert isinstance(param_types, ExtendedTypeGroup)
-        return param_types
+    def param_type_group(self) -> ExtendedTypeGroup:
+        param_type_group = self.args[1]
+        assert isinstance(param_type_group, ExtendedTypeGroup)
+        return param_type_group
 
     @property
     def scope(self) -> SimpleScope[T]:
@@ -672,12 +713,12 @@ class Function(InheritableNode, typing.Generic[T]):
         params = sorted(params, key=lambda param: param.index.value)
         return params
 
-    def with_args(self, *args: BaseNode) -> SimpleScope[T]:
-        param_types = self.param_types
+    def with_args(self, *args: BaseNode) -> BaseNode:
+        type_group = self.param_type_group
         group = ValueGroup(*args)
-        group.validate(param_types)
+        type_group.validate(group)
         params = self.owned_params()
-        scope: SimpleScope[T] = self.scope
+        scope = self.scope
         for param in params:
             index = param.index.value
             assert index > 0
@@ -686,7 +727,8 @@ class Function(InheritableNode, typing.Generic[T]):
             scope_aux = scope.replace(param, arg)
             assert isinstance(scope_aux, SimpleScope)
             scope = scope_aux
-        return scope
+        assert not scope.has_dependency()
+        return scope.child
 
     @classmethod
     def equal(cls, a: BaseNode, b: BaseNode) -> bool:
@@ -707,6 +749,9 @@ class Function(InheritableNode, typing.Generic[T]):
         if not isinstance(other, Function):
             return False
         return self.equal(self, other)
+
+class FunctionId(Integer):
+    pass
 
 class FunctionCall(InheritableNode):
     def __init__(self, function_id: FunctionId, arg_group: ValueGroup):
@@ -743,21 +788,13 @@ class FunctionDefinition(InheritableNode, typing.Generic[T]):
         f = self.args[1]
         return typing.cast(Function[T], f)
 
-    def call(self, *args: BaseNode) -> FunctionCall:
-        type_group = self.function.param_types
-        arg_group = ValueGroup(*args)
-        arg_group.validate(type_group)
+    def call(self, arg_group: ValueGroup) -> FunctionCall:
+        self.function.param_type_group.validate(arg_group)
         return FunctionCall(self.function_id, arg_group)
 
-    def expand(self, call: FunctionCall) -> SimpleScope[T]:
+    def expand(self, call: FunctionCall) -> BaseNode:
         assert call.function_id == self.function_id
-        type_group = self.function.param_types
-        arg_group = ValueGroup(*call.args)
-        arg_group.validate(type_group)
-        expanded = self.function.with_args(*call.args)
-        for param in self.function.owned_params():
-            assert not expanded.has(param)
-        return expanded
+        return self.function.with_args(*call.arg_group.as_tuple)
 
 ###########################################################
 ####################### BASIC NODES #######################
