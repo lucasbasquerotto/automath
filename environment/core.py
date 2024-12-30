@@ -648,6 +648,12 @@ class ExtendedTypeGroup(InheritableNode, typing.Generic[T]):
         else:
             raise ValueError(f"Invalid group type: {group}")
 
+    def validate_params(self, node: BaseNode):
+        for param in node.find_until(Param, OpaqueScope):
+            type_node = param.type_node
+            assert isinstance(type_node, TypeNode)
+            assert isinstance(param, type_node.type)
+
 class ValueGroup(BaseValueGroup[BaseNode]):
     @classmethod
     def item_type(cls):
@@ -727,8 +733,11 @@ class Function(InheritableNode, typing.Generic[T]):
         return params
 
     def with_args(self, *args: BaseNode) -> BaseNode:
+        return self.with_arg_group(ValueGroup(*args))
+
+    def with_arg_group(self, group: ValueGroup) -> BaseNode:
         type_group = self.param_type_group
-        group = ValueGroup(*args)
+        args = group.as_tuple
         type_group.validate(group)
         params = self.owned_params()
         scope = self.scope
@@ -737,6 +746,9 @@ class Function(InheritableNode, typing.Generic[T]):
             assert index > 0
             assert index <= len(args)
             arg = args[index-1]
+            param_type = param.type_node.type
+            if param_type is not UnknownTypeNode:
+                assert isinstance(arg, param_type)
             scope_aux = scope.replace_until(param, arg, OpaqueScope)
             assert isinstance(scope_aux, SimpleScope)
             scope = scope_aux
@@ -793,6 +805,36 @@ class FunctionDefinition(InheritableNode, typing.Generic[T]):
     def expand(self, call: FunctionCall) -> BaseNode:
         assert call.function_id == self.function_id
         return self.function.with_args(*call.arg_group.as_tuple)
+
+class PartialArgsGroup(Function[ValueGroup]):
+    def __init__(self, param_type_group: ExtendedTypeGroup, scope: OpaqueScope[ValueGroup]):
+        assert isinstance(param_type_group, ExtendedTypeGroup)
+        assert isinstance(scope, OpaqueScope)
+        assert isinstance(scope.child, ValueGroup)
+        super().__init__(param_type_group, scope)
+
+    @property
+    def inner_args_group(self) -> ValueGroup:
+        inner_args = self.scope.child
+        assert isinstance(inner_args, ValueGroup)
+        return inner_args
+
+    @property
+    def inner_args(self) -> tuple[BaseNode, ...]:
+        return self.inner_args_group.as_tuple
+
+    def validate(self):
+        self.param_type_group.validate_params(self.inner_args_group)
+
+    def apply_to(self, function: Function) -> Function:
+        self.validate()
+        return Function(
+            self.param_type_group,
+            function.scope.func(
+                function.scope.id,
+                function.with_arg_group(self.inner_args_group),
+            ),
+        )
 
 ###########################################################
 ####################### BASIC NODES #######################
