@@ -2,7 +2,7 @@ import typing
 import numpy as np
 from utils.logger import logger
 from environment.core import UniqueIntegerNode, InheritableNode
-from .state import State, BaseNode, FunctionInfo, FunctionParams, ParamsArgsGroup
+from .state import State, BaseNode, Function, FunctionParams, ParamsArgsGroup
 from .action import (
     Action,
     ActionInfo,
@@ -561,7 +561,7 @@ class FullState:
 
     def _node_data_list_state(self, history_number: int, state: State) -> list[NodeItemData]:
         history_expr_id = 1
-        function_info: FunctionInfo | None = None
+        function_info: Function | None = None
 
         definitions_nodes: list[NodeItemData] = []
         for i, (definition, function_info) in enumerate(state.definitions):
@@ -666,7 +666,7 @@ class FullState:
                     node_value=node_value,
                 )
 
-            def create_expr_tree(function_info: FunctionInfo, history_expr_id: int):
+            def create_expr_tree(function_info: Function, history_expr_id: int):
                 output_expr_nodes, history_expr_id = self._expr_tree_data_list(
                     history_number=history_number,
                     history_type=HISTORY_TYPE_ACTION,
@@ -875,7 +875,7 @@ class FullState:
                 item_idx=i+1,
                 history_expr_id=history_expr_id,
                 function_info=(
-                    FunctionInfo(expr, FunctionParams(*group.outer_params))
+                    Function(expr, FunctionParams(*group.outer_params))
                     if expr is not None
                     else None),
                 skip_params=True,
@@ -891,7 +891,7 @@ class FullState:
         history_type: int,
         context: int,
         history_expr_id: int,
-        function_info: FunctionInfo | None,
+        function_info: Function | None,
         subcontext: int = UNDEFINED_OR_EMPTY_FIELD,
         group_idx: int = UNDEFINED_OR_EMPTY_FIELD,
         group_context: int = UNDEFINED_OR_EMPTY_FIELD,

@@ -2,78 +2,27 @@ import typing
 from environment.core import (
     BaseNode,
     InheritableNode,
-    FunctionInfo,
+    Function,
     ParamsArgsGroup,
     StrictGroup,
     OptionalGroup,
     BaseNodeIndex,
     BaseNodeArgIndex,
     Integer,
-    ValueGroup,
-    UnknownTypeNode,
-    UniqueTypeNode,
-    UniqueWrapperNode)
+    FunctionDefinition)
 
 T = typing.TypeVar('T', bound=BaseNode)
 K = typing.TypeVar('K', bound=BaseNode)
 
-class FunctionKey(Integer):
-    pass
-
-class FunctionCall(InheritableNode):
-    def __init__(self, key: FunctionKey, arg_group: ValueGroup):
-        assert isinstance(key, Integer)
-        assert isinstance(arg_group, ValueGroup)
-        super().__init__(key, arg_group)
-
-    @property
-    def key(self) -> FunctionKey:
-        key = self.args[0]
-        assert isinstance(key, FunctionKey)
-        return key
-
-    @property
-    def arg_group(self) -> ValueGroup:
-        arg_group = self.args[1]
-        assert isinstance(arg_group, ValueGroup)
-        return arg_group
-
-class FunctionDefinitionNode(InheritableNode):
-    def __init__(self, definition_key: FunctionKey, function_info: FunctionInfo):
-        assert isinstance(definition_key, FunctionKey)
-        assert isinstance(function_info, FunctionInfo)
-        super().__init__(definition_key, function_info)
-
-    @property
-    def definition_key(self) -> UniqueTypeNode[FunctionCall]:
-        key = self.args[0]
-        assert isinstance(key, UniqueTypeNode)
-        assert isinstance(key.type, FunctionCall)
-        return key
-
-    @property
-    def function_info(self) -> FunctionInfo:
-        f = self.args[1]
-        assert isinstance(f, FunctionInfo)
-        return f
-
-    def with_args(self, *args: BaseNode) -> UniqueWrapperNode[FunctionCall]:
-        params = self.function_info.params.as_tuple
-        assert len(args) == len(params)
-        for param_info, arg in zip(params, args):
-            if param_info.type is not UnknownTypeNode:
-                assert isinstance(arg, param_info.type)
-        return self.definition_key.wrap(*args)
-
-class FunctionDefinitionGroup(StrictGroup[FunctionDefinitionNode]):
+class FunctionDefinitionGroup(StrictGroup[FunctionDefinition]):
     @classmethod
     def item_type(cls):
-        return FunctionDefinitionNode
+        return FunctionDefinition
 
-class PartialDefinitionGroup(OptionalGroup[FunctionInfo]):
+class PartialDefinitionGroup(OptionalGroup[Function]):
     @classmethod
     def item_type(cls):
-        return FunctionInfo
+        return Function
 
 class ParamsArgsOuterGroup(StrictGroup[ParamsArgsGroup]):
     @classmethod
@@ -110,8 +59,8 @@ class State(InheritableNode):
     @classmethod
     def from_raw(
         cls,
-        definitions: tuple[FunctionDefinitionNode, ...],
-        partial_definitions: tuple[FunctionInfo | None, ...],
+        definitions: tuple[FunctionDefinition, ...],
+        partial_definitions: tuple[Function | None, ...],
         arg_groups: tuple[ParamsArgsGroup, ...],
     ) -> 'State':
         return cls(
@@ -177,19 +126,19 @@ class StateIntIndex(StateIndex[T], typing.Generic[T]):
             return None
         return result
 
-class StateDefinitionIndex(StateIntIndex[FunctionDefinitionNode]):
+class StateDefinitionIndex(StateIntIndex[FunctionDefinition]):
     @classmethod
     def item_type(cls):
-        return FunctionDefinitionNode
+        return FunctionDefinition
 
-    def find_in_state(self, state: State) -> FunctionDefinitionNode | None:
+    def find_in_state(self, state: State) -> FunctionDefinition | None:
         return self.find_arg(state.definitions)
 
-    def replace_in_state(self, state: State, new_node: FunctionDefinitionNode) -> State | None:
+    def replace_in_state(self, state: State, new_node: FunctionDefinition) -> State | None:
         definitions = list(state.definitions.as_tuple)
         for i, _ in enumerate(definitions):
             if self.value == (i+1):
-                assert new_node.definition_key == definitions[i].definition_key
+                assert new_node.function_id == definitions[i].function_id
                 definitions[i] = new_node
                 return State(
                     definitions=FunctionDefinitionGroup.from_items(definitions),
@@ -197,15 +146,15 @@ class StateDefinitionIndex(StateIntIndex[FunctionDefinitionNode]):
                     arg_groups=state.arg_groups)
         return state
 
-class StatePartialDefinitionIndex(StateIntIndex[FunctionInfo]):
+class StatePartialDefinitionIndex(StateIntIndex[Function]):
     @classmethod
     def item_type(cls):
-        return FunctionInfo
+        return Function
 
-    def find_in_state(self, state: State) -> FunctionInfo | None:
+    def find_in_state(self, state: State) -> Function | None:
         return self.find_arg(state.partial_definitions)
 
-    def replace_in_state(self, state: State, new_node: FunctionInfo) -> State | None:
+    def replace_in_state(self, state: State, new_node: Function) -> State | None:
         result = self.replace_arg(state.partial_definitions, new_node)
         if result is None:
             return None

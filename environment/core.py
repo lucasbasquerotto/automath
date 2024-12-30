@@ -62,7 +62,7 @@ class BaseNode:
     def __getitem__(self, index: 'BaseNodeIndex') -> BaseNode | None:
         return index.from_item(self)
 
-    def replace(self, index: 'BaseNodeIndex', new_node: BaseNode) -> BaseNode | None:
+    def replace_at(self, index: 'BaseNodeIndex', new_node: BaseNode) -> BaseNode | None:
         return index.replace_target(self, new_node)
 
     def __len__(self) -> int:
@@ -83,20 +83,6 @@ class BaseNode:
         self._cached_hash = hash_value
         return hash_value
 
-    def subs(self, mapping: dict[BaseNode, BaseNode]) -> BaseNode:
-        return self.func(*[
-            (
-                (
-                    mapping[arg]
-                    if arg in mapping
-                    else arg
-                )
-                if isinstance(arg, BaseNode)
-                else arg
-            )
-            for arg in self.args
-        ])
-
     def find(self, node_type: type[T]) -> set[T]:
         return {
             node
@@ -108,6 +94,27 @@ class BaseNode:
             if isinstance(parent_node, BaseNode)
             for node in parent_node.find(node_type)
         })
+
+    def replace(self, before: BaseNode, after: BaseNode) -> BaseNode:
+        if self == before:
+            return after
+        return self.func(*[
+            (
+                arg.replace(before, after)
+                if isinstance(arg, BaseNode)
+                else arg
+            )
+            for arg in self.args
+        ])
+
+    def subs(self, mapping: dict[BaseNode, BaseNode]) -> BaseNode:
+        node = self
+        for key, value in mapping.items():
+            node = node.replace(key, value)
+        return node
+
+    def has(self, node: BaseNode) -> bool:
+        return node in self.find(node.__class__)
 
     def eval(self) -> sympy.Basic:
         name = self.func.__name__
@@ -127,20 +134,6 @@ class BaseNode:
         args: list[sympy.Basic] = [eval_arg(arg) for arg in self.args]
         # pylint: disable=not-callable
         return fn(*args)
-
-    @classmethod
-    def type_as_function(
-        cls,
-        *args: int | BaseNode | typing.Type[BaseNode] | None,
-    ) -> 'FunctionInfo':
-        return FunctionInfo(
-            cls.arg_types(),
-            cls(*args))
-
-    def as_function(self) -> 'FunctionInfo':
-        return FunctionInfo(
-            self.arg_types(),
-            self)
 
 ###########################################################
 ######################## INT NODE #########################
@@ -202,7 +195,7 @@ class InheritableNode(BaseNode):
             return None
         return super().__getitem__(index)
 
-    def replace(self, index: 'BaseNodeIndex', new_node: BaseNode) -> BaseNode | None:
+    def replace_at(self, index: 'BaseNodeIndex', new_node: BaseNode) -> BaseNode | None:
         assert isinstance(index, BaseNodeIndex)
         assert isinstance(new_node, BaseNode)
         if isinstance(index, BaseNodeArgIndex):
@@ -213,7 +206,7 @@ class InheritableNode(BaseNode):
                     for i, arg in enumerate(args)
                 ])
             return None
-        return super().replace(index, new_node)
+        return super().replace_at(index, new_node)
 
 ###########################################################
 ###################### SPECIAL NODES ######################
@@ -239,13 +232,74 @@ class UnknownValue(InheritableNode):
 class IntTypeNode(TypeNode[Integer]):
     pass
 
-class UniqueIntegerNode(Integer):
-    def __eq__(self, other) -> bool:
-        # do not use == because it will cause infinite recursion
-        return self is other
+###########################################################
+########################## SCOPE ##########################
+###########################################################
 
-class Param(UniqueIntegerNode):
+class ScopeId(Integer):
     pass
+
+class Scope(InheritableNode):
+    @property
+    def id(self) -> ScopeId:
+        raise NotImplementedError
+
+    def replace_id(self, new_id: ScopeId) -> typing.Self:
+        node = self.replace(self.id, new_id)
+        assert isinstance(node, self.__class__)
+        return node
+
+    def migrate(self, get_next_id: typing.Iterator[ScopeId]) -> typing.Self:
+        node = self
+        for scope in self.find(Scope):
+            next_id = next(get_next_id)
+            new_scope = scope.replace_id(next_id)
+            node_aux = node.replace(scope, new_scope)
+            assert isinstance(node_aux, self.__class__)
+            node = node_aux
+        return node.replace_id(next(get_next_id))
+
+class SimpleScope(Scope, typing.Generic[T]):
+    def __init__(self, id: ScopeId, child: T):
+        assert isinstance(id, Integer)
+        assert isinstance(child, BaseNode)
+        super().__init__(id, child)
+
+    @property
+    def id(self) -> ScopeId:
+        id = self.args[0]
+        assert isinstance(id, ScopeId)
+        return id
+
+    @property
+    def child(self) -> T:
+        child = self.args[1]
+        return typing.cast(T, child)
+
+class Param(InheritableNode, typing.Generic[T]):
+    def __init__(self, parent_scope: ScopeId, index: Integer, type_node: TypeNode[T]):
+        assert isinstance(parent_scope, ScopeId)
+        assert isinstance(index, Integer)
+        assert isinstance(type_node, TypeNode)
+        super().__init__(parent_scope, index, type_node)
+
+    @property
+    def parent_scope_id(self) -> ScopeId:
+        parent_scope = self.args[0]
+        assert isinstance(parent_scope, ScopeId)
+        return parent_scope
+
+    @property
+    def index(self) -> Integer:
+        index = self.args[1]
+        assert isinstance(index, Integer)
+        return index
+
+    @property
+    def type_node(self) -> TypeNode[T]:
+        type_node = self.args[2]
+        assert isinstance(type_node, TypeNode)
+        return type_node
 
 ###########################################################
 ######################## NODE IDXS ########################
@@ -581,33 +635,14 @@ class GroupWithArgs(InheritableNode):
 ###################### FUNCTION NODE ######################
 ###########################################################
 
-class ParamInfo(InheritableNode):
-    def __init__(self, param: Param, type_node: TypeNode[BaseNode]):
-        assert isinstance(param, Param)
-        assert isinstance(type_node, TypeNode)
-        super().__init__(param, type_node)
+class FunctionId(Integer):
+    pass
 
-    @property
-    def param(self) -> Param:
-        param = self.args[0]
-        assert isinstance(param, Param)
-        return param
-
-    @property
-    def type(self) -> type[BaseNode]:
-        type_node = self.args[1]
-        assert isinstance(type_node, TypeNode)
-        return type_node.type
-
-    @property
-    def value(self) -> int:
-        return self.param.value
-
-class FunctionInfo(InheritableNode):
-    def __init__(self, param_types: ExtendedTypeGroup, expr: BaseNode):
+class Function(InheritableNode, typing.Generic[T]):
+    def __init__(self, param_types: ExtendedTypeGroup, scope: SimpleScope[T]):
         assert isinstance(param_types, ExtendedTypeGroup)
-        assert isinstance(expr, BaseNode)
-        super().__init__(param_types, expr)
+        assert isinstance(scope, SimpleScope)
+        super().__init__(param_types, scope)
 
     @property
     def param_types(self) -> ExtendedTypeGroup:
@@ -616,15 +651,113 @@ class FunctionInfo(InheritableNode):
         return param_types
 
     @property
-    def expr(self) -> BaseNode:
-        expr = self.args[0]
-        assert isinstance(expr, BaseNode)
-        return expr
+    def scope(self) -> SimpleScope[T]:
+        scope = self.args[0]
+        assert isinstance(scope, SimpleScope)
+        return scope
+
+    @property
+    def scope_id(self) -> ScopeId:
+        return self.scope.id
+
+    @property
+    def expr(self) -> T:
+        return self.scope.child
+
+    def owned_params(self) -> typing.Sequence[Param]:
+        params = [
+            param
+            for param in self.expr.find(Param)
+            if param.parent_scope_id == self.scope_id]
+        params = sorted(params, key=lambda param: param.index.value)
+        return params
+
+    def with_args(self, *args: BaseNode) -> SimpleScope[T]:
+        param_types = self.param_types
+        group = ValueGroup(*args)
+        group.validate(param_types)
+        params = self.owned_params()
+        scope: SimpleScope[T] = self.scope
+        for param in params:
+            index = param.index.value
+            assert index > 0
+            assert index <= len(args)
+            arg = args[index-1]
+            scope_aux = scope.replace(param, arg)
+            assert isinstance(scope_aux, SimpleScope)
+            scope = scope_aux
+        return scope
+
+    @classmethod
+    def equal(cls, a: BaseNode, b: BaseNode) -> bool:
+        if a.func != b.func:
+            return False
+        if len(a.args) != len(b.args):
+            return False
+        if isinstance(a, Scope) and isinstance(b, Scope):
+            b = b.replace_id(a.id)
+        return all(
+            cls.equal(a_arg, b_arg)
+            if isinstance(a_arg, BaseNode) and isinstance(b_arg, BaseNode)
+            else a_arg == b_arg
+            for a_arg, b_arg in zip(a.args, b.args)
+        )
 
     def __eq__(self, other) -> bool:
-        if not isinstance(other, FunctionInfo):
+        if not isinstance(other, Function):
             return False
-        return self.expr == other.expr
+        return self.equal(self, other)
+
+class FunctionCall(InheritableNode):
+    def __init__(self, function_id: FunctionId, arg_group: ValueGroup):
+        assert isinstance(function_id, FunctionId)
+        assert isinstance(arg_group, ValueGroup)
+        super().__init__(function_id, arg_group)
+
+    @property
+    def function_id(self) -> FunctionId:
+        function_id = self.args[0]
+        assert isinstance(function_id, FunctionId)
+        return function_id
+
+    @property
+    def arg_group(self) -> ValueGroup:
+        arg_group = self.args[1]
+        assert isinstance(arg_group, ValueGroup)
+        return arg_group
+
+class FunctionDefinition(InheritableNode, typing.Generic[T]):
+    def __init__(self, function_id: FunctionId, function: Function[T]):
+        assert isinstance(function_id, FunctionId)
+        assert isinstance(function, Function)
+        super().__init__(function_id, function)
+
+    @property
+    def function_id(self) -> FunctionId:
+        function_id = self.args[0]
+        assert isinstance(function_id, FunctionId)
+        return function_id
+
+    @property
+    def function(self) -> Function[T]:
+        f = self.args[1]
+        return typing.cast(Function[T], f)
+
+    def call(self, *args: BaseNode) -> FunctionCall:
+        type_group = self.function.param_types
+        arg_group = ValueGroup(*args)
+        arg_group.validate(type_group)
+        return FunctionCall(self.function_id, arg_group)
+
+    def expand(self, call: FunctionCall) -> SimpleScope[T]:
+        assert call.function_id == self.function_id
+        type_group = self.function.param_types
+        arg_group = ValueGroup(*call.args)
+        arg_group.validate(type_group)
+        expanded = self.function.with_args(*call.args)
+        for param in self.function.owned_params():
+            assert not expanded.has(param)
+        return expanded
 
 ###########################################################
 ####################### BASIC NODES #######################
@@ -634,13 +767,12 @@ BASIC_NODE_TYPES: tuple[type[BaseNode], ...] = (
     BaseNode,
     VoidNode,
     Integer,
-    UniqueIntegerNode,
     Param,
     TypeNode,
     InheritableNode,
     BooleanNode,
     MultiArgBooleanNode,
-    FunctionInfo,
+    Function,
     ParamsGroup,
     ArgsGroup,
     ParamsArgsGroup,
