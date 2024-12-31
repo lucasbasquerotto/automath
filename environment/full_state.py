@@ -3,7 +3,7 @@ import numpy as np
 from utils.logger import logger
 from environment.core import UniqueIntegerNode, InheritableNode
 from .state import State, BaseNode, Function, FunctionParams, ParamsArgsGroup
-from .action import (
+from .action_old import (
     Action,
     ActionInfo,
     InvalidActionException,

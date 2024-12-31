@@ -58,7 +58,7 @@ class BaseNode:
         return True
 
     def __getitem__(self, index: 'BaseNodeIndex') -> BaseNode | None:
-        return index.from_item(self)
+        return index.from_node(self)
 
     def replace_at(self, index: 'BaseNodeIndex', new_node: BaseNode) -> BaseNode | None:
         return index.replace_target(self, new_node)
@@ -321,6 +321,10 @@ class OpaqueScope(SimpleScope[T], typing.Generic[T]):
     def create(cls, child: T) -> typing.Self:
         return cls(ScopeId(1), child)
 
+    def __init__(self, id: ScopeId, child: T):
+        assert id.value == 1
+        super().__init__(id, child)
+
     @classmethod
     def normalize_from(cls, node: BaseNode, next_id: int) -> BaseNode:
         if isinstance(node, OpaqueScope):
@@ -388,7 +392,7 @@ class Param(InheritableNode, typing.Generic[T]):
 ###########################################################
 
 class BaseNodeIndex(InheritableNode):
-    def from_item(self, node: BaseNode) -> BaseNode | None:
+    def from_node(self, node: BaseNode) -> BaseNode | None:
         raise NotImplementedError
 
     def replace_target(self, target_node: BaseNode, new_node: BaseNode) -> BaseNode | None:
@@ -409,7 +413,7 @@ class BaseNodeIntIndex(BaseNodeIndex):
     def value(self) -> int:
         return self.index.value
 
-    def from_item(self, node: BaseNode) -> BaseNode | None:
+    def from_node(self, node: BaseNode) -> BaseNode | None:
         raise NotImplementedError
 
     def replace_target(self, target_node: BaseNode, new_node: BaseNode) -> BaseNode | None:
@@ -471,7 +475,7 @@ class BaseNodeMainIndex(BaseNodeIntIndex):
                     return [node] + ancestors, index
         return [], index
 
-    def from_item(self, node: BaseNode) -> BaseNode | None:
+    def from_node(self, node: BaseNode) -> BaseNode | None:
         item, _ = self._inner_getitem(node, self.value)
         return item
 
@@ -484,7 +488,7 @@ class BaseNodeMainIndex(BaseNodeIntIndex):
         return tuple(ancestors)
 
 class BaseNodeArgIndex(BaseNodeIntIndex):
-    def from_item(self, node: BaseNode) -> BaseNode | None:
+    def from_node(self, node: BaseNode) -> BaseNode | None:
         index = self.value
         if not isinstance(node, InheritableNode):
             return None

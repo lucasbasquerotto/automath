@@ -2,31 +2,37 @@ import typing
 from environment.core import (
     BaseNode,
     InheritableNode,
-    Function,
     PartialArgsGroup,
     BaseValueGroup,
-    Optional,
     StrictGroup,
     BaseNodeIndex,
+    BaseNodeIntIndex,
+    BaseNodeMainIndex,
     BaseNodeArgIndex,
     OpaqueScope,
     Integer,
+    ScopeId,
     FunctionDefinition)
 
 T = typing.TypeVar('T', bound=BaseNode)
 K = typing.TypeVar('K', bound=BaseNode)
 
-class ScratchGroup(BaseValueGroup[OpaqueScope[Optional[BaseNode]]]):
+class Scratch(OpaqueScope[BaseNode]):
+    def __init__(self, id: ScopeId, child: BaseNode):
+        assert isinstance(child, BaseNode)
+        super().__init__(id, child)
+
+class ScratchGroup(BaseValueGroup[Scratch]):
     @classmethod
     def item_type(cls):
-        return OpaqueScope[Optional[BaseNode]]
+        return OpaqueScope[Scratch]
 
     @classmethod
-    def from_raw_items(cls, items: tuple[BaseNode | None, ...]) -> typing.Self:
-        return cls.from_items([OpaqueScope.create(Optional(s)) for s in items])
+    def from_raw_items(cls, items: tuple[BaseNode, ...]) -> typing.Self:
+        return cls.from_items([Scratch.create(s) for s in items])
 
-    def to_raw_items(self) -> tuple[BaseNode | None, ...]:
-        return tuple(s.child.value for s in self.as_tuple)
+    def to_raw_items(self) -> tuple[BaseNode, ...]:
+        return tuple(s.child for s in self.as_tuple)
 
 class PartialArgsOuterGroup(BaseValueGroup[PartialArgsGroup]):
     @classmethod
@@ -48,7 +54,7 @@ class State(InheritableNode):
         super().__init__(function_group, args_group, scratch_group)
 
     @property
-    def definitions(self) -> FunctionDefinitionGroup:
+    def function_group(self) -> FunctionDefinitionGroup:
         function_group = self.args[0]
         assert isinstance(function_group, FunctionDefinitionGroup)
         return function_group
@@ -70,7 +76,7 @@ class State(InheritableNode):
         cls,
         definitions: tuple[FunctionDefinition, ...],
         arg_groups: tuple[PartialArgsGroup, ...],
-        scratchs: tuple[BaseNode | None, ...],
+        scratchs: tuple[BaseNode, ...],
     ) -> typing.Self:
         return cls(
             FunctionDefinitionGroup.from_items(definitions),
@@ -82,7 +88,7 @@ class StateIndex(BaseNodeIndex, typing.Generic[T]):
     def item_type(cls) -> type[T]:
         raise NotImplementedError
 
-    def from_item(self, node: BaseNode) -> BaseNode | None:
+    def from_node(self, node: BaseNode) -> BaseNode | None:
         assert isinstance(node, State)
         return self.find_in_state(node)
 
@@ -123,7 +129,7 @@ class StateIntIndex(StateIndex[T], typing.Generic[T]):
         raise NotImplementedError
 
     def find_arg(self, node: BaseNode) -> T | None:
-        result = BaseNodeArgIndex(self.index).from_item(node)
+        result = BaseNodeArgIndex(self.index).from_node(node)
         if result is None:
             return None
         assert isinstance(result, self.item_type())
@@ -141,10 +147,10 @@ class StateDefinitionIndex(StateIntIndex[FunctionDefinition]):
         return FunctionDefinition
 
     def find_in_state(self, state: State) -> FunctionDefinition | None:
-        return self.find_arg(state.definitions)
+        return self.find_arg(state.function_group)
 
     def replace_in_state(self, state: State, new_node: FunctionDefinition) -> State | None:
-        definitions = list(state.definitions.as_tuple)
+        definitions = list(state.function_group.as_tuple)
         for i, _ in enumerate(definitions):
             if self.value == (i+1):
                 assert new_node.function_id == definitions[i].function_id
@@ -155,22 +161,34 @@ class StateDefinitionIndex(StateIntIndex[FunctionDefinition]):
                     scratch_group=state.scratch_group)
         return state
 
-class StateScratchIndex(StateIntIndex[Function]):
+class StateScratchIndex(StateIntIndex[Scratch]):
     @classmethod
     def item_type(cls):
-        return Function
+        return Scratch
 
-    def find_in_state(self, state: State) -> Function | None:
+    def find_in_state(self, state: State) -> Scratch | None:
         return self.find_arg(state.scratch_group)
 
-    def replace_in_state(self, state: State, new_node: Function) -> State | None:
+    def replace_in_state(self, state: State, new_node: Scratch) -> State | None:
         result = self.replace_arg(state.scratch_group, new_node)
         if result is None:
             return None
         return State(
-            function_group=state.definitions,
+            function_group=state.function_group,
             args_group=state.args_group,
             scratch_group=result)
+
+class ScratchNodeIndex(BaseNodeIntIndex):
+    def from_node(self, node: BaseNode) -> BaseNode | None:
+        assert isinstance(node, Scratch)
+        return BaseNodeMainIndex(self.index).from_node(node.child)
+
+    def replace_target(self, target_node: BaseNode, new_node: BaseNode) -> Scratch | None:
+        assert isinstance(target_node, Scratch)
+        child = BaseNodeMainIndex(self.index).replace_target(target_node.child, new_node)
+        if child is None:
+            return None
+        return Scratch(target_node.id, child)
 
 class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup]):
     @classmethod
@@ -185,11 +203,11 @@ class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup]):
         if result is None:
             return None
         return State(
-            function_group=state.definitions,
+            function_group=state.function_group,
             args_group=result,
             scratch_group=state.scratch_group)
 
-class StateArgGroupArgIndex(StateIndex[BaseNode]):
+class StateArgsGroupArgIndex(StateIndex[BaseNode]):
     @classmethod
     def item_type(cls):
         return BaseNode

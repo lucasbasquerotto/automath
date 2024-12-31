@@ -40,7 +40,7 @@ from environment.full_state import (
     ACTION_STATUS_SUCCESS_ID,
     ACTION_STATUS_FAIL_ID,
     NodeItemData)
-from environment.action import BASIC_ACTION_TYPES
+from environment.action_old import BASIC_ACTION_TYPES
 from impl.goal_env import GoalEnv
 from impl.node_types import HaveDefinition, AndNode, OrNode, TrueNode
 

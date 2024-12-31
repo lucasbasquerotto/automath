@@ -1,7 +1,7 @@
 import typing
 from environment.core import BASIC_NODE_TYPES, Integer, InheritableNode
 from .state import State, BaseNode
-from .action import BASIC_ACTION_TYPES, Action, ActionInput, ActionOutput
+from .action_old import BASIC_ACTION_TYPES, Action, ActionInput, ActionOutput
 from .reward import RewardEvaluator, DefaultRewardEvaluator
 
 class GoalNode(InheritableNode):

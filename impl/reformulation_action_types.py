@@ -1,6 +1,6 @@
 import sympy
 from environment.state import State, Function
-from environment.action import (
+from environment.action_old import (
     ACTION_ARG_TYPE_EXPRESSION_TARGET,
     ACTION_ARG_TYPE_INT,
     Action,
