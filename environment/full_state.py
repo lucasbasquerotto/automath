@@ -410,9 +410,9 @@ class FullState:
         if len(history) == 0:
             history = (
                 State.from_raw(
-                    definitions=tuple(),
+                    functions=tuple(),
                     partial_definitions=tuple(),
-                    arg_groups=tuple()
+                    args_outer_groups=tuple()
                 ),
             )
 

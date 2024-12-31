@@ -48,10 +48,10 @@ class State(InheritableNode):
     def __init__(
         self,
         function_group: FunctionDefinitionGroup,
-        args_group: PartialArgsOuterGroup,
+        args_outer_group: PartialArgsOuterGroup,
         scratch_group: ScratchGroup,
     ):
-        super().__init__(function_group, args_group, scratch_group)
+        super().__init__(function_group, args_outer_group, scratch_group)
 
     @property
     def function_group(self) -> FunctionDefinitionGroup:
@@ -60,10 +60,10 @@ class State(InheritableNode):
         return function_group
 
     @property
-    def args_group(self) -> PartialArgsOuterGroup:
-        args_group = self.args[2]
-        assert isinstance(args_group, PartialArgsOuterGroup)
-        return args_group
+    def args_outer_group(self) -> PartialArgsOuterGroup:
+        args_outer_group = self.args[2]
+        assert isinstance(args_outer_group, PartialArgsOuterGroup)
+        return args_outer_group
 
     @property
     def scratch_group(self) -> ScratchGroup:
@@ -74,13 +74,13 @@ class State(InheritableNode):
     @classmethod
     def from_raw(
         cls,
-        definitions: tuple[FunctionDefinition, ...],
-        arg_groups: tuple[PartialArgsGroup, ...],
+        functions: tuple[FunctionDefinition, ...],
+        args_outer_groups: tuple[PartialArgsGroup, ...],
         scratchs: tuple[BaseNode, ...],
     ) -> typing.Self:
         return cls(
-            FunctionDefinitionGroup.from_items(definitions),
-            PartialArgsOuterGroup.from_items(arg_groups),
+            FunctionDefinitionGroup.from_items(functions),
+            PartialArgsOuterGroup.from_items(args_outer_groups),
             ScratchGroup.from_raw_items(scratchs))
 
 class StateIndex(BaseNodeIndex, typing.Generic[T]):
@@ -157,7 +157,7 @@ class StateDefinitionIndex(StateIntIndex[FunctionDefinition]):
                 definitions[i] = new_node
                 return State(
                     function_group=FunctionDefinitionGroup.from_items(definitions),
-                    args_group=state.args_group,
+                    args_outer_group=state.args_outer_group,
                     scratch_group=state.scratch_group)
         return state
 
@@ -175,7 +175,7 @@ class StateScratchIndex(StateIntIndex[Scratch]):
             return None
         return State(
             function_group=state.function_group,
-            args_group=state.args_group,
+            args_outer_group=state.args_outer_group,
             scratch_group=result)
 
 class ScratchNodeIndex(BaseNodeIntIndex):
@@ -196,15 +196,15 @@ class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup]):
         return PartialArgsGroup
 
     def find_in_state(self, state: State) -> PartialArgsGroup | None:
-        return self.find_arg(state.args_group)
+        return self.find_arg(state.args_outer_group)
 
     def replace_in_state(self, state: State, new_node: PartialArgsGroup) -> State | None:
-        result = self.replace_arg(state.args_group, new_node)
+        result = self.replace_arg(state.args_outer_group, new_node)
         if result is None:
             return None
         return State(
             function_group=state.function_group,
-            args_group=result,
+            args_outer_group=result,
             scratch_group=state.scratch_group)
 
 class StateArgsGroupArgIndex(StateIndex[BaseNode]):

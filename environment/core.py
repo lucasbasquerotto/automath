@@ -14,6 +14,10 @@ class BaseNode:
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(RestTypeGroup(UnknownTypeNode()))
 
+    @classmethod
+    def new(cls, *args: int | BaseNode | typing.Type[BaseNode]) -> typing.Self:
+        return cls(*args)
+
     def __init__(self, *args: int | BaseNode | typing.Type[BaseNode]):
         assert all(
             (
@@ -193,10 +197,10 @@ class TypeNode(BaseNode, typing.Generic[T]):
         super().__init__(type)
 
     @property
-    def type(self) -> type[T]:
+    def type(self) -> typing.Type[BaseNode]:
         t = self.args[0]
         assert isinstance(t, type) and issubclass(t, BaseNode)
-        return typing.cast(type[T], t)
+        return typing.cast(typing.Type[BaseNode], t)
 
 ###########################################################
 ######################## MAIN NODE ########################
@@ -251,6 +255,10 @@ class Optional(BaseNode, typing.Generic[T]):
             return None
         value = self.args[0]
         return typing.cast(T, value)
+
+    @classmethod
+    def empty(cls) -> Optional[UnknownTypeNode]:
+        return Optional(None)
 
 class UniqueNode(InheritableNode):
     def __eq__(self, other) -> bool:
@@ -610,11 +618,13 @@ class ExtendedTypeGroup(InheritableNode, typing.Generic[T]):
         else:
             raise ValueError(f"Invalid group type: {group}")
 
-    def validate_params(self, node: BaseNode):
-        for param in node.find_until(Param, OpaqueScope):
-            type_node = param.type_node
-            assert isinstance(type_node, TypeNode)
-            assert isinstance(param, type_node.type)
+    @classmethod
+    def default(cls, amount: Optional[Integer]) -> ExtendedTypeGroup[UnknownTypeNode]:
+        value = amount.value.value if amount.value is not None else None
+        if value is None:
+            return ExtendedTypeGroup(RestTypeGroup(TypeNode(UnknownTypeNode)))
+        return ExtendedTypeGroup(
+            CountableTypeGroup(*[TypeNode(UnknownTypeNode) for _ in range(value)]))
 
 class GeneralValueGroup(BaseValueGroup[BaseNode]):
     @classmethod
@@ -629,6 +639,15 @@ class OptionalValueGroup(BaseValueGroup[Optional[T]], typing.Generic[T]):
     @classmethod
     def from_optional_items(cls, items: typing.Sequence[T | None]) -> typing.Self:
         return cls(*[Optional(item) for item in items])
+
+    @classmethod
+    def default(cls, amount: Integer) -> OptionalValueGroup[UnknownTypeNode]:
+        return OptionalValueGroup(*[Optional.empty() for _ in range(amount.value)])
+
+    def value_group(self) -> GeneralValueGroup:
+        values = [item.value for item in self.args if item.value is not None]
+        assert len(values) == len(self.args)
+        return GeneralValueGroup(*values)
 
 class IntValueGroup(BaseValueGroup[Integer]):
     @classmethod
@@ -706,6 +725,7 @@ class Function(InheritableNode, typing.Generic[T]):
         return self.with_arg_group(GeneralValueGroup(*args))
 
     def with_arg_group(self, group: BaseValueGroup) -> BaseNode:
+        self.validate()
         type_group = self.param_type_group
         args = group.as_tuple
         type_group.validate_values(group)
@@ -716,6 +736,27 @@ class Function(InheritableNode, typing.Generic[T]):
             assert index > 0
             assert index <= len(args)
             arg = args[index-1]
+            param_type = param.type_node.type
+            if param_type is not UnknownTypeNode:
+                assert isinstance(arg, param_type)
+            scope_aux = scope.replace_until(param, arg, OpaqueScope)
+            assert isinstance(scope_aux, SimpleScope)
+            scope = scope_aux
+        assert not scope.has_dependency()
+        return scope.child
+
+    def with_optional_arg_group(self, group: OptionalValueGroup) -> BaseNode:
+        self.validate()
+        args = group.as_tuple
+        params = self.owned_params()
+        scope = self.scope
+        for param in params:
+            index = param.index.value
+            assert index > 0
+            assert index <= len(args)
+            outer_arg = args[index-1]
+            arg = outer_arg.value
+            assert arg is not None
             param_type = param.type_node.type
             if param_type is not UnknownTypeNode:
                 assert isinstance(arg, param_type)
@@ -791,9 +832,10 @@ class FunctionDefinition(InheritableNode, typing.Generic[T]):
         f = self.args[1]
         return typing.cast(Function[T], f)
 
-    def call(self, arg_group: BaseValueGroup) -> FunctionCall:
-        self.function.param_type_group.validate_values(arg_group)
-        return FunctionCall(self.function_id, arg_group)
+    def call(self, arg_group: OptionalValueGroup) -> FunctionCall:
+        arg_strict_group = arg_group.value_group()
+        self.function.param_type_group.validate_values(arg_strict_group)
+        return FunctionCall(self.function_id, arg_strict_group)
 
     def expand(self, call: FunctionCall) -> BaseNode:
         assert call.function_id == self.function_id
@@ -811,6 +853,19 @@ class PartialArgsGroup(Function[OptionalValueGroup[T]], typing.Generic[T]):
         super().__init__(param_type_group, scope)
 
     @property
+    def param_type_group(self) -> ExtendedTypeGroup:
+        param_type_group = self.args[0]
+        assert isinstance(param_type_group, ExtendedTypeGroup)
+        return param_type_group
+
+    @property
+    def scope(self) -> OpaqueScope[OptionalValueGroup[T]]:
+        scope = self.args[1]
+        assert isinstance(scope, OpaqueScope)
+        assert isinstance(scope.child, OptionalValueGroup)
+        return scope
+
+    @property
     def inner_args_group(self) -> OptionalValueGroup[T]:
         inner_args = self.scope.child
         return typing.cast(OptionalValueGroup[T], inner_args)
@@ -819,19 +874,37 @@ class PartialArgsGroup(Function[OptionalValueGroup[T]], typing.Generic[T]):
     def inner_args(self) -> tuple[BaseNode, ...]:
         return self.inner_args_group.as_tuple
 
-    def validate(self):
-        self.param_type_group.validate_params(self.inner_args_group)
-        super().validate()
-
-    def apply_to(self, function: Function) -> Function:
+    def apply_to(self, function_node: Function | FunctionDefinition) -> Function:
+        function_node.validate()
         self.validate()
+
+        if isinstance(function_node, Function):
+            scope = function_node.scope
+            return Function(
+                self.param_type_group,
+                scope.func(
+                    scope.id,
+                    function_node.with_arg_group(self.inner_args_group),
+                ),
+            )
+
+        assert isinstance(function_node, FunctionDefinition)
+        arg_strict_group = self.inner_args_group.value_group()
+        function_id = function_node.function_id
+        scope = function_node.function.scope
+        function_node.function.param_type_group.validate_values(arg_strict_group)
         return Function(
             self.param_type_group,
-            function.scope.func(
-                function.scope.id,
-                function.with_arg_group(self.inner_args_group),
-            ),
+            scope.func(
+                scope.id,
+                FunctionCall(function_id, arg_strict_group)),
         )
+
+    @classmethod
+    def default(cls) -> typing.Self:
+        return cls(
+            ExtendedTypeGroup(RestTypeGroup(UnknownTypeNode())),
+            OpaqueScope.create(OptionalValueGroup()))
 
 ###########################################################
 ####################### BASIC NODES #######################

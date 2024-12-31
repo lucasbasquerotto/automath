@@ -556,9 +556,9 @@ class Action:
             ]
 
             return State.from_raw(
-                definitions=state.definitions,
+                functions=state.definitions,
                 partial_definitions=tuple(partial_definitions_list),
-                arg_groups=state.arg_groups)
+                args_outer_groups=state.arg_groups)
         elif isinstance(output, NewArgGroupActionOutput):
             arg_group_idx = output.arg_group_idx
             params_amount = output.params_amount
@@ -575,9 +575,9 @@ class Action:
                 ArgsGroup.from_items([None] * args_amount)))
 
             return State.from_raw(
-                definitions=state.definitions,
+                functions=state.definitions,
                 partial_definitions=state.partial_definitions,
-                arg_groups=tuple(arg_groups))
+                args_outer_groups=tuple(arg_groups))
         elif isinstance(output, ArgFromExprActionOutput):
             arg_group_idx = output.arg_group_idx
             arg_idx = output.arg_idx
