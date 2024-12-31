@@ -18,7 +18,7 @@ from environment.state import (
     FunctionDefinitionNode,
     PartialDefinitionGroup,
     ParamsArgsGroup,
-    ParamsArgsOuterGroup)
+    PartialArgsOuterGroup)
 
 ###########################################################
 ######################## CONSTANTS ########################
@@ -503,7 +503,7 @@ class Action:
             partial_definitions.append(None)
 
             return State(
-                definitions=state.definitions,
+                function_group=state.definitions,
                 partial_definitions=PartialDefinitionGroup.from_items(partial_definitions),
                 arg_groups=state.arg_groups)
         elif isinstance(output, PartialActionOutput):
@@ -607,9 +607,9 @@ class Action:
                 ArgsGroup.from_items(arg_group_args))
 
             return State(
-                definitions=state.definitions,
+                function_group=state.definitions,
                 partial_definitions=state.partial_definitions,
-                arg_groups=ParamsArgsOuterGroup.from_items(arg_groups_list))
+                arg_groups=PartialArgsOuterGroup.from_items(arg_groups_list))
         elif isinstance(output, RemoveArgGroupActionOutput):
             arg_group_idx = output.arg_group_idx
             arg_groups = list(state.arg_groups.as_tuple)
@@ -624,9 +624,9 @@ class Action:
             ]
 
             return State(
-                definitions=state.definitions,
+                function_group=state.definitions,
                 partial_definitions=state.partial_definitions,
-                arg_groups=ParamsArgsOuterGroup.from_items(arg_groups_list))
+                arg_groups=PartialArgsOuterGroup.from_items(arg_groups_list))
         elif isinstance(output, NewDefinitionFromPartialActionOutput):
             definition_idx = output.definition_idx
             assert definition_idx == len(state.definitions or []) + 1
@@ -652,7 +652,7 @@ class Action:
             ]
 
             return State(
-                definitions=FunctionDefinitionGroup.from_items(definitions_list),
+                function_group=FunctionDefinitionGroup.from_items(definitions_list),
                 partial_definitions=PartialDefinitionGroup.from_items(partial_definitions_list),
                 arg_groups=state.arg_groups)
         elif isinstance(output, ReplaceByDefinitionActionOutput):

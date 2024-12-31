@@ -3,70 +3,79 @@ from environment.core import (
     BaseNode,
     InheritableNode,
     Function,
-    ParamsArgsGroup,
+    PartialArgsGroup,
+    BaseValueGroup,
+    Optional,
     StrictGroup,
-    OptionalGroup,
     BaseNodeIndex,
     BaseNodeArgIndex,
+    OpaqueScope,
     Integer,
     FunctionDefinition)
 
 T = typing.TypeVar('T', bound=BaseNode)
 K = typing.TypeVar('K', bound=BaseNode)
 
+class ScratchGroup(BaseValueGroup[OpaqueScope[Optional[BaseNode]]]):
+    @classmethod
+    def item_type(cls):
+        return OpaqueScope[Optional[BaseNode]]
+
+    @classmethod
+    def from_raw_items(cls, items: tuple[BaseNode | None, ...]) -> typing.Self:
+        return cls.from_items([OpaqueScope.create(Optional(s)) for s in items])
+
+    def to_raw_items(self) -> tuple[BaseNode | None, ...]:
+        return tuple(s.child.value for s in self.as_tuple)
+
+class PartialArgsOuterGroup(BaseValueGroup[PartialArgsGroup]):
+    @classmethod
+    def item_type(cls):
+        return PartialArgsGroup
+
 class FunctionDefinitionGroup(StrictGroup[FunctionDefinition]):
     @classmethod
     def item_type(cls):
         return FunctionDefinition
 
-class PartialDefinitionGroup(OptionalGroup[Function]):
-    @classmethod
-    def item_type(cls):
-        return Function
-
-class ParamsArgsOuterGroup(StrictGroup[ParamsArgsGroup]):
-    @classmethod
-    def item_type(cls):
-        return ParamsArgsGroup
-
 class State(InheritableNode):
     def __init__(
         self,
-        definitions: FunctionDefinitionGroup,
-        partial_definitions: PartialDefinitionGroup,
-        arg_groups: ParamsArgsOuterGroup,
+        function_group: FunctionDefinitionGroup,
+        args_group: PartialArgsOuterGroup,
+        scratch_group: ScratchGroup,
     ):
-        super().__init__(definitions, partial_definitions, arg_groups)
+        super().__init__(function_group, args_group, scratch_group)
 
     @property
     def definitions(self) -> FunctionDefinitionGroup:
-        definition_group = self.args[0]
-        assert isinstance(definition_group, FunctionDefinitionGroup)
-        return definition_group
+        function_group = self.args[0]
+        assert isinstance(function_group, FunctionDefinitionGroup)
+        return function_group
 
     @property
-    def partial_definitions(self) -> PartialDefinitionGroup:
-        partial_definition_group = self.args[1]
-        assert isinstance(partial_definition_group, PartialDefinitionGroup)
-        return partial_definition_group
+    def args_group(self) -> PartialArgsOuterGroup:
+        args_group = self.args[2]
+        assert isinstance(args_group, PartialArgsOuterGroup)
+        return args_group
 
     @property
-    def arg_groups(self) -> ParamsArgsOuterGroup:
-        args_outer_group = self.args[2]
-        assert isinstance(args_outer_group, ParamsArgsOuterGroup)
-        return args_outer_group
+    def scratch_group(self) -> ScratchGroup:
+        scratch_group = self.args[1]
+        assert isinstance(scratch_group, ScratchGroup)
+        return scratch_group
 
     @classmethod
     def from_raw(
         cls,
         definitions: tuple[FunctionDefinition, ...],
-        partial_definitions: tuple[Function | None, ...],
-        arg_groups: tuple[ParamsArgsGroup, ...],
-    ) -> 'State':
+        arg_groups: tuple[PartialArgsGroup, ...],
+        scratchs: tuple[BaseNode | None, ...],
+    ) -> typing.Self:
         return cls(
-            FunctionDefinitionGroup(*definitions),
-            PartialDefinitionGroup.from_items(partial_definitions),
-            ParamsArgsOuterGroup(*arg_groups))
+            FunctionDefinitionGroup.from_items(definitions),
+            PartialArgsOuterGroup.from_items(arg_groups),
+            ScratchGroup.from_raw_items(scratchs))
 
 class StateIndex(BaseNodeIndex, typing.Generic[T]):
     @classmethod
@@ -141,59 +150,59 @@ class StateDefinitionIndex(StateIntIndex[FunctionDefinition]):
                 assert new_node.function_id == definitions[i].function_id
                 definitions[i] = new_node
                 return State(
-                    definitions=FunctionDefinitionGroup.from_items(definitions),
-                    partial_definitions=state.partial_definitions,
-                    arg_groups=state.arg_groups)
+                    function_group=FunctionDefinitionGroup.from_items(definitions),
+                    args_group=state.args_group,
+                    scratch_group=state.scratch_group)
         return state
 
-class StatePartialDefinitionIndex(StateIntIndex[Function]):
+class StateScratchIndex(StateIntIndex[Function]):
     @classmethod
     def item_type(cls):
         return Function
 
     def find_in_state(self, state: State) -> Function | None:
-        return self.find_arg(state.partial_definitions)
+        return self.find_arg(state.scratch_group)
 
     def replace_in_state(self, state: State, new_node: Function) -> State | None:
-        result = self.replace_arg(state.partial_definitions, new_node)
+        result = self.replace_arg(state.scratch_group, new_node)
         if result is None:
             return None
         return State(
-            definitions=state.definitions,
-            partial_definitions=result,
-            arg_groups=state.arg_groups)
+            function_group=state.definitions,
+            args_group=state.args_group,
+            scratch_group=result)
 
-class StateArgGroupIndex(StateIntIndex[ParamsArgsGroup]):
+class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup]):
     @classmethod
     def item_type(cls):
-        return ParamsArgsGroup
+        return PartialArgsGroup
 
-    def find_in_state(self, state: State) -> ParamsArgsGroup | None:
-        return self.find_arg(state.arg_groups)
+    def find_in_state(self, state: State) -> PartialArgsGroup | None:
+        return self.find_arg(state.args_group)
 
-    def replace_in_state(self, state: State, new_node: ParamsArgsGroup) -> State | None:
-        result = self.replace_arg(state.arg_groups, new_node)
+    def replace_in_state(self, state: State, new_node: PartialArgsGroup) -> State | None:
+        result = self.replace_arg(state.args_group, new_node)
         if result is None:
             return None
         return State(
-            definitions=state.definitions,
-            partial_definitions=state.partial_definitions,
-            arg_groups=result)
+            function_group=state.definitions,
+            args_group=result,
+            scratch_group=state.scratch_group)
 
 class StateArgGroupArgIndex(StateIndex[BaseNode]):
     @classmethod
     def item_type(cls):
         return BaseNode
 
-    def __init__(self, group_index: StateArgGroupIndex, arg_index: BaseNodeArgIndex):
-        assert isinstance(group_index, StateArgGroupIndex)
+    def __init__(self, group_index: StateArgsGroupIndex, arg_index: BaseNodeArgIndex):
+        assert isinstance(group_index, StateArgsGroupIndex)
         assert isinstance(arg_index, BaseNodeArgIndex)
         super().__init__(group_index, arg_index)
 
     @property
-    def group_index(self) -> StateArgGroupIndex:
+    def group_index(self) -> StateArgsGroupIndex:
         group_index = self.args[0]
-        assert isinstance(group_index, StateArgGroupIndex)
+        assert isinstance(group_index, StateArgsGroupIndex)
         return group_index
 
     @property
