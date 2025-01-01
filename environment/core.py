@@ -330,12 +330,6 @@ class Optional(BaseNode, typing.Generic[T]):
     def empty(cls) -> Optional[UnknownTypeNode]:
         return Optional(None)
 
-class UniqueNode(InheritableNode):
-
-    def __eq__(self, other) -> bool:
-        # do not use == because it will cause infinite recursion
-        return self is other
-
 class VoidNode(InheritableNode):
 
     def __init__(self):
@@ -703,6 +697,14 @@ class OptionalValueGroup(BaseValueGroup[Optional[T]], typing.Generic[T]):
     def strict(self) -> GeneralValueGroup:
         values = [item.value for item in self.args if item.value is not None]
         assert len(values) == len(self.args)
+        return GeneralValueGroup(*values)
+
+    def fill_with_void(self) -> GeneralValueGroup:
+        def get_value(v: T | None) -> INode:
+            if v is None:
+                return VoidNode()
+            return v
+        values = [get_value(item.value) for item in self.args]
         return GeneralValueGroup(*values)
 
 class IntValueGroup(BaseValueGroup[IInt]):

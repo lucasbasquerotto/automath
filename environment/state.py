@@ -79,12 +79,12 @@ class PartialArgsGroup(Function[OptionalValueGroup[T]], typing.Generic[T]):
         assert isinstance(function, IFunction)
         self.validate()
         scope = function.scope
-        strict_group = self.inner_args_group.strict()
+        group = self.inner_args_group.fill_with_void()
         return Function(
             self.param_type_group,
             scope.func(
                 scope.id,
-                function.with_args(*strict_group.as_tuple),
+                function.with_args(*group.as_tuple),
             ),
         )
 
