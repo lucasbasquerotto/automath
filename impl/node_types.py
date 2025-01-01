@@ -1,5 +1,5 @@
 import sympy
-from environment.core import Function, BooleanNode, MultiArgBooleanNode
+from environment.core import Function, IBoolean, MultiArgBooleanNode
 from environment.state import State
 from environment.meta_env import GoalNode
 
@@ -14,7 +14,7 @@ class HaveDefinition(GoalNode):
         assert isinstance(definition, Function)
         return definition.expr in [f for _, f in state.definitions]
 
-class TrueNode(BooleanNode):
+class TrueNode(IBoolean):
     def __init__(self):
         super().__init__()
         self._args = ()
@@ -23,7 +23,7 @@ class TrueNode(BooleanNode):
     def value(self) -> bool:
         return True
 
-class FalseNode(BooleanNode):
+class FalseNode(IBoolean):
     def __init__(self):
         super().__init__()
         self._args = ()
@@ -38,7 +38,7 @@ class AndNode(MultiArgBooleanNode):
         args = self.args
         has_none = False
         for arg in args:
-            if not isinstance(arg, BooleanNode):
+            if not isinstance(arg, IBoolean):
                 has_none = True
             elif arg.value is None:
                 has_none = True
@@ -52,7 +52,7 @@ class OrNode(MultiArgBooleanNode):
         args = self.args
         has_none = False
         for arg in args:
-            if not isinstance(arg, BooleanNode):
+            if not isinstance(arg, IBoolean):
                 has_none = True
             elif arg.value is None:
                 has_none = True

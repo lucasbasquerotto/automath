@@ -67,7 +67,7 @@ class CreateScratchOutput(ScratchBaseActionOutput):
         index = self.index
         assert index.value == len(state.scratch_group.as_tuple) + 1
         scratch_group = state.scratch_group
-        new_args = list(scratch_group.as_tuple) + [Scratch.create(self.node)]
+        new_args = list(scratch_group.as_tuple) + [Scratch.with_content(self.node)]
         return State(
             function_group=state.function_group,
             args_outer_group=state.args_outer_group,
@@ -143,7 +143,7 @@ class CreateScratchFromFunction(BaseAction[CreateScratchOutput], BasicActionGene
 
 class DefineScratchOutput(ScratchBaseActionOutput):
     def run(self, state: State) -> State:
-        scratch = Scratch.create(self.node)
+        scratch = Scratch.with_content(self.node)
         new_state = self.index.replace_in_state(state, scratch)
         assert new_state is not None
         return new_state
@@ -422,11 +422,12 @@ class CreateArgsGroupFromAmountsAction(BaseAction[CreateArgsGroupOutput], BasicA
         return typing.cast(Optional[Integer], params_amount)
 
     def run(self, state: State) -> CreateArgsGroupOutput:
-        args_amount = self.args_amount
+        args_amount = self.args_amount.to_int
         params_amount = self.params_amount
+        optional_group: OptionalValueGroup[INode] = OptionalValueGroup.from_int(args_amount)
         new_args_group = PartialArgsGroup(
                 ExtendedTypeGroup.default(params_amount),
-                OpaqueScope.create(OptionalValueGroup.default(args_amount)),
+                OpaqueScope.with_content(optional_group),
         )
         index = StateArgsGroupIndex(len(state.args_outer_group.as_tuple))
         return CreateArgsGroupOutput(index, new_args_group)
@@ -498,7 +499,7 @@ class DefineArgsGroupArgOutput(ActionOutput):
         arg_index = self.arg_index
         new_arg = self.new_arg
 
-        new_arg.to_node.validate()
+        new_arg.as_node.validate()
 
         args_group = index.find_in_state(state)
         assert args_group is not None

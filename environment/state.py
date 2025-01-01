@@ -3,8 +3,7 @@ from abc import ABC
 from environment.core import (
     INode,
     InheritableNode,
-    BaseValueGroup,
-    StrictGroup,
+    BaseGroup,
     INodeIndex,
     NodeIntBaseIndex,
     NodeMainIndex,
@@ -15,7 +14,7 @@ from environment.core import (
     OptionalValueGroup,
     ExtendedTypeGroup,
     RestTypeGroup,
-    UnknownTypeNode,
+    UnknownType,
     Function,
     FunctionDefinition,
     IFunction,
@@ -29,14 +28,14 @@ class Scratch(OpaqueScope[INode]):
         assert isinstance(child, INode)
         super().__init__(id, child)
 
-class ScratchGroup(BaseValueGroup[Scratch]):
+class ScratchGroup(BaseGroup[Scratch]):
     @classmethod
     def item_type(cls):
         return OpaqueScope[Scratch]
 
     @classmethod
     def from_raw_items(cls, items: tuple[INode, ...]) -> typing.Self:
-        return cls.from_items([Scratch.create(s) for s in items])
+        return cls.from_items([Scratch.with_content(s) for s in items])
 
     def to_raw_items(self) -> tuple[INode, ...]:
         return tuple(s.child for s in self.as_tuple)
@@ -91,15 +90,15 @@ class PartialArgsGroup(Function[OptionalValueGroup[T]], typing.Generic[T]):
     @classmethod
     def default(cls) -> typing.Self:
         return cls(
-            ExtendedTypeGroup(RestTypeGroup(UnknownTypeNode())),
-            OpaqueScope.create(OptionalValueGroup()))
+            ExtendedTypeGroup(RestTypeGroup(UnknownType())),
+            OpaqueScope.with_content(OptionalValueGroup()))
 
-class PartialArgsOuterGroup(BaseValueGroup[PartialArgsGroup]):
+class PartialArgsOuterGroup(BaseGroup[PartialArgsGroup]):
     @classmethod
     def item_type(cls):
         return PartialArgsGroup
 
-class FunctionDefinitionGroup(StrictGroup[FunctionDefinition]):
+class FunctionDefinitionGroup(BaseGroup[FunctionDefinition]):
     @classmethod
     def item_type(cls):
         return FunctionDefinition
