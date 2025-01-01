@@ -1,6 +1,6 @@
 # pylint: disable=C0302
 from environment.core import (
-    BaseNodeMainIndex,
+    NodeMainIndex,
     Param,
     Function,
     FunctionParams,
@@ -10,7 +10,7 @@ from environment.core import (
     Integer,
     IntValueGroup,
     IntTypeGroup,
-    BaseNodeIndex,
+    INodeIndex,
     BaseNode)
 from environment.state import (
     State,
@@ -426,7 +426,7 @@ class Action:
                             raise InvalidActionArgException(
                                 f"Invalid node index: {node_idx} " + \
                                 f"(partial={partial_definition_idx})")
-                        node = partial_definition.expr[BaseNodeMainIndex.from_int(node_idx)]
+                        node = partial_definition.expr[NodeMainIndex.from_int(node_idx)]
                         if node is None:
                             raise InvalidActionArgException(
                                 f"Invalid node index: {node_idx} " + \
@@ -460,7 +460,7 @@ class Action:
     def _create(cls, input: ActionInput) -> 'Action':
         raise NotImplementedError
 
-    def from_index(self, index: BaseNodeIndex, node: BaseNode) -> BaseNode:
+    def from_index(self, index: INodeIndex, node: BaseNode) -> BaseNode:
         result = index.from_node(node)
         if result is None:
             raise InvalidActionArgException(f"Empty result from index: {index}")
@@ -468,7 +468,7 @@ class Action:
 
     def replace_target(
         self,
-        index: BaseNodeIndex,
+        index: INodeIndex,
         target_node: BaseNode,
         new_node: BaseNode,
     ) -> BaseNode:

@@ -1,29 +1,84 @@
 from __future__ import annotations
+from abc import ABC
 import typing
 import sympy
 
-T = typing.TypeVar('T', bound='BaseNode')
+###########################################################
+##################### MAIN INTERFACES #####################
+###########################################################
 
+class INode:
+
+    @classmethod
+    def new(cls, *args: int | INode | typing.Type[INode]) -> typing.Self:
+        raise NotImplementedError()
+
+    @property
+    def to_node(self) -> BaseNode:
+        raise NotImplementedError()
+
+    @property
+    def func(self) -> typing.Type[typing.Self]:
+        return type(self)
+
+class IInt(INode):
+
+    @classmethod
+    def from_int(cls, value: int) -> typing.Self:
+        raise NotImplementedError()
+
+    @property
+    def to_int(self) -> int:
+        raise NotImplementedError()
+
+class INodeIndex(INode):
+
+    def from_node(self, node: INode) -> INode | None:
+        raise NotImplementedError
+
+    def replace_target(
+        self,
+        target_node: INode,
+        new_node: INode,
+    ) -> INode | None:
+        raise NotImplementedError
+
+T = typing.TypeVar('T', bound=INode)
+INT = typing.TypeVar('INT', bound=IInt)
+
+class IFunction(INode, typing.Generic[T]):
+
+    @property
+    def scope(self) -> SimpleScope[T]:
+        raise NotImplementedError
+
+    def with_args(self, *args: INode) -> INode:
+        raise NotImplementedError()
 
 ###########################################################
 ######################## BASE NODE ########################
 ###########################################################
 
-class BaseNode:
+class BaseNode(INode):
+
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(RestTypeGroup(UnknownTypeNode()))
 
     @classmethod
-    def new(cls, *args: int | BaseNode | typing.Type[BaseNode]) -> typing.Self:
+    def new(cls, *args: int | INode | typing.Type[INode]) -> typing.Self:
         return cls(*args)
 
-    def __init__(self, *args: int | BaseNode | typing.Type[BaseNode]):
+    @property
+    def to_node(self) -> BaseNode:
+        return self
+
+    def __init__(self, *args: int | INode | typing.Type[INode]):
         assert all(
             (
-                isinstance(arg, BaseNode)
+                isinstance(arg, INode)
                 or isinstance(arg, int)
-                or (isinstance(arg, type) and issubclass(arg, BaseNode))
+                or (isinstance(arg, type) and issubclass(arg, INode))
             )
             for arg in args
         )
@@ -31,7 +86,7 @@ class BaseNode:
         if any(
             (
                 isinstance(arg, int)
-                or (isinstance(arg, type) and issubclass(arg, BaseNode))
+                or (isinstance(arg, type) and issubclass(arg, INode))
             )
             for arg in args
         ):
@@ -42,38 +97,34 @@ class BaseNode:
         self._cached_hash: int | None = None
 
     @property
-    def args(self) -> tuple[int | BaseNode | typing.Type[BaseNode], ...]:
+    def args(self) -> tuple[int | INode | typing.Type[INode], ...]:
         return self._args
 
-    @property
-    def func(self) -> typing.Type[typing.Self]:
-        return type(self)
-
     def __eq__(self, other) -> bool:
-        if not isinstance(other, BaseNode):
+        if not isinstance(other, INode):
             return False
-        if not self.func == other.func:
+        if not self.func == other.to_node.func:
             return False
-        if not len(self.args) == len(other.args):
+        if not len(self.args) == len(other.to_node.args):
             return False
         for i, arg in enumerate(self.args):
-            if arg != other.args[i]:
+            if arg != other.to_node.args[i]:
                 return False
         return True
 
-    def __getitem__(self, index: 'BaseNodeIndex') -> BaseNode | None:
+    def __getitem__(self, index: INodeIndex) -> INode | None:
         return index.from_node(self)
 
-    def replace_at(self, index: 'BaseNodeIndex', new_node: BaseNode) -> BaseNode | None:
+    def replace_at(self, index: INodeIndex, new_node: INode) -> INode | None:
         return index.replace_target(self, new_node)
 
     def __len__(self) -> int:
         if self._cached_length is not None:
             return self._cached_length
         length = 1 + sum(
-            len(arg)
+            len(arg.to_node)
             for arg in self.args
-            if isinstance(arg, BaseNode)
+            if isinstance(arg, INode)
         )
         self._cached_length = length
         return length
@@ -85,7 +136,7 @@ class BaseNode:
         self._cached_hash = hash_value
         return hash_value
 
-    def find_until(self, node_type: type[T], until_type: type[BaseNode] | None) -> set[T]:
+    def find_until(self, node_type: type[T], until_type: type[INode] | None) -> set[T]:
         return {
             node
             for node in self.args
@@ -94,11 +145,11 @@ class BaseNode:
             node
             for parent_node in self.args
             if (
-                isinstance(parent_node, BaseNode)
+                isinstance(parent_node, INode)
                 and
                 (until_type is None or not isinstance(parent_node, until_type))
             )
-            for node in parent_node.find_until(node_type, until_type)
+            for node in parent_node.to_node.find_until(node_type, until_type)
         })
 
     def find(self, node_type: type[T]) -> set[T]:
@@ -106,17 +157,17 @@ class BaseNode:
 
     def replace_until(
         self,
-        before: BaseNode,
-        after: BaseNode,
-        until_type: type[BaseNode] | None,
-    ) -> BaseNode:
+        before: INode,
+        after: INode,
+        until_type: type[INode] | None,
+    ) -> INode:
         if self == before:
             return after
         return self.func(*[
             (
-                arg.replace(before, after)
+                arg.to_node.replace_until(before, after, until_type)
                 if (
-                    isinstance(arg, BaseNode)
+                    isinstance(arg, INode)
                     and
                     (until_type is None or not isinstance(arg, until_type))
                 )
@@ -125,32 +176,32 @@ class BaseNode:
             for arg in self.args
         ])
 
-    def replace(self, before: BaseNode, after: BaseNode) -> BaseNode:
+    def replace(self, before: INode, after: INode) -> INode:
         return self.replace_until(before, after, None)
 
-    def subs(self, mapping: dict[BaseNode, BaseNode]) -> BaseNode:
-        node = self
+    def subs(self, mapping: dict[INode, INode]) -> INode:
+        node: INode = self
         for key, value in mapping.items():
-            node = node.replace(key, value)
+            node = node.to_node.replace(key, value)
         return node
 
-    def has(self, node: BaseNode) -> bool:
-        return node in self.find(node.__class__)
+    def has(self, node: INode) -> bool:
+        return node in self.to_node.find(node.__class__)
 
-    def has_until(self, node: BaseNode, until_type: type[BaseNode] | None) -> bool:
-        return node in self.find_until(node.__class__, until_type)
+    def has_until(self, node: INode, until_type: type[INode] | None) -> bool:
+        return node in self.to_node.find_until(node.__class__, until_type)
 
     def eval(self) -> sympy.Basic:
         name = self.func.__name__
         if len(self.args) == 0:
             return sympy.Symbol(name)
 
-        def eval_arg(arg: int | BaseNode | typing.Type[BaseNode]):
-            if isinstance(arg, BaseNode):
-                return arg.eval()
+        def eval_arg(arg: int | INode | typing.Type[INode]):
+            if isinstance(arg, INode):
+                return arg.to_node.eval()
             if isinstance(arg, int):
                 return sympy.Integer(arg)
-            if isinstance(arg, type) and issubclass(arg, BaseNode):
+            if isinstance(arg, type) and issubclass(arg, INode):
                 return sympy.Symbol(arg.__name__)
             raise ValueError(f"Invalid argument: {arg}")
 
@@ -161,14 +212,41 @@ class BaseNode:
 
     def validate(self):
         for arg in self.args:
-            if isinstance(arg, BaseNode):
-                arg.validate()
+            if isinstance(arg, INode):
+                arg.to_node.validate()
+
+###########################################################
+######################## TYPE NODE ########################
+###########################################################
+
+class TypeNode(BaseNode, IFunction['TypeNode'], typing.Generic[T]):
+
+    def with_args(self, *args: INode) -> INode:
+        return self.type.new(*args)
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup())
+
+    def __init__(self, type: type[T]):
+        assert isinstance(type, type) and issubclass(type, INode)
+        super().__init__(type)
+
+    @property
+    def type(self) -> typing.Type[INode]:
+        t = self.args[0]
+        return typing.cast(typing.Type[INode], t)
+
+    @property
+    def scope(self) -> SimpleScope[typing.Self]:
+        return OpaqueScope.create(self)
 
 ###########################################################
 ######################## INT NODE #########################
 ###########################################################
 
-class Integer(BaseNode):
+class Integer(BaseNode, IInt):
+
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup())
@@ -183,55 +261,46 @@ class Integer(BaseNode):
         assert isinstance(value, int)
         return value
 
-###########################################################
-######################## TYPE NODE ########################
-###########################################################
-
-class TypeNode(BaseNode, typing.Generic[T]):
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup())
-
-    def __init__(self, type: type[T]):
-        assert isinstance(type, type) and issubclass(type, BaseNode)
-        super().__init__(type)
+    def from_int(cls, value: int) -> typing.Self:
+        return cls(value)
 
     @property
-    def type(self) -> typing.Type[BaseNode]:
-        t = self.args[0]
-        assert isinstance(t, type) and issubclass(t, BaseNode)
-        return typing.cast(typing.Type[BaseNode], t)
+    def to_int(self) -> int:
+        return self.value
 
 ###########################################################
 ######################## MAIN NODE ########################
 ###########################################################
 
 class InheritableNode(BaseNode):
-    def __init__(self, *args: BaseNode):
-        assert all(isinstance(arg, BaseNode) for arg in args)
+
+    def __init__(self, *args: INode):
+        assert all(isinstance(arg, INode) for arg in args)
         self.arg_type_group().validate_values(GeneralValueGroup(*args))
         super().__init__(*args)
 
     @property
-    def args(self) -> tuple[BaseNode, ...]:
-        return typing.cast(tuple[BaseNode, ...], self._args)
+    def args(self) -> tuple[INode, ...]:
+        return typing.cast(tuple[INode, ...], self._args)
 
-    def __getitem__(self, index: 'BaseNodeIndex') -> BaseNode | None:
-        if isinstance(index, BaseNodeArgIndex):
+    def __getitem__(self, index: INodeIndex) -> INode | None:
+        if isinstance(index, NodeArgIndex):
             args = self.args
-            if index.value > 0 and index.value <= len(args):
-                return args[index.value - 1]
+            if index.to_int > 0 and index.to_int <= len(args):
+                return args[index.to_int - 1]
             return None
         return super().__getitem__(index)
 
-    def replace_at(self, index: 'BaseNodeIndex', new_node: BaseNode) -> BaseNode | None:
-        assert isinstance(index, BaseNodeIndex)
-        assert isinstance(new_node, BaseNode)
-        if isinstance(index, BaseNodeArgIndex):
+    def replace_at(self, index: INodeIndex, new_node: INode) -> INode | None:
+        assert isinstance(index, INodeIndex)
+        assert isinstance(new_node, INode)
+        if isinstance(index, NodeArgIndex):
+            value = index.to_int
             args = self.args
-            if index.value >= 0 and index.value <= len(args):
+            if value >= 0 and value <= len(args):
                 return self.func(*[
-                    (new_node if i == index.value - 1 else arg)
+                    (new_node if i == value - 1 else arg)
                     for i, arg in enumerate(args)
                 ])
             return None
@@ -242,11 +311,12 @@ class InheritableNode(BaseNode):
 ###########################################################
 
 class Optional(BaseNode, typing.Generic[T]):
+
     def __init__(self, value: T | None):
         if value is not None:
             super().__init__()
         else:
-            assert isinstance(value, BaseNode)
+            assert isinstance(value, INode)
             super().__init__(value)
 
     @property
@@ -261,24 +331,25 @@ class Optional(BaseNode, typing.Generic[T]):
         return Optional(None)
 
 class UniqueNode(InheritableNode):
+
     def __eq__(self, other) -> bool:
         # do not use == because it will cause infinite recursion
         return self is other
 
 class VoidNode(InheritableNode):
+
     def __init__(self):
         super().__init__()
 
-class UnknownTypeNode(TypeNode[BaseNode]):
+class UnknownTypeNode(TypeNode[INode]):
+
     def __init__(self):
         super().__init__(self.__class__)
 
 class UnknownValue(InheritableNode):
+
     def __init__(self):
         super().__init__()
-
-class IntTypeNode(TypeNode[Integer]):
-    pass
 
 ###########################################################
 ########################## SCOPE ##########################
@@ -291,6 +362,7 @@ class TemporaryScopeId(ScopeId):
     pass
 
 class Scope(InheritableNode):
+
     @property
     def id(self) -> ScopeId:
         raise NotImplementedError
@@ -304,9 +376,10 @@ class Scope(InheritableNode):
         return node
 
 class SimpleScope(Scope, typing.Generic[T]):
+
     def __init__(self, id: ScopeId, child: T):
-        assert isinstance(id, Integer)
-        assert isinstance(child, BaseNode)
+        assert isinstance(id, ScopeId)
+        assert isinstance(child, INode)
         super().__init__(id, child)
 
     @property
@@ -321,7 +394,7 @@ class SimpleScope(Scope, typing.Generic[T]):
         return typing.cast(T, child)
 
     def has_dependency(self) -> bool:
-        return self.child.has_until(self.id, OpaqueScope)
+        return self.child.to_node.has_until(self.id, OpaqueScope)
 
 class OpaqueScope(SimpleScope[T], typing.Generic[T]):
 
@@ -334,17 +407,17 @@ class OpaqueScope(SimpleScope[T], typing.Generic[T]):
         super().__init__(id, child)
 
     @classmethod
-    def normalize_from(cls, node: BaseNode, next_id: int) -> BaseNode:
+    def normalize_from(cls, node: INode, next_id: int) -> INode:
         if isinstance(node, OpaqueScope):
             return node.normalize()
         child_scope_id = (next_id+1) if isinstance(node, Scope) else next_id
         new_args = [
             cls.normalize_from(child, child_scope_id)
-            if isinstance(child, BaseNode)
+            if isinstance(child, INode)
             else child
-            for child in node.args
+            for child in node.to_node.args
         ]
-        node = node.func(*new_args)
+        node = node.to_node.func(*new_args)
         if isinstance(node, Scope):
             node = node.replace_id(TemporaryScopeId(next_id))
         return node
@@ -353,9 +426,9 @@ class OpaqueScope(SimpleScope[T], typing.Generic[T]):
         next_id = 1
         child_args = [
             self.normalize_from(child, next_id+1)
-            if isinstance(child, BaseNode)
+            if isinstance(child, INode)
             else child
-            for child in self.child.args
+            for child in self.child.to_node.args
         ]
         child = self.child.func(*child_args)
         node = self.func(TemporaryScopeId(next_id), child)
@@ -371,9 +444,10 @@ class OpaqueScope(SimpleScope[T], typing.Generic[T]):
         super().validate()
 
 class Param(InheritableNode, typing.Generic[T]):
-    def __init__(self, parent_scope: ScopeId, index: Integer, type_node: TypeNode[T]):
+
+    def __init__(self, parent_scope: ScopeId, index: IInt, type_node: TypeNode[T]):
         assert isinstance(parent_scope, ScopeId)
-        assert isinstance(index, Integer)
+        assert isinstance(index, IInt)
         assert isinstance(type_node, TypeNode)
         super().__init__(parent_scope, index, type_node)
 
@@ -384,9 +458,9 @@ class Param(InheritableNode, typing.Generic[T]):
         return parent_scope
 
     @property
-    def index(self) -> Integer:
+    def index(self) -> IInt:
         index = self.args[1]
-        assert isinstance(index, Integer)
+        assert isinstance(index, IInt)
         return index
 
     @property
@@ -399,47 +473,19 @@ class Param(InheritableNode, typing.Generic[T]):
 ######################## NODE IDXS ########################
 ###########################################################
 
-class BaseNodeIndex(InheritableNode):
-    def from_node(self, node: BaseNode) -> BaseNode | None:
-        raise NotImplementedError
+class NodeIntBaseIndex(Integer, ABC, INodeIndex, IInt):
+    pass
 
-    def replace_target(self, target_node: BaseNode, new_node: BaseNode) -> BaseNode | None:
-        raise NotImplementedError
-
-class BaseNodeIntIndex(BaseNodeIndex):
-    def __init__(self, index: Integer):
-        assert isinstance(index, Integer)
-        super().__init__(index)
-
-    @property
-    def index(self) -> Integer:
-        index = self.args[0]
-        assert isinstance(index, Integer)
-        return index
-
-    @property
-    def value(self) -> int:
-        return self.index.value
-
-    def from_node(self, node: BaseNode) -> BaseNode | None:
-        raise NotImplementedError
-
-    def replace_target(self, target_node: BaseNode, new_node: BaseNode) -> BaseNode | None:
-        raise NotImplementedError
+class NodeMainIndex(NodeIntBaseIndex):
 
     @classmethod
-    def from_int(cls, value: int) -> typing.Self:
-        return cls(Integer(value))
-
-class BaseNodeMainIndex(BaseNodeIntIndex):
-    @classmethod
-    def _inner_getitem(cls, node: BaseNode, index: int) -> tuple[BaseNode | None, int]:
+    def _inner_getitem(cls, node: INode, index: int) -> tuple[INode | None, int]:
         assert index > 0
         index -= 1
         if index == 0:
             return node, index
-        for arg in node.args:
-            if isinstance(arg, BaseNode):
+        for arg in node.to_node.args:
+            if isinstance(arg, INode):
                 arg_item, index = cls._inner_getitem(arg, index)
                 if index == 0:
                     return arg_item, index
@@ -448,34 +494,34 @@ class BaseNodeMainIndex(BaseNodeIntIndex):
     @classmethod
     def _replace(
         cls,
-        target_node: BaseNode,
-        new_node: BaseNode,
+        target_node: INode,
+        new_node: INode,
         index: int,
-    ) -> tuple[BaseNode | None, int]:
+    ) -> tuple[INode | None, int]:
         assert index > 0
         index -= 1
         if index == 0:
             return new_node, index
-        for i, arg in enumerate(target_node.args):
-            if isinstance(arg, BaseNode):
+        for i, arg in enumerate(target_node.to_node.args):
+            if isinstance(arg, INode):
                 new_arg, index = cls._replace(arg, new_node, index)
                 if index == 0:
                     if new_arg is None:
                         return None, index
                     return target_node.func(*[
                         (new_arg if i == j else old_arg)
-                        for j, old_arg in enumerate(target_node.args)
+                        for j, old_arg in enumerate(target_node.to_node.args)
                     ]), index
         return None, index
 
     @classmethod
-    def _ancestors(cls, node: BaseNode, index: int) -> tuple[list[BaseNode], int]:
+    def _ancestors(cls, node: INode, index: int) -> tuple[list[INode], int]:
         assert index > 0
         index -= 1
         if index == 0:
             return [node], index
-        for arg in node.args:
-            if isinstance(arg, BaseNode):
+        for arg in node.to_node.args:
+            if isinstance(arg, INode):
                 ancestors, index = cls._ancestors(node, index)
                 if index == 0:
                     if len(ancestors) == 0:
@@ -483,21 +529,22 @@ class BaseNodeMainIndex(BaseNodeIntIndex):
                     return [node] + ancestors, index
         return [], index
 
-    def from_node(self, node: BaseNode) -> BaseNode | None:
-        item, _ = self._inner_getitem(node, self.value)
+    def from_node(self, node: INode) -> INode | None:
+        item, _ = self._inner_getitem(node, self.to_int)
         return item
 
-    def replace_target(self, target_node: BaseNode, new_node: BaseNode) -> BaseNode | None:
-        new_target, _ = self._replace(target_node, new_node, self.value)
+    def replace_target(self, target_node: INode, new_node: INode) -> INode | None:
+        new_target, _ = self._replace(target_node, new_node, self.to_int)
         return new_target
 
-    def ancestors(self, node: BaseNode) -> tuple[BaseNode, ...]:
-        ancestors, _ = self._ancestors(node, self.value)
+    def ancestors(self, node: INode) -> tuple[INode, ...]:
+        ancestors, _ = self._ancestors(node, self.to_int)
         return tuple(ancestors)
 
-class BaseNodeArgIndex(BaseNodeIntIndex):
-    def from_node(self, node: BaseNode) -> BaseNode | None:
-        index = self.value
+class NodeArgIndex(NodeIntBaseIndex):
+
+    def from_node(self, node: INode) -> INode | None:
+        index = self.to_int
         if not isinstance(node, InheritableNode):
             return None
         args = node.args
@@ -505,10 +552,10 @@ class BaseNodeArgIndex(BaseNodeIntIndex):
             return args[index - 1]
         return None
 
-    def replace_target(self, target_node: T, new_node: BaseNode) -> T | None:
+    def replace_target(self, target_node: T, new_node: INode) -> T | None:
         if not isinstance(target_node, InheritableNode):
             return None
-        index = self.value
+        index = self.to_int
         args = target_node.args
         if index > 0 and index <= len(args):
             new_target = target_node.func(*[
@@ -524,12 +571,14 @@ class BaseNodeArgIndex(BaseNodeIntIndex):
 ###########################################################
 
 class BooleanNode(InheritableNode):
+
     @property
     def value(self) -> bool | None:
         raise NotImplementedError
 
 class MultiArgBooleanNode(BooleanNode):
-    def __init__(self, *args: BaseNode):
+
+    def __init__(self, *args: INode):
         assert len(args) > 0
         assert all(isinstance(arg, sympy.Basic) for arg in args)
         super().__init__(*args)
@@ -543,6 +592,7 @@ class MultiArgBooleanNode(BooleanNode):
 ###########################################################
 
 class StrictGroup(InheritableNode, typing.Generic[T]):
+
     @classmethod
     def item_type(cls) -> type[T]:
         raise NotImplementedError
@@ -565,11 +615,13 @@ class StrictGroup(InheritableNode, typing.Generic[T]):
         return cls(*items)
 
 class CountableTypeGroup(StrictGroup[TypeNode[T]], typing.Generic[T]):
+
     @classmethod
     def item_type(cls) -> type[TypeNode[T]]:
         return TypeNode
 
 class RestTypeGroup(InheritableNode, typing.Generic[T]):
+
     def __init__(self, type_node: TypeNode[T]):
         assert isinstance(type_node, TypeNode)
         super().__init__(type_node)
@@ -581,11 +633,13 @@ class RestTypeGroup(InheritableNode, typing.Generic[T]):
         return type_node
 
 class BaseValueGroup(StrictGroup[T], typing.Generic[T]):
+
     @classmethod
     def item_type(cls):
         raise NotImplementedError
 
 class ExtendedTypeGroup(InheritableNode, typing.Generic[T]):
+
     def __init__(self, group: CountableTypeGroup[T] | RestTypeGroup[T]):
         assert isinstance(group, CountableTypeGroup) or isinstance(group, RestTypeGroup)
         super().__init__(group)
@@ -604,7 +658,7 @@ class ExtendedTypeGroup(InheritableNode, typing.Generic[T]):
             assert len(args) == len(group.args)
             for i, arg in enumerate(args):
                 t_arg = group.args[i]
-                assert isinstance(arg, BaseNode)
+                assert isinstance(arg, INode)
                 assert isinstance(t_arg, TypeNode)
                 if t_arg.type is not UnknownTypeNode:
                     assert isinstance(arg, t_arg.type)
@@ -612,26 +666,28 @@ class ExtendedTypeGroup(InheritableNode, typing.Generic[T]):
             t_arg = group.type
             if t_arg.type is not UnknownTypeNode:
                 for arg in args:
-                    assert isinstance(arg, BaseNode)
+                    assert isinstance(arg, INode)
                     assert isinstance(t_arg, TypeNode)
                     assert isinstance(arg, t_arg.type)
         else:
             raise ValueError(f"Invalid group type: {group}")
 
     @classmethod
-    def default(cls, amount: Optional[Integer]) -> ExtendedTypeGroup[UnknownTypeNode]:
-        value = amount.value.value if amount.value is not None else None
+    def default(cls, amount: Optional[INT]) -> ExtendedTypeGroup[UnknownTypeNode]:
+        value = amount.value.to_int if amount.value is not None else None
         if value is None:
             return ExtendedTypeGroup(RestTypeGroup(TypeNode(UnknownTypeNode)))
         return ExtendedTypeGroup(
             CountableTypeGroup(*[TypeNode(UnknownTypeNode) for _ in range(value)]))
 
-class GeneralValueGroup(BaseValueGroup[BaseNode]):
+class GeneralValueGroup(BaseValueGroup[INode]):
+
     @classmethod
     def item_type(cls):
-        return BaseNode
+        return INode
 
 class OptionalValueGroup(BaseValueGroup[Optional[T]], typing.Generic[T]):
+
     @classmethod
     def item_type(cls):
         return Optional[T]
@@ -641,28 +697,30 @@ class OptionalValueGroup(BaseValueGroup[Optional[T]], typing.Generic[T]):
         return cls(*[Optional(item) for item in items])
 
     @classmethod
-    def default(cls, amount: Integer) -> OptionalValueGroup[UnknownTypeNode]:
-        return OptionalValueGroup(*[Optional.empty() for _ in range(amount.value)])
+    def default(cls, amount: IInt) -> OptionalValueGroup[UnknownTypeNode]:
+        return OptionalValueGroup(*[Optional.empty() for _ in range(amount.to_int)])
 
-    def value_group(self) -> GeneralValueGroup:
+    def strict(self) -> GeneralValueGroup:
         values = [item.value for item in self.args if item.value is not None]
         assert len(values) == len(self.args)
         return GeneralValueGroup(*values)
 
-class IntValueGroup(BaseValueGroup[Integer]):
+class IntValueGroup(BaseValueGroup[IInt]):
+
     @classmethod
     def item_type(cls):
-        return Integer
+        return IInt
 
-    def __init__(self, *args: Integer):
-        assert all(isinstance(arg, Integer) for arg in args)
+    def __init__(self, *args: IInt):
+        assert all(isinstance(arg, IInt) for arg in args)
         super().__init__(*args)
 
     @property
-    def args(self) -> tuple[Integer, ...]:
-        return typing.cast(tuple[Integer, ...], self.args)
+    def args(self) -> tuple[IInt, ...]:
+        return typing.cast(tuple[IInt, ...], self.args)
 
 class GroupWithArgs(InheritableNode, typing.Generic[T]):
+
     def __init__(self, group_type: TypeNode, arg_group: BaseValueGroup[T]):
         assert isinstance(group_type, TypeNode)
         assert isinstance(arg_group, BaseValueGroup)
@@ -680,14 +738,15 @@ class GroupWithArgs(InheritableNode, typing.Generic[T]):
         return typing.cast(BaseValueGroup[T], arg_group)
 
     @property
-    def arg_values(self) -> tuple[BaseNode, ...]:
+    def arg_values(self) -> tuple[INode, ...]:
         return self.arg_group.args
 
 ###########################################################
 ###################### FUNCTION NODE ######################
 ###########################################################
 
-class Function(InheritableNode, typing.Generic[T]):
+class Function(InheritableNode, IFunction[T], typing.Generic[T]):
+
     def __init__(self, param_type_group: ExtendedTypeGroup, scope: SimpleScope[T]):
         assert isinstance(param_type_group, ExtendedTypeGroup)
         assert isinstance(scope, SimpleScope)
@@ -702,8 +761,7 @@ class Function(InheritableNode, typing.Generic[T]):
     @property
     def scope(self) -> SimpleScope[T]:
         scope = self.args[0]
-        assert isinstance(scope, SimpleScope)
-        return scope
+        return typing.cast(SimpleScope[T], scope)
 
     @property
     def scope_id(self) -> ScopeId:
@@ -716,15 +774,15 @@ class Function(InheritableNode, typing.Generic[T]):
     def owned_params(self) -> typing.Sequence[Param]:
         params = [
             param
-            for param in self.expr.find_until(Param, OpaqueScope)
+            for param in self.expr.to_node.find_until(Param, OpaqueScope)
             if param.parent_scope_id == self.scope_id]
-        params = sorted(params, key=lambda param: param.index.value)
+        params = sorted(params, key=lambda param: param.index.to_int)
         return params
 
-    def with_args(self, *args: BaseNode) -> BaseNode:
+    def with_args(self, *args: INode) -> INode:
         return self.with_arg_group(GeneralValueGroup(*args))
 
-    def with_arg_group(self, group: BaseValueGroup) -> BaseNode:
+    def with_arg_group(self, group: BaseValueGroup) -> INode:
         self.validate()
         type_group = self.param_type_group
         args = group.as_tuple
@@ -732,7 +790,7 @@ class Function(InheritableNode, typing.Generic[T]):
         params = self.owned_params()
         scope = self.scope
         for param in params:
-            index = param.index.value
+            index = param.index.to_int
             assert index > 0
             assert index <= len(args)
             arg = args[index-1]
@@ -744,36 +802,6 @@ class Function(InheritableNode, typing.Generic[T]):
             scope = scope_aux
         assert not scope.has_dependency()
         return scope.child
-
-    def with_optional_arg_group(self, group: OptionalValueGroup) -> BaseNode:
-        self.validate()
-        args = group.as_tuple
-        params = self.owned_params()
-        scope = self.scope
-        for param in params:
-            index = param.index.value
-            assert index > 0
-            assert index <= len(args)
-            outer_arg = args[index-1]
-            arg = outer_arg.value
-            assert arg is not None
-            param_type = param.type_node.type
-            if param_type is not UnknownTypeNode:
-                assert isinstance(arg, param_type)
-            scope_aux = scope.replace_until(param, arg, OpaqueScope)
-            assert isinstance(scope_aux, SimpleScope)
-            scope = scope_aux
-        assert not scope.has_dependency()
-        return scope.child
-
-    def __eq__(self, other) -> bool:
-        if not isinstance(other, Function):
-            return False
-        if self.func != other.func:
-            return False
-        my_scope = self.scope
-        other_scope = other.scope
-        return OpaqueScope.normalize_from(my_scope, 1) == OpaqueScope.normalize_from(other_scope, 1)
 
     def validate(self):
         params = self.owned_params()
@@ -787,9 +815,9 @@ class Function(InheritableNode, typing.Generic[T]):
             else:
                 assert param.type_node.type == group.type.type
         if isinstance(scope, OpaqueScope):
-            all_inner_functions = scope.find_until(Function, OpaqueScope)
+            all_inner_functions = scope.find_until(IFunction, OpaqueScope)
             all_functions = all_inner_functions.union(self)
-            all_functions_scope_ids = {f.scope_id for f in all_functions}
+            all_functions_scope_ids = {f.scope.id for f in all_functions}
             all_inner_params = scope.find_until(Param, OpaqueScope)
             all_inner_params_scope_ids = {p.parent_scope_id for p in all_inner_params}
             assert all_inner_params_scope_ids.issubset(all_functions_scope_ids)
@@ -799,6 +827,7 @@ class FunctionId(Integer):
     pass
 
 class FunctionCall(InheritableNode, typing.Generic[T]):
+
     def __init__(self, function_id: FunctionId, arg_group: BaseValueGroup[T]):
         assert isinstance(function_id, FunctionId)
         assert isinstance(arg_group, BaseValueGroup)
@@ -815,7 +844,8 @@ class FunctionCall(InheritableNode, typing.Generic[T]):
         arg_group = self.args[1]
         return typing.cast(BaseValueGroup[T], arg_group)
 
-class FunctionDefinition(InheritableNode, typing.Generic[T]):
+class FunctionDefinition(InheritableNode, IFunction[T], typing.Generic[T]):
+
     def __init__(self, function_id: FunctionId, function: Function[T]):
         assert isinstance(function_id, FunctionId)
         assert isinstance(function, Function)
@@ -832,85 +862,25 @@ class FunctionDefinition(InheritableNode, typing.Generic[T]):
         f = self.args[1]
         return typing.cast(Function[T], f)
 
-    def call(self, arg_group: OptionalValueGroup) -> FunctionCall:
-        arg_strict_group = arg_group.value_group()
-        self.function.param_type_group.validate_values(arg_strict_group)
-        return FunctionCall(self.function_id, arg_strict_group)
+    @property
+    def scope(self) -> SimpleScope[T]:
+        return self.function.scope
 
-    def expand(self, call: FunctionCall) -> BaseNode:
+    def with_args(self, *args: INode) -> INode:
+        arg_group = GeneralValueGroup(*args)
+        self.function.param_type_group.validate_values(arg_group)
+        return FunctionCall(self.function_id, arg_group)
+
+    def expand(self, call: FunctionCall) -> INode:
         assert call.function_id == self.function_id
         return self.function.with_args(*call.arg_group.as_tuple)
-
-class PartialArgsGroup(Function[OptionalValueGroup[T]], typing.Generic[T]):
-    def __init__(
-        self,
-        param_type_group: ExtendedTypeGroup,
-        scope: OpaqueScope[OptionalValueGroup[T]],
-    ):
-        assert isinstance(param_type_group, ExtendedTypeGroup)
-        assert isinstance(scope, OpaqueScope)
-        assert isinstance(scope.child, OptionalValueGroup)
-        super().__init__(param_type_group, scope)
-
-    @property
-    def param_type_group(self) -> ExtendedTypeGroup:
-        param_type_group = self.args[0]
-        assert isinstance(param_type_group, ExtendedTypeGroup)
-        return param_type_group
-
-    @property
-    def scope(self) -> OpaqueScope[OptionalValueGroup[T]]:
-        scope = self.args[1]
-        assert isinstance(scope, OpaqueScope)
-        assert isinstance(scope.child, OptionalValueGroup)
-        return scope
-
-    @property
-    def inner_args_group(self) -> OptionalValueGroup[T]:
-        inner_args = self.scope.child
-        return typing.cast(OptionalValueGroup[T], inner_args)
-
-    @property
-    def inner_args(self) -> tuple[BaseNode, ...]:
-        return self.inner_args_group.as_tuple
-
-    def apply_to(self, function_node: Function | FunctionDefinition) -> Function:
-        function_node.validate()
-        self.validate()
-
-        if isinstance(function_node, Function):
-            scope = function_node.scope
-            return Function(
-                self.param_type_group,
-                scope.func(
-                    scope.id,
-                    function_node.with_arg_group(self.inner_args_group),
-                ),
-            )
-
-        assert isinstance(function_node, FunctionDefinition)
-        arg_strict_group = self.inner_args_group.value_group()
-        function_id = function_node.function_id
-        scope = function_node.function.scope
-        function_node.function.param_type_group.validate_values(arg_strict_group)
-        return Function(
-            self.param_type_group,
-            scope.func(
-                scope.id,
-                FunctionCall(function_id, arg_strict_group)),
-        )
-
-    @classmethod
-    def default(cls) -> typing.Self:
-        return cls(
-            ExtendedTypeGroup(RestTypeGroup(UnknownTypeNode())),
-            OpaqueScope.create(OptionalValueGroup()))
 
 ###########################################################
 ####################### BASIC NODES #######################
 ###########################################################
 
-BASIC_NODE_TYPES: tuple[type[BaseNode], ...] = (
+BASIC_NODE_TYPES: tuple[type[INode], ...] = (
+    INode,
     BaseNode,
     VoidNode,
     Integer,
