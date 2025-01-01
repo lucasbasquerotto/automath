@@ -77,6 +77,7 @@ class PartialArgsGroup(Function[OptionalValueGroup[T]], typing.Generic[T]):
     def apply_to(self, function: IFunction) -> Function:
         assert isinstance(function, IFunction)
         self.validate()
+        function.as_node.validate()
         scope = function.scope
         group = self.inner_args_group.fill_with_void()
         return Function(

@@ -74,6 +74,32 @@ class CreateScratchOutput(ScratchBaseActionOutput):
             scratch_group=scratch_group.func(*new_args),
         )
 
+# class CreateScratchFromDefault(BaseAction[CreateScratchOutput], BasicActionGenerator):
+
+#     @classmethod
+#     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+#         default_index = DefaultIndex(arg1)
+#         assert arg2 == 0
+#         assert arg3 == 0
+#         return cls(default_index)
+
+#     def __init__(self, default_index: DefaultIndex):
+#         assert isinstance(default_index, DefaultIndex)
+#         super().__init__(default_index)
+
+#     @property
+#     def default_index(self) -> NodeMainIndex:
+#         default_index = self.args[0]
+#         assert isinstance(default_index, NodeMainIndex)
+#         return default_index
+
+#     def run(self, state: State) -> CreateScratchOutput:
+#         node_type = self.default_index.from_node(state)
+#         assert isinstance(node_type, TypeNode) and issubclass(node_type.type, IDefault)
+#         node = node_type.type.create()
+#         index = StateScratchIndex(len(state.scratch_group.as_tuple))
+#         return CreateScratchOutput(index, node)
+
 class CreateScratchFromNode(BaseAction[CreateScratchOutput], BasicActionGenerator):
 
     @classmethod
