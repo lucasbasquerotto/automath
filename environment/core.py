@@ -107,6 +107,10 @@ class BaseNode(INode):
     def new(cls, *args: int | INode | typing.Type[INode]) -> typing.Self:
         return cls(*args)
 
+    @classmethod
+    def wrap_type(cls) -> TypeNode[typing.Self]:
+        return TypeNode(cls)
+
     @property
     def as_node(self) -> BaseNode:
         return self
@@ -394,6 +398,12 @@ class Optional(BaseNode, IDefault, ISingleChild[T], typing.Generic[T]):
             return None
         value = self.args[0]
         return typing.cast(T, value)
+
+    def value_or_else(self, default_value: T) -> T:
+        value = self.value
+        if value is None:
+            value = default_value
+        return value
 
     @property
     def child(self) -> T:

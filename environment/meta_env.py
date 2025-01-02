@@ -1,120 +1,236 @@
 import typing
-from environment.core import BASIC_NODE_TYPES, Integer, InheritableNode
-from .state import State, BaseNode
-from .action_old import BASIC_ACTION_TYPES, Action, ActionInput, ActionOutput
-from .reward import RewardEvaluator, DefaultRewardEvaluator
+from environment.core import (
+    BASIC_NODE_TYPES,
+    IDefault,
+    IFromInt,
+    IInt,
+    INodeIndex,
+    ISingleChild,
+    IGroup,
+    IFunction,
+    IBoolean,
+    InheritableNode,
+    INode,
+    BaseGroup,
+    TypeNode,
+    Optional)
+from environment.state import State
+from environment.action import BaseAction, ActionOutput, IExceptionInfo
+
+T = typing.TypeVar('T', bound=INode)
 
 class GoalNode(InheritableNode):
     def evaluate(self, state: State) -> bool:
         raise NotImplementedError
 
-class ActionData:
-    def __init__(self, type: int, input: ActionInput, output: ActionOutput | None):
-        self._type = type
-        self._input = input
-        self._output = output
+class ActionData(InheritableNode):
+    def __init__(
+        self,
+        action: Optional[BaseAction],
+        output: Optional[ActionOutput],
+        exception: Optional[IExceptionInfo],
+    ):
+        super().__init__(action, output, exception)
 
     @property
-    def type(self) -> int:
-        return self._type
+    def action(self) -> Optional[BaseAction]:
+        action = self.args[0]
+        return typing.cast(Optional[BaseAction], action)
 
     @property
-    def input(self) -> ActionInput:
-        return self._input
+    def output(self) -> Optional[ActionOutput]:
+        output = self.args[1]
+        return typing.cast(Optional[ActionOutput], output)
 
     @property
-    def output(self) -> ActionOutput | None:
-        return self._output
+    def exception(self) -> Optional[IExceptionInfo]:
+        exception = self.args[2]
+        return typing.cast(Optional[IExceptionInfo], exception)
 
-StateHistoryItem = State | ActionData
+class GeneralTypeGroup(BaseGroup[TypeNode[T]], typing.Generic[T]):
 
-class NodeType(Integer):
-    pass
-
-class ActionType(Integer):
-    pass
-
-class NodeTypeGroup(InheritableNode):
     @classmethod
-    def from_types(cls, amount: int) -> 'NodeTypeGroup':
-        return cls(*[NodeType(i+1) for i in range(amount)])
+    def item_type(cls):
+        return TypeNode
 
-class ActionTypeGroup(InheritableNode):
+class DetailedType(InheritableNode, ISingleChild[TypeNode[T]], typing.Generic[T]):
+    def __init__(self, node_type: TypeNode[T]):
+        super().__init__(node_type)
+
+    @property
+    def child(self) -> TypeNode[T]:
+        node_type = self.args[0]
+        return typing.cast(TypeNode[T], node_type)
+
     @classmethod
-    def from_types(cls, amount: int) -> 'ActionTypeGroup':
-        return cls(*[ActionType(i+1) for i in range(amount)])
+    def with_child(cls, child: TypeNode[T]) -> typing.Self:
+        return cls(child)
 
-class MetaInfoNode(InheritableNode):
-    def __init__(self, goal: GoalNode, node_types: NodeTypeGroup, action_types: ActionTypeGroup):
-        super().__init__(goal, node_types, action_types)
+class DetailedTypeGroup(BaseGroup[DetailedType[T]], typing.Generic[T]):
 
-class EnvMetaInfo:
+    @classmethod
+    def item_type(cls):
+        return DetailedType
+
+    @classmethod
+    def from_types(cls, types: typing.Sequence[TypeNode[T]]) -> typing.Self:
+        return cls.from_items([DetailedType.with_child(node_type) for node_type in types])
+
+    def to_type_group(self) -> GeneralTypeGroup[T]:
+        return GeneralTypeGroup.from_items([item.child for item in self.as_tuple])
+
+class SubtypeOuterGroup(InheritableNode, typing.Generic[T]):
+
+    def __init__(self, common_type: TypeNode[T], subtypes: GeneralTypeGroup[T]):
+        super().__init__(common_type, subtypes)
+
+    @property
+    def common_type(self) -> TypeNode[T]:
+        common_type = self.args[0]
+        return typing.cast(TypeNode[T], common_type)
+
+    @property
+    def subtypes(self) -> GeneralTypeGroup[T]:
+        subtypes = self.args[1]
+        return typing.cast(GeneralTypeGroup[T], subtypes)
+
+    def validate(self):
+        super().validate()
+        common_type = self.common_type
+        subtypes = self.subtypes
+        assert all(issubclass(item.type, common_type.type) for item in subtypes.as_tuple)
+
+    @classmethod
+    def from_all_types(cls, common_type: TypeNode[T], all_types: GeneralTypeGroup):
+        assert isinstance(common_type, TypeNode)
+        assert isinstance(all_types, GeneralTypeGroup)
+        subtypes = GeneralTypeGroup.from_items(
+            [item for item in all_types.as_tuple if issubclass(item.type, common_type.type)]
+        )
+        cls(common_type, subtypes)
+
+class MetaInfoOptions(InheritableNode, IDefault):
+    def __init__(
+        self,
+        max_history_state_size: Optional[IInt],
+    ):
+        super().__init__(max_history_state_size)
+
+    @property
+    def max_history_state_size(self) -> Optional[IInt]:
+        max_history_state_size = self.args[0]
+        return typing.cast(Optional[IInt], max_history_state_size)
+
+    @classmethod
+    def create(cls) -> typing.Self:
+        return cls(Optional.create())
+
+class MetaInfo(InheritableNode):
     def __init__(
         self,
         goal: GoalNode,
-        node_types: tuple[typing.Type[BaseNode], ...],
-        allowed_nodes: tuple[typing.Type[BaseNode], ...],
-        allowed_actions: tuple[typing.Type[Action], ...],
+        options: MetaInfoOptions,
+        all_types: DetailedTypeGroup,
+        default_group: SubtypeOuterGroup[IDefault],
+        from_int_group: SubtypeOuterGroup[IFromInt],
+        int_group: SubtypeOuterGroup[IInt],
+        node_index_group: SubtypeOuterGroup[INodeIndex],
+        single_child_group: SubtypeOuterGroup[ISingleChild],
+        group_outer_group: SubtypeOuterGroup[IGroup],
+        function_group: SubtypeOuterGroup[IFunction],
+        boolean_group: SubtypeOuterGroup[IBoolean],
+        allowed_actions: SubtypeOuterGroup[BaseAction],
     ):
-        self._goal = goal
-        self._node_types = node_types
-        self._allowed_nodes = allowed_nodes
-        self._allowed_actions = allowed_actions
+        super().__init__(
+            goal,
+            options,
+            all_types,
+            default_group,
+            from_int_group,
+            int_group,
+            node_index_group,
+            single_child_group,
+            group_outer_group,
+            function_group,
+            boolean_group,
+            allowed_actions,
+        )
 
     @property
     def goal(self) -> GoalNode:
-        return self._goal
+        goal = self.args[0]
+        return typing.cast(GoalNode, goal)
 
     @property
-    def node_types(self) -> tuple[typing.Type[BaseNode], ...]:
-        return self._node_types
+    def options(self) -> MetaInfoOptions:
+        options = self.args[1]
+        return typing.cast(MetaInfoOptions, options)
 
     @property
-    def allowed_nodes(self) -> tuple[typing.Type[BaseNode], ...]:
-        return self._allowed_nodes
+    def all_types(self) -> DetailedTypeGroup:
+        all_types = self.args[1]
+        return typing.cast(DetailedTypeGroup, all_types)
 
     @property
-    def allowed_actions(self) -> tuple[typing.Type[Action], ...]:
-        return self._allowed_actions
+    def default_group(self) -> SubtypeOuterGroup[IDefault]:
+        default_group = self.args[2]
+        return typing.cast(SubtypeOuterGroup[IDefault], default_group)
 
-    def to_node(self) -> MetaInfoNode:
-        return MetaInfoNode(
-            self.goal,
-            NodeTypeGroup.from_types(len(self.node_types)),
-            ActionTypeGroup.from_types(len(self.allowed_actions)),
+    @property
+    def from_int_group(self) -> SubtypeOuterGroup[IFromInt]:
+        from_int_group = self.args[3]
+        return typing.cast(SubtypeOuterGroup[IFromInt], from_int_group)
+
+    @property
+    def int_group(self) -> SubtypeOuterGroup[IInt]:
+        int_group = self.args[4]
+        return typing.cast(SubtypeOuterGroup[IInt], int_group)
+
+    @property
+    def node_index_group(self) -> SubtypeOuterGroup[INodeIndex]:
+        node_index_group = self.args[5]
+        return typing.cast(SubtypeOuterGroup[INodeIndex], node_index_group)
+
+    @property
+    def single_child_group(self) -> SubtypeOuterGroup[ISingleChild]:
+        single_child_group = self.args[6]
+        return typing.cast(SubtypeOuterGroup[ISingleChild], single_child_group)
+
+    @property
+    def group_outer_group(self) -> SubtypeOuterGroup[IGroup]:
+        group_outer_group = self.args[7]
+        return typing.cast(SubtypeOuterGroup[IGroup], group_outer_group)
+
+    @property
+    def function_group(self) -> SubtypeOuterGroup[IFunction]:
+        function_group = self.args[8]
+        return typing.cast(SubtypeOuterGroup[IFunction], function_group)
+
+    @property
+    def boolean_group(self) -> SubtypeOuterGroup[IBoolean]:
+        boolean_group = self.args[9]
+        return typing.cast(SubtypeOuterGroup[IBoolean], boolean_group)
+
+    @property
+    def allowed_actions(self) -> SubtypeOuterGroup[BaseAction]:
+        allowed_actions = self.args[10]
+        return typing.cast(SubtypeOuterGroup[BaseAction], allowed_actions)
+
+    @classmethod
+    def with_defaults(cls, goal: GoalNode) -> typing.Self:
+        all_types = [TypeNode(t) for t in BASIC_NODE_TYPES]
+        all_types_group = GeneralTypeGroup.from_items(all_types)
+        return cls(
+            goal,
+            MetaInfoOptions.create(),
+            DetailedTypeGroup.from_types(all_types),
+            SubtypeOuterGroup.from_all_types(TypeNode(INode), all_types_group),
+            SubtypeOuterGroup.from_all_types(TypeNode(IFromInt), all_types_group),
+            SubtypeOuterGroup.from_all_types(TypeNode(IInt), all_types_group),
+            SubtypeOuterGroup.from_all_types(TypeNode(INodeIndex), all_types_group),
+            SubtypeOuterGroup.from_all_types(TypeNode(ISingleChild), all_types_group),
+            SubtypeOuterGroup.from_all_types(TypeNode(IGroup), all_types_group),
+            SubtypeOuterGroup.from_all_types(TypeNode(IFunction), all_types_group),
+            SubtypeOuterGroup.from_all_types(TypeNode(IBoolean), all_types_group),
+            SubtypeOuterGroup.from_all_types(TypeNode(BaseAction), all_types_group),
         )
-
-class FullEnvMetaInfo(EnvMetaInfo):
-    def __init__(
-        self,
-        goal: GoalNode,
-        reward_evaluator: RewardEvaluator | None = None,
-        initial_history: tuple[StateHistoryItem, ...] = tuple(),
-        node_types: tuple[typing.Type[BaseNode], ...] = BASIC_NODE_TYPES,
-        allowed_nodes: tuple[typing.Type[BaseNode], ...] = tuple(),
-        allowed_actions: tuple[typing.Type[Action], ...] = BASIC_ACTION_TYPES,
-    ):
-        super().__init__(
-            goal=goal,
-            node_types=node_types,
-            allowed_nodes=allowed_nodes,
-            allowed_actions=allowed_actions)
-
-        reward_evaluator = (
-            reward_evaluator
-            if reward_evaluator is not None
-            else DefaultRewardEvaluator(goal.evaluate))
-
-        self._reward_evaluator = reward_evaluator
-        self._initial_history = initial_history
-
-    @property
-    def reward_evaluator(self) -> RewardEvaluator:
-        return self._reward_evaluator
-
-    @property
-    def initial_history(self) -> tuple[StateHistoryItem, ...]:
-        return self._initial_history
-
-    def is_terminal(self, state: State) -> bool:
-        return self.goal.evaluate(state)

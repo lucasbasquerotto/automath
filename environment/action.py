@@ -1,4 +1,5 @@
 import typing
+from abc import ABC
 from environment.core import (
     INode,
     NodeMainIndex,
@@ -9,7 +10,8 @@ from environment.core import (
     ExtendedTypeGroup,
     IFunction,
     OptionalValueGroup,
-    OpaqueScope,)
+    OpaqueScope,
+    IInt)
 from environment.state import (
     State,
     Scratch,
@@ -22,13 +24,106 @@ class ActionOutput(InheritableNode):
     def run(self, state: State) -> State:
         raise NotImplementedError
 
+T = typing.TypeVar('T', bound=INode)
 O = typing.TypeVar('O', bound=ActionOutput)
 
+class IExceptionInfo(INode, ABC):
+
+    def as_exception(self):
+        raise InvalidActionException(self)
+
+class InvalidActionException(Exception):
+
+    def __init__(self, info: IExceptionInfo):
+        super().__init__(info)
+
+    @property
+    def info(self) -> IExceptionInfo:
+        info = self.args[0]
+        return typing.cast(IExceptionInfo, info)
+
+class ExceptionInfoWrapper(InheritableNode, IExceptionInfo):
+
+    def __init__(self, info: IExceptionInfo):
+        super().__init__(info)
+
+    @property
+    def info(self) -> IExceptionInfo:
+        info = self.args[0]
+        return typing.cast(IExceptionInfo, info)
+
+class EmptyExceptionInfo(InheritableNode, IExceptionInfo):
+
+    def __init__(self):
+        super().__init__()
+
+    @classmethod
+    def verify(cls, value: T | None) -> T:
+        if value is None:
+            raise InvalidActionException(cls())
+        return value
+
+class OutsideRangeExceptionInfo(InheritableNode, IExceptionInfo):
+
+    def __init__(self, value: IInt, min_value: IInt, max_value: IInt):
+        super().__init__(value, min_value, max_value)
+
+    @classmethod
+    def verify(cls, value: IInt, min_value: int, max_value: int):
+        if not min_value <= value.to_int <= max_value:
+            raise InvalidActionException(
+                cls(value, Integer(min_value), Integer(max_value)))
+
+class ActionInputExceptionInfo(ExceptionInfoWrapper):
+    pass
+
+class ActionOutputExceptionInfo(InheritableNode, IExceptionInfo):
+
+    def __init__(
+        self,
+        output: ActionOutput,
+        exception: IExceptionInfo,
+    ):
+        assert isinstance(output, ActionOutput)
+        assert isinstance(exception, IExceptionInfo)
+        super().__init__(output, exception)
+
+class FullActionOutput(InheritableNode, typing.Generic[O]):
+
+    def __init__(
+        self,
+        output: O,
+        new_state: State,
+    ):
+        assert isinstance(output, ActionOutput)
+        assert isinstance(new_state, State)
+        super().__init__(output, new_state)
+
+    @property
+    def output(self) -> O:
+        output = self.args[0]
+        return typing.cast(O, output)
+
+    @property
+    def new_state(self) -> State:
+        new_state = self.args[1]
+        return typing.cast(State, new_state)
+
 class BaseAction(InheritableNode, typing.Generic[O]):
-    def run(self, state: State) -> O:
+    def _run(self, state: State) -> O:
         raise NotImplementedError
 
-class BasicActionGenerator:
+    def run(self, state: State) -> FullActionOutput[O]:
+        output = self._run(state)
+        assert isinstance(output, ActionOutput)
+
+        try:
+            new_state = output.run(state)
+            return FullActionOutput(output, new_state)
+        except InvalidActionException as e:
+            raise ActionOutputExceptionInfo(output, e.info).as_exception()
+
+class BasicActionGenerator(INode):
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         raise NotImplementedError
@@ -78,19 +173,19 @@ class CreateScratchOutput(ScratchBaseActionOutput):
 
 #     @classmethod
 #     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
-#         default_index = DefaultIndex(arg1)
+#         default_index = DefaultTypeIndex(arg1)
 #         assert arg2 == 0
 #         assert arg3 == 0
 #         return cls(default_index)
 
-#     def __init__(self, default_index: DefaultIndex):
-#         assert isinstance(default_index, DefaultIndex)
+#     def __init__(self, default_index: DefaultTypeIndex):
+#         assert isinstance(default_index, DefaultTypeIndex)
 #         super().__init__(default_index)
 
 #     @property
-#     def default_index(self) -> NodeMainIndex:
+#     def default_index(self) -> DefaultTypeIndex:
 #         default_index = self.args[0]
-#         assert isinstance(default_index, NodeMainIndex)
+#         assert isinstance(default_index, DefaultTypeIndex)
 #         return default_index
 
 #     def run(self, state: State) -> CreateScratchOutput:
@@ -119,7 +214,7 @@ class CreateScratchFromNode(BaseAction[CreateScratchOutput], BasicActionGenerato
         assert isinstance(state_index, NodeMainIndex)
         return state_index
 
-    def run(self, state: State) -> CreateScratchOutput:
+    def _run(self, state: State) -> CreateScratchOutput:
         node = self.state_index.from_node(state)
         assert node is not None
         index = StateScratchIndex(len(state.scratch_group.as_tuple))
@@ -151,7 +246,7 @@ class CreateScratchFromFunction(BaseAction[CreateScratchOutput], BasicActionGene
         assert isinstance(args_group_index, StateArgsGroupIndex)
         return args_group_index
 
-    def run(self, state: State) -> CreateScratchOutput:
+    def _run(self, state: State) -> CreateScratchOutput:
         function = self.function_index.from_node(state)
         assert isinstance(function, IFunction)
 
@@ -204,7 +299,7 @@ class DefineScratchFromNode(BaseAction[DefineScratchOutput], BasicActionGenerato
         assert isinstance(state_index, NodeMainIndex)
         return state_index
 
-    def run(self, state: State) -> DefineScratchOutput:
+    def _run(self, state: State) -> DefineScratchOutput:
         scratch_index = self.scratch_index
         scratch = scratch_index.find_in_state(state)
         assert scratch is not None
@@ -252,7 +347,7 @@ class DefineScratchFromFunction(BaseAction[DefineScratchOutput], BasicActionGene
         assert isinstance(args_group_index, StateArgsGroupIndex)
         return args_group_index
 
-    def run(self, state: State) -> DefineScratchOutput:
+    def _run(self, state: State) -> DefineScratchOutput:
         scratch_index = self.scratch_index
         scratch = scratch_index.find_in_state(state)
         assert scratch is not None
@@ -305,7 +400,7 @@ class UpdateScratchFromNode(BaseAction[DefineScratchOutput], BasicActionGenerato
         assert isinstance(state_index, NodeMainIndex)
         return state_index
 
-    def run(self, state: State) -> DefineScratchOutput:
+    def _run(self, state: State) -> DefineScratchOutput:
         scratch_index = self.scratch_index
         scratch = scratch_index.find_in_state(state)
         assert scratch is not None
@@ -356,7 +451,7 @@ class UpdateScratchFromFunction(BaseAction[DefineScratchOutput]):
         assert isinstance(args_group_index, StateArgsGroupIndex)
         return args_group_index
 
-    def run(self, state: State) -> DefineScratchOutput:
+    def _run(self, state: State) -> DefineScratchOutput:
         scratch_index = self.scratch_index
         scratch = scratch_index.find_in_state(state)
         assert scratch is not None
@@ -447,7 +542,7 @@ class CreateArgsGroupFromAmountsAction(BaseAction[CreateArgsGroupOutput], BasicA
         params_amount = self.args[1]
         return typing.cast(Optional[Integer], params_amount)
 
-    def run(self, state: State) -> CreateArgsGroupOutput:
+    def _run(self, state: State) -> CreateArgsGroupOutput:
         args_amount = self.args_amount.to_int
         params_amount = self.params_amount
         optional_group: OptionalValueGroup[INode] = OptionalValueGroup.from_int(args_amount)
@@ -477,7 +572,7 @@ class CreateArgsGroupDynamicAction(BaseAction[CreateArgsGroupOutput], BasicActio
         assert isinstance(node_index, NodeMainIndex)
         return node_index
 
-    def run(self, state: State) -> CreateArgsGroupOutput:
+    def _run(self, state: State) -> CreateArgsGroupOutput:
         node_index = self.node_index
         new_args_group = node_index.from_node(state)
         assert isinstance(new_args_group, PartialArgsGroup)
@@ -579,7 +674,7 @@ class DefineArgsGroupArgFromNodeAction(BaseAction[DefineArgsGroupArgOutput], Bas
         assert isinstance(node_index, NodeMainIndex)
         return node_index
 
-    def run(self, state: State) -> DefineArgsGroupArgOutput:
+    def _run(self, state: State) -> DefineArgsGroupArgOutput:
         args_group_index = self.args_group_index
         arg_index = self.arg_index
         node_index = self.node_index

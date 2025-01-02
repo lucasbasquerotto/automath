@@ -1,6 +1,6 @@
 import numpy as np
 from environment.core import Function, FunctionParams, Param
-from environment.full_state import (
+from environment.full_state_old import (
     UNDEFINED_OR_EMPTY_FIELD,
     HISTORY_TYPE_META,
     HISTORY_TYPE_STATE,

@@ -1,4 +1,4 @@
-from .full_state import FullState, Action
+from .full_state_old import FullState, Action
 from .meta_env import FullEnvMetaInfo
 
 class Environment:

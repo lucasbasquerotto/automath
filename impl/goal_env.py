@@ -2,7 +2,7 @@ import typing
 from environment.core import BASIC_NODE_TYPES, BaseNode
 from environment.action_old import BASIC_ACTION_TYPES, Action
 from environment.reward import RewardEvaluator
-from environment.full_state import StateHistoryItem
+from environment.full_state_old import StateHistoryItem
 from environment.environment import Environment
 from environment.meta_env import FullEnvMetaInfo, NodeTypeHandler, DefaultNodeTypeHandler, GoalNode
 
