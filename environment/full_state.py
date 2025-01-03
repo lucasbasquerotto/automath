@@ -1,23 +1,14 @@
 import typing
-from utils.logger import logger
 from environment.core import (
-    Optional,
     InheritableNode,
     BaseGroup,
-    IsEmpty,
-    IOptional,
-    IsInsideRange,
-    InvalidNodeException,
-    IExceptionInfo)
+    IOptional)
 from environment.state import State
-from environment.action import (
-    BaseAction,
-    ActionOutput)
-from environment.meta_env import MetaInfo, ActionData
+from environment.meta_env import MetaInfo, IMetaData
 
 class HistoryNode(InheritableNode):
-    def __init__(self, state: State, action_data: IOptional[ActionData]):
-        super().__init__(state, action_data)
+    def __init__(self, state: State, meta_data: IOptional[IMetaData]):
+        super().__init__(state, meta_data)
 
     @property
     def state(self) -> State:
@@ -25,9 +16,9 @@ class HistoryNode(InheritableNode):
         return typing.cast(State, state)
 
     @property
-    def action_data(self) -> IOptional[ActionData]:
-        action_data = self.args[1]
-        return typing.cast(IOptional[ActionData], action_data)
+    def meta_data(self) -> IOptional[IMetaData]:
+        meta_data = self.args[1]
+        return typing.cast(IOptional[IMetaData], meta_data)
 
 class HistoryGroupNode(BaseGroup[HistoryNode]):
 
@@ -35,7 +26,7 @@ class HistoryGroupNode(BaseGroup[HistoryNode]):
     def item_type(cls) -> type[HistoryNode]:
         return HistoryNode
 
-class FullStateNode(InheritableNode):
+class FullState(InheritableNode):
     def __init__(self, meta: MetaInfo, current: HistoryNode, history: HistoryGroupNode):
         super().__init__(meta, current, history)
 
@@ -54,53 +45,8 @@ class FullStateNode(InheritableNode):
         history = self.args[2]
         return typing.cast(HistoryGroupNode, history)
 
-    def run_action(self, action_wrapper: IOptional[BaseAction]) -> typing.Self:
-        last_state = self.current.state
-        assert isinstance(last_state, State)
+###########################################################
+######################### INDICES #########################
+###########################################################
 
-        action: BaseAction | None = None
-        output: ActionOutput | None = None
-        exception: IExceptionInfo | None = None
-
-        try:
-            action = action_wrapper.value
-            action = IsEmpty.with_optional(action).value_or_raise
-
-            allowed_actions = self.meta.allowed_actions
-            min_index = 1
-            max_index = len(allowed_actions.subtypes.as_tuple)
-            action_type = allowed_actions.subtypes.as_tuple.index(action.wrap_type()) + 1
-            IsInsideRange.from_raw(
-                value=action_type,
-                min_value=min_index,
-                max_value=max_index,
-            ).raise_on_false()
-
-            full_output = action.run(last_state)
-            output = full_output.output
-            next_state = full_output.new_state
-        except InvalidNodeException as e:
-            logger.debug(f"Invalid action: {e}")
-            next_state = last_state
-            exception = e.info
-
-        action_data = ActionData(
-            action=Optional(action),
-            output=Optional(output),
-            exception=Optional(exception),
-        )
-
-        current = HistoryNode(next_state, Optional(action_data))
-
-        history = list(self.history.as_tuple)
-        history.append(self.current)
-
-        max_history_state_size = self.meta.options.max_history_state_size.value
-        if max_history_state_size is not None:
-            history = history[-max_history_state_size.to_int:]
-
-        return self.func(
-            self.meta,
-            current=current,
-            history=HistoryGroupNode.from_items(history),
-        )
+# class DefaultTypeIndex

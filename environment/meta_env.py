@@ -1,4 +1,5 @@
 import typing
+from abc import ABC
 from environment.core import (
     BASIC_NODE_TYPES,
     IDefault,
@@ -14,10 +15,9 @@ from environment.core import (
     BaseGroup,
     TypeNode,
     Optional,
-    IOptional,
-    IExceptionInfo)
+    IOptional)
 from environment.state import State
-from environment.action import BaseAction, ActionOutput
+from environment.action import BaseAction
 
 T = typing.TypeVar('T', bound=INode)
 
@@ -25,29 +25,8 @@ class GoalNode(InheritableNode):
     def evaluate(self, state: State) -> bool:
         raise NotImplementedError
 
-class ActionData(InheritableNode):
-    def __init__(
-        self,
-        action: IOptional[BaseAction],
-        output: IOptional[ActionOutput],
-        exception: IOptional[IExceptionInfo],
-    ):
-        super().__init__(action, output, exception)
-
-    @property
-    def action(self) -> IOptional[BaseAction]:
-        action = self.args[0]
-        return typing.cast(IOptional[BaseAction], action)
-
-    @property
-    def output(self) -> IOptional[ActionOutput]:
-        output = self.args[1]
-        return typing.cast(IOptional[ActionOutput], output)
-
-    @property
-    def exception(self) -> IOptional[IExceptionInfo]:
-        exception = self.args[2]
-        return typing.cast(IOptional[IExceptionInfo], exception)
+class IMetaData(INode, ABC):
+    pass
 
 class GeneralTypeGroup(BaseGroup[TypeNode[T]], typing.Generic[T]):
 
