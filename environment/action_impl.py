@@ -28,7 +28,7 @@ from environment.full_state import (
     FullStateIntIndex,
     MetaDefaultTypeIndex,
     MetaFromIntTypeIndex,
-    MetaFullStateIndexTypeIndex)
+    MetaFullStateIntIndexTypeIndex)
 from environment.action import (
     BaseAction,
     ActionOutput)
@@ -142,18 +142,18 @@ class CreateScratchFromIntIndex(BaseAction[CreateScratchOutput], BasicActionGene
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
-        type_index = MetaFullStateIndexTypeIndex(arg1)
+        type_index = MetaFullStateIntIndexTypeIndex(arg1)
         index_value = Integer(arg2)
         assert arg3 == 0
         return cls(type_index, index_value)
 
-    def __init__(self, type_index: MetaFullStateIndexTypeIndex, index_value: Integer):
+    def __init__(self, type_index: MetaFullStateIntIndexTypeIndex, index_value: Integer):
         super().__init__(type_index, index_value)
 
     @property
-    def type_index(self) -> MetaFullStateIndexTypeIndex:
+    def type_index(self) -> MetaFullStateIntIndexTypeIndex:
         type_index = self.args[0]
-        assert isinstance(type_index, MetaFullStateIndexTypeIndex)
+        assert isinstance(type_index, MetaFullStateIntIndexTypeIndex)
         return type_index
 
     @property
@@ -194,27 +194,27 @@ class CreateScratchFromIndex(BaseAction[CreateScratchOutput]):
         index = StateScratchIndex(len(state.scratch_group.as_tuple))
         return CreateScratchOutput(index, node)
 
-class CreateScratchFromFunction(BaseAction[CreateScratchOutput], BasicActionGenerator):
+class CreateScratchFromBasicFunction(BaseAction[CreateScratchOutput], BasicActionGenerator):
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
-        type_index = MetaFullStateIndexTypeIndex(arg1)
+        type_index = MetaFullStateIntIndexTypeIndex(arg1)
         index_value = Integer(arg2)
         args_group_index = StateArgsGroupIndex(arg3)
         return cls(type_index, index_value, args_group_index)
 
     def __init__(
         self,
-        type_index: MetaFullStateIndexTypeIndex,
+        type_index: MetaFullStateIntIndexTypeIndex,
         index_value: Integer,
         args_group_index: StateArgsGroupIndex,
     ):
         super().__init__(type_index, index_value, args_group_index)
 
     @property
-    def type_index(self) -> MetaFullStateIndexTypeIndex:
+    def type_index(self) -> MetaFullStateIntIndexTypeIndex:
         type_index = self.args[0]
-        assert isinstance(type_index, MetaFullStateIndexTypeIndex)
+        assert isinstance(type_index, MetaFullStateIntIndexTypeIndex)
         return type_index
 
     @property
@@ -238,6 +238,45 @@ class CreateScratchFromFunction(BaseAction[CreateScratchOutput], BasicActionGene
         node_index = typing.cast(
             FullStateIntIndex[INode],
             node_type.type.from_int(index_value.to_int))
+        function_node = node_index.find_in_outer_node(full_state)
+        function_node = Optional(function_node).value_or_raise
+
+        args_group = self.args_group_index.find_in_outer_node(state)
+        assert isinstance(args_group, PartialArgsGroup)
+
+        function_node.as_node.validate()
+        args_group.validate()
+        node = FunctionCall(
+            typing.cast(IFunction, function_node),
+            args_group.inner_args_group.fill_with_void())
+
+        index = StateScratchIndex(len(state.scratch_group.as_tuple))
+
+        return CreateScratchOutput(index, node)
+
+class CreateScratchFromFunction(BaseAction[CreateScratchOutput]):
+
+    def __init__(
+        self,
+        node_index: IFullStateIndex[INode],
+        args_group_index: StateArgsGroupIndex,
+    ):
+        super().__init__(node_index, args_group_index)
+
+    @property
+    def node_index(self) -> IFullStateIndex[INode]:
+        node_index = self.args[0]
+        return typing.cast(IFullStateIndex[INode], node_index)
+
+    @property
+    def args_group_index(self) -> StateArgsGroupIndex:
+        args_group_index = self.args[1]
+        assert isinstance(args_group_index, StateArgsGroupIndex)
+        return args_group_index
+
+    def _run(self, full_state: FullState) -> CreateScratchOutput:
+        state = full_state.current.state
+        node_index = self.node_index
         function_node = node_index.find_in_outer_node(full_state)
         function_node = Optional(function_node).value_or_raise
 
