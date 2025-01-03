@@ -503,7 +503,7 @@ class Action:
             partial_definitions.append(None)
 
             return State(
-                function_group=state.definitions,
+                definition_group=state.definitions,
                 partial_definitions=PartialDefinitionGroup.from_items(partial_definitions),
                 arg_groups=state.arg_groups)
         elif isinstance(output, PartialActionOutput):
@@ -556,7 +556,7 @@ class Action:
             ]
 
             return State.from_raw(
-                functions=state.definitions,
+                definitions=state.definitions,
                 partial_definitions=tuple(partial_definitions_list),
                 args_outer_groups=state.arg_groups)
         elif isinstance(output, NewArgGroupActionOutput):
@@ -575,7 +575,7 @@ class Action:
                 ArgsGroup.from_items([None] * args_amount)))
 
             return State.from_raw(
-                functions=state.definitions,
+                definitions=state.definitions,
                 partial_definitions=state.partial_definitions,
                 args_outer_groups=tuple(arg_groups))
         elif isinstance(output, ArgFromExprActionOutput):
@@ -607,7 +607,7 @@ class Action:
                 ArgsGroup.from_items(arg_group_args))
 
             return State(
-                function_group=state.definitions,
+                definition_group=state.definitions,
                 partial_definitions=state.partial_definitions,
                 arg_groups=PartialArgsOuterGroup.from_items(arg_groups_list))
         elif isinstance(output, RemoveArgGroupActionOutput):
@@ -624,7 +624,7 @@ class Action:
             ]
 
             return State(
-                function_group=state.definitions,
+                definition_group=state.definitions,
                 partial_definitions=state.partial_definitions,
                 arg_groups=PartialArgsOuterGroup.from_items(arg_groups_list))
         elif isinstance(output, NewDefinitionFromPartialActionOutput):
@@ -652,7 +652,7 @@ class Action:
             ]
 
             return State(
-                function_group=FunctionDefinitionGroup.from_items(definitions_list),
+                definition_group=FunctionDefinitionGroup.from_items(definitions_list),
                 partial_definitions=PartialDefinitionGroup.from_items(partial_definitions_list),
                 arg_groups=state.arg_groups)
         elif isinstance(output, ReplaceByDefinitionActionOutput):

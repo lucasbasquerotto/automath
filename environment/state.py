@@ -90,35 +90,39 @@ class PartialArgsOuterGroup(BaseGroup[PartialArgsGroup]):
     def item_type(cls):
         return PartialArgsGroup
 
-class FunctionId(Integer, IFunction):
+class IDefinitionKey(ABC, INode):
     pass
 
-class FunctionDefinition(InheritableNode, typing.Generic[T]):
+D = typing.TypeVar('D', bound=IDefinitionKey)
 
-    def __init__(self, function_id: FunctionId, function: FunctionExpr[T]):
-        assert isinstance(function_id, FunctionId)
-        assert isinstance(function, FunctionExpr)
-        super().__init__(function_id, function)
+class FunctionId(Integer, IDefinitionKey, IFunction):
+    pass
 
-    @property
-    def function_id(self) -> FunctionId:
-        function_id = self.args[0]
-        assert isinstance(function_id, FunctionId)
-        return function_id
+class StateDefinition(InheritableNode, typing.Generic[D, T]):
+
+    def __init__(self, definition_key: D, definition_expr: T):
+        super().__init__(definition_key, definition_expr)
 
     @property
-    def function(self) -> FunctionExpr[T]:
-        f = self.args[1]
-        return typing.cast(FunctionExpr[T], f)
+    def definition_key(self) -> D:
+        definition_key = self.args[0]
+        return typing.cast(D, definition_key)
+
+    @property
+    def definition_expr(self) -> T:
+        definition_expr = self.args[1]
+        return typing.cast(T, definition_expr)
+
+class FunctionDefinition(StateDefinition[FunctionId, FunctionExpr[T]], typing.Generic[T]):
 
     @property
     def scope(self) -> SimpleScope[T]:
-        return self.function.scope
+        return self.definition_expr.scope
 
-class FunctionDefinitionGroup(BaseGroup[FunctionDefinition]):
+class StateDefinitionGroup(BaseGroup[StateDefinition]):
     @classmethod
     def item_type(cls):
-        return FunctionDefinition
+        return StateDefinition
 
 ###########################################################
 ########################## STATE ##########################
@@ -127,17 +131,16 @@ class FunctionDefinitionGroup(BaseGroup[FunctionDefinition]):
 class State(InheritableNode):
     def __init__(
         self,
-        function_group: FunctionDefinitionGroup,
+        definition_group: StateDefinitionGroup,
         args_outer_group: PartialArgsOuterGroup,
         scratch_group: ScratchGroup,
     ):
-        super().__init__(function_group, args_outer_group, scratch_group)
+        super().__init__(definition_group, args_outer_group, scratch_group)
 
     @property
-    def function_group(self) -> FunctionDefinitionGroup:
-        function_group = self.args[0]
-        assert isinstance(function_group, FunctionDefinitionGroup)
-        return function_group
+    def definition_group(self) -> StateDefinitionGroup:
+        definition_group = self.args[0]
+        return typing.cast(StateDefinitionGroup, definition_group)
 
     @property
     def args_outer_group(self) -> PartialArgsOuterGroup:
@@ -154,12 +157,12 @@ class State(InheritableNode):
     @classmethod
     def from_raw(
         cls,
-        functions: tuple[FunctionDefinition, ...],
+        definitions: tuple[StateDefinition, ...],
         args_outer_groups: tuple[PartialArgsGroup, ...],
         scratchs: tuple[INode, ...],
     ) -> typing.Self:
         return cls(
-            FunctionDefinitionGroup.from_items(functions),
+            StateDefinitionGroup.from_items(definitions),
             PartialArgsOuterGroup.from_items(args_outer_groups),
             ScratchGroup.from_raw_items(scratchs))
 
@@ -186,23 +189,23 @@ class IStateIndex(ITypedIndex[State, T], typing.Generic[T]):
 class StateIntIndex(ABC, Integer, IStateIndex[T], ITypedIntIndex[State, T], typing.Generic[T]):
     pass
 
-class StateDefinitionIndex(StateIntIndex[FunctionDefinition]):
+class StateDefinitionIndex(StateIntIndex[StateDefinition]):
 
     @classmethod
     def item_type(cls):
-        return FunctionDefinition
+        return StateDefinition
 
-    def find_in_outer_node(self, node: State) -> FunctionDefinition | None:
-        return self.find_arg(node.function_group)
+    def find_in_outer_node(self, node: State) -> StateDefinition | None:
+        return self.find_arg(node.definition_group)
 
-    def replace_in_outer_target(self, target: State, new_node: FunctionDefinition) -> State | None:
-        definitions = list(target.function_group.as_tuple)
-        for i, _ in enumerate(definitions):
+    def replace_in_outer_target(self, target: State, new_node: StateDefinition) -> State | None:
+        definitions = list(target.definition_group.as_tuple)
+        for i, definition in enumerate(definitions):
             if self.value == (i+1):
-                assert new_node.function_id == definitions[i].function_id
+                assert new_node.definition_key == definition.definition_key
                 definitions[i] = new_node
                 return State(
-                    function_group=FunctionDefinitionGroup.from_items(definitions),
+                    definition_group=StateDefinitionGroup.from_items(definitions),
                     args_outer_group=target.args_outer_group,
                     scratch_group=target.scratch_group)
         return target
@@ -221,7 +224,7 @@ class StateScratchIndex(StateIntIndex[Scratch]):
         if group is None:
             return None
         return State(
-            function_group=target.function_group,
+            definition_group=target.definition_group,
             args_outer_group=target.args_outer_group,
             scratch_group=group)
 
@@ -252,7 +255,7 @@ class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup]):
         if group is None:
             return None
         return State(
-            function_group=target.function_group,
+            definition_group=target.definition_group,
             args_outer_group=group,
             scratch_group=target.scratch_group)
 

@@ -972,7 +972,7 @@ class ExceptionInfoWrapper(InheritableNode, IExceptionInfo):
         return typing.cast(IExceptionInfo, info)
 
 ###########################################################
-###################### BOOLEAN NODES ######################
+################### CORE BOOLEAN NODES ####################
 ###########################################################
 
 class Not(InheritableNode, IBoolean):
@@ -1046,16 +1046,4 @@ class IsInsideRange(InheritableNode, IBoolean):
 
 BASIC_NODE_TYPES: tuple[type[INode], ...] = (
     INode,
-    BaseNode,
-    Void,
-    Integer,
-    Param,
-    Var,
-    TypeNode,
-    InheritableNode,
-    IBoolean,
-    FunctionExpr,
-    CountableTypeGroup,
-    DefaultGroup,
-    OptionalValueGroup,
 )

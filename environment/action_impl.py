@@ -64,7 +64,7 @@ class CreateScratchOutput(ScratchBaseActionOutput):
         scratch_group = state.scratch_group
         new_args = list(scratch_group.as_tuple) + [Scratch.with_content(self.node)]
         return State(
-            function_group=state.function_group,
+            definition_group=state.definition_group,
             args_outer_group=state.args_outer_group,
             scratch_group=scratch_group.func(*new_args),
         )
@@ -422,7 +422,7 @@ class CreateArgsGroupOutput(ActionOutput):
         new_args = list(args_group.as_tuple) + [new_args_group]
 
         return State(
-            function_group=state.function_group,
+            definition_group=state.definition_group,
             args_outer_group=args_group.func(*new_args),
             scratch_group=state.scratch_group,
         )
