@@ -293,7 +293,7 @@ class CreateScratchFromFunction(BaseAction[CreateScratchOutput]):
 
         return CreateScratchOutput(index, node)
 
-class CreateScratchGeneral(BaseAction[CreateScratchOutput]):
+class CreateScratchDynamicAction(BaseAction[CreateScratchOutput]):
 
     def __init__(self, node: INode):
         super().__init__(node)
