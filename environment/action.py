@@ -1,5 +1,4 @@
 import typing
-from abc import ABC
 from environment.core import (
     INode,
     NodeMainIndex,
@@ -11,7 +10,8 @@ from environment.core import (
     IFunction,
     OptionalValueGroup,
     OpaqueScope,
-    IInt)
+    IExceptionInfo,
+    ExceptionInfoWrapper)
 from environment.state import (
     State,
     Scratch,
@@ -27,11 +27,6 @@ class ActionOutput(InheritableNode):
 T = typing.TypeVar('T', bound=INode)
 O = typing.TypeVar('O', bound=ActionOutput)
 
-class IExceptionInfo(INode, ABC):
-
-    def as_exception(self):
-        raise InvalidActionException(self)
-
 class InvalidActionException(Exception):
 
     def __init__(self, info: IExceptionInfo):
@@ -41,38 +36,6 @@ class InvalidActionException(Exception):
     def info(self) -> IExceptionInfo:
         info = self.args[0]
         return typing.cast(IExceptionInfo, info)
-
-class ExceptionInfoWrapper(InheritableNode, IExceptionInfo):
-
-    def __init__(self, info: IExceptionInfo):
-        super().__init__(info)
-
-    @property
-    def info(self) -> IExceptionInfo:
-        info = self.args[0]
-        return typing.cast(IExceptionInfo, info)
-
-class EmptyExceptionInfo(InheritableNode, IExceptionInfo):
-
-    def __init__(self):
-        super().__init__()
-
-    @classmethod
-    def verify(cls, value: T | None) -> T:
-        if value is None:
-            raise InvalidActionException(cls())
-        return value
-
-class OutsideRangeExceptionInfo(InheritableNode, IExceptionInfo):
-
-    def __init__(self, value: IInt, min_value: IInt, max_value: IInt):
-        super().__init__(value, min_value, max_value)
-
-    @classmethod
-    def verify(cls, value: IInt, min_value: int, max_value: int):
-        if not min_value <= value.to_int <= max_value:
-            raise InvalidActionException(
-                cls(value, Integer(min_value), Integer(max_value)))
 
 class ActionInputExceptionInfo(ExceptionInfoWrapper):
     pass
@@ -110,6 +73,7 @@ class FullActionOutput(InheritableNode, typing.Generic[O]):
         return typing.cast(State, new_state)
 
 class BaseAction(InheritableNode, typing.Generic[O]):
+
     def _run(self, state: State) -> O:
         raise NotImplementedError
 
@@ -501,7 +465,7 @@ class CreateArgsGroupOutput(ActionOutput):
 
         assert index.value == len(state.args_outer_group.as_tuple) + 1
         for arg in new_args_group.scope.child.as_tuple:
-            arg.validate()
+            arg.as_node.validate()
 
         args_group = state.args_outer_group
         new_args = list(args_group.as_tuple) + [new_args_group]

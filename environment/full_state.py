@@ -1,18 +1,22 @@
 import typing
 from utils.logger import logger
-from environment.core import Optional, InheritableNode, BaseGroup, Integer
+from environment.core import (
+    Optional,
+    InheritableNode,
+    BaseGroup,
+    IsEmpty,
+    IOptional,
+    IsInsideRange,
+    InvalidNodeException,
+    IExceptionInfo)
 from environment.state import State
 from environment.action import (
     BaseAction,
-    ActionOutput,
-    InvalidActionException,
-    IExceptionInfo,
-    EmptyExceptionInfo,
-    OutsideRangeExceptionInfo)
+    ActionOutput)
 from environment.meta_env import MetaInfo, ActionData
 
 class HistoryNode(InheritableNode):
-    def __init__(self, state: State, action_data: Optional[ActionData]):
+    def __init__(self, state: State, action_data: IOptional[ActionData]):
         super().__init__(state, action_data)
 
     @property
@@ -21,9 +25,9 @@ class HistoryNode(InheritableNode):
         return typing.cast(State, state)
 
     @property
-    def action_data(self) -> Optional[ActionData]:
+    def action_data(self) -> IOptional[ActionData]:
         action_data = self.args[1]
-        return typing.cast(Optional[ActionData], action_data)
+        return typing.cast(IOptional[ActionData], action_data)
 
 class HistoryGroupNode(BaseGroup[HistoryNode]):
 
@@ -50,7 +54,7 @@ class FullStateNode(InheritableNode):
         history = self.args[2]
         return typing.cast(HistoryGroupNode, history)
 
-    def run_action(self, action_wrapper: Optional[BaseAction]) -> typing.Self:
+    def run_action(self, action_wrapper: IOptional[BaseAction]) -> typing.Self:
         last_state = self.current.state
         assert isinstance(last_state, State)
 
@@ -60,22 +64,22 @@ class FullStateNode(InheritableNode):
 
         try:
             action = action_wrapper.value
-            action = EmptyExceptionInfo.verify(action)
+            action = IsEmpty.with_optional(action).value_or_raise
 
             allowed_actions = self.meta.allowed_actions
             min_index = 1
             max_index = len(allowed_actions.subtypes.as_tuple)
             action_type = allowed_actions.subtypes.as_tuple.index(action.wrap_type()) + 1
-            OutsideRangeExceptionInfo.verify(
-                value=Integer(action_type),
+            IsInsideRange.from_raw(
+                value=action_type,
                 min_value=min_index,
                 max_value=max_index,
-            )
+            ).raise_on_false()
 
             full_output = action.run(last_state)
             output = full_output.output
             next_state = full_output.new_state
-        except InvalidActionException as e:
+        except InvalidNodeException as e:
             logger.debug(f"Invalid action: {e}")
             next_state = last_state
             exception = e.info

@@ -25,6 +25,10 @@ class IDefault(INode):
 
     @classmethod
     def create(cls) -> typing.Self:
+        return cls.new()
+
+    @property
+    def as_node(self) -> BaseNode:
         raise NotImplementedError()
 
 class IFromInt(INode):
@@ -54,14 +58,52 @@ class INodeIndex(INode):
 T = typing.TypeVar('T', bound=INode)
 INT = typing.TypeVar('INT', bound=IInt)
 
-class ISingleChild(INode, typing.Generic[T]):
+class IFromSingleChild(INode, typing.Generic[T]):
 
     @classmethod
     def with_child(cls, child: T) -> typing.Self:
+        return cls.new(child)
+
+    @property
+    def as_node(self) -> BaseNode:
+        raise NotImplementedError()
+
+class ISingleChild(IFromSingleChild, typing.Generic[T]):
+
+    @property
+    def child(self) -> T:
+        raise NotImplementedError()
+
+class IOptional(IDefault, ISingleChild[T], typing.Generic[T]):
+
+    @property
+    def value(self) -> T | None:
         raise NotImplementedError()
 
     @property
     def child(self) -> T:
+        value = self.value
+        assert value is not None
+        return value
+
+    def value_or_else(self, default_value: T) -> T:
+        value = self.value
+        if value is None:
+            value = default_value
+        return value
+
+    def value_or_raise(self) -> T:
+        value = IsEmpty(self).value_or_raise
+        return value
+
+class ISingleOptionalChild(ISingleChild[IOptional[T]], typing.Generic[T]):
+
+    @classmethod
+    def with_optional(cls, child: T | None) -> typing.Self:
+        return cls.with_child(Optional(child))
+
+    @property
+    def child(self) -> IOptional[T]:
         raise NotImplementedError()
 
 class IGroup(INode, typing.Generic[T]):
@@ -92,6 +134,10 @@ class IBoolean(INode):
     @property
     def value(self) -> bool | None:
         raise NotImplementedError
+
+    def raise_on_false(self):
+        if self.value is False:
+            raise InvalidNodeException(BooleanExceptionInfo(self))
 
 ###########################################################
 ######################## BASE NODE ########################
@@ -375,15 +421,7 @@ class UnknownType(TypeNode[INode], IDefault):
     def __init__(self):
         super().__init__(self.__class__)
 
-class Optional(BaseNode, IDefault, ISingleChild[T], typing.Generic[T]):
-
-    @classmethod
-    def create(cls) -> typing.Self:
-        return cls()
-
-    @classmethod
-    def with_child(cls, child: T) -> typing.Self:
-        return cls(child)
+class Optional(BaseNode, IOptional[T], typing.Generic[T]):
 
     def __init__(self, value: T | None = None):
         if value is not None:
@@ -398,18 +436,6 @@ class Optional(BaseNode, IDefault, ISingleChild[T], typing.Generic[T]):
             return None
         value = self.args[0]
         return typing.cast(T, value)
-
-    def value_or_else(self, default_value: T) -> T:
-        value = self.value
-        if value is None:
-            value = default_value
-        return value
-
-    @property
-    def child(self) -> T:
-        value = self.value
-        assert value is not None
-        return value
 
 ###########################################################
 ########################## SCOPE ##########################
@@ -671,7 +697,7 @@ class DefaultGroup(BaseGroup[INode]):
     def item_type(cls):
         return INode
 
-class OptionalValueGroup(BaseGroup[Optional[T]], IFromInt, typing.Generic[T]):
+class OptionalValueGroup(BaseGroup[IOptional[T]], IFromInt, typing.Generic[T]):
 
     @classmethod
     def from_int(cls, value: int) -> typing.Self:
@@ -679,7 +705,7 @@ class OptionalValueGroup(BaseGroup[Optional[T]], IFromInt, typing.Generic[T]):
 
     @classmethod
     def item_type(cls):
-        return Optional[T]
+        return IOptional[T]
 
     @classmethod
     def from_optional_items(cls, items: typing.Sequence[T | None]) -> typing.Self:
@@ -755,7 +781,7 @@ class ExtendedTypeGroup(InheritableNode, typing.Generic[T]):
             raise ValueError(f"Invalid group type: {group}")
 
     @classmethod
-    def default(cls, amount: Optional[INT]) -> ExtendedTypeGroup[UnknownType]:
+    def default(cls, amount: IOptional[INT]) -> ExtendedTypeGroup[UnknownType]:
         value = amount.value.to_int if amount.value is not None else None
         if value is None:
             return ExtendedTypeGroup(RestTypeGroup(TypeNode(UnknownType)))
@@ -895,6 +921,120 @@ class FunctionDefinition(InheritableNode, IFunction[T], typing.Generic[T]):
     def expand(self, call: FunctionCall) -> INode:
         assert call.function_id == self.function_id
         return self.function.with_args(*call.arg_group.as_tuple)
+
+###########################################################
+######################## EXCEPTION ########################
+###########################################################
+
+class IExceptionInfo(INode, ABC):
+
+    def as_exception(self):
+        raise InvalidNodeException(self)
+
+class BooleanExceptionInfo(InheritableNode, IExceptionInfo, IBoolean):
+
+    def __init__(self, value: IBoolean):
+        super().__init__(value)
+
+    @property
+    def value(self) -> bool | None:
+        value = self.args[0]
+        if not isinstance(value, IBoolean):
+            return None
+        return value.value
+
+class InvalidNodeException(Exception):
+
+    def __init__(self, info: IExceptionInfo):
+        super().__init__(info)
+
+    @property
+    def info(self) -> IExceptionInfo:
+        info = self.args[0]
+        return typing.cast(IExceptionInfo, info)
+
+###########################################################
+######################## EXCEPTION ########################
+###########################################################
+
+class ExceptionInfoWrapper(InheritableNode, IExceptionInfo):
+
+    def __init__(self, info: IExceptionInfo):
+        super().__init__(info)
+
+    @property
+    def info(self) -> IExceptionInfo:
+        info = self.args[0]
+        return typing.cast(IExceptionInfo, info)
+
+###########################################################
+###################### BOOLEAN NODES ######################
+###########################################################
+
+class Not(InheritableNode, IBoolean):
+
+    def __init__(self, value: IBoolean):
+        super().__init__(value)
+
+    @property
+    def value(self) -> bool | None:
+        value = self.args[0]
+        if not isinstance(value, IBoolean):
+            return None
+        if value.value is None:
+            return None
+        return not value.value
+
+class IsEmpty(InheritableNode, IBoolean, ISingleOptionalChild[T], typing.Generic[T]):
+
+    def __init__(self, value: IOptional[T]):
+        super().__init__(value)
+
+    @classmethod
+    def with_optional(cls, child: T | None) -> typing.Self:
+        return cls(Optional(child))
+
+    @property
+    def child(self) -> IOptional[T]:
+        value = self.value
+        return typing.cast(IOptional[T], value)
+
+    @property
+    def value(self) -> bool | None:
+        value = self.args[0]
+        if not isinstance(value, IOptional):
+            return None
+        return value.value is None
+
+    @property
+    def value_or_raise(self) -> T:
+        value = self.child.value
+        if value is None:
+            raise InvalidNodeException(BooleanExceptionInfo(self))
+        return value
+
+class IsInsideRange(InheritableNode, IBoolean):
+
+    def __init__(self, value: IInt, min_value: IInt, max_value: IInt):
+        super().__init__(value, min_value, max_value)
+
+    @classmethod
+    def from_raw(cls, value: int | IInt, min_value: int, max_value: int) -> typing.Self:
+        v = Integer(value) if isinstance(value, int) else value
+        return cls(v, Integer(min_value), Integer(max_value))
+
+    @property
+    def value(self) -> bool | None:
+        value = self.args[0]
+        if not isinstance(value, IInt):
+            return None
+        min_value = self.args[1]
+        if not isinstance(min_value, IInt):
+            return None
+        max_value = self.args[2]
+        if not isinstance(max_value, IInt):
+            return None
+        return min_value.to_int <= value.to_int <= max_value.to_int
 
 ###########################################################
 ####################### BASIC NODES #######################

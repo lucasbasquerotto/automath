@@ -13,9 +13,11 @@ from environment.core import (
     INode,
     BaseGroup,
     TypeNode,
-    Optional)
+    Optional,
+    IOptional,
+    IExceptionInfo)
 from environment.state import State
-from environment.action import BaseAction, ActionOutput, IExceptionInfo
+from environment.action import BaseAction, ActionOutput
 
 T = typing.TypeVar('T', bound=INode)
 
@@ -26,26 +28,26 @@ class GoalNode(InheritableNode):
 class ActionData(InheritableNode):
     def __init__(
         self,
-        action: Optional[BaseAction],
-        output: Optional[ActionOutput],
-        exception: Optional[IExceptionInfo],
+        action: IOptional[BaseAction],
+        output: IOptional[ActionOutput],
+        exception: IOptional[IExceptionInfo],
     ):
         super().__init__(action, output, exception)
 
     @property
-    def action(self) -> Optional[BaseAction]:
+    def action(self) -> IOptional[BaseAction]:
         action = self.args[0]
-        return typing.cast(Optional[BaseAction], action)
+        return typing.cast(IOptional[BaseAction], action)
 
     @property
-    def output(self) -> Optional[ActionOutput]:
+    def output(self) -> IOptional[ActionOutput]:
         output = self.args[1]
-        return typing.cast(Optional[ActionOutput], output)
+        return typing.cast(IOptional[ActionOutput], output)
 
     @property
-    def exception(self) -> Optional[IExceptionInfo]:
+    def exception(self) -> IOptional[IExceptionInfo]:
         exception = self.args[2]
-        return typing.cast(Optional[IExceptionInfo], exception)
+        return typing.cast(IOptional[IExceptionInfo], exception)
 
 class GeneralTypeGroup(BaseGroup[TypeNode[T]], typing.Generic[T]):
 
@@ -112,14 +114,14 @@ class SubtypeOuterGroup(InheritableNode, typing.Generic[T]):
 class MetaInfoOptions(InheritableNode, IDefault):
     def __init__(
         self,
-        max_history_state_size: Optional[IInt],
+        max_history_state_size: IOptional[IInt],
     ):
         super().__init__(max_history_state_size)
 
     @property
-    def max_history_state_size(self) -> Optional[IInt]:
+    def max_history_state_size(self) -> IOptional[IInt]:
         max_history_state_size = self.args[0]
-        return typing.cast(Optional[IInt], max_history_state_size)
+        return typing.cast(IOptional[IInt], max_history_state_size)
 
     @classmethod
     def create(cls) -> typing.Self:
