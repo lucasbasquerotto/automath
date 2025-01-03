@@ -98,24 +98,24 @@ class CreateScratchFromNode(BaseAction[CreateScratchOutput], BasicActionGenerato
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
-        state_index = NodeMainIndex(arg1)
+        node_index = NodeMainIndex(arg1)
         assert arg2 == 0
         assert arg3 == 0
-        return cls(state_index)
+        return cls(node_index)
 
-    def __init__(self, state_index: NodeMainIndex):
-        assert isinstance(state_index, NodeMainIndex)
-        super().__init__(state_index)
+    def __init__(self, node_index: NodeMainIndex):
+        assert isinstance(node_index, NodeMainIndex)
+        super().__init__(node_index)
 
     @property
-    def state_index(self) -> NodeMainIndex:
-        state_index = self.args[0]
-        assert isinstance(state_index, NodeMainIndex)
-        return state_index
+    def node_index(self) -> NodeMainIndex:
+        node_index = self.args[0]
+        assert isinstance(node_index, NodeMainIndex)
+        return node_index
 
     def _run(self, full_state: FullState) -> CreateScratchOutput:
         state = full_state.current.state
-        node = self.state_index.from_node(state)
+        node = self.node_index.from_node(full_state)
         assert node is not None
         index = StateScratchIndex(len(state.scratch_group.as_tuple))
         return CreateScratchOutput(index, node)
@@ -148,7 +148,7 @@ class CreateScratchFromFunction(BaseAction[CreateScratchOutput], BasicActionGene
 
     def _run(self, full_state: FullState) -> CreateScratchOutput:
         state = full_state.current.state
-        function = self.function_index.from_node(state)
+        function = self.function_index.from_node(full_state)
         assert isinstance(function, IFunction)
 
         args_group = self.args_group_index.find_in_state(state)
@@ -176,18 +176,18 @@ class DefineScratchFromNode(BaseAction[DefineScratchOutput], BasicActionGenerato
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
-        state_index = NodeMainIndex(arg2)
+        node_index = NodeMainIndex(arg2)
         assert arg3 == 0
-        return cls(scratch_index, state_index)
+        return cls(scratch_index, node_index)
 
     def __init__(
         self,
         scratch_index: StateScratchIndex,
-        state_index: NodeMainIndex,
+        node_index: NodeMainIndex,
     ):
         assert isinstance(scratch_index, StateScratchIndex)
-        assert isinstance(state_index, NodeMainIndex)
-        super().__init__(scratch_index, state_index)
+        assert isinstance(node_index, NodeMainIndex)
+        super().__init__(scratch_index, node_index)
 
     @property
     def scratch_index(self) -> StateScratchIndex:
@@ -196,10 +196,10 @@ class DefineScratchFromNode(BaseAction[DefineScratchOutput], BasicActionGenerato
         return scratch_index
 
     @property
-    def state_index(self) -> NodeMainIndex:
-        state_index = self.args[1]
-        assert isinstance(state_index, NodeMainIndex)
-        return state_index
+    def node_index(self) -> NodeMainIndex:
+        node_index = self.args[1]
+        assert isinstance(node_index, NodeMainIndex)
+        return node_index
 
     def _run(self, full_state: FullState) -> DefineScratchOutput:
         state = full_state.current.state
@@ -207,7 +207,7 @@ class DefineScratchFromNode(BaseAction[DefineScratchOutput], BasicActionGenerato
         scratch = scratch_index.find_in_state(state)
         assert scratch is not None
 
-        node = self.state_index.from_node(state)
+        node = self.node_index.from_node(full_state)
         assert node is not None
 
         return DefineScratchOutput(scratch_index, node)
@@ -256,7 +256,7 @@ class DefineScratchFromFunction(BaseAction[DefineScratchOutput], BasicActionGene
         scratch = scratch_index.find_in_state(state)
         assert scratch is not None
 
-        function = self.function_index.from_node(state)
+        function = self.function_index.from_node(full_state)
         assert isinstance(function, IFunction)
 
         args_group = self.args_group_index.find_in_state(state)
@@ -272,19 +272,19 @@ class UpdateScratchFromNode(BaseAction[DefineScratchOutput], BasicActionGenerato
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
         scratch_inner_index = ScratchNodeIndex(arg2)
-        state_index = NodeMainIndex(arg3)
-        return cls(scratch_index, scratch_inner_index, state_index)
+        node_index = NodeMainIndex(arg3)
+        return cls(scratch_index, scratch_inner_index, node_index)
 
     def __init__(
         self,
         scratch_index: StateScratchIndex,
         scratch_inner_index: ScratchNodeIndex,
-        state_index: NodeMainIndex,
+        node_index: NodeMainIndex,
     ):
         assert isinstance(scratch_index, StateScratchIndex)
         assert isinstance(scratch_inner_index, ScratchNodeIndex)
-        assert isinstance(state_index, NodeMainIndex)
-        super().__init__(scratch_index, scratch_inner_index, state_index)
+        assert isinstance(node_index, NodeMainIndex)
+        super().__init__(scratch_index, scratch_inner_index, node_index)
 
     @property
     def scratch_index(self) -> StateScratchIndex:
@@ -299,10 +299,10 @@ class UpdateScratchFromNode(BaseAction[DefineScratchOutput], BasicActionGenerato
         return scratch_inner_index
 
     @property
-    def state_index(self) -> NodeMainIndex:
-        state_index = self.args[2]
-        assert isinstance(state_index, NodeMainIndex)
-        return state_index
+    def node_index(self) -> NodeMainIndex:
+        node_index = self.args[2]
+        assert isinstance(node_index, NodeMainIndex)
+        return node_index
 
     def _run(self, full_state: FullState) -> DefineScratchOutput:
         state = full_state.current.state
@@ -310,7 +310,7 @@ class UpdateScratchFromNode(BaseAction[DefineScratchOutput], BasicActionGenerato
         scratch = scratch_index.find_in_state(state)
         assert scratch is not None
 
-        inner_node = self.state_index.from_node(state)
+        inner_node = self.node_index.from_node(full_state)
         assert inner_node is not None
 
         new_scratch = self.scratch_inner_index.replace_target(scratch, inner_node)
@@ -365,7 +365,7 @@ class UpdateScratchFromFunction(BaseAction[DefineScratchOutput]):
         args_group = self.args_group_index.find_in_state(state)
         assert args_group is not None
 
-        function = self.function_index.from_node(state)
+        function = self.function_index.from_node(full_state)
         assert isinstance(function, IFunction)
 
         inner_node = args_group.apply_to(function)
@@ -483,7 +483,7 @@ class CreateArgsGroupDynamicAction(BaseAction[CreateArgsGroupOutput], BasicActio
     def _run(self, full_state: FullState) -> CreateArgsGroupOutput:
         state = full_state.current.state
         node_index = self.node_index
-        new_args_group = node_index.from_node(state)
+        new_args_group = node_index.from_node(full_state)
         assert isinstance(new_args_group, PartialArgsGroup)
 
         index = StateArgsGroupIndex(len(state.args_outer_group.as_tuple))
@@ -593,7 +593,7 @@ class DefineArgsGroupArgFromNodeAction(BaseAction[DefineArgsGroupArgOutput], Bas
         args_group = args_group_index.find_in_state(state)
         assert args_group is not None
 
-        new_arg = node_index.from_node(state)
+        new_arg = node_index.from_node(full_state)
         assert new_arg is not None
 
         return DefineArgsGroupArgOutput(args_group_index, arg_index, new_arg)
