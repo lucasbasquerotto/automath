@@ -18,6 +18,7 @@ from environment.core import (
     IOptional)
 from environment.state import State
 from environment.action import BaseAction
+from environment.full_state import IFullStateIndex, FullStateIntIndex
 
 T = typing.TypeVar('T', bound=INode)
 
@@ -117,6 +118,8 @@ class MetaInfo(InheritableNode):
         from_int_group: SubtypeOuterGroup[IFromInt],
         int_group: SubtypeOuterGroup[IInt],
         node_index_group: SubtypeOuterGroup[INodeIndex],
+        full_state_index_group: SubtypeOuterGroup[IFullStateIndex],
+        full_state_int_index_group: SubtypeOuterGroup[FullStateIntIndex],
         single_child_group: SubtypeOuterGroup[ISingleChild],
         group_outer_group: SubtypeOuterGroup[IGroup],
         function_group: SubtypeOuterGroup[IFunction],
@@ -132,6 +135,8 @@ class MetaInfo(InheritableNode):
             from_int_group,
             int_group,
             node_index_group,
+            full_state_index_group,
+            full_state_int_index_group,
             single_child_group,
             group_outer_group,
             function_group,
@@ -180,28 +185,38 @@ class MetaInfo(InheritableNode):
         return typing.cast(SubtypeOuterGroup[INodeIndex], node_index_group)
 
     @property
+    def full_state_index_group(self) -> SubtypeOuterGroup[IFullStateIndex]:
+        full_state_index_group = self.args[7]
+        return typing.cast(SubtypeOuterGroup[IFullStateIndex], full_state_index_group)
+
+    @property
+    def full_state_int_index_group(self) -> SubtypeOuterGroup[FullStateIntIndex]:
+        full_state_int_index_group = self.args[8]
+        return typing.cast(SubtypeOuterGroup[FullStateIntIndex], full_state_int_index_group)
+
+    @property
     def single_child_group(self) -> SubtypeOuterGroup[ISingleChild]:
-        single_child_group = self.args[7]
+        single_child_group = self.args[9]
         return typing.cast(SubtypeOuterGroup[ISingleChild], single_child_group)
 
     @property
     def group_outer_group(self) -> SubtypeOuterGroup[IGroup]:
-        group_outer_group = self.args[8]
+        group_outer_group = self.args[10]
         return typing.cast(SubtypeOuterGroup[IGroup], group_outer_group)
 
     @property
     def function_group(self) -> SubtypeOuterGroup[IFunction]:
-        function_group = self.args[9]
+        function_group = self.args[11]
         return typing.cast(SubtypeOuterGroup[IFunction], function_group)
 
     @property
     def boolean_group(self) -> SubtypeOuterGroup[IBoolean]:
-        boolean_group = self.args[10]
+        boolean_group = self.args[12]
         return typing.cast(SubtypeOuterGroup[IBoolean], boolean_group)
 
     @property
     def allowed_actions(self) -> SubtypeOuterGroup[BaseAction]:
-        allowed_actions = self.args[11]
+        allowed_actions = self.args[13]
         return typing.cast(SubtypeOuterGroup[BaseAction], allowed_actions)
 
     @classmethod
@@ -217,6 +232,8 @@ class MetaInfo(InheritableNode):
             SubtypeOuterGroup.from_all_types(TypeNode(IFromInt), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IInt), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(INodeIndex), all_types_group),
+            SubtypeOuterGroup.from_all_types(TypeNode(IFullStateIndex), all_types_group),
+            SubtypeOuterGroup.from_all_types(TypeNode(FullStateIntIndex), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(ISingleChild), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IGroup), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IFunction), all_types_group),

@@ -24,7 +24,9 @@ from environment.state import (
     Scratch,
     ScratchGroup,
     PartialArgsGroup,
-    PartialArgsOuterGroup)
+    PartialArgsOuterGroup,
+    StateDefinition,
+    StateDefinitionGroup)
 from environment.meta_env import MetaInfo, IMetaData
 from environment.action import BaseAction
 
@@ -184,6 +186,26 @@ class MetaNodeIndexTypeIndex(FullStateGroupTypeBaseIndex[INodeIndex]):
     def group(cls, full_state: FullState):
         return full_state.meta.node_index_group.subtypes
 
+class MetaFullStateIndexTypeIndex(FullStateGroupTypeBaseIndex[IFullStateIndex]):
+
+    @classmethod
+    def inner_item_type(cls):
+        return IFullStateIndex
+
+    @classmethod
+    def group(cls, full_state: FullState):
+        return full_state.meta.full_state_index_group.subtypes
+
+class MetaFullStateIntIndexTypeIndex(FullStateGroupTypeBaseIndex[FullStateIntIndex]):
+
+    @classmethod
+    def inner_item_type(cls):
+        return IFullStateIndex
+
+    @classmethod
+    def group(cls, full_state: FullState):
+        return full_state.meta.full_state_int_index_group.subtypes
+
 class MetaSingleChildTypeIndex(FullStateGroupTypeBaseIndex[ISingleChild]):
 
     @classmethod
@@ -238,7 +260,7 @@ class MetaAllowedActionsTypeIndex(FullStateGroupTypeBaseIndex[BaseAction]):
 ################## CURRENT STATE INDICES ##################
 ###########################################################
 
-class StateScratchIndex(FullStateReadonlyGroupBaseIndex[Scratch]):
+class CurrentStateScratchIndex(FullStateReadonlyGroupBaseIndex[Scratch]):
 
     @classmethod
     def inner_item_type(cls):
@@ -248,7 +270,7 @@ class StateScratchIndex(FullStateReadonlyGroupBaseIndex[Scratch]):
     def group(cls, full_state: FullState) -> ScratchGroup:
         return full_state.current.state.scratch_group
 
-class StateArgsOuterGroupIndex(FullStateReadonlyGroupBaseIndex[PartialArgsGroup]):
+class CurrentStateArgsOuterGroupIndex(FullStateReadonlyGroupBaseIndex[PartialArgsGroup]):
 
     @classmethod
     def item_type(cls):
@@ -257,3 +279,13 @@ class StateArgsOuterGroupIndex(FullStateReadonlyGroupBaseIndex[PartialArgsGroup]
     @classmethod
     def group(cls, full_state: FullState) -> PartialArgsOuterGroup:
         return full_state.current.state.args_outer_group
+
+class CurrentStateDefinitionIndex(FullStateReadonlyGroupBaseIndex[StateDefinition]):
+
+    @classmethod
+    def item_type(cls):
+        return StateDefinition
+
+    @classmethod
+    def group(cls, full_state: FullState) -> StateDefinitionGroup:
+        return full_state.current.state.definition_group

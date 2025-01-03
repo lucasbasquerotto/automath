@@ -94,6 +94,7 @@ class IOptional(IDefault, ISingleChild[T], typing.Generic[T]):
             value = default_value
         return value
 
+    @property
     def value_or_raise(self) -> T:
         value = IsEmpty(self).value_or_raise
         return value
@@ -994,21 +995,17 @@ class IsEmpty(InheritableNode, IBoolean, ISingleOptionalChild[T], typing.Generic
     def __init__(self, value: IOptional[T]):
         super().__init__(value)
 
-    @classmethod
-    def with_optional(cls, child: T | None) -> typing.Self:
-        return cls(Optional(child))
-
-    @property
-    def child(self) -> IOptional[T]:
-        value = self.value
-        return typing.cast(IOptional[T], value)
-
     @property
     def value(self) -> bool | None:
         value = self.args[0]
         if not isinstance(value, IOptional):
             return None
         return value.value is None
+
+    @property
+    def child(self) -> IOptional[T]:
+        value = self.value
+        return typing.cast(IOptional[T], value)
 
     @property
     def value_or_raise(self) -> T:

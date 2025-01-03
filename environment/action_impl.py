@@ -3,13 +3,18 @@ from environment.core import (
     INode,
     NodeMainIndex,
     NodeArgIndex,
+    IInt,
     Integer,
     Optional,
     ExtendedTypeGroup,
     IFunction,
     OptionalValueGroup,
     OpaqueScope,
-    FunctionCall)
+    FunctionCall,
+    TypeNode,
+    IDefault,
+    IFromInt,
+    IsEmpty)
 from environment.state import (
     State,
     Scratch,
@@ -17,7 +22,13 @@ from environment.state import (
     ScratchNodeIndex,
     StateArgsGroupIndex,
     PartialArgsGroup)
-from environment.full_state import FullState
+from environment.full_state import (
+    FullState,
+    IFullStateIndex,
+    FullStateIntIndex,
+    MetaDefaultTypeIndex,
+    MetaFromIntTypeIndex,
+    MetaFullStateIndexTypeIndex)
 from environment.action import (
     BaseAction,
     ActionOutput)
@@ -69,55 +80,117 @@ class CreateScratchOutput(ScratchBaseActionOutput):
             scratch_group=scratch_group.func(*new_args),
         )
 
-# class CreateScratchFromDefault(BaseAction[CreateScratchOutput], BasicActionGenerator):
-
-#     @classmethod
-#     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
-#         default_index = DefaultTypeIndex(arg1)
-#         assert arg2 == 0
-#         assert arg3 == 0
-#         return cls(default_index)
-
-#     def __init__(self, default_index: DefaultTypeIndex):
-#         assert isinstance(default_index, DefaultTypeIndex)
-#         super().__init__(default_index)
-
-#     @property
-#     def default_index(self) -> DefaultTypeIndex:
-#         default_index = self.args[0]
-#         assert isinstance(default_index, DefaultTypeIndex)
-#         return default_index
-
-#     def run(self, state: State) -> CreateScratchOutput:
-#         node_type = self.default_index.from_node(state)
-#         assert isinstance(node_type, TypeNode) and issubclass(node_type.type, IDefault)
-#         node = node_type.type.create()
-#         index = StateScratchIndex(len(state.scratch_group.as_tuple))
-#         return CreateScratchOutput(index, node)
-
-class CreateScratchFromNode(BaseAction[CreateScratchOutput], BasicActionGenerator):
+class CreateScratchFromDefault(BaseAction[CreateScratchOutput], BasicActionGenerator):
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
-        node_index = NodeMainIndex(arg1)
+        type_index = MetaDefaultTypeIndex(arg1)
         assert arg2 == 0
         assert arg3 == 0
-        return cls(node_index)
+        return cls(type_index)
 
-    def __init__(self, node_index: NodeMainIndex):
-        assert isinstance(node_index, NodeMainIndex)
-        super().__init__(node_index)
+    def __init__(self, type_index: MetaDefaultTypeIndex):
+        super().__init__(type_index)
 
     @property
-    def node_index(self) -> NodeMainIndex:
-        node_index = self.args[0]
-        assert isinstance(node_index, NodeMainIndex)
-        return node_index
+    def type_index(self) -> MetaDefaultTypeIndex:
+        type_index = self.args[0]
+        assert isinstance(type_index, MetaDefaultTypeIndex)
+        return type_index
 
     def _run(self, full_state: FullState) -> CreateScratchOutput:
         state = full_state.current.state
-        node = self.node_index.find_in_node(full_state)
-        assert node is not None
+        node_type = self.type_index.find_in_outer_node(full_state)
+        assert isinstance(node_type, TypeNode) and issubclass(node_type.type, IDefault)
+        node = node_type.type.create()
+        index = StateScratchIndex(len(state.scratch_group.as_tuple))
+        return CreateScratchOutput(index, node)
+
+class CreateScratchFromInt(BaseAction[CreateScratchOutput], BasicActionGenerator):
+
+    @classmethod
+    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+        type_index = MetaFromIntTypeIndex(arg1)
+        index_value = Integer(arg2)
+        assert arg3 == 0
+        return cls(type_index, index_value)
+
+    def __init__(self, type_index: MetaFromIntTypeIndex, index_value: IInt):
+        super().__init__(type_index, index_value)
+
+    @property
+    def type_index(self) -> MetaFromIntTypeIndex:
+        type_index = self.args[0]
+        assert isinstance(type_index, MetaFromIntTypeIndex)
+        return type_index
+
+    @property
+    def index_value(self) -> Integer:
+        index_value = self.args[1]
+        assert isinstance(index_value, Integer)
+        return index_value
+
+    def _run(self, full_state: FullState) -> CreateScratchOutput:
+        state = full_state.current.state
+        node_type = self.type_index.find_in_outer_node(full_state)
+        assert isinstance(node_type, TypeNode) and issubclass(node_type.type, IFromInt)
+        node = node_type.type.from_int(self.index_value.to_int)
+        index = StateScratchIndex(len(state.scratch_group.as_tuple))
+        return CreateScratchOutput(index, node)
+
+class CreateScratchFromIntIndex(BaseAction[CreateScratchOutput], BasicActionGenerator):
+
+    @classmethod
+    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+        type_index = MetaFullStateIndexTypeIndex(arg1)
+        index_value = Integer(arg2)
+        assert arg3 == 0
+        return cls(type_index, index_value)
+
+    def __init__(self, type_index: MetaFullStateIndexTypeIndex, index_value: Integer):
+        super().__init__(type_index, index_value)
+
+    @property
+    def type_index(self) -> MetaFullStateIndexTypeIndex:
+        type_index = self.args[0]
+        assert isinstance(type_index, MetaFullStateIndexTypeIndex)
+        return type_index
+
+    @property
+    def index_value(self) -> Integer:
+        index_value = self.args[1]
+        assert isinstance(index_value, Integer)
+        return index_value
+
+    def _run(self, full_state: FullState) -> CreateScratchOutput:
+        state = full_state.current.state
+        type_index = self.type_index
+        index_value = self.index_value
+        node_type = type_index.find_in_outer_node(full_state)
+        assert isinstance(node_type, TypeNode) and issubclass(node_type.type, FullStateIntIndex)
+        node_index = typing.cast(
+            FullStateIntIndex[INode],
+            node_type.type.from_int(index_value.to_int))
+        node = node_index.find_in_outer_node(full_state)
+        node = IsEmpty.with_optional(node).value_or_raise
+        index = StateScratchIndex(len(state.scratch_group.as_tuple))
+        return CreateScratchOutput(index, node)
+
+class CreateScratchFromIndex(BaseAction[CreateScratchOutput]):
+
+    def __init__(self, node_index: IFullStateIndex[INode]):
+        super().__init__(node_index)
+
+    @property
+    def node_index(self) -> IFullStateIndex[INode]:
+        node_index = self.args[0]
+        return typing.cast(IFullStateIndex[INode], node_index)
+
+    def _run(self, full_state: FullState) -> CreateScratchOutput:
+        state = full_state.current.state
+        node_index = self.node_index
+        node = node_index.find_in_outer_node(full_state)
+        node = IsEmpty.with_optional(node).value_or_raise
         index = StateScratchIndex(len(state.scratch_group.as_tuple))
         return CreateScratchOutput(index, node)
 
@@ -125,42 +198,77 @@ class CreateScratchFromFunction(BaseAction[CreateScratchOutput], BasicActionGene
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
-        function_index = NodeMainIndex(arg1)
-        args_group_index = StateArgsGroupIndex(arg2)
-        assert arg3 == 0
-        return cls(function_index, args_group_index)
+        type_index = MetaFullStateIndexTypeIndex(arg1)
+        index_value = Integer(arg2)
+        args_group_index = StateArgsGroupIndex(arg3)
+        return cls(type_index, index_value, args_group_index)
 
-    def __init__(self, function_index: NodeMainIndex, args_group_index: StateArgsGroupIndex):
-        assert isinstance(function_index, NodeMainIndex)
-        assert isinstance(args_group_index, StateArgsGroupIndex)
-        super().__init__(function_index, args_group_index)
+    def __init__(
+        self,
+        type_index: MetaFullStateIndexTypeIndex,
+        index_value: Integer,
+        args_group_index: StateArgsGroupIndex,
+    ):
+        super().__init__(type_index, index_value, args_group_index)
 
     @property
-    def function_index(self) -> NodeMainIndex:
-        function_index = self.args[0]
-        assert isinstance(function_index, NodeMainIndex)
-        return function_index
+    def type_index(self) -> MetaFullStateIndexTypeIndex:
+        type_index = self.args[0]
+        assert isinstance(type_index, MetaFullStateIndexTypeIndex)
+        return type_index
+
+    @property
+    def index_value(self) -> Integer:
+        index_value = self.args[1]
+        assert isinstance(index_value, Integer)
+        return index_value
 
     @property
     def args_group_index(self) -> StateArgsGroupIndex:
-        args_group_index = self.args[1]
+        args_group_index = self.args[2]
         assert isinstance(args_group_index, StateArgsGroupIndex)
         return args_group_index
 
     def _run(self, full_state: FullState) -> CreateScratchOutput:
         state = full_state.current.state
-        function = self.function_index.find_in_node(full_state)
-        assert isinstance(function, IFunction)
+        type_index = self.type_index
+        index_value = self.index_value
+        node_type = type_index.find_in_outer_node(full_state)
+        assert isinstance(node_type, TypeNode) and issubclass(node_type.type, FullStateIntIndex)
+        node_index = typing.cast(
+            FullStateIntIndex[INode],
+            node_type.type.from_int(index_value.to_int))
+        function_node = node_index.find_in_outer_node(full_state)
+        function_node = Optional(function_node).value_or_raise
 
         args_group = self.args_group_index.find_in_outer_node(state)
         assert isinstance(args_group, PartialArgsGroup)
 
-        function.as_node.validate()
+        function_node.as_node.validate()
         args_group.validate()
-        node = FunctionCall(function, args_group.inner_args_group.fill_with_void())
+        node = FunctionCall(
+            typing.cast(IFunction, function_node),
+            args_group.inner_args_group.fill_with_void())
 
         index = StateScratchIndex(len(state.scratch_group.as_tuple))
 
+        return CreateScratchOutput(index, node)
+
+class CreateScratchGeneral(BaseAction[CreateScratchOutput]):
+
+    def __init__(self, node: INode):
+        super().__init__(node)
+
+    @property
+    def node(self) -> INode:
+        node = self.args[0]
+        assert isinstance(node, INode)
+        return node
+
+    def _run(self, full_state: FullState) -> CreateScratchOutput:
+        state = full_state.current.state
+        node = self.node
+        index = StateScratchIndex(len(state.scratch_group.as_tuple))
         return CreateScratchOutput(index, node)
 
 ###########################################################
