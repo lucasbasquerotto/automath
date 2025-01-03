@@ -2,7 +2,7 @@
 from environment.core import (
     NodeMainIndex,
     Param,
-    Function,
+    FunctionExpr,
     FunctionParams,
     ParamsGroup,
     ArgsGroup,
@@ -147,7 +147,7 @@ class PartialActionOutput:
         self,
         partial_definition_idx: int,
         node_idx: int,
-        new_function_info: Function,
+        new_function_info: FunctionExpr,
         new_expr_arg_group: ParamsArgsGroup | None,
     ):
         self._partial_definition_idx = partial_definition_idx
@@ -164,7 +164,7 @@ class PartialActionOutput:
         return self._node_idx
 
     @property
-    def new_function_info(self) -> Function:
+    def new_function_info(self) -> FunctionExpr:
         return self._new_function_info
 
     @property
@@ -202,7 +202,7 @@ class ArgFromExprActionOutput:
         self,
         arg_group_idx: int,
         arg_idx: int,
-        new_function_info: Function,
+        new_function_info: FunctionExpr,
     ):
         self._arg_group_idx = arg_group_idx
         self._arg_idx = arg_idx
@@ -217,7 +217,7 @@ class ArgFromExprActionOutput:
         return self._arg_idx
 
     @property
-    def new_function_info(self) -> Function:
+    def new_function_info(self) -> FunctionExpr:
         return self._new_function_info
 
 class RemoveArgGroupActionOutput:
@@ -268,7 +268,7 @@ class ExpandDefinitionActionOutput:
         return self._expr_id
 
 class ReformulationActionOutput:
-    def __init__(self, expr_id: int, new_function_info: Function):
+    def __init__(self, expr_id: int, new_function_info: FunctionExpr):
         self._expr_id = expr_id
         self._new_function_info = new_function_info
 
@@ -277,7 +277,7 @@ class ReformulationActionOutput:
         return self._expr_id
 
     @property
-    def new_function_info(self) -> Function:
+    def new_function_info(self) -> FunctionExpr:
         return self._new_function_info
 
 ActionOutput = (
@@ -461,7 +461,7 @@ class Action:
         raise NotImplementedError
 
     def from_index(self, index: INodeIndex, node: BaseNode) -> BaseNode:
-        result = index.from_node(node)
+        result = index.find_in_node(node)
         if result is None:
             raise InvalidActionArgException(f"Empty result from index: {index}")
         return result
@@ -472,7 +472,7 @@ class Action:
         target_node: BaseNode,
         new_node: BaseNode,
     ) -> BaseNode:
-        result = index.replace_target(target_node, new_node)
+        result = index.replace_in_target(target_node, new_node)
         if result is None:
             raise InvalidActionArgException(f"Target with index [{index}] not replaced")
         return result
@@ -533,7 +533,7 @@ class Action:
                 return state.change_partial_definition(
                     partial_definition_idx=partial_definition_idx,
                     node_idx=node_idx,
-                    new_function_info=Function(
+                    new_function_info=FunctionExpr(
                         new_expr,
                         FunctionParams(*new_expr_args.outer_params)))
             else:
@@ -680,7 +680,7 @@ class Action:
 
             return state.apply_new_expr(
                 expr_id=expr_id,
-                new_function_info=Function(key, FunctionParams()))
+                new_function_info=FunctionExpr(key, FunctionParams()))
         elif isinstance(output, ExpandDefinitionActionOutput):
             definition_idx = output.definition_idx
             expr_id = output.expr_id
@@ -809,11 +809,11 @@ class ValueTypeBaseAction(Action):
     def _output(self, state: State) -> ActionOutput:
         raise NotImplementedError
 
-    def get_function_info(self, state: State) -> Function:
+    def get_function_info(self, state: State) -> FunctionExpr:
         if self.value_type == VALUE_TYPE_INT:
-            return Function(Param(self.value), FunctionParams())
+            return FunctionExpr(Param(self.value), FunctionParams())
         elif self.value_type == VALUE_TYPE_PARAM:
-            return Function(Param(self.value), FunctionParams())
+            return FunctionExpr(Param(self.value), FunctionParams())
         elif self.value_type == VALUE_TYPE_META_DEFINITION:
             raise NotImplementedError
         elif self.value_type == VALUE_TYPE_META_PROPOSITION:
@@ -830,7 +830,7 @@ class ValueTypeBaseAction(Action):
             function_info = definition_node.function_info
             # TODO instantiate the type of key (use wrap)
             # when replacing the key, also replace the wrapper
-            return Function(definition_key, function_info.params)
+            return FunctionExpr(definition_key, function_info.params)
         elif self.value_type == VALUE_TYPE_DEFINITION_EXPR:
             definition_idx = self.value
             definitions = state.definitions.as_tuple
@@ -1022,7 +1022,7 @@ class PartialDefinitionBaseAction(Action):
     def get_partial_definition_info(
         self,
         state: State,
-    ) -> tuple[Function | None, Function | None, int | None]:
+    ) -> tuple[FunctionExpr | None, FunctionExpr | None, int | None]:
         partial_definition_idx = self.partial_definition_idx
         partial_definitions_list = list(state.partial_definitions.as_tuple)
 
@@ -1047,11 +1047,11 @@ class PartialDefinitionBaseAction(Action):
             root=root_info.expr,
             node_idx=self.node_idx)
         function_info = (
-            Function(expr, root_info.params)
+            FunctionExpr(expr, root_info.params)
             if expr is not None
             else None)
         parent_function_info = (
-            Function(parent_expr, root_info.params)
+            FunctionExpr(parent_expr, root_info.params)
             if parent_expr is not None
             else None)
 

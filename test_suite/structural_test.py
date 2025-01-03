@@ -1,5 +1,5 @@
 import numpy as np
-from environment.core import Function, FunctionParams, Param
+from environment.core import FunctionExpr, FunctionParams, Param
 from environment.full_state_old import (
     UNDEFINED_OR_EMPTY_FIELD,
     HISTORY_TYPE_META,
@@ -64,7 +64,7 @@ def test_env():
     params = (Param(1), Param(2), Param(3))
     p1, p2, p3 = params
     goal = HaveDefinition(
-        Function(
+        FunctionExpr(
             OrNode(
                 AndNode(p1, p2, TrueNode()),
                 AndNode(p2, p3),

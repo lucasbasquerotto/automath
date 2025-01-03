@@ -45,10 +45,10 @@ class IInt(IFromInt):
 
 class INodeIndex(INode):
 
-    def from_node(self, node: INode) -> INode | None:
+    def find_in_node(self, node: INode) -> INode | None:
         raise NotImplementedError
 
-    def replace_target(
+    def replace_in_target(
         self,
         target_node: INode,
         new_node: INode,
@@ -56,6 +56,8 @@ class INodeIndex(INode):
         raise NotImplementedError
 
 T = typing.TypeVar('T', bound=INode)
+O = typing.TypeVar('O', bound=INode)
+K = typing.TypeVar('K', bound=INode)
 INT = typing.TypeVar('INT', bound=IInt)
 
 class IFromSingleChild(INode, typing.Generic[T]):
@@ -120,14 +122,8 @@ class IGroup(INode, typing.Generic[T]):
     def from_items(cls, items: typing.Sequence[T]) -> typing.Self:
         return cls(*items)
 
-class IFunction(INode, typing.Generic[T]):
-
-    @property
-    def scope(self) -> SimpleScope[T]:
-        raise NotImplementedError
-
-    def with_args(self, *args: INode) -> INode:
-        raise NotImplementedError()
+class IFunction(ABC, INode):
+    pass
 
 class IBoolean(INode):
 
@@ -138,6 +134,51 @@ class IBoolean(INode):
     def raise_on_false(self):
         if self.value is False:
             raise InvalidNodeException(BooleanExceptionInfo(self))
+
+
+class ITypedIndex(INodeIndex, typing.Generic[O, T]):
+
+    @classmethod
+    def outer_type(cls) -> type[O]:
+        raise NotImplementedError
+
+    @classmethod
+    def item_type(cls) -> type[T]:
+        raise NotImplementedError
+
+    def find_in_node(self, node: INode) -> INode | None:
+        assert isinstance(node, self.outer_type())
+        return self.find_in_outer_node(node)
+
+    def replace_in_target(self, target_node: INode, new_node: INode) -> INode | None:
+        assert isinstance(target_node, self.outer_type())
+        assert isinstance(new_node, self.item_type())
+        return self.replace_in_outer_target(target_node, new_node)
+
+    def find_in_outer_node(self, node: O) -> T | None:
+        raise NotImplementedError
+
+    def replace_in_outer_target(self, target: O, new_node: T) -> O | None:
+        raise NotImplementedError
+
+class ITypedIntIndex(IInt, ITypedIndex[O, T], typing.Generic[O, T]):
+
+    @classmethod
+    def outer_type(cls) -> type[O]:
+        raise NotImplementedError
+
+    def find_arg(self, node: INode) -> T | None:
+        result = NodeArgIndex(self.to_int).find_in_node(node)
+        if result is None:
+            return None
+        assert isinstance(result, self.item_type())
+        return result
+
+    def replace_arg(self, target: K, new_node: T) -> K | None:
+        result = NodeArgIndex(self.to_int).replace_in_target(target, new_node)
+        if result is None:
+            return None
+        return result
 
 ###########################################################
 ######################## BASE NODE ########################
@@ -201,10 +242,10 @@ class BaseNode(INode):
         return True
 
     def __getitem__(self, index: INodeIndex) -> INode | None:
-        return index.from_node(self)
+        return index.find_in_node(self)
 
     def replace_at(self, index: INodeIndex, new_node: INode) -> INode | None:
-        return index.replace_target(self, new_node)
+        return index.replace_in_target(self, new_node)
 
     def __len__(self) -> int:
         if self._cached_length is not None:
@@ -307,7 +348,7 @@ class BaseNode(INode):
 ######################## TYPE NODE ########################
 ###########################################################
 
-class TypeNode(BaseNode, IFunction['TypeNode'], typing.Generic[T]):
+class TypeNode(BaseNode, IFunction, typing.Generic[T]):
 
     def with_args(self, *args: INode) -> INode:
         return self.type.new(*args)
@@ -575,7 +616,7 @@ class Var(Placeholder[T], typing.Generic[T]):
 ######################## NODE IDXS ########################
 ###########################################################
 
-class NodeIntBaseIndex(Integer, ABC, INodeIndex, IInt):
+class NodeIntBaseIndex(ABC, Integer, INodeIndex, IInt):
     pass
 
 class NodeMainIndex(NodeIntBaseIndex):
@@ -631,11 +672,11 @@ class NodeMainIndex(NodeIntBaseIndex):
                     return [node] + ancestors, index
         return [], index
 
-    def from_node(self, node: INode) -> INode | None:
+    def find_in_node(self, node: INode) -> INode | None:
         item, _ = self._inner_getitem(node, self.to_int)
         return item
 
-    def replace_target(self, target_node: INode, new_node: INode) -> INode | None:
+    def replace_in_target(self, target_node: INode, new_node: INode) -> INode | None:
         new_target, _ = self._replace(target_node, new_node, self.to_int)
         return new_target
 
@@ -645,7 +686,7 @@ class NodeMainIndex(NodeIntBaseIndex):
 
 class NodeArgIndex(NodeIntBaseIndex):
 
-    def from_node(self, node: INode) -> INode | None:
+    def find_in_node(self, node: INode) -> INode | None:
         index = self.to_int
         if not isinstance(node, InheritableNode):
             return None
@@ -654,7 +695,7 @@ class NodeArgIndex(NodeIntBaseIndex):
             return args[index - 1]
         return None
 
-    def replace_target(self, target_node: T, new_node: INode) -> T | None:
+    def replace_in_target(self, target_node: T, new_node: INode) -> T | None:
         if not isinstance(target_node, InheritableNode):
             return None
         index = self.to_int
@@ -672,7 +713,7 @@ class NodeArgIndex(NodeIntBaseIndex):
 ####################### ITEMS GROUP #######################
 ###########################################################
 
-class BaseGroup(InheritableNode, ABC, IGroup[T], typing.Generic[T]):
+class BaseGroup(ABC, InheritableNode, IGroup[T], typing.Generic[T]):
 
     def __init__(self, *args: T):
         item_type = self.item_type()
@@ -792,7 +833,7 @@ class ExtendedTypeGroup(InheritableNode, typing.Generic[T]):
 ###################### FUNCTION NODE ######################
 ###########################################################
 
-class Function(InheritableNode, IFunction[T], typing.Generic[T]):
+class FunctionExpr(InheritableNode, IFunction, typing.Generic[T]):
 
     def __init__(self, param_type_group: ExtendedTypeGroup, scope: SimpleScope[T]):
         assert isinstance(param_type_group, ExtendedTypeGroup)
@@ -862,7 +903,7 @@ class Function(InheritableNode, IFunction[T], typing.Generic[T]):
             else:
                 assert param.type_node.type == group.type.type
         if isinstance(scope, OpaqueScope):
-            all_inner_functions = scope.find_until(IFunction, OpaqueScope)
+            all_inner_functions = scope.find_until(FunctionExpr, OpaqueScope)
             all_functions = all_inner_functions.union(self)
             all_functions_scope_ids = {f.scope.id for f in all_functions}
             all_inner_params = scope.find_until(Param, OpaqueScope)
@@ -870,63 +911,26 @@ class Function(InheritableNode, IFunction[T], typing.Generic[T]):
             assert all_inner_params_scope_ids.issubset(all_functions_scope_ids)
         super().validate()
 
-class FunctionId(Integer):
-    pass
-
 class FunctionCall(InheritableNode, typing.Generic[T]):
 
-    def __init__(self, function_id: FunctionId, arg_group: BaseGroup[T]):
-        assert isinstance(function_id, FunctionId)
-        assert isinstance(arg_group, BaseGroup)
-        super().__init__(function_id, arg_group)
+    def __init__(self, function: IFunction, arg_group: BaseGroup[T]):
+        super().__init__(function, arg_group)
 
     @property
-    def function_id(self) -> FunctionId:
-        function_id = self.args[0]
-        assert isinstance(function_id, FunctionId)
-        return function_id
+    def function(self) -> IFunction:
+        function = self.args[0]
+        return typing.cast(IFunction, function)
 
     @property
     def arg_group(self) -> BaseGroup[T]:
         arg_group = self.args[1]
         return typing.cast(BaseGroup[T], arg_group)
 
-class FunctionDefinition(InheritableNode, IFunction[T], typing.Generic[T]):
-
-    def __init__(self, function_id: FunctionId, function: Function[T]):
-        assert isinstance(function_id, FunctionId)
-        assert isinstance(function, Function)
-        super().__init__(function_id, function)
-
-    @property
-    def function_id(self) -> FunctionId:
-        function_id = self.args[0]
-        assert isinstance(function_id, FunctionId)
-        return function_id
-
-    @property
-    def function(self) -> Function[T]:
-        f = self.args[1]
-        return typing.cast(Function[T], f)
-
-    @property
-    def scope(self) -> SimpleScope[T]:
-        return self.function.scope
-
-    def with_args(self, *args: INode) -> INode:
-        arg_group = DefaultGroup(*args)
-        self.function.param_type_group.validate_values(arg_group)
-        return FunctionCall(self.function_id, arg_group)
-
-    def expand(self, call: FunctionCall) -> INode:
-        assert call.function_id == self.function_id
-        return self.function.with_args(*call.arg_group.as_tuple)
-
 ###########################################################
 ######################## EXCEPTION ########################
 ###########################################################
 
-class IExceptionInfo(INode, ABC):
+class IExceptionInfo(ABC, INode):
 
     def as_exception(self):
         raise InvalidNodeException(self)
@@ -1050,7 +1054,7 @@ BASIC_NODE_TYPES: tuple[type[INode], ...] = (
     TypeNode,
     InheritableNode,
     IBoolean,
-    Function,
+    FunctionExpr,
     CountableTypeGroup,
     DefaultGroup,
     OptionalValueGroup,

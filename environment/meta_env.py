@@ -111,7 +111,8 @@ class MetaInfo(InheritableNode):
         self,
         goal: GoalNode,
         options: MetaInfoOptions,
-        all_types: DetailedTypeGroup,
+        all_types: GeneralTypeGroup[INode],
+        all_types_details: DetailedTypeGroup,
         default_group: SubtypeOuterGroup[IDefault],
         from_int_group: SubtypeOuterGroup[IFromInt],
         int_group: SubtypeOuterGroup[IInt],
@@ -126,6 +127,7 @@ class MetaInfo(InheritableNode):
             goal,
             options,
             all_types,
+            all_types_details,
             default_group,
             from_int_group,
             int_group,
@@ -153,48 +155,53 @@ class MetaInfo(InheritableNode):
         return typing.cast(DetailedTypeGroup, all_types)
 
     @property
+    def all_types_details(self) -> DetailedTypeGroup:
+        all_types_details = self.args[2]
+        return typing.cast(DetailedTypeGroup, all_types_details)
+
+    @property
     def default_group(self) -> SubtypeOuterGroup[IDefault]:
-        default_group = self.args[2]
+        default_group = self.args[3]
         return typing.cast(SubtypeOuterGroup[IDefault], default_group)
 
     @property
     def from_int_group(self) -> SubtypeOuterGroup[IFromInt]:
-        from_int_group = self.args[3]
+        from_int_group = self.args[4]
         return typing.cast(SubtypeOuterGroup[IFromInt], from_int_group)
 
     @property
     def int_group(self) -> SubtypeOuterGroup[IInt]:
-        int_group = self.args[4]
+        int_group = self.args[5]
         return typing.cast(SubtypeOuterGroup[IInt], int_group)
 
     @property
     def node_index_group(self) -> SubtypeOuterGroup[INodeIndex]:
-        node_index_group = self.args[5]
+        node_index_group = self.args[6]
         return typing.cast(SubtypeOuterGroup[INodeIndex], node_index_group)
 
     @property
     def single_child_group(self) -> SubtypeOuterGroup[ISingleChild]:
-        single_child_group = self.args[6]
+        single_child_group = self.args[7]
         return typing.cast(SubtypeOuterGroup[ISingleChild], single_child_group)
 
     @property
     def group_outer_group(self) -> SubtypeOuterGroup[IGroup]:
-        group_outer_group = self.args[7]
+        group_outer_group = self.args[8]
         return typing.cast(SubtypeOuterGroup[IGroup], group_outer_group)
 
     @property
     def function_group(self) -> SubtypeOuterGroup[IFunction]:
-        function_group = self.args[8]
+        function_group = self.args[9]
         return typing.cast(SubtypeOuterGroup[IFunction], function_group)
 
     @property
     def boolean_group(self) -> SubtypeOuterGroup[IBoolean]:
-        boolean_group = self.args[9]
+        boolean_group = self.args[10]
         return typing.cast(SubtypeOuterGroup[IBoolean], boolean_group)
 
     @property
     def allowed_actions(self) -> SubtypeOuterGroup[BaseAction]:
-        allowed_actions = self.args[10]
+        allowed_actions = self.args[11]
         return typing.cast(SubtypeOuterGroup[BaseAction], allowed_actions)
 
     @classmethod
@@ -204,6 +211,7 @@ class MetaInfo(InheritableNode):
         return cls(
             goal,
             MetaInfoOptions.create(),
+            all_types_group,
             DetailedTypeGroup.from_types(all_types),
             SubtypeOuterGroup.from_all_types(TypeNode(INode), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IFromInt), all_types_group),

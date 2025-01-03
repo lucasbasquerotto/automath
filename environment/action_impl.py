@@ -8,7 +8,8 @@ from environment.core import (
     ExtendedTypeGroup,
     IFunction,
     OptionalValueGroup,
-    OpaqueScope,)
+    OpaqueScope,
+    FunctionCall)
 from environment.state import (
     State,
     Scratch,
@@ -115,7 +116,7 @@ class CreateScratchFromNode(BaseAction[CreateScratchOutput], BasicActionGenerato
 
     def _run(self, full_state: FullState) -> CreateScratchOutput:
         state = full_state.current.state
-        node = self.node_index.from_node(full_state)
+        node = self.node_index.find_in_node(full_state)
         assert node is not None
         index = StateScratchIndex(len(state.scratch_group.as_tuple))
         return CreateScratchOutput(index, node)
@@ -148,13 +149,16 @@ class CreateScratchFromFunction(BaseAction[CreateScratchOutput], BasicActionGene
 
     def _run(self, full_state: FullState) -> CreateScratchOutput:
         state = full_state.current.state
-        function = self.function_index.from_node(full_state)
+        function = self.function_index.find_in_node(full_state)
         assert isinstance(function, IFunction)
 
-        args_group = self.args_group_index.find_in_state(state)
-        assert args_group is not None
+        args_group = self.args_group_index.find_in_outer_node(state)
+        assert isinstance(args_group, PartialArgsGroup)
 
-        node = args_group.apply_to(function)
+        function.as_node.validate()
+        args_group.validate()
+        node = FunctionCall(function, args_group.inner_args_group.fill_with_void())
+
         index = StateScratchIndex(len(state.scratch_group.as_tuple))
 
         return CreateScratchOutput(index, node)
@@ -167,7 +171,7 @@ class DefineScratchOutput(ScratchBaseActionOutput):
     def apply(self, full_state: FullState) -> State:
         state = full_state.current.state
         scratch = Scratch.with_content(self.node)
-        new_state = self.index.replace_in_state(state, scratch)
+        new_state = self.index.replace_in_outer_target(state, scratch)
         assert new_state is not None
         return new_state
 
@@ -204,10 +208,10 @@ class DefineScratchFromNode(BaseAction[DefineScratchOutput], BasicActionGenerato
     def _run(self, full_state: FullState) -> DefineScratchOutput:
         state = full_state.current.state
         scratch_index = self.scratch_index
-        scratch = scratch_index.find_in_state(state)
+        scratch = scratch_index.find_in_outer_node(state)
         assert scratch is not None
 
-        node = self.node_index.from_node(full_state)
+        node = self.node_index.find_in_node(full_state)
         assert node is not None
 
         return DefineScratchOutput(scratch_index, node)
@@ -253,16 +257,18 @@ class DefineScratchFromFunction(BaseAction[DefineScratchOutput], BasicActionGene
     def _run(self, full_state: FullState) -> DefineScratchOutput:
         state = full_state.current.state
         scratch_index = self.scratch_index
-        scratch = scratch_index.find_in_state(state)
+        scratch = scratch_index.find_in_outer_node(state)
         assert scratch is not None
 
-        function = self.function_index.from_node(full_state)
+        function = self.function_index.find_in_node(full_state)
         assert isinstance(function, IFunction)
 
-        args_group = self.args_group_index.find_in_state(state)
+        args_group = self.args_group_index.find_in_outer_node(state)
         assert args_group is not None
 
-        node = args_group.apply_to(function)
+        function.as_node.validate()
+        args_group.validate()
+        node = FunctionCall(function, args_group.inner_args_group.fill_with_void())
 
         return DefineScratchOutput(scratch_index, node)
 
@@ -307,13 +313,13 @@ class UpdateScratchFromNode(BaseAction[DefineScratchOutput], BasicActionGenerato
     def _run(self, full_state: FullState) -> DefineScratchOutput:
         state = full_state.current.state
         scratch_index = self.scratch_index
-        scratch = scratch_index.find_in_state(state)
+        scratch = scratch_index.find_in_outer_node(state)
         assert scratch is not None
 
-        inner_node = self.node_index.from_node(full_state)
+        inner_node = self.node_index.find_in_node(full_state)
         assert inner_node is not None
 
-        new_scratch = self.scratch_inner_index.replace_target(scratch, inner_node)
+        new_scratch = self.scratch_inner_index.replace_in_target(scratch, inner_node)
         assert new_scratch is not None
 
         return DefineScratchOutput(scratch_index, new_scratch.child)
@@ -359,18 +365,20 @@ class UpdateScratchFromFunction(BaseAction[DefineScratchOutput]):
     def _run(self, full_state: FullState) -> DefineScratchOutput:
         state = full_state.current.state
         scratch_index = self.scratch_index
-        scratch = scratch_index.find_in_state(state)
+        scratch = scratch_index.find_in_outer_node(state)
         assert scratch is not None
 
-        args_group = self.args_group_index.find_in_state(state)
+        args_group = self.args_group_index.find_in_outer_node(state)
         assert args_group is not None
 
-        function = self.function_index.from_node(full_state)
+        function = self.function_index.find_in_node(full_state)
         assert isinstance(function, IFunction)
 
-        inner_node = args_group.apply_to(function)
+        function.as_node.validate()
+        args_group.validate()
+        inner_node = FunctionCall(function, args_group.inner_args_group.fill_with_void())
 
-        new_scratch = self.scratch_inner_index.replace_target(scratch, inner_node)
+        new_scratch = self.scratch_inner_index.replace_in_target(scratch, inner_node)
         assert new_scratch is not None
 
         return DefineScratchOutput(scratch_index, new_scratch.child)
@@ -483,7 +491,7 @@ class CreateArgsGroupDynamicAction(BaseAction[CreateArgsGroupOutput], BasicActio
     def _run(self, full_state: FullState) -> CreateArgsGroupOutput:
         state = full_state.current.state
         node_index = self.node_index
-        new_args_group = node_index.from_node(full_state)
+        new_args_group = node_index.find_in_node(full_state)
         assert isinstance(new_args_group, PartialArgsGroup)
 
         index = StateArgsGroupIndex(len(state.args_outer_group.as_tuple))
@@ -532,16 +540,16 @@ class DefineArgsGroupArgOutput(ActionOutput):
 
         new_arg.as_node.validate()
 
-        args_group = index.find_in_state(state)
+        args_group = index.find_in_outer_node(state)
         assert args_group is not None
 
-        new_args_group = arg_index.replace_target(args_group, new_arg)
+        new_args_group = arg_index.replace_in_target(args_group, new_arg)
         assert isinstance(new_args_group, PartialArgsGroup)
         new_args_group = PartialArgsGroup(
             new_args_group.param_type_group,
             new_args_group.scope.normalize())
 
-        new_state = index.replace_in_state(state, new_args_group)
+        new_state = index.replace_in_outer_target(state, new_args_group)
         assert new_state is not None
 
         return new_state
@@ -590,10 +598,10 @@ class DefineArgsGroupArgFromNodeAction(BaseAction[DefineArgsGroupArgOutput], Bas
         arg_index = self.arg_index
         node_index = self.node_index
 
-        args_group = args_group_index.find_in_state(state)
+        args_group = args_group_index.find_in_outer_node(state)
         assert args_group is not None
 
-        new_arg = node_index.from_node(full_state)
+        new_arg = node_index.find_in_node(full_state)
         assert new_arg is not None
 
         return DefineArgsGroupArgOutput(args_group_index, arg_index, new_arg)

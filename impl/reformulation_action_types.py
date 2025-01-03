@@ -1,5 +1,5 @@
 import sympy
-from environment.state import State, Function
+from environment.state import State, FunctionExpr
 from environment.action_old import (
     ACTION_ARG_TYPE_EXPRESSION_TARGET,
     ACTION_ARG_TYPE_INT,
@@ -143,6 +143,6 @@ class SwapAddAction(DoubleChildReformulationBaseAction):
 
         return ReformulationActionOutput(
             expr_id=parent_expr_id,
-            new_function_info=Function(
+            new_function_info=FunctionExpr(
                 expr=node_types.Add(*new_args),
                 params=parent_function_info.params))

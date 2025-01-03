@@ -1,17 +1,17 @@
 import sympy
-from environment.core import Function, IBoolean, MultiArgBooleanNode
+from environment.core import FunctionExpr, IBoolean, MultiArgBooleanNode
 from environment.state import State
 from environment.meta_env import GoalNode
 
 class HaveDefinition(GoalNode):
-    def __init__(self, definition: Function):
-        assert isinstance(definition, Function)
+    def __init__(self, definition: FunctionExpr):
+        assert isinstance(definition, FunctionExpr)
         super().__init__()
         self._args = (definition,)
 
     def evaluate(self, state: State) -> bool:
         definition = self.args[0]
-        assert isinstance(definition, Function)
+        assert isinstance(definition, FunctionExpr)
         return definition.expr in [f for _, f in state.definitions]
 
 class TrueNode(IBoolean):
