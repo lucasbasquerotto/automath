@@ -1,4 +1,6 @@
+from __future__ import annotations
 import typing
+from abc import ABC
 from utils.logger import logger
 from environment.core import (
     INode,
@@ -10,17 +12,56 @@ from environment.core import (
     InvalidNodeException,
     IOptional)
 from environment.state import State
+from environment.meta_env import IMetaData
 from environment.full_state import FullState, HistoryNode, HistoryGroupNode
 
-class ActionOutput(InheritableNode):
+###########################################################
+########################## MAIN ###########################
+###########################################################
+
+class IActionOutput(INode):
+
     def apply(self, full_state: FullState) -> State:
         raise NotImplementedError
 
-class ActionData(InheritableNode):
+T = typing.TypeVar('T', bound=INode)
+O = typing.TypeVar('O', bound=IActionOutput)
+
+class IAction(INode, typing.Generic[O]):
+
+    def as_action(self) -> 'BaseAction[O]':
+        raise NotImplementedError
+
+class FullActionOutput(InheritableNode, typing.Generic[O]):
+
+    def __init__(
+        self,
+        output: O,
+        new_state: State,
+    ):
+        assert isinstance(output, IActionOutput)
+        assert isinstance(new_state, State)
+        super().__init__(output, new_state)
+
+    @property
+    def output(self) -> O:
+        output = self.args[0]
+        return typing.cast(O, output)
+
+    @property
+    def new_state(self) -> State:
+        new_state = self.args[1]
+        return typing.cast(State, new_state)
+
+###########################################################
+####################### ACTION DATA #######################
+###########################################################
+
+class ActionData(InheritableNode, IMetaData):
     def __init__(
         self,
         action: IOptional['BaseAction'],
-        output: IOptional[ActionOutput],
+        output: IOptional[IActionOutput],
         exception: IOptional[IExceptionInfo],
     ):
         super().__init__(action, output, exception)
@@ -31,17 +72,18 @@ class ActionData(InheritableNode):
         return typing.cast(IOptional[BaseAction], action)
 
     @property
-    def output(self) -> IOptional[ActionOutput]:
+    def output(self) -> IOptional[IActionOutput]:
         output = self.args[1]
-        return typing.cast(IOptional[ActionOutput], output)
+        return typing.cast(IOptional[IActionOutput], output)
 
     @property
     def exception(self) -> IOptional[IExceptionInfo]:
         exception = self.args[2]
         return typing.cast(IOptional[IExceptionInfo], exception)
 
-T = typing.TypeVar('T', bound=INode)
-O = typing.TypeVar('O', bound=ActionOutput)
+###########################################################
+#################### ACTION EXCEPTION #####################
+###########################################################
 
 class IActionExceptionInfo(IExceptionInfo):
 
@@ -95,49 +137,34 @@ class ActionInputExceptionInfo(InheritableNode, IActionExceptionInfo):
             exception=Optional(typing.cast(IExceptionInfo, self.args[1])),
         )
 
-
 class ActionOutputExceptionInfo(InheritableNode, IExceptionInfo):
 
     def __init__(
         self,
         action: 'BaseAction',
-        output: ActionOutput,
+        output: IActionOutput,
         exception: IExceptionInfo,
     ):
         assert isinstance(action, BaseAction)
-        assert isinstance(output, ActionOutput)
+        assert isinstance(output, IActionOutput)
         assert isinstance(exception, IExceptionInfo)
         super().__init__(action, output, exception)
 
     def to_action_data(self) -> ActionData:
         return ActionData(
             action=Optional(typing.cast(BaseAction, self.args[0])),
-            output=Optional(typing.cast(ActionOutput, self.args[1])),
+            output=Optional(typing.cast(IActionOutput, self.args[1])),
             exception=Optional(typing.cast(IExceptionInfo, self.args[2])),
         )
 
-class FullActionOutput(InheritableNode, typing.Generic[O]):
+###########################################################
+##################### IMPLEMENTATION ######################
+###########################################################
 
-    def __init__(
-        self,
-        output: O,
-        new_state: State,
-    ):
-        assert isinstance(output, ActionOutput)
-        assert isinstance(new_state, State)
-        super().__init__(output, new_state)
+class BaseAction(InheritableNode, IAction[O], typing.Generic[O]):
 
-    @property
-    def output(self) -> O:
-        output = self.args[0]
-        return typing.cast(O, output)
-
-    @property
-    def new_state(self) -> State:
-        new_state = self.args[1]
-        return typing.cast(State, new_state)
-
-class BaseAction(InheritableNode, typing.Generic[O]):
+    def as_action(self) -> typing.Self:
+        return self
 
     def _run(self, full_state: FullState) -> O:
         raise NotImplementedError
@@ -158,7 +185,7 @@ class BaseAction(InheritableNode, typing.Generic[O]):
 
         try:
             output = self._run(full_state)
-            assert isinstance(output, ActionOutput)
+            assert isinstance(output, IActionOutput)
         except InvalidNodeException as e:
             raise ActionInputExceptionInfo(self, e.info).as_exception()
 
@@ -197,3 +224,10 @@ class BaseAction(InheritableNode, typing.Generic[O]):
             current=current,
             history=HistoryGroupNode.from_items(history),
         )
+
+class GeneralAction(
+    ABC,
+    BaseAction[typing.Self], # type: ignore[misc]
+    IActionOutput,
+):
+    pass

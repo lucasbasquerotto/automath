@@ -2,7 +2,10 @@ import typing
 from abc import ABC
 from environment.core import (
     INode,
+    IDefault,
     IFunction,
+    IOptional,
+    Optional,
     InheritableNode,
     BaseGroup,
     NodeIntBaseIndex,
@@ -28,9 +31,8 @@ K = typing.TypeVar('K', bound=INode)
 #################### STATE DEFINITIONS ####################
 ###########################################################
 
-class Scratch(OpaqueScope[INode]):
-    def __init__(self, id: ScopeId, child: INode):
-        assert isinstance(child, INode)
+class Scratch(OpaqueScope[IOptional[INode]]):
+    def __init__(self, id: ScopeId, child: IOptional[INode]):
         super().__init__(id, child)
 
 class ScratchGroup(BaseGroup[Scratch]):
@@ -39,13 +41,13 @@ class ScratchGroup(BaseGroup[Scratch]):
         return OpaqueScope[Scratch]
 
     @classmethod
-    def from_raw_items(cls, items: tuple[INode, ...]) -> typing.Self:
-        return cls.from_items([Scratch.with_content(s) for s in items])
+    def from_raw_items(cls, items: tuple[INode | None, ...]) -> typing.Self:
+        return cls.from_items([Scratch.with_content(Optional(s)) for s in items])
 
     def to_raw_items(self) -> tuple[INode, ...]:
         return tuple(s.child for s in self.as_tuple)
 
-class PartialArgsGroup(FunctionExpr[OptionalValueGroup[T]], typing.Generic[T]):
+class PartialArgsGroup(FunctionExpr[OptionalValueGroup[T]], IDefault, typing.Generic[T]):
 
     def __init__(
         self,
@@ -80,7 +82,7 @@ class PartialArgsGroup(FunctionExpr[OptionalValueGroup[T]], typing.Generic[T]):
         return self.inner_args_group.as_tuple
 
     @classmethod
-    def default(cls) -> typing.Self:
+    def create(cls) -> typing.Self:
         return cls(
             ExtendedTypeGroup(RestTypeGroup(UnknownType())),
             OpaqueScope.with_content(OptionalValueGroup()))
@@ -232,14 +234,19 @@ class ScratchNodeIndex(NodeIntBaseIndex):
 
     def find_in_node(self, node: INode) -> INode | None:
         assert isinstance(node, Scratch)
-        return NodeMainIndex(self.to_int).find_in_node(node.child)
-
-    def replace_in_target(self, target_node: INode, new_node: INode) -> Scratch | None:
-        assert isinstance(target_node, Scratch)
-        child = NodeMainIndex(self.to_int).replace_in_target(target_node.child, new_node)
-        if child is None:
+        content = node.child.value
+        if content is None:
             return None
-        return Scratch(target_node.id, child)
+        return NodeMainIndex(self.to_int).find_in_node(content)
+
+    def replace_in_target(self, target_node: INode, new_node: INode) -> INode | None:
+        assert isinstance(target_node, Scratch)
+        assert isinstance(new_node, INode)
+        if self.to_int == 1:
+            return new_node
+        old_content = target_node.child.value_or_raise
+        content = NodeMainIndex(self.to_int).replace_in_target(old_content, new_node)
+        return content
 
 class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup]):
 

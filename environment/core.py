@@ -739,6 +739,12 @@ class DefaultGroup(BaseGroup[INode]):
     def item_type(cls):
         return INode
 
+class IntGroup(BaseGroup[IInt]):
+
+    @classmethod
+    def item_type(cls):
+        return IInt
+
 class OptionalValueGroup(BaseGroup[IOptional[T]], IFromInt, typing.Generic[T]):
 
     @classmethod
