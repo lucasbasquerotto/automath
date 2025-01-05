@@ -6,7 +6,7 @@ from environment.core import (
     IFromInt,
     IInt,
     INodeIndex,
-    ISingleChild,
+    IFromSingleChild,
     IGroup,
     IFunction,
     IBoolean,
@@ -35,7 +35,7 @@ class GeneralTypeGroup(BaseGroup[TypeNode[T]], typing.Generic[T]):
     def item_type(cls):
         return TypeNode
 
-class DetailedType(InheritableNode, ISingleChild[TypeNode[T]], typing.Generic[T]):
+class DetailedType(InheritableNode, IFromSingleChild[TypeNode[T]], typing.Generic[T]):
     def __init__(self, node_type: TypeNode[T]):
         super().__init__(node_type)
 
@@ -120,7 +120,7 @@ class MetaInfo(InheritableNode):
         node_index_group: SubtypeOuterGroup[INodeIndex],
         full_state_index_group: SubtypeOuterGroup[IFullStateIndex],
         full_state_int_index_group: SubtypeOuterGroup[FullStateIntIndex],
-        single_child_group: SubtypeOuterGroup[ISingleChild],
+        single_child_group: SubtypeOuterGroup[IFromSingleChild],
         group_outer_group: SubtypeOuterGroup[IGroup],
         function_group: SubtypeOuterGroup[IFunction],
         boolean_group: SubtypeOuterGroup[IBoolean],
@@ -195,9 +195,9 @@ class MetaInfo(InheritableNode):
         return typing.cast(SubtypeOuterGroup[FullStateIntIndex], full_state_int_index_group)
 
     @property
-    def single_child_group(self) -> SubtypeOuterGroup[ISingleChild]:
+    def single_child_group(self) -> SubtypeOuterGroup[IFromSingleChild]:
         single_child_group = self.args[9]
-        return typing.cast(SubtypeOuterGroup[ISingleChild], single_child_group)
+        return typing.cast(SubtypeOuterGroup[IFromSingleChild], single_child_group)
 
     @property
     def group_outer_group(self) -> SubtypeOuterGroup[IGroup]:
@@ -234,7 +234,7 @@ class MetaInfo(InheritableNode):
             SubtypeOuterGroup.from_all_types(TypeNode(INodeIndex), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IFullStateIndex), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(FullStateIntIndex), all_types_group),
-            SubtypeOuterGroup.from_all_types(TypeNode(ISingleChild), all_types_group),
+            SubtypeOuterGroup.from_all_types(TypeNode(IFromSingleChild), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IGroup), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IFunction), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IBoolean), all_types_group),

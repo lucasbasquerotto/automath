@@ -182,10 +182,13 @@ class IStateIndex(ITypedIndex[State, T], typing.Generic[T]):
     def item_type(cls) -> type[T]:
         raise NotImplementedError
 
-    def find_in_outer_node(self, node: State) -> T | None:
+    def find_in_outer_node(self, node: State) -> IOptional[T]:
         raise NotImplementedError
 
-    def replace_in_outer_target(self, target: State, new_node: T) -> State | None:
+    def replace_in_outer_target(self, target: State, new_node: T) -> IOptional[State]:
+        raise NotImplementedError
+
+    def remove_in_outer_target(self, target: State) -> IOptional[State]:
         raise NotImplementedError
 
 class StateIntIndex(ABC, Integer, IStateIndex[T], ITypedIntIndex[State, T], typing.Generic[T]):
@@ -197,20 +200,31 @@ class StateDefinitionIndex(StateIntIndex[StateDefinition]):
     def item_type(cls):
         return StateDefinition
 
-    def find_in_outer_node(self, node: State) -> StateDefinition | None:
+    def find_in_outer_node(self, node: State):
         return self.find_arg(node.definition_group)
 
-    def replace_in_outer_target(self, target: State, new_node: StateDefinition) -> State | None:
+    def replace_in_outer_target(self, target: State, new_node: StateDefinition):
         definitions = list(target.definition_group.as_tuple)
         for i, definition in enumerate(definitions):
             if self.value == (i+1):
                 assert new_node.definition_key == definition.definition_key
                 definitions[i] = new_node
-                return State(
+                return Optional(State(
                     definition_group=StateDefinitionGroup.from_items(definitions),
                     args_outer_group=target.args_outer_group,
-                    scratch_group=target.scratch_group)
-        return target
+                    scratch_group=target.scratch_group))
+        return Optional.create()
+
+    def remove_in_outer_target(self, target: State):
+        definitions = list(target.definition_group.as_tuple)
+        for i, _ in enumerate(definitions):
+            if self.value == (i+1):
+                definitions.pop(i)
+                return Optional(State(
+                    definition_group=StateDefinitionGroup.from_items(definitions),
+                    args_outer_group=target.args_outer_group,
+                    scratch_group=target.scratch_group))
+        return Optional.create()
 
 class StateScratchIndex(StateIntIndex[Scratch]):
 
@@ -218,34 +232,51 @@ class StateScratchIndex(StateIntIndex[Scratch]):
     def item_type(cls):
         return Scratch
 
-    def find_in_outer_node(self, node: State) -> Scratch | None:
+    def find_in_outer_node(self, node: State):
         return self.find_arg(node.scratch_group)
 
-    def replace_in_outer_target(self, target: State, new_node: Scratch) -> State | None:
-        group = self.replace_arg(target.scratch_group, new_node)
+    def replace_in_outer_target(self, target: State, new_node: Scratch):
+        group = self.replace_arg(target.scratch_group, new_node).value
         if group is None:
-            return None
-        return State(
+            return Optional.create()
+        return Optional(State(
             definition_group=target.definition_group,
             args_outer_group=target.args_outer_group,
-            scratch_group=group)
+            scratch_group=group))
+
+    def remove_in_outer_target(self, target: State):
+        group = self.remove_arg(target.scratch_group).value
+        if group is None:
+            return Optional.create()
+        return Optional(State(
+            definition_group=target.definition_group,
+            args_outer_group=target.args_outer_group,
+            scratch_group=group))
 
 class ScratchNodeIndex(NodeIntBaseIndex):
 
-    def find_in_node(self, node: INode) -> INode | None:
+    def find_in_node(self, node: INode):
         assert isinstance(node, Scratch)
         content = node.child.value
         if content is None:
-            return None
+            return Optional.create()
         return NodeMainIndex(self.to_int).find_in_node(content)
 
-    def replace_in_target(self, target_node: INode, new_node: INode) -> INode | None:
+    def replace_in_target(self, target_node: INode, new_node: INode):
         assert isinstance(target_node, Scratch)
         assert isinstance(new_node, INode)
         if self.to_int == 1:
-            return new_node
+            return Optional(new_node)
         old_content = target_node.child.value_or_raise
         content = NodeMainIndex(self.to_int).replace_in_target(old_content, new_node)
+        return content
+
+    def remove_in_target(self, target_node: INode):
+        assert isinstance(target_node, Scratch)
+        if self.to_int == 1:
+            return Optional.create()
+        old_content = target_node.child.value_or_raise
+        content = NodeMainIndex(self.to_int).remove_in_target(old_content)
         return content
 
 class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup]):
@@ -254,16 +285,27 @@ class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup]):
     def item_type(cls):
         return PartialArgsGroup
 
-    def find_in_outer_node(self, node: State) -> PartialArgsGroup | None:
+    def find_in_outer_node(self, node: State):
         return self.find_arg(node.args_outer_group)
 
-    def replace_in_outer_target(self, target: State, new_node: PartialArgsGroup) -> State | None:
+    def replace_in_outer_target(self, target: State, new_node: PartialArgsGroup):
         group = self.replace_arg(target.args_outer_group, new_node)
-        if group is None:
-            return None
+        args_outer_group = group.value
+        if args_outer_group is None:
+            return Optional.create()
         return State(
             definition_group=target.definition_group,
-            args_outer_group=group,
+            args_outer_group=args_outer_group,
+            scratch_group=target.scratch_group)
+
+    def remove_in_outer_target(self, target: State):
+        group = self.remove_arg(target.args_outer_group)
+        args_outer_group = group.value
+        if args_outer_group is None:
+            return Optional.create()
+        return State(
+            definition_group=target.definition_group,
+            args_outer_group=args_outer_group,
             scratch_group=target.scratch_group)
 
 class StateArgsGroupArgIndex(InheritableNode, IStateIndex[INode]):
@@ -289,19 +331,31 @@ class StateArgsGroupArgIndex(InheritableNode, IStateIndex[INode]):
         assert isinstance(arg_index, NodeArgIndex)
         return arg_index
 
-    def find_in_outer_node(self, node: State) -> INode | None:
-        group = self.group_index.find_in_outer_node(node)
+    def find_in_outer_node(self, node: State):
+        group = self.group_index.find_in_outer_node(node).value
         if group is None:
-            return None
-        return group[self.arg_index]
+            return Optional.create()
+        return Optional(group[self.arg_index])
 
-    def replace_in_outer_target(self, target: State, new_node: INode) -> State | None:
-        group = self.group_index.find_in_outer_node(target)
+    def replace_in_outer_target(self, target: State, new_node: INode):
+        group = self.group_index.find_in_outer_node(target).value
         if group is None:
-            return target
+            return Optional.create()
         new_group = self.arg_index.replace_in_target(
             target_node=group,
-            new_node=new_node)
+            new_node=new_node,
+        ).value
         if new_group is None:
-            return None
-        return self.group_index.replace_in_outer_target(target, new_group)
+            return Optional.create()
+        result = self.group_index.replace_in_outer_target(target, new_group)
+        return Optional(result)
+
+    def remove_in_outer_target(self, target: State):
+        group = self.group_index.find_in_outer_node(target).value
+        if group is None:
+            return Optional.create()
+        new_group = self.arg_index.remove_in_target(group).value
+        if new_group is None:
+            return Optional.create()
+        result = self.group_index.replace_in_outer_target(target, new_group)
+        return Optional(result)

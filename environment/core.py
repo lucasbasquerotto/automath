@@ -45,14 +45,17 @@ class IInt(IFromInt):
 
 class INodeIndex(INode):
 
-    def find_in_node(self, node: INode) -> INode | None:
+    def find_in_node(self, node: INode) -> IOptional[INode]:
         raise NotImplementedError
 
     def replace_in_target(
         self,
         target_node: INode,
         new_node: INode,
-    ) -> INode | None:
+    ) -> IOptional[INode]:
+        raise NotImplementedError
+
+    def remove_in_target(self, target_node: INode) -> IOptional[INode]:
         raise NotImplementedError
 
 T = typing.TypeVar('T', bound=INode)
@@ -76,17 +79,11 @@ class ISingleChild(IFromSingleChild, typing.Generic[T]):
     def child(self) -> T:
         raise NotImplementedError()
 
-class IOptional(IDefault, ISingleChild[T], typing.Generic[T]):
+class IOptional(IDefault, IFromSingleChild[T], typing.Generic[T]):
 
     @property
     def value(self) -> T | None:
         raise NotImplementedError()
-
-    @property
-    def child(self) -> T:
-        value = self.value
-        assert value is not None
-        return value
 
     def value_or_else(self, default_value: T) -> T:
         value = self.value
@@ -98,6 +95,9 @@ class IOptional(IDefault, ISingleChild[T], typing.Generic[T]):
     def value_or_raise(self) -> T:
         value = IsEmpty(self).value_or_raise
         return value
+
+    def raise_if_empty(self):
+        IsEmpty(self).raise_if_empty()
 
 class ISingleOptionalChild(ISingleChild[IOptional[T]], typing.Generic[T]):
 
@@ -147,19 +147,26 @@ class ITypedIndex(INodeIndex, typing.Generic[O, T]):
     def item_type(cls) -> type[T]:
         raise NotImplementedError
 
-    def find_in_node(self, node: INode) -> INode | None:
+    def find_in_node(self, node: INode):
         assert isinstance(node, self.outer_type())
         return self.find_in_outer_node(node)
 
-    def replace_in_target(self, target_node: INode, new_node: INode) -> INode | None:
+    def replace_in_target(self, target_node: INode, new_node: INode):
         assert isinstance(target_node, self.outer_type())
         assert isinstance(new_node, self.item_type())
         return self.replace_in_outer_target(target_node, new_node)
 
-    def find_in_outer_node(self, node: O) -> T | None:
+    def remove_in_target(self, target_node: INode):
+        assert isinstance(target_node, self.outer_type())
+        return self.remove_in_outer_target(target_node)
+
+    def find_in_outer_node(self, node: O) -> IOptional[T]:
         raise NotImplementedError
 
-    def replace_in_outer_target(self, target: O, new_node: T) -> O | None:
+    def replace_in_outer_target(self, target: O, new_node: T) -> IOptional[O]:
+        raise NotImplementedError
+
+    def remove_in_outer_target(self, target: O) -> IOptional[O]:
         raise NotImplementedError
 
 class ITypedIntIndex(IInt, ITypedIndex[O, T], typing.Generic[O, T]):
@@ -168,18 +175,17 @@ class ITypedIntIndex(IInt, ITypedIndex[O, T], typing.Generic[O, T]):
     def outer_type(cls) -> type[O]:
         raise NotImplementedError
 
-    def find_arg(self, node: INode) -> T | None:
+    def find_arg(self, node: INode) -> IOptional[T]:
         result = NodeArgIndex(self.to_int).find_in_node(node)
-        if result is None:
-            return None
-        assert isinstance(result, self.item_type())
-        return result
+        if result.value is not None:
+            assert isinstance(result, self.item_type())
+        return typing.cast(IOptional[T], result)
 
-    def replace_arg(self, target: K, new_node: T) -> K | None:
-        result = NodeArgIndex(self.to_int).replace_in_target(target, new_node)
-        if result is None:
-            return None
-        return result
+    def replace_arg(self, target: K, new_node: T) -> IOptional[K]:
+        return NodeArgIndex(self.to_int).replace_in_target(target, new_node)
+
+    def remove_arg(self, target: K) -> IOptional[K]:
+        return NodeArgIndex(self.to_int).remove_in_target(target)
 
 ###########################################################
 ######################## BASE NODE ########################
@@ -242,10 +248,10 @@ class BaseNode(INode):
                 return False
         return True
 
-    def __getitem__(self, index: INodeIndex) -> INode | None:
+    def __getitem__(self, index: INodeIndex):
         return index.find_in_node(self)
 
-    def replace_at(self, index: INodeIndex, new_node: INode) -> INode | None:
+    def replace_at(self, index: INodeIndex, new_node: INode):
         return index.replace_in_target(self, new_node)
 
     def __len__(self) -> int:
@@ -673,13 +679,13 @@ class NodeMainIndex(NodeIntBaseIndex):
                     return [node] + ancestors, index
         return [], index
 
-    def find_in_node(self, node: INode) -> INode | None:
+    def find_in_node(self, node: INode):
         item, _ = self._inner_getitem(node, self.to_int)
-        return item
+        return Optional(item)
 
-    def replace_in_target(self, target_node: INode, new_node: INode) -> INode | None:
+    def replace_in_target(self, target_node: INode, new_node: INode):
         new_target, _ = self._replace(target_node, new_node, self.to_int)
-        return new_target
+        return Optional(new_target)
 
     def ancestors(self, node: INode) -> tuple[INode, ...]:
         ancestors, _ = self._ancestors(node, self.to_int)
@@ -687,18 +693,18 @@ class NodeMainIndex(NodeIntBaseIndex):
 
 class NodeArgIndex(NodeIntBaseIndex):
 
-    def find_in_node(self, node: INode) -> INode | None:
+    def find_in_node(self, node: INode) -> IOptional[INode]:
         index = self.to_int
         if not isinstance(node, InheritableNode):
-            return None
+            return Optional.create()
         args = node.args
         if index > 0 and index <= len(args):
-            return args[index - 1]
-        return None
+            return Optional(args[index - 1])
+        return Optional.create()
 
-    def replace_in_target(self, target_node: T, new_node: INode) -> T | None:
+    def replace_in_target(self, target_node: T, new_node: INode) -> IOptional[T]:
         if not isinstance(target_node, InheritableNode):
-            return None
+            return Optional.create()
         index = self.to_int
         args = target_node.args
         if index > 0 and index <= len(args):
@@ -707,8 +713,24 @@ class NodeArgIndex(NodeIntBaseIndex):
                 for i, arg in enumerate(args)
             ])
             assert isinstance(new_target, type(target_node))
-            return typing.cast(T, new_target)
-        return None
+            return Optional(typing.cast(T, new_target))
+        return Optional.create()
+
+    def remove_in_target(self, target_node: T) -> Optional[T]:
+        if not isinstance(target_node, InheritableNode):
+            return Optional.create()
+        index = self.to_int
+        args = target_node.args
+        if index > 0 and index <= len(args):
+            new_args = [
+                arg
+                for i, arg in enumerate(args)
+                if i != index - 1
+            ]
+            new_target = target_node.func(*new_args)
+            assert isinstance(new_target, type(target_node))
+            return Optional(typing.cast(T, new_target))
+        return Optional.create()
 
 ###########################################################
 ####################### ITEMS GROUP #######################
@@ -772,17 +794,33 @@ class OptionalValueGroup(BaseGroup[IOptional[T]], IFromInt, typing.Generic[T]):
         values = [get_value(item.value) for item in self.args]
         return DefaultGroup(*values)
 
+    def new_amount(self, amount: int) -> typing.Self:
+        items = self.as_tuple
+        if amount < len(items):
+            return self.from_items(list(items)[:amount])
+        elif amount > len(items):
+            diff = amount - len(items)
+            new_items = list(items) + [Optional.create()] * diff
+            return self.from_items(new_items)
+        return self
+
 ###########################################################
 ####################### TYPE GROUPS #######################
 ###########################################################
 
-class CountableTypeGroup(BaseGroup[TypeNode[T]], typing.Generic[T]):
+class IBaseTypeGroup(ABC, INode):
+    pass
+class CountableTypeGroup(BaseGroup[TypeNode[T]], IBaseTypeGroup, typing.Generic[T]):
 
     @classmethod
     def item_type(cls) -> type[TypeNode[T]]:
         return TypeNode
 
-class RestTypeGroup(InheritableNode, typing.Generic[T]):
+class RestTypeGroup(InheritableNode, IBaseTypeGroup, ISingleChild[TypeNode[T]], typing.Generic[T]):
+
+    @classmethod
+    def with_child(cls, child: TypeNode[T]):
+        return cls(child)
 
     def __init__(self, type_node: TypeNode[T]):
         assert isinstance(type_node, TypeNode)
@@ -794,16 +832,20 @@ class RestTypeGroup(InheritableNode, typing.Generic[T]):
         assert isinstance(type_node, TypeNode)
         return type_node
 
-class ExtendedTypeGroup(InheritableNode, typing.Generic[T]):
+    @property
+    def child(self) -> TypeNode[T]:
+        return self.type
 
-    def __init__(self, group: CountableTypeGroup[T] | RestTypeGroup[T]):
+class ExtendedTypeGroup(InheritableNode, IDefault, IFromSingleChild[IOptional[IInt]], typing.Generic[T]):
+
+    def __init__(self, group: IBaseTypeGroup):
         assert isinstance(group, CountableTypeGroup) or isinstance(group, RestTypeGroup)
         super().__init__(group)
 
     @property
-    def group(self) -> CountableTypeGroup[T] | RestTypeGroup[T]:
+    def group(self) -> IBaseTypeGroup:
         group = self.args[1]
-        assert isinstance(group, CountableTypeGroup) or isinstance(group, RestTypeGroup)
+        assert isinstance(group, IBaseTypeGroup)
         return group
 
     def validate_values(self, values: BaseGroup):
@@ -829,12 +871,29 @@ class ExtendedTypeGroup(InheritableNode, typing.Generic[T]):
             raise ValueError(f"Invalid group type: {group}")
 
     @classmethod
-    def default(cls, amount: IOptional[INT]) -> ExtendedTypeGroup[UnknownType]:
-        value = amount.value.to_int if amount.value is not None else None
+    def create(cls) -> typing.Self:
+        return cls.with_child(Optional.create())
+
+    @classmethod
+    def with_child(cls, child: IOptional[INT]) -> typing.Self:
+        value = child.value.to_int if child.value is not None else None
         if value is None:
-            return ExtendedTypeGroup(RestTypeGroup(TypeNode(UnknownType)))
-        return ExtendedTypeGroup(
-            CountableTypeGroup(*[TypeNode(UnknownType) for _ in range(value)]))
+            return cls(RestTypeGroup(TypeNode(UnknownType)))
+        return cls(
+            CountableTypeGroup.from_items([TypeNode(UnknownType)] * value))
+
+    def new_amount(self, amount: int) -> typing.Self:
+        group = self.group
+        if not isinstance(group, CountableTypeGroup):
+            return self.with_child(Optional(Integer(amount)))
+        items = group.as_tuple
+        if amount == len(items):
+            return self
+        return self.func(
+            CountableTypeGroup.from_items([
+                (items[i] if i < len(items) else TypeNode(UnknownType))
+                for i in range(amount)
+            ]))
 
 ###########################################################
 ###################### FUNCTION NODE ######################
@@ -942,7 +1001,11 @@ class IExceptionInfo(ABC, INode):
     def as_exception(self):
         raise InvalidNodeException(self)
 
-class BooleanExceptionInfo(InheritableNode, IExceptionInfo, IBoolean):
+class BooleanExceptionInfo(InheritableNode, ISingleChild[IBoolean], IExceptionInfo, IBoolean):
+
+    @classmethod
+    def with_child(cls, child: IBoolean) -> typing.Self:
+        return cls(child)
 
     def __init__(self, value: IBoolean):
         super().__init__(value)
@@ -953,6 +1016,11 @@ class BooleanExceptionInfo(InheritableNode, IExceptionInfo, IBoolean):
         if not isinstance(value, IBoolean):
             return None
         return value.value
+
+    @property
+    def child(self) -> IBoolean:
+        value = self.value
+        return typing.cast(IBoolean, value)
 
 class InvalidNodeException(Exception):
 
@@ -968,7 +1036,11 @@ class InvalidNodeException(Exception):
 ######################## EXCEPTION ########################
 ###########################################################
 
-class ExceptionInfoWrapper(InheritableNode, IExceptionInfo):
+class ExceptionInfoWrapper(InheritableNode, ISingleChild[IExceptionInfo], IExceptionInfo):
+
+    @classmethod
+    def with_child(cls, child: IExceptionInfo) -> typing.Self:
+        return cls(child)
 
     def __init__(self, info: IExceptionInfo):
         super().__init__(info)
@@ -978,11 +1050,19 @@ class ExceptionInfoWrapper(InheritableNode, IExceptionInfo):
         info = self.args[0]
         return typing.cast(IExceptionInfo, info)
 
+    @property
+    def child(self) -> IExceptionInfo:
+        return self.info
+
 ###########################################################
 ################### CORE BOOLEAN NODES ####################
 ###########################################################
 
-class Not(InheritableNode, IBoolean):
+class Not(InheritableNode, IBoolean, ISingleChild[IBoolean]):
+
+    @classmethod
+    def with_child(cls, child: IBoolean) -> typing.Self:
+        return cls(child)
 
     def __init__(self, value: IBoolean):
         super().__init__(value)
@@ -996,10 +1076,18 @@ class Not(InheritableNode, IBoolean):
             return None
         return not value.value
 
+    @property
+    def child(self) -> IBoolean:
+        value = self.value
+        return typing.cast(IBoolean, value)
+
 class IsEmpty(InheritableNode, IBoolean, ISingleOptionalChild[T], typing.Generic[T]):
 
     def __init__(self, value: IOptional[T]):
         super().__init__(value)
+
+    def to_exception(self):
+        return InvalidNodeException(BooleanExceptionInfo(self))
 
     @property
     def value(self) -> bool | None:
@@ -1017,8 +1105,13 @@ class IsEmpty(InheritableNode, IBoolean, ISingleOptionalChild[T], typing.Generic
     def value_or_raise(self) -> T:
         value = self.child.value
         if value is None:
-            raise InvalidNodeException(BooleanExceptionInfo(self))
+            raise self.to_exception()
         return value
+
+    def raise_if_empty(self):
+        value = self.child.value
+        if value is None:
+            raise self.to_exception()
 
 class IsInsideRange(InheritableNode, IBoolean):
 

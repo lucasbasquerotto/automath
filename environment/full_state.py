@@ -13,12 +13,13 @@ from environment.core import (
     INodeIndex,
     NodeMainIndex,
     NodeArgIndex,
-    ISingleChild,
+    IFromSingleChild,
     IGroup,
     IFunction,
     IBoolean,
     TypeNode,
-    IOptional)
+    IOptional,
+    Optional)
 from environment.state import (
     State,
     Scratch,
@@ -94,12 +95,6 @@ class IFullStateIndex(ITypedIndex[FullState, T], typing.Generic[T]):
     def item_type(cls) -> type[T]:
         raise NotImplementedError
 
-    def find_in_outer_node(self, node: FullState) -> T | None:
-        raise NotImplementedError
-
-    def replace_in_outer_target(self, target: FullState, new_node: T) -> FullState | None:
-        raise NotImplementedError
-
 class FullStateIntIndex(
     ABC,
     Integer,
@@ -121,16 +116,16 @@ class FullStateGroupBaseIndex(FullStateIntIndex[T]):
     def group(cls, full_state: FullState) -> BaseGroup[T]:
         raise NotImplementedError
 
-    def find_in_outer_node(self, node: FullState) -> T | None:
+    def find_in_outer_node(self, node: FullState):
         return self.find_arg(self.group(node))
 
-    def replace_in_outer_target(self, target: FullState, new_node: T) -> FullState | None:
+    def replace_in_outer_target(self, target: FullState, new_node: T):
         raise NotImplementedError
 
 class FullStateReadonlyGroupBaseIndex(FullStateGroupBaseIndex[T]):
 
-    def replace_in_outer_target(self, target: FullState, new_node: T) -> FullState | None:
-        return None
+    def replace_in_outer_target(self, target: FullState, new_node: T):
+        return Optional.create()
 
 class FullStateGroupTypeBaseIndex(FullStateReadonlyGroupBaseIndex[TypeNode[T]]):
 
@@ -206,11 +201,11 @@ class MetaFullStateIntIndexTypeIndex(FullStateGroupTypeBaseIndex[FullStateIntInd
     def group(cls, full_state: FullState):
         return full_state.meta.full_state_int_index_group.subtypes
 
-class MetaSingleChildTypeIndex(FullStateGroupTypeBaseIndex[ISingleChild]):
+class MetaSingleChildTypeIndex(FullStateGroupTypeBaseIndex[IFromSingleChild]):
 
     @classmethod
     def inner_item_type(cls):
-        return ISingleChild
+        return IFromSingleChild
 
     @classmethod
     def group(cls, full_state: FullState):
