@@ -108,7 +108,7 @@ class ISingleOptionalChild(ISingleChild[IOptional[T]], typing.Generic[T], ABC):
 
     @classmethod
     def with_optional(cls, child: T | None) -> typing.Self:
-        return cls.with_child(Optional(child))
+        return cls.with_child(Optional(child) if child is not None else Optional())
 
     @property
     def child(self) -> IOptional[T]:
@@ -460,7 +460,9 @@ class InheritableNode(BaseNode, ABC):
     def __init__(self, *args: INode):
         assert all(isinstance(arg, INode) for arg in args)
         type_group = self.as_instance.__class__.arg_type_group().group
-        if isinstance(type_group, CountableTypeGroup):
+        if isinstance(type_group, OptionalTypeGroup):
+            assert len(args) <= 1
+        elif isinstance(type_group, CountableTypeGroup):
             assert len(args) == len(type_group.args)
         super().__init__(*args)
 
@@ -522,15 +524,6 @@ class Optional(InheritableNode, IOptional[T], typing.Generic[T], IInstantiable):
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(OptionalTypeGroup(TypeNode(INode)))
-
-    def __init__(self, *args: T):
-        assert len(args) <= 1
-        if len(args) == 0:
-            super().__init__()
-        else:
-            value = args[0]
-            assert isinstance(value, INode)
-            super().__init__(value)
 
     @property
     def value(self) -> T | None:
@@ -804,11 +797,11 @@ class NodeMainIndex(NodeIntBaseIndex, IInstantiable):
 
     def find_in_node(self, node: INode):
         item, _ = self._inner_getitem(node, self.to_int)
-        return Optional(item)
+        return Optional(item) if item is not None else Optional()
 
     def replace_in_target(self, target_node: INode, new_node: INode):
         new_target, _ = self._replace(target_node, new_node, self.to_int)
-        return Optional(new_target)
+        return Optional(new_target) if new_target is not None else Optional()
 
     def ancestors(self, node: INode) -> tuple[INode, ...]:
         ancestors, _ = self._ancestors(node, self.to_int)
@@ -819,15 +812,15 @@ class NodeArgIndex(NodeIntBaseIndex, IInstantiable):
     def find_in_node(self, node: INode) -> IOptional[INode]:
         index = self.to_int
         if not isinstance(node, InheritableNode):
-            return Optional.create()
+            return Optional()
         args = node.args
         if 0 < index <= len(args):
             return Optional(args[index - 1])
-        return Optional.create()
+        return Optional()
 
     def replace_in_target(self, target_node: T, new_node: INode) -> IOptional[T]:
         if not isinstance(target_node, InheritableNode):
-            return Optional.create()
+            return Optional()
         index = self.to_int
         args = target_node.args
         if 0 < index <= len(args):
@@ -837,11 +830,11 @@ class NodeArgIndex(NodeIntBaseIndex, IInstantiable):
             ])
             assert isinstance(new_target, type(target_node))
             return Optional(typing.cast(T, new_target))
-        return Optional.create()
+        return Optional()
 
     def remove_in_target(self, target_node: T) -> Optional[T]:
         if not isinstance(target_node, InheritableNode):
-            return Optional.create()
+            return Optional()
         index = self.to_int
         args = target_node.args
         if 0 < index <= len(args):
@@ -853,7 +846,7 @@ class NodeArgIndex(NodeIntBaseIndex, IInstantiable):
             new_target = target_node.func(*new_args)
             assert isinstance(new_target, type(target_node))
             return Optional(typing.cast(T, new_target))
-        return Optional.create()
+        return Optional()
 
 ###########################################################
 ####################### ITEMS GROUP #######################
@@ -893,7 +886,7 @@ class OptionalValueGroup(BaseGroup[IOptional[T]], IFromInt, typing.Generic[T], I
 
     @classmethod
     def from_int(cls, value: int) -> typing.Self:
-        return cls(*[Optional.create() for _ in range(value)])
+        return cls(*[Optional() for _ in range(value)])
 
     @classmethod
     def item_type(cls):
@@ -922,7 +915,7 @@ class OptionalValueGroup(BaseGroup[IOptional[T]], IFromInt, typing.Generic[T], I
             return self.from_items(list(items)[:amount])
         elif amount > len(items):
             diff = amount - len(items)
-            new_items = list(items) + [Optional.create()] * diff
+            new_items = list(items) + [Optional()] * diff
             return self.from_items(new_items)
         return self
 
@@ -1019,7 +1012,7 @@ class ExtendedTypeGroup(
 
     @classmethod
     def create(cls) -> typing.Self:
-        return cls.with_child(Optional.create())
+        return cls.with_child(Optional())
 
     @classmethod
     def with_child(cls, child: IOptional[INT]) -> typing.Self:
