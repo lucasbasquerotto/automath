@@ -17,7 +17,7 @@ from environment.core import (
     ScopeId,
     OptionalValueGroup,
     ExtendedTypeGroup,
-    RestTypeGroup,
+    SingleValueTypeGroup,
     UnknownType,
     FunctionExpr,
     ITypedIndex,
@@ -54,13 +54,17 @@ class ScratchGroup(BaseGroup[Scratch], IInstantiable):
 
     @classmethod
     def from_raw_items(cls, items: tuple[INode | None, ...]) -> typing.Self:
-        return cls.from_items([Scratch.with_content(Optional(s)) for s in items])
+        return cls.from_items([
+            Scratch.with_content(Optional(s) if s is not None else Optional())
+            for s in items
+        ])
 
     def to_raw_items(self) -> tuple[INode, ...]:
         return tuple(s.child for s in self.as_tuple)
 
 class PartialArgsGroup(
-    FunctionExpr[OptionalValueGroup[T]], IDefault, typing.Generic[T],
+    FunctionExpr[OptionalValueGroup],
+    IDefault,
     IInstantiable,
 ):
 
@@ -71,7 +75,7 @@ class PartialArgsGroup(
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             ExtendedTypeGroup,
-            OpaqueScope[OptionalValueGroup[T]],
+            OpaqueScope[OptionalValueGroup],
         ]))
 
     @property
@@ -88,12 +92,12 @@ class PartialArgsGroup(
 
     @property
     def inner_args(self) -> tuple[INode, ...]:
-        return self.scope_child.apply().cast(OptionalValueGroup[T]).as_tuple
+        return self.scope_child.apply().cast(OptionalValueGroup).as_tuple
 
     @classmethod
     def create(cls) -> typing.Self:
         return cls(
-            ExtendedTypeGroup(RestTypeGroup(UnknownType())),
+            ExtendedTypeGroup(SingleValueTypeGroup(UnknownType())),
             OpaqueScope.with_content(OptionalValueGroup()))
 
 class PartialArgsOuterGroup(BaseGroup[PartialArgsGroup], IInstantiable):
