@@ -10,7 +10,8 @@ from environment.core import (
     TypeNode,
     IsInsideRange,
     InvalidNodeException,
-    IOptional)
+    IOptional,
+    IInstantiable)
 from environment.state import State
 from environment.meta_env import IMetaData
 from environment.full_state import FullState, HistoryNode, HistoryGroupNode
@@ -19,7 +20,7 @@ from environment.full_state import FullState, HistoryNode, HistoryGroupNode
 ########################## MAIN ###########################
 ###########################################################
 
-class IActionOutput(INode):
+class IActionOutput(INode, ABC):
 
     def apply(self, full_state: FullState) -> State:
         raise NotImplementedError
@@ -27,12 +28,12 @@ class IActionOutput(INode):
 T = typing.TypeVar('T', bound=INode)
 O = typing.TypeVar('O', bound=IActionOutput)
 
-class IAction(INode, typing.Generic[O]):
+class IAction(INode, typing.Generic[O], ABC):
 
     def as_action(self) -> 'BaseAction[O]':
         raise NotImplementedError
 
-class FullActionOutput(InheritableNode, typing.Generic[O]):
+class FullActionOutput(InheritableNode, typing.Generic[O], IInstantiable):
 
     def __init__(
         self,
@@ -57,7 +58,7 @@ class FullActionOutput(InheritableNode, typing.Generic[O]):
 ####################### ACTION DATA #######################
 ###########################################################
 
-class ActionData(InheritableNode, IMetaData):
+class ActionData(InheritableNode, IMetaData, IInstantiable):
     def __init__(
         self,
         action: IOptional['BaseAction'],
@@ -85,12 +86,12 @@ class ActionData(InheritableNode, IMetaData):
 #################### ACTION EXCEPTION #####################
 ###########################################################
 
-class IActionExceptionInfo(IExceptionInfo):
+class IActionExceptionInfo(IExceptionInfo, ABC):
 
     def to_action_data(self) -> ActionData:
         raise NotImplementedError
 
-class InvalidActionException(InvalidNodeException, IActionExceptionInfo):
+class InvalidActionException(InvalidNodeException):
 
     def __init__(self, info: IActionExceptionInfo):
         super().__init__(info)
@@ -103,7 +104,7 @@ class InvalidActionException(InvalidNodeException, IActionExceptionInfo):
     def to_action_data(self) -> ActionData:
         return self.info.to_action_data()
 
-class ActionTypeExceptionInfo(InheritableNode, IActionExceptionInfo):
+class ActionTypeExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiable):
 
     def __init__(
         self,
@@ -119,7 +120,7 @@ class ActionTypeExceptionInfo(InheritableNode, IActionExceptionInfo):
             exception=Optional(self),
         )
 
-class ActionInputExceptionInfo(InheritableNode, IActionExceptionInfo):
+class ActionInputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiable):
 
     def __init__(
         self,
@@ -137,7 +138,7 @@ class ActionInputExceptionInfo(InheritableNode, IActionExceptionInfo):
             exception=Optional(typing.cast(IExceptionInfo, self.args[1])),
         )
 
-class ActionOutputExceptionInfo(InheritableNode, IExceptionInfo):
+class ActionOutputExceptionInfo(InheritableNode, IExceptionInfo, IInstantiable):
 
     def __init__(
         self,
@@ -161,7 +162,7 @@ class ActionOutputExceptionInfo(InheritableNode, IExceptionInfo):
 ##################### IMPLEMENTATION ######################
 ###########################################################
 
-class BaseAction(InheritableNode, IAction[O], typing.Generic[O]):
+class BaseAction(InheritableNode, IAction[O], typing.Generic[O], ABC):
 
     def as_action(self) -> typing.Self:
         return self
@@ -226,8 +227,8 @@ class BaseAction(InheritableNode, IAction[O], typing.Generic[O]):
         )
 
 class GeneralAction(
-    ABC,
     BaseAction[typing.Self], # type: ignore[misc]
     IActionOutput,
+    ABC,
 ):
     pass

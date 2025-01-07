@@ -7,7 +7,7 @@ from environment.core import (
     ParamsGroup,
     ArgsGroup,
     InheritableNode,
-    Integer,
+    BaseInt,
     IntValueGroup,
     IntTypeGroup,
     INodeIndex,
@@ -73,7 +73,7 @@ def _validate_indexes(idx_list: list[int]):
 _validate_indexes(ARG_TYPES)
 _validate_indexes(VALUE_TYPES)
 
-class NewActionArg(Integer):
+class NewActionArg(BaseInt):
     pass
 
 class ActionArgPartialDefinition(NewActionArg):

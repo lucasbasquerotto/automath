@@ -12,7 +12,7 @@ from environment.core import (
     NodeMainIndex,
     NodeArgIndex,
     OpaqueScope,
-    Integer,
+    BaseInt,
     ScopeId,
     OptionalValueGroup,
     ExtendedTypeGroup,
@@ -22,6 +22,7 @@ from environment.core import (
     SimpleScope,
     ITypedIndex,
     ITypedIntIndex,
+    IInstantiable,
 )
 
 T = typing.TypeVar('T', bound=INode)
@@ -31,11 +32,11 @@ K = typing.TypeVar('K', bound=INode)
 #################### STATE DEFINITIONS ####################
 ###########################################################
 
-class Scratch(OpaqueScope[IOptional[INode]]):
+class Scratch(OpaqueScope[IOptional[INode]], IInstantiable):
     def __init__(self, id: ScopeId, child: IOptional[INode]):
         super().__init__(id, child)
 
-class ScratchGroup(BaseGroup[Scratch]):
+class ScratchGroup(BaseGroup[Scratch], IInstantiable):
     @classmethod
     def item_type(cls):
         return OpaqueScope[Scratch]
@@ -47,7 +48,10 @@ class ScratchGroup(BaseGroup[Scratch]):
     def to_raw_items(self) -> tuple[INode, ...]:
         return tuple(s.child for s in self.as_tuple)
 
-class PartialArgsGroup(FunctionExpr[OptionalValueGroup[T]], IDefault, typing.Generic[T]):
+class PartialArgsGroup(
+    FunctionExpr[OptionalValueGroup[T]], IDefault, typing.Generic[T],
+    IInstantiable,
+):
 
     def __init__(
         self,
@@ -87,20 +91,20 @@ class PartialArgsGroup(FunctionExpr[OptionalValueGroup[T]], IDefault, typing.Gen
             ExtendedTypeGroup(RestTypeGroup(UnknownType())),
             OpaqueScope.with_content(OptionalValueGroup()))
 
-class PartialArgsOuterGroup(BaseGroup[PartialArgsGroup]):
+class PartialArgsOuterGroup(BaseGroup[PartialArgsGroup], IInstantiable):
     @classmethod
     def item_type(cls):
         return PartialArgsGroup
 
-class IDefinitionKey(ABC, INode):
+class IDefinitionKey(INode, ABC):
     pass
 
 D = typing.TypeVar('D', bound=IDefinitionKey)
 
-class FunctionId(Integer, IDefinitionKey, IFunction):
+class FunctionId(BaseInt, IDefinitionKey, IFunction, IInstantiable):
     pass
 
-class StateDefinition(InheritableNode, typing.Generic[D, T]):
+class StateDefinition(InheritableNode, typing.Generic[D, T], ABC):
 
     def __init__(self, definition_key: D, definition_expr: T):
         super().__init__(definition_key, definition_expr)
@@ -115,13 +119,17 @@ class StateDefinition(InheritableNode, typing.Generic[D, T]):
         definition_expr = self.args[1]
         return typing.cast(T, definition_expr)
 
-class FunctionDefinition(StateDefinition[FunctionId, FunctionExpr[T]], typing.Generic[T]):
+class FunctionDefinition(
+    StateDefinition[FunctionId, FunctionExpr[T]],
+    typing.Generic[T],
+    IInstantiable,
+):
 
     @property
     def scope(self) -> SimpleScope[T]:
         return self.definition_expr.scope
 
-class StateDefinitionGroup(BaseGroup[StateDefinition]):
+class StateDefinitionGroup(BaseGroup[StateDefinition], IInstantiable):
     @classmethod
     def item_type(cls):
         return StateDefinition
@@ -130,7 +138,7 @@ class StateDefinitionGroup(BaseGroup[StateDefinition]):
 ########################## STATE ##########################
 ###########################################################
 
-class State(InheritableNode):
+class State(InheritableNode, IInstantiable):
     def __init__(
         self,
         definition_group: StateDefinitionGroup,
@@ -172,7 +180,7 @@ class State(InheritableNode):
 ######################### INDICES #########################
 ###########################################################
 
-class IStateIndex(ITypedIndex[State, T], typing.Generic[T]):
+class IStateIndex(ITypedIndex[State, T], typing.Generic[T], ABC):
 
     @classmethod
     def outer_type(cls) -> type[State]:
@@ -191,10 +199,10 @@ class IStateIndex(ITypedIndex[State, T], typing.Generic[T]):
     def remove_in_outer_target(self, target: State) -> IOptional[State]:
         raise NotImplementedError
 
-class StateIntIndex(ABC, Integer, IStateIndex[T], ITypedIntIndex[State, T], typing.Generic[T]):
+class StateIntIndex(BaseInt, IStateIndex[T], ITypedIntIndex[State, T], typing.Generic[T], ABC):
     pass
 
-class StateDefinitionIndex(StateIntIndex[StateDefinition]):
+class StateDefinitionIndex(StateIntIndex[StateDefinition], IInstantiable):
 
     @classmethod
     def item_type(cls):
@@ -226,7 +234,7 @@ class StateDefinitionIndex(StateIntIndex[StateDefinition]):
                     scratch_group=target.scratch_group))
         return Optional.create()
 
-class StateScratchIndex(StateIntIndex[Scratch]):
+class StateScratchIndex(StateIntIndex[Scratch], IInstantiable):
 
     @classmethod
     def item_type(cls):
@@ -253,7 +261,7 @@ class StateScratchIndex(StateIntIndex[Scratch]):
             args_outer_group=target.args_outer_group,
             scratch_group=group))
 
-class ScratchNodeIndex(NodeIntBaseIndex):
+class ScratchNodeIndex(NodeIntBaseIndex, IInstantiable):
 
     def find_in_node(self, node: INode):
         assert isinstance(node, Scratch)
@@ -279,7 +287,7 @@ class ScratchNodeIndex(NodeIntBaseIndex):
         content = NodeMainIndex(self.to_int).remove_in_target(old_content)
         return content
 
-class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup]):
+class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup], IInstantiable):
 
     @classmethod
     def item_type(cls):
@@ -308,7 +316,7 @@ class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup]):
             args_outer_group=args_outer_group,
             scratch_group=target.scratch_group)
 
-class StateArgsGroupArgIndex(InheritableNode, IStateIndex[INode]):
+class StateArgsGroupArgIndex(InheritableNode, IStateIndex[INode], IInstantiable):
 
     @classmethod
     def item_type(cls):

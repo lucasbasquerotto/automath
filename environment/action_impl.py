@@ -1,4 +1,5 @@
 import typing
+from abc import ABC
 from environment.core import (
     INode,
     NodeArgIndex,
@@ -17,7 +18,8 @@ from environment.core import (
     IFromInt,
     IFromSingleChild,
     IsEmpty,
-    CountableTypeGroup)
+    CountableTypeGroup,
+    IInstantiable)
 from environment.state import (
     State,
     Scratch,
@@ -36,7 +38,7 @@ from environment.action import (
     BaseAction,
     GeneralAction)
 
-class BasicActionGenerator(INode):
+class BasicActionGenerator(INode, ABC):
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
@@ -46,7 +48,7 @@ class BasicActionGenerator(INode):
 ################## ASCRATCH BASE ACTIONS ##################
 ###########################################################
 
-class ScratchBaseActionOutput(GeneralAction, ISingleChild[StateScratchIndex]):
+class ScratchBaseActionOutput(GeneralAction, ISingleChild[StateScratchIndex], ABC):
 
     @classmethod
     def with_child(cls, child: StateScratchIndex) -> typing.Self:
@@ -68,7 +70,7 @@ class ScratchBaseActionOutput(GeneralAction, ISingleChild[StateScratchIndex]):
     def apply(self, full_state: FullState) -> State:
         raise NotImplementedError
 
-class ScratchWithNodeBaseActionOutput(GeneralAction):
+class ScratchWithNodeBaseActionOutput(GeneralAction, ABC):
 
     def __init__(self, index: StateScratchIndex, node: Optional[INode]):
         super().__init__(index, node)
@@ -92,7 +94,7 @@ class ScratchWithNodeBaseActionOutput(GeneralAction):
 ##################### CREATE SCRATCH ######################
 ###########################################################
 
-class CreateScratchOutput(ScratchWithNodeBaseActionOutput):
+class CreateScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
 
     def apply(self, full_state: FullState) -> State:
         state = full_state.current.state
@@ -111,6 +113,7 @@ class CreateScratch(
     IDefault,
     ISingleOptionalChild[StateScratchIndex],
     BasicActionGenerator,
+    IInstantiable,
 ):
 
     @classmethod
@@ -150,7 +153,7 @@ class CreateScratch(
         node = scratch.child.value
         return CreateScratchOutput(index, Optional(node))
 
-class DeleteScratchOutput(ScratchBaseActionOutput):
+class DeleteScratchOutput(ScratchBaseActionOutput, IInstantiable):
 
     def apply(self, full_state: FullState) -> State:
         state = full_state.current.state
@@ -161,7 +164,7 @@ class DeleteScratchOutput(ScratchBaseActionOutput):
 ##################### DEFINE SCRATCH ######################
 ###########################################################
 
-class DefineScratchOutput(ScratchWithNodeBaseActionOutput):
+class DefineScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
 
     def apply(self, full_state: FullState) -> State:
         state = full_state.current.state
@@ -170,7 +173,7 @@ class DefineScratchOutput(ScratchWithNodeBaseActionOutput):
         assert new_state is not None
         return new_state
 
-class ClearScratch(BaseAction[DefineScratchOutput], BasicActionGenerator):
+class ClearScratch(BaseAction[DefineScratchOutput], BasicActionGenerator, IInstantiable):
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
@@ -192,7 +195,11 @@ class ClearScratch(BaseAction[DefineScratchOutput], BasicActionGenerator):
         scratch_index = self.scratch_index
         return DefineScratchOutput(scratch_index, Optional.create())
 
-class DefineScratchFromDefault(BaseAction[DefineScratchOutput], BasicActionGenerator):
+class DefineScratchFromDefault(
+    BaseAction[DefineScratchOutput],
+    BasicActionGenerator,
+    IInstantiable,
+):
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
@@ -223,7 +230,11 @@ class DefineScratchFromDefault(BaseAction[DefineScratchOutput], BasicActionGener
         content = node_type.type.create()
         return DefineScratchOutput(scratch_index, Optional(content))
 
-class DefineScratchFromInt(BaseAction[DefineScratchOutput], BasicActionGenerator):
+class DefineScratchFromInt(
+    BaseAction[DefineScratchOutput],
+    BasicActionGenerator,
+    IInstantiable,
+):
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
@@ -265,7 +276,11 @@ class DefineScratchFromInt(BaseAction[DefineScratchOutput], BasicActionGenerator
         content = node_type.type.from_int(self.index_value.to_int)
         return DefineScratchOutput(scratch_index, Optional(content))
 
-class DefineScratchFromSingleArg(BaseAction[DefineScratchOutput], BasicActionGenerator):
+class DefineScratchFromSingleArg(
+    BaseAction[DefineScratchOutput],
+    BasicActionGenerator,
+    IInstantiable,
+):
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
@@ -307,7 +322,11 @@ class DefineScratchFromSingleArg(BaseAction[DefineScratchOutput], BasicActionGen
         content = node_type.type.with_child(self.arg)
         return DefineScratchOutput(scratch_index, Optional(content))
 
-class DefineScratchFromIntIndex(BaseAction[DefineScratchOutput], BasicActionGenerator):
+class DefineScratchFromIntIndex(
+    BaseAction[DefineScratchOutput],
+    BasicActionGenerator,
+    IInstantiable,
+):
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
@@ -353,7 +372,11 @@ class DefineScratchFromIntIndex(BaseAction[DefineScratchOutput], BasicActionGene
         content = IsEmpty.with_optional(content).value_or_raise
         return DefineScratchOutput(scratch_index, Optional(content))
 
-class DefineScratchFromFunctionWithIntArg(BaseAction[DefineScratchOutput], BasicActionGenerator):
+class DefineScratchFromFunctionWithIntArg(
+    BaseAction[DefineScratchOutput],
+    BasicActionGenerator,
+    IInstantiable,
+):
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
@@ -407,7 +430,11 @@ class DefineScratchFromFunctionWithIntArg(BaseAction[DefineScratchOutput], Basic
 
         return DefineScratchOutput(scratch_index, Optional(content))
 
-class DefineScratchFromFunctionWithSingleArg(BaseAction[DefineScratchOutput], BasicActionGenerator):
+class DefineScratchFromFunctionWithSingleArg(
+    BaseAction[DefineScratchOutput],
+    BasicActionGenerator,
+    IInstantiable,
+):
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
@@ -461,7 +488,11 @@ class DefineScratchFromFunctionWithSingleArg(BaseAction[DefineScratchOutput], Ba
 
         return DefineScratchOutput(scratch_index, Optional(content))
 
-class DefineScratchFromFunctionWithArgs(BaseAction[DefineScratchOutput], BasicActionGenerator):
+class DefineScratchFromFunctionWithArgs(
+    BaseAction[DefineScratchOutput],
+    BasicActionGenerator,
+    IInstantiable,
+):
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
@@ -524,7 +555,11 @@ class DefineScratchFromFunctionWithArgs(BaseAction[DefineScratchOutput], BasicAc
 
         return DefineScratchOutput(scratch_index, Optional(content))
 
-class UpdateScratchFromAnother(BaseAction[DefineScratchOutput], BasicActionGenerator):
+class UpdateScratchFromAnother(
+    BaseAction[DefineScratchOutput],
+    BasicActionGenerator,
+    IInstantiable,
+):
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
@@ -577,7 +612,7 @@ class UpdateScratchFromAnother(BaseAction[DefineScratchOutput], BasicActionGener
 #################### CREATE ARGS GROUP ####################
 ###########################################################
 
-class CreateArgsGroupOutput(GeneralAction):
+class CreateArgsGroupOutput(GeneralAction, IInstantiable):
 
     def __init__(
         self,
@@ -616,7 +651,11 @@ class CreateArgsGroupOutput(GeneralAction):
             scratch_group=state.scratch_group,
         )
 
-class CreateArgsGroup(BaseAction[CreateArgsGroupOutput], BasicActionGenerator):
+class CreateArgsGroup(
+    BaseAction[CreateArgsGroupOutput],
+    BasicActionGenerator,
+    IInstantiable,
+):
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
@@ -702,7 +741,7 @@ class CreateArgsGroup(BaseAction[CreateArgsGroupOutput], BasicActionGenerator):
 ################## DEFINE ARGS GROUP ARG ##################
 ###########################################################
 
-class DefineArgsGroupArgOutput(GeneralAction):
+class DefineArgsGroupArgOutput(GeneralAction, IInstantiable):
 
     def __init__(
         self,
@@ -750,7 +789,11 @@ class DefineArgsGroupArgOutput(GeneralAction):
 
         return new_state
 
-class DefineArgsGroup(BaseAction[DefineArgsGroupArgOutput], BasicActionGenerator):
+class DefineArgsGroup(
+    BaseAction[DefineArgsGroupArgOutput],
+    BasicActionGenerator,
+    IInstantiable,
+):
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:

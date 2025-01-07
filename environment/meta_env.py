@@ -15,27 +15,33 @@ from environment.core import (
     BaseGroup,
     TypeNode,
     Optional,
-    IOptional)
+    IOptional,
+    IInstantiable)
 from environment.state import State
 from environment.action import BaseAction
 from environment.full_state import IFullStateIndex, FullStateIntIndex
 
 T = typing.TypeVar('T', bound=INode)
 
-class GoalNode(InheritableNode):
+class GoalNode(InheritableNode, ABC):
     def evaluate(self, state: State) -> bool:
         raise NotImplementedError
 
 class IMetaData(INode, ABC):
     pass
 
-class GeneralTypeGroup(BaseGroup[TypeNode[T]], typing.Generic[T]):
+class GeneralTypeGroup(BaseGroup[TypeNode[T]], typing.Generic[T], IInstantiable):
 
     @classmethod
     def item_type(cls):
         return TypeNode
 
-class DetailedType(InheritableNode, IFromSingleChild[TypeNode[T]], typing.Generic[T]):
+class DetailedType(
+    InheritableNode,
+    IFromSingleChild[TypeNode[T]],
+    typing.Generic[T],
+    IInstantiable,
+):
     def __init__(self, node_type: TypeNode[T]):
         super().__init__(node_type)
 
@@ -48,7 +54,7 @@ class DetailedType(InheritableNode, IFromSingleChild[TypeNode[T]], typing.Generi
     def with_child(cls, child: TypeNode[T]) -> typing.Self:
         return cls(child)
 
-class DetailedTypeGroup(BaseGroup[DetailedType[T]], typing.Generic[T]):
+class DetailedTypeGroup(BaseGroup[DetailedType[T]], typing.Generic[T], IInstantiable):
 
     @classmethod
     def item_type(cls):
@@ -61,7 +67,7 @@ class DetailedTypeGroup(BaseGroup[DetailedType[T]], typing.Generic[T]):
     def to_type_group(self) -> GeneralTypeGroup[T]:
         return GeneralTypeGroup.from_items([item.child for item in self.as_tuple])
 
-class SubtypeOuterGroup(InheritableNode, typing.Generic[T]):
+class SubtypeOuterGroup(InheritableNode, typing.Generic[T], IInstantiable):
 
     def __init__(self, common_type: TypeNode[T], subtypes: GeneralTypeGroup[T]):
         super().__init__(common_type, subtypes)
@@ -91,7 +97,7 @@ class SubtypeOuterGroup(InheritableNode, typing.Generic[T]):
         )
         cls(common_type, subtypes)
 
-class MetaInfoOptions(InheritableNode, IDefault):
+class MetaInfoOptions(InheritableNode, IDefault, IInstantiable):
     def __init__(
         self,
         max_history_state_size: IOptional[IInt],
@@ -107,7 +113,7 @@ class MetaInfoOptions(InheritableNode, IDefault):
     def create(cls) -> typing.Self:
         return cls(Optional.create())
 
-class MetaInfo(InheritableNode):
+class MetaInfo(InheritableNode, IInstantiable):
     def __init__(
         self,
         goal: GoalNode,

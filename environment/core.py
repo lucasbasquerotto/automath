@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 from __future__ import annotations
 from abc import ABC
 import typing
@@ -7,7 +8,7 @@ import sympy
 ##################### MAIN INTERFACES #####################
 ###########################################################
 
-class INode:
+class INode(ABC):
 
     @classmethod
     def new(cls, *args: int | INode | typing.Type[INode]) -> typing.Self:
@@ -21,7 +22,7 @@ class INode:
     def func(self) -> typing.Type[typing.Self]:
         return type(self)
 
-class IDefault(INode):
+class IDefault(INode, ABC):
 
     @classmethod
     def create(cls) -> typing.Self:
@@ -31,19 +32,19 @@ class IDefault(INode):
     def as_node(self) -> BaseNode:
         raise NotImplementedError()
 
-class IFromInt(INode):
+class IFromInt(INode, ABC):
 
     @classmethod
     def from_int(cls, value: int) -> typing.Self:
         raise NotImplementedError()
 
-class IInt(IFromInt):
+class IInt(IFromInt, ABC):
 
     @property
     def to_int(self) -> int:
         raise NotImplementedError()
 
-class INodeIndex(INode):
+class INodeIndex(INode, ABC):
 
     def find_in_node(self, node: INode) -> IOptional[INode]:
         raise NotImplementedError
@@ -63,7 +64,7 @@ O = typing.TypeVar('O', bound=INode)
 K = typing.TypeVar('K', bound=INode)
 INT = typing.TypeVar('INT', bound=IInt)
 
-class IFromSingleChild(INode, typing.Generic[T]):
+class IFromSingleChild(INode, typing.Generic[T], ABC):
 
     @classmethod
     def with_child(cls, child: T) -> typing.Self:
@@ -73,13 +74,13 @@ class IFromSingleChild(INode, typing.Generic[T]):
     def as_node(self) -> BaseNode:
         raise NotImplementedError()
 
-class ISingleChild(IFromSingleChild, typing.Generic[T]):
+class ISingleChild(IFromSingleChild, typing.Generic[T], ABC):
 
     @property
     def child(self) -> T:
         raise NotImplementedError()
 
-class IOptional(IDefault, IFromSingleChild[T], typing.Generic[T]):
+class IOptional(IDefault, IFromSingleChild[T], typing.Generic[T], ABC):
 
     @property
     def value(self) -> T | None:
@@ -99,7 +100,7 @@ class IOptional(IDefault, IFromSingleChild[T], typing.Generic[T]):
     def raise_if_empty(self):
         IsEmpty(self).raise_if_empty()
 
-class ISingleOptionalChild(ISingleChild[IOptional[T]], typing.Generic[T]):
+class ISingleOptionalChild(ISingleChild[IOptional[T]], typing.Generic[T], ABC):
 
     @classmethod
     def with_optional(cls, child: T | None) -> typing.Self:
@@ -109,7 +110,7 @@ class ISingleOptionalChild(ISingleChild[IOptional[T]], typing.Generic[T]):
     def child(self) -> IOptional[T]:
         raise NotImplementedError()
 
-class IGroup(INode, typing.Generic[T]):
+class IGroup(INode, typing.Generic[T], ABC):
 
     @classmethod
     def item_type(cls) -> type[T]:
@@ -123,7 +124,7 @@ class IGroup(INode, typing.Generic[T]):
     def from_items(cls, items: typing.Sequence[T]) -> typing.Self:
         return cls(*items)
 
-class IFunction(ABC, INode):
+class IFunction(INode, ABC):
     pass
 
 class IBoolean(INode):
@@ -137,7 +138,7 @@ class IBoolean(INode):
             raise InvalidNodeException(BooleanExceptionInfo(self))
 
 
-class ITypedIndex(INodeIndex, typing.Generic[O, T]):
+class ITypedIndex(INodeIndex, typing.Generic[O, T], ABC):
 
     @classmethod
     def outer_type(cls) -> type[O]:
@@ -169,7 +170,7 @@ class ITypedIndex(INodeIndex, typing.Generic[O, T]):
     def remove_in_outer_target(self, target: O) -> IOptional[O]:
         raise NotImplementedError
 
-class ITypedIntIndex(IInt, ITypedIndex[O, T], typing.Generic[O, T]):
+class ITypedIntIndex(IInt, ITypedIndex[O, T], typing.Generic[O, T], ABC):
 
     @classmethod
     def outer_type(cls) -> type[O]:
@@ -187,19 +188,21 @@ class ITypedIntIndex(IInt, ITypedIndex[O, T], typing.Generic[O, T]):
     def remove_arg(self, target: K) -> IOptional[K]:
         return NodeArgIndex(self.to_int).remove_in_target(target)
 
-###########################################################
-######################## BASE NODE ########################
-###########################################################
-
-class BaseNode(INode):
-
-    @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(RestTypeGroup(UnknownType()))
+class IInstantiable(INode, ABC):
 
     @classmethod
     def new(cls, *args: int | INode | typing.Type[INode]) -> typing.Self:
         return cls(*args)
+
+###########################################################
+######################## BASE NODE ########################
+###########################################################
+
+class BaseNode(INode, ABC):
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(RestTypeGroup(UnknownType()))
 
     @classmethod
     def wrap_type(cls) -> TypeNode[typing.Self]:
@@ -210,24 +213,8 @@ class BaseNode(INode):
         return self
 
     def __init__(self, *args: int | INode | typing.Type[INode]):
-        assert all(
-            (
-                isinstance(arg, INode)
-                or isinstance(arg, int)
-                or (isinstance(arg, type) and issubclass(arg, INode))
-            )
-            for arg in args
-        )
-
-        if any(
-            (
-                isinstance(arg, int)
-                or (isinstance(arg, type) and issubclass(arg, INode))
-            )
-            for arg in args
-        ):
-            assert len(args) == 1
-
+        if not isinstance(self, IInstantiable):
+            raise NotImplementedError()
         self._args = args
         self._cached_length: int | None = None
         self._cached_hash: int | None = None
@@ -355,10 +342,7 @@ class BaseNode(INode):
 ######################## TYPE NODE ########################
 ###########################################################
 
-class TypeNode(BaseNode, IFunction, typing.Generic[T]):
-
-    def with_args(self, *args: INode) -> INode:
-        return self.type.new(*args)
+class TypeNode(BaseNode, IFunction, typing.Generic[T], ABC):
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -377,6 +361,9 @@ class TypeNode(BaseNode, IFunction, typing.Generic[T]):
     def scope(self) -> SimpleScope[typing.Self]:
         return OpaqueScope.with_content(self)
 
+    def with_args(self, *args: INode) -> INode:
+        return self.type.new(*args)
+
     def __eq__(self, other) -> bool:
         if not isinstance(other, TypeNode):
             return False
@@ -386,7 +373,7 @@ class TypeNode(BaseNode, IFunction, typing.Generic[T]):
 ######################## INT NODE #########################
 ###########################################################
 
-class Integer(BaseNode, IInt):
+class BaseInt(BaseNode, IInt, ABC):
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -410,15 +397,17 @@ class Integer(BaseNode, IInt):
     def to_int(self) -> int:
         return self.value
 
+class Integer(BaseInt, IInstantiable):
+    pass
+
 ###########################################################
 ######################## MAIN NODE ########################
 ###########################################################
 
-class InheritableNode(BaseNode):
+class InheritableNode(BaseNode, ABC):
 
     def __init__(self, *args: INode):
         assert all(isinstance(arg, INode) for arg in args)
-        self.arg_type_group().validate_values(DefaultGroup(*args))
         super().__init__(*args)
 
     @property
@@ -447,11 +436,15 @@ class InheritableNode(BaseNode):
             return None
         return super().replace_at(index, new_node)
 
+    def run(self):
+        args = self.args
+        self.arg_type_group().validate_values(DefaultGroup(*args))
+
 ###########################################################
 ###################### SPECIAL NODES ######################
 ###########################################################
 
-class Void(InheritableNode, IDefault):
+class Void(InheritableNode, IDefault, IInstantiable):
 
     @classmethod
     def create(cls) -> Void:
@@ -460,7 +453,7 @@ class Void(InheritableNode, IDefault):
     def __init__(self):
         super().__init__()
 
-class UnknownType(TypeNode[INode], IDefault):
+class UnknownType(TypeNode[INode], IDefault, IInstantiable):
 
     @classmethod
     def create(cls) -> UnknownType:
@@ -469,7 +462,7 @@ class UnknownType(TypeNode[INode], IDefault):
     def __init__(self):
         super().__init__(self.__class__)
 
-class Optional(BaseNode, IOptional[T], typing.Generic[T]):
+class Optional(BaseNode, IOptional[T], typing.Generic[T], IInstantiable):
 
     def __init__(self, value: T | None = None):
         if value is not None:
@@ -489,16 +482,16 @@ class Optional(BaseNode, IOptional[T], typing.Generic[T]):
 ########################## SCOPE ##########################
 ###########################################################
 
-class ScopeId(Integer, IDefault):
+class ScopeId(BaseInt, IDefault, IInstantiable):
 
     @classmethod
     def create(cls) -> ScopeId:
         return cls(1)
 
-class TemporaryScopeId(ScopeId):
+class TemporaryScopeId(ScopeId, IInstantiable):
     pass
 
-class Scope(InheritableNode):
+class Scope(InheritableNode, ABC):
 
     @property
     def id(self) -> ScopeId:
@@ -512,7 +505,7 @@ class Scope(InheritableNode):
         assert isinstance(node, self.__class__)
         return node
 
-class SimpleScope(Scope, typing.Generic[T]):
+class SimpleScope(Scope, typing.Generic[T], IInstantiable):
 
     def __init__(self, id: ScopeId, child: T):
         assert isinstance(id, ScopeId)
@@ -533,7 +526,7 @@ class SimpleScope(Scope, typing.Generic[T]):
     def has_dependency(self) -> bool:
         return self.child.as_node.has_until(self.id, OpaqueScope)
 
-class OpaqueScope(SimpleScope[T], typing.Generic[T]):
+class OpaqueScope(SimpleScope[T], typing.Generic[T], IInstantiable):
 
     @classmethod
     def with_content(cls, child: T) -> typing.Self:
@@ -580,7 +573,7 @@ class OpaqueScope(SimpleScope[T], typing.Generic[T]):
         assert self == self.normalize()
         super().validate()
 
-class Placeholder(InheritableNode, IFromInt, typing.Generic[T]):
+class Placeholder(InheritableNode, IFromInt, typing.Generic[T], ABC):
 
     @classmethod
     def from_int(cls, value: int) -> typing.Self:
@@ -589,7 +582,7 @@ class Placeholder(InheritableNode, IFromInt, typing.Generic[T]):
             Integer(value),
             typing.cast(TypeNode[T], UnknownType()))
 
-    def __init__(self, parent_scope: ScopeId, index: Integer, type_node: TypeNode[T]):
+    def __init__(self, parent_scope: ScopeId, index: BaseInt, type_node: TypeNode[T]):
         assert isinstance(parent_scope, ScopeId)
         assert isinstance(index, IInt)
         assert isinstance(type_node, TypeNode)
@@ -613,20 +606,20 @@ class Placeholder(InheritableNode, IFromInt, typing.Generic[T]):
         assert isinstance(type_node, TypeNode)
         return type_node
 
-class Param(Placeholder[T], typing.Generic[T]):
+class Param(Placeholder[T], typing.Generic[T], IInstantiable):
     pass
 
-class Var(Placeholder[T], typing.Generic[T]):
+class Var(Placeholder[T], typing.Generic[T], IInstantiable):
     pass
 
 ###########################################################
 ######################## NODE IDXS ########################
 ###########################################################
 
-class NodeIntBaseIndex(ABC, Integer, INodeIndex, IInt):
+class NodeIntBaseIndex(BaseInt, INodeIndex, IInt, ABC):
     pass
 
-class NodeMainIndex(NodeIntBaseIndex):
+class NodeMainIndex(NodeIntBaseIndex, IInstantiable):
 
     @classmethod
     def _inner_getitem(cls, node: INode, index: int) -> tuple[INode | None, int]:
@@ -691,7 +684,7 @@ class NodeMainIndex(NodeIntBaseIndex):
         ancestors, _ = self._ancestors(node, self.to_int)
         return tuple(ancestors)
 
-class NodeArgIndex(NodeIntBaseIndex):
+class NodeArgIndex(NodeIntBaseIndex, IInstantiable):
 
     def find_in_node(self, node: INode) -> IOptional[INode]:
         index = self.to_int
@@ -736,7 +729,7 @@ class NodeArgIndex(NodeIntBaseIndex):
 ####################### ITEMS GROUP #######################
 ###########################################################
 
-class BaseGroup(ABC, InheritableNode, IGroup[T], typing.Generic[T]):
+class BaseGroup(InheritableNode, IGroup[T], typing.Generic[T], ABC):
 
     def __init__(self, *args: T):
         item_type = self.item_type()
@@ -755,19 +748,19 @@ class BaseGroup(ABC, InheritableNode, IGroup[T], typing.Generic[T]):
     def from_items(cls, items: typing.Sequence[T]) -> typing.Self:
         return cls(*items)
 
-class DefaultGroup(BaseGroup[INode]):
+class DefaultGroup(BaseGroup[INode], IInstantiable):
 
     @classmethod
     def item_type(cls):
         return INode
 
-class IntGroup(BaseGroup[IInt]):
+class IntGroup(BaseGroup[IInt], IInstantiable):
 
     @classmethod
     def item_type(cls):
         return IInt
 
-class OptionalValueGroup(BaseGroup[IOptional[T]], IFromInt, typing.Generic[T]):
+class OptionalValueGroup(BaseGroup[IOptional[T]], IFromInt, typing.Generic[T], IInstantiable):
 
     @classmethod
     def from_int(cls, value: int) -> typing.Self:
@@ -808,7 +801,7 @@ class OptionalValueGroup(BaseGroup[IOptional[T]], IFromInt, typing.Generic[T]):
 ####################### TYPE GROUPS #######################
 ###########################################################
 
-class IBaseTypeGroup(ABC, INode):
+class IBaseTypeGroup(INode, ABC):
     pass
 class CountableTypeGroup(BaseGroup[TypeNode[T]], IBaseTypeGroup, typing.Generic[T]):
 
@@ -836,7 +829,12 @@ class RestTypeGroup(InheritableNode, IBaseTypeGroup, ISingleChild[TypeNode[T]], 
     def child(self) -> TypeNode[T]:
         return self.type
 
-class ExtendedTypeGroup(InheritableNode, IDefault, IFromSingleChild[IOptional[IInt]], typing.Generic[T]):
+class ExtendedTypeGroup(
+    InheritableNode,
+    IDefault,
+    IFromSingleChild[IOptional[IInt]],
+    typing.Generic[T],
+):
 
     def __init__(self, group: IBaseTypeGroup):
         assert isinstance(group, CountableTypeGroup) or isinstance(group, RestTypeGroup)
@@ -996,12 +994,18 @@ class FunctionCall(InheritableNode, typing.Generic[T]):
 ######################## EXCEPTION ########################
 ###########################################################
 
-class IExceptionInfo(ABC, INode):
+class IExceptionInfo(INode, ABC):
 
     def as_exception(self):
         raise InvalidNodeException(self)
 
-class BooleanExceptionInfo(InheritableNode, ISingleChild[IBoolean], IExceptionInfo, IBoolean):
+class BooleanExceptionInfo(
+    InheritableNode,
+    ISingleChild[IBoolean],
+    IExceptionInfo,
+    IBoolean,
+    IInstantiable,
+):
 
     @classmethod
     def with_child(cls, child: IBoolean) -> typing.Self:
@@ -1036,7 +1040,7 @@ class InvalidNodeException(Exception):
 ######################## EXCEPTION ########################
 ###########################################################
 
-class ExceptionInfoWrapper(InheritableNode, ISingleChild[IExceptionInfo], IExceptionInfo):
+class ExceptionInfoWrapper(InheritableNode, ISingleChild[IExceptionInfo], IExceptionInfo, IInstantiable):
 
     @classmethod
     def with_child(cls, child: IExceptionInfo) -> typing.Self:
@@ -1058,7 +1062,7 @@ class ExceptionInfoWrapper(InheritableNode, ISingleChild[IExceptionInfo], IExcep
 ################### CORE BOOLEAN NODES ####################
 ###########################################################
 
-class Not(InheritableNode, IBoolean, ISingleChild[IBoolean]):
+class Not(InheritableNode, IBoolean, ISingleChild[IBoolean], IInstantiable):
 
     @classmethod
     def with_child(cls, child: IBoolean) -> typing.Self:
@@ -1081,7 +1085,7 @@ class Not(InheritableNode, IBoolean, ISingleChild[IBoolean]):
         value = self.value
         return typing.cast(IBoolean, value)
 
-class IsEmpty(InheritableNode, IBoolean, ISingleOptionalChild[T], typing.Generic[T]):
+class IsEmpty(InheritableNode, IBoolean, ISingleOptionalChild[T], typing.Generic[T], IInstantiable):
 
     def __init__(self, value: IOptional[T]):
         super().__init__(value)
@@ -1113,7 +1117,7 @@ class IsEmpty(InheritableNode, IBoolean, ISingleOptionalChild[T], typing.Generic
         if value is None:
             raise self.to_exception()
 
-class IsInsideRange(InheritableNode, IBoolean):
+class IsInsideRange(InheritableNode, IBoolean, IInstantiable):
 
     def __init__(self, value: IInt, min_value: IInt, max_value: IInt):
         super().__init__(value, min_value, max_value)
