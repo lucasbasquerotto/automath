@@ -517,7 +517,7 @@ class UnknownType(TypeNode[INode], IDefault, IInstantiable):
     def __init__(self):
         super().__init__(self.__class__)
 
-class Optional(BaseNode, IOptional[T], typing.Generic[T], IInstantiable):
+class Optional(InheritableNode, IOptional[T], typing.Generic[T], IInstantiable):
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
