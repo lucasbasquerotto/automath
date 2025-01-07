@@ -17,15 +17,15 @@ from environment.core import (
     TypeNode,
     IOptional,
     Optional,
+    ExtendedTypeGroup,
+    CountableTypeGroup,
+    TmpNestedArgs,
     IInstantiable)
 from environment.state import (
     State,
     Scratch,
-    ScratchGroup,
     PartialArgsGroup,
-    PartialArgsOuterGroup,
-    StateDefinition,
-    StateDefinitionGroup)
+    StateDefinition)
 from environment.meta_env import (
     MetaInfo,
     IMetaData,
@@ -33,6 +33,8 @@ from environment.meta_env import (
     IFullStateIndex,
     IFullStateIntIndex,
     IAction,
+    IBasicAction,
+    SubtypeOuterGroup,
     IActionOutput)
 
 T = typing.TypeVar('T', bound=INode)
@@ -42,20 +44,20 @@ T = typing.TypeVar('T', bound=INode)
 ###########################################################
 
 class HistoryNode(InheritableNode, IInstantiable):
-    def __init__(self, state: State, meta_data: IOptional[IMetaData]):
-        super().__init__(state, meta_data)
 
-    @property
-    def state(self) -> State:
-        state = self.args[0]
-        return typing.cast(State, state)
+    idx_state = 0
+    idx_meta_data = 1
 
-    @property
-    def meta_data(self) -> IOptional[IMetaData]:
-        meta_data = self.args[1]
-        return typing.cast(IOptional[IMetaData], meta_data)
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            State,
+            IOptional[IMetaData],
+        ]))
 
 class HistoryGroupNode(BaseGroup[HistoryNode], IInstantiable):
+
+    idx_state_nodes = 0
 
     @classmethod
     def item_type(cls) -> type[HistoryNode]:
@@ -66,23 +68,36 @@ class HistoryGroupNode(BaseGroup[HistoryNode], IInstantiable):
 ###########################################################
 
 class FullState(InheritableNode, IFullState, IInstantiable):
-    def __init__(self, meta: MetaInfo, current: HistoryNode, history: HistoryGroupNode):
-        super().__init__(meta, current, history)
+
+    idx_meta = 0
+    idx_current = 1
+    idx_history = 2
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            MetaInfo,
+            HistoryNode,
+            HistoryGroupNode,
+        ]))
 
     @property
-    def meta(self) -> MetaInfo:
-        meta = self.args[0]
-        return typing.cast(MetaInfo, meta)
+    def meta(self):
+        return self.nested_arg(self.idx_meta)
 
     @property
-    def current(self) -> HistoryNode:
-        current = self.args[1]
-        return typing.cast(HistoryNode, current)
+    def current(self):
+        return self.nested_arg(self.idx_current)
 
     @property
-    def history(self) -> HistoryGroupNode:
-        history = self.args[2]
-        return typing.cast(HistoryGroupNode, history)
+    def history(self):
+        return self.nested_arg(self.idx_history)
+
+    @property
+    def current_state(self):
+        return self.nested_args(
+            (self.idx_current, HistoryNode.idx_state)
+        )
 
 ###########################################################
 ###################### MAIN INDICES #######################
@@ -109,11 +124,11 @@ class FullStateArgIndex(NodeArgIndex, IInstantiable):
 class FullStateGroupBaseIndex(FullStateIntIndex[T], ABC):
 
     @classmethod
-    def group(cls, full_state: FullState) -> BaseGroup[T]:
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
         raise NotImplementedError
 
     def find_in_outer_node(self, node: FullState):
-        return self.find_arg(self.group(node))
+        return self.find_arg(self.group(node).apply())
 
     def replace_in_outer_target(self, target: FullState, new_node: T):
         raise NotImplementedError
@@ -145,7 +160,11 @@ class MetaDefaultTypeIndex(FullStateGroupTypeBaseIndex[IDefault], IInstantiable)
 
     @classmethod
     def group(cls, full_state: FullState):
-        return full_state.meta.default_group.subtypes
+        return full_state.nested_args((
+            FullState.idx_meta,
+            MetaInfo.idx_default_group,
+            SubtypeOuterGroup.idx_subtypes,
+        ))
 
 class MetaFromIntTypeIndex(FullStateGroupTypeBaseIndex[IFromInt], IInstantiable):
 
@@ -155,7 +174,11 @@ class MetaFromIntTypeIndex(FullStateGroupTypeBaseIndex[IFromInt], IInstantiable)
 
     @classmethod
     def group(cls, full_state: FullState):
-        return full_state.meta.from_int_group.subtypes
+        return full_state.nested_args((
+            FullState.idx_meta,
+            MetaInfo.idx_from_int_group,
+            SubtypeOuterGroup.idx_subtypes,
+        ))
 
 class MetaIntTypeIndex(FullStateGroupTypeBaseIndex[IInt], IInstantiable):
 
@@ -165,7 +188,11 @@ class MetaIntTypeIndex(FullStateGroupTypeBaseIndex[IInt], IInstantiable):
 
     @classmethod
     def group(cls, full_state: FullState):
-        return full_state.meta.int_group.subtypes
+        return full_state.nested_args((
+            FullState.idx_meta,
+            MetaInfo.idx_int_group,
+            SubtypeOuterGroup.idx_subtypes,
+        ))
 
 class MetaNodeIndexTypeIndex(FullStateGroupTypeBaseIndex[INodeIndex], IInstantiable):
 
@@ -175,7 +202,11 @@ class MetaNodeIndexTypeIndex(FullStateGroupTypeBaseIndex[INodeIndex], IInstantia
 
     @classmethod
     def group(cls, full_state: FullState):
-        return full_state.meta.node_index_group.subtypes
+        return full_state.nested_args((
+            FullState.idx_meta,
+            MetaInfo.idx_node_index_group,
+            SubtypeOuterGroup.idx_subtypes,
+        ))
 
 class MetaFullStateIndexTypeIndex(FullStateGroupTypeBaseIndex[FullStateIndex], IInstantiable):
 
@@ -185,7 +216,11 @@ class MetaFullStateIndexTypeIndex(FullStateGroupTypeBaseIndex[FullStateIndex], I
 
     @classmethod
     def group(cls, full_state: FullState):
-        return full_state.meta.full_state_index_group.subtypes
+        return full_state.nested_args((
+            FullState.idx_meta,
+            MetaInfo.idx_full_state_index_group,
+            SubtypeOuterGroup.idx_subtypes,
+        ))
 
 class MetaFullStateIntIndexTypeIndex(FullStateGroupTypeBaseIndex[FullStateIntIndex], IInstantiable):
 
@@ -195,7 +230,11 @@ class MetaFullStateIntIndexTypeIndex(FullStateGroupTypeBaseIndex[FullStateIntInd
 
     @classmethod
     def group(cls, full_state: FullState):
-        return full_state.meta.full_state_int_index_group.subtypes
+        return full_state.nested_args((
+            FullState.idx_meta,
+            MetaInfo.idx_full_state_int_index_group,
+            SubtypeOuterGroup.idx_subtypes,
+        ))
 
 class MetaSingleChildTypeIndex(FullStateGroupTypeBaseIndex[IFromSingleChild], IInstantiable):
 
@@ -205,7 +244,11 @@ class MetaSingleChildTypeIndex(FullStateGroupTypeBaseIndex[IFromSingleChild], II
 
     @classmethod
     def group(cls, full_state: FullState):
-        return full_state.meta.single_child_group.subtypes
+        return full_state.nested_args((
+            FullState.idx_meta,
+            MetaInfo.idx_single_child_group,
+            SubtypeOuterGroup.idx_subtypes,
+        ))
 
 class MetaGroupTypeIndex(FullStateGroupTypeBaseIndex[IGroup], IInstantiable):
 
@@ -215,7 +258,11 @@ class MetaGroupTypeIndex(FullStateGroupTypeBaseIndex[IGroup], IInstantiable):
 
     @classmethod
     def group(cls, full_state: FullState):
-        return full_state.meta.group_outer_group.subtypes
+        return full_state.nested_args((
+            FullState.idx_meta,
+            MetaInfo.idx_group_outer_group,
+            SubtypeOuterGroup.idx_subtypes,
+        ))
 
 class MetaFunctionTypeIndex(FullStateGroupTypeBaseIndex[IFunction], IInstantiable):
 
@@ -225,7 +272,11 @@ class MetaFunctionTypeIndex(FullStateGroupTypeBaseIndex[IFunction], IInstantiabl
 
     @classmethod
     def group(cls, full_state: FullState):
-        return full_state.meta.function_group.subtypes
+        return full_state.nested_args((
+            FullState.idx_meta,
+            MetaInfo.idx_function_group,
+            SubtypeOuterGroup.idx_subtypes,
+        ))
 
 class MetaBooleanTypeIndex(FullStateGroupTypeBaseIndex[IBoolean], IInstantiable):
 
@@ -235,7 +286,11 @@ class MetaBooleanTypeIndex(FullStateGroupTypeBaseIndex[IBoolean], IInstantiable)
 
     @classmethod
     def group(cls, full_state: FullState):
-        return full_state.meta.boolean_group.subtypes
+        return full_state.nested_args((
+            FullState.idx_meta,
+            MetaInfo.idx_boolean_group,
+            SubtypeOuterGroup.idx_subtypes,
+        ))
 
 O = typing.TypeVar('O', bound=IActionOutput)
 
@@ -250,7 +305,28 @@ class MetaAllowedActionsTypeIndex(
 
     @classmethod
     def group(cls, full_state: FullState):
-        return full_state.meta.allowed_actions.subtypes
+        return full_state.nested_args((
+            FullState.idx_meta,
+            MetaInfo.idx_allowed_actions,
+            SubtypeOuterGroup.idx_subtypes,
+        ))
+
+class MetaBasicActionsTypeIndex(
+    FullStateGroupTypeBaseIndex[IBasicAction[FullState, O]],
+    typing.Generic[O],
+    IInstantiable):
+
+    @classmethod
+    def inner_item_type(cls):
+        return IAction
+
+    @classmethod
+    def group(cls, full_state: FullState):
+        return full_state.nested_args((
+            FullState.idx_meta,
+            MetaInfo.idx_basic_actions,
+            SubtypeOuterGroup.idx_subtypes,
+        ))
 
 ###########################################################
 ################## CURRENT STATE INDICES ##################
@@ -263,8 +339,12 @@ class CurrentStateScratchIndex(FullStateReadonlyGroupBaseIndex[Scratch], IInstan
         return Scratch
 
     @classmethod
-    def group(cls, full_state: FullState) -> ScratchGroup:
-        return full_state.current.state.scratch_group
+    def group(cls, full_state: FullState):
+        return full_state.nested_args((
+            FullState.idx_current,
+            HistoryNode.idx_state,
+            State.idx_scratch_group,
+        ))
 
 class CurrentStateArgsOuterGroupIndex(
     FullStateReadonlyGroupBaseIndex[PartialArgsGroup],
@@ -276,8 +356,12 @@ class CurrentStateArgsOuterGroupIndex(
         return PartialArgsGroup
 
     @classmethod
-    def group(cls, full_state: FullState) -> PartialArgsOuterGroup:
-        return full_state.current.state.args_outer_group
+    def group(cls, full_state: FullState):
+        return full_state.nested_args((
+            FullState.idx_current,
+            HistoryNode.idx_state,
+            State.idx_args_outer_group,
+        ))
 
 class CurrentStateDefinitionIndex(FullStateReadonlyGroupBaseIndex[StateDefinition], IInstantiable):
 
@@ -286,5 +370,36 @@ class CurrentStateDefinitionIndex(FullStateReadonlyGroupBaseIndex[StateDefinitio
         return StateDefinition
 
     @classmethod
-    def group(cls, full_state: FullState) -> StateDefinitionGroup:
-        return full_state.current.state.definition_group
+    def group(cls, full_state: FullState):
+        return full_state.nested_args((
+            FullState.idx_current,
+            HistoryNode.idx_state,
+            State.idx_definition_group,
+        ))
+
+class FullStateNode(InheritableNode, ABC):
+
+    idx_state_type = 0
+    idx_state_value = 1
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            TypeNode,
+            State,
+        ]))
+
+class FullStateGroup(BaseGroup[FullStateNode], IInstantiable):
+
+    idx_state_nodes = 0
+
+    @classmethod
+    def item_type(cls):
+        return FullStateNode
+
+    @classmethod
+    def from_nodes(cls, nodes: typing.Sequence[FullStateNode]) -> typing.Self:
+        return cls.from_items(nodes)
+
+    def to_state_nodes(self) -> typing.Sequence[FullStateNode]:
+        return typing.cast(typing.Sequence[FullStateNode], self.args[self.idx_state_nodes])

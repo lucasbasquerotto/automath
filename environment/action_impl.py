@@ -23,9 +23,11 @@ from environment.core import (
 from environment.state import (
     State,
     Scratch,
+    ScratchGroup,
     StateScratchIndex,
     ScratchNodeIndex,
     StateArgsGroupIndex,
+    PartialArgsOuterGroup,
     PartialArgsGroup)
 from environment.full_state import (
     FullState,
@@ -35,14 +37,8 @@ from environment.full_state import (
     MetaSingleChildTypeIndex,
     MetaFullStateIntIndexTypeIndex)
 from environment.action import (
-    BaseAction,
+    BasicAction,
     GeneralAction)
-
-class BasicActionGenerator(INode, ABC):
-
-    @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
-        raise NotImplementedError
 
 ###########################################################
 ################## SCRATCH BASE ACTIONS ###################
@@ -101,22 +97,21 @@ class CreateScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
         index = typing.cast(StateScratchIndex, self.args[self.idx_index])
         node = typing.cast(Optional[INode], self.args[self.idx_node])
 
-        state = full_state.current.state
-        assert index.value == len(state.scratch_group.as_tuple) + 1
-        scratch_group = state.scratch_group
+        state = full_state.current_state.apply().cast(State)
+        scratch_group = state.scratch_group.apply().cast(ScratchGroup)
+        assert index.value == len(scratch_group.as_tuple) + 1
         new_args = list(scratch_group.as_tuple) + [Scratch.with_content(node)]
 
         return State(
-            definition_group=state.definition_group,
-            args_outer_group=state.args_outer_group,
-            scratch_group=scratch_group.func(*new_args),
+            state.definition_group,
+            state.args_outer_group,
+            scratch_group.func(*new_args),
         )
 
 class CreateScratch(
-    BaseAction[CreateScratchOutput],
+    BasicAction[CreateScratchOutput],
     IDefault,
     ISingleOptionalChild[StateScratchIndex],
-    BasicActionGenerator,
     IInstantiable,
 ):
 
@@ -148,8 +143,9 @@ class CreateScratch(
     def _run(self, full_state: FullState) -> CreateScratchOutput:
         clone_index = typing.cast(Optional[StateScratchIndex], self.args[self.idx_clone_index])
 
-        state = full_state.current.state
-        index = StateScratchIndex(len(state.scratch_group.as_tuple))
+        state = full_state.current_state.apply().cast(State)
+        scratch_group = state.scratch_group.apply().cast(ScratchGroup)
+        index = StateScratchIndex(len(scratch_group.as_tuple))
         if clone_index.value is None:
             return CreateScratchOutput(index, Optional.create())
         scratch = clone_index.value.find_in_outer_node(state).value_or_raise
@@ -177,14 +173,14 @@ class DefineScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
         index = typing.cast(StateScratchIndex, self.args[self.idx_index])
         node = typing.cast(Optional[INode], self.args[self.idx_node])
 
-        state = full_state.current.state
+        state = full_state.current_state.apply().cast(State)
         scratch = Scratch.with_content(Optional(node))
         new_state = index.replace_in_outer_target(state, scratch).value_or_raise
         assert new_state is not None
 
         return new_state
 
-class ClearScratch(BaseAction[DefineScratchOutput], BasicActionGenerator, IInstantiable):
+class ClearScratch(BasicAction[DefineScratchOutput], IInstantiable):
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
@@ -208,8 +204,7 @@ class ClearScratch(BaseAction[DefineScratchOutput], BasicActionGenerator, IInsta
         return DefineScratchOutput(scratch_index, Optional.create())
 
 class DefineScratchFromDefault(
-    BaseAction[DefineScratchOutput],
-    BasicActionGenerator,
+    BasicAction[DefineScratchOutput],
     IInstantiable,
 ):
 
@@ -246,8 +241,7 @@ class DefineScratchFromDefault(
         return DefineScratchOutput(scratch_index, Optional(content))
 
 class DefineScratchFromInt(
-    BaseAction[DefineScratchOutput],
-    BasicActionGenerator,
+    BasicAction[DefineScratchOutput],
     IInstantiable,
 ):
 
@@ -290,8 +284,7 @@ class DefineScratchFromInt(
         return DefineScratchOutput(scratch_index, Optional(content))
 
 class DefineScratchFromSingleArg(
-    BaseAction[DefineScratchOutput],
-    BasicActionGenerator,
+    BasicAction[DefineScratchOutput],
     IInstantiable,
 ):
 
@@ -334,8 +327,7 @@ class DefineScratchFromSingleArg(
         return DefineScratchOutput(scratch_index, Optional(content))
 
 class DefineScratchFromIntIndex(
-    BaseAction[DefineScratchOutput],
-    BasicActionGenerator,
+    BasicAction[DefineScratchOutput],
     IInstantiable,
 ):
 
@@ -382,8 +374,7 @@ class DefineScratchFromIntIndex(
         return DefineScratchOutput(scratch_index, Optional(content))
 
 class DefineScratchFromFunctionWithIntArg(
-    BaseAction[DefineScratchOutput],
-    BasicActionGenerator,
+    BasicAction[DefineScratchOutput],
     IInstantiable,
 ):
 
@@ -419,8 +410,7 @@ class DefineScratchFromFunctionWithIntArg(
         source_index = typing.cast(StateScratchIndex, self.args[self.idx_source_index])
         int_arg = typing.cast(Integer, self.args[self.idx_int_arg])
 
-        state = full_state.current.state
-
+        state = full_state.current_state.apply().cast(State)
         source_scratch = source_index.find_in_outer_node(state).value_or_raise
         assert isinstance(source_scratch, Scratch)
         source_scratch.validate()
@@ -435,8 +425,7 @@ class DefineScratchFromFunctionWithIntArg(
         return DefineScratchOutput(scratch_index, Optional(content))
 
 class DefineScratchFromFunctionWithSingleArg(
-    BaseAction[DefineScratchOutput],
-    BasicActionGenerator,
+    BasicAction[DefineScratchOutput],
     IInstantiable,
 ):
 
@@ -472,8 +461,7 @@ class DefineScratchFromFunctionWithSingleArg(
         source_index = typing.cast(StateScratchIndex, self.args[self.idx_source_index])
         single_arg_index = typing.cast(StateScratchIndex, self.args[self.idx_single_arg_index])
 
-        state = full_state.current.state
-
+        state = full_state.current_state.apply().cast(State)
         source_scratch = source_index.find_in_outer_node(state).value_or_raise
         assert isinstance(source_scratch, Scratch)
         source_scratch.validate()
@@ -495,8 +483,7 @@ class DefineScratchFromFunctionWithSingleArg(
         return DefineScratchOutput(scratch_index, Optional(content))
 
 class DefineScratchFromFunctionWithArgs(
-    BaseAction[DefineScratchOutput],
-    BasicActionGenerator,
+    BasicAction[DefineScratchOutput],
     IInstantiable,
 ):
 
@@ -534,8 +521,7 @@ class DefineScratchFromFunctionWithArgs(
             Optional[StateArgsGroupIndex],
             self.args[self.idx_args_group_index]).value
 
-        state = full_state.current.state
-
+        state = full_state.current_state.apply().cast(State)
         source_scratch = source_index.find_in_outer_node(state).value_or_raise
         assert isinstance(source_scratch, Scratch)
         source_scratch.validate()
@@ -552,13 +538,12 @@ class DefineScratchFromFunctionWithArgs(
 
         content = FunctionCall(
             typing.cast(IFunction, content),
-            args_group.inner_args_group.fill_with_void())
+            args_group.scope_child.fill_with_void())
 
         return DefineScratchOutput(scratch_index, Optional(content))
 
 class UpdateScratchFromAnother(
-    BaseAction[DefineScratchOutput],
-    BasicActionGenerator,
+    BasicAction[DefineScratchOutput],
     IInstantiable,
 ):
 
@@ -594,7 +579,7 @@ class UpdateScratchFromAnother(
         scratch_inner_index = typing.cast(ScratchNodeIndex, self.args[self.idx_scratch_inner_index])
         source_index = typing.cast(StateScratchIndex, self.args[self.idx_source_index])
 
-        state = full_state.current.state
+        state = full_state.current_state.apply().cast(State)
         scratch = scratch_index.find_in_outer_node(state).value_or_raise
         source_scratch = source_index.find_in_outer_node(state).value_or_raise
         inner_content = source_scratch.child.value_or_raise
@@ -631,24 +616,24 @@ class CreateArgsGroupOutput(GeneralAction, IInstantiable):
         index = typing.cast(StateArgsGroupIndex, self.args[self.idx_index])
         new_args_group = typing.cast(PartialArgsGroup, self.args[self.idx_new_args_group])
 
-        state = full_state.current.state
-
-        assert index.value == len(state.args_outer_group.as_tuple) + 1
-        for arg in new_args_group.scope.child.as_tuple:
+        state = full_state.current_state.apply().cast(State)
+        args_outer_group = state.args_outer_group.apply().cast(PartialArgsOuterGroup)
+        assert index.value == len(args_outer_group.as_tuple) + 1
+        scope_child = new_args_group.scope_child.apply().cast(OptionalValueGroup)
+        for arg in scope_child.as_tuple:
             arg.as_node.validate()
 
-        args_group = state.args_outer_group
-        new_args = list(args_group.as_tuple) + [new_args_group]
+        args_outer_group = state.args_outer_group.apply().cast(PartialArgsOuterGroup)
+        new_args = list(args_outer_group.as_tuple) + [new_args_group]
 
         return State(
-            definition_group=state.definition_group,
-            args_outer_group=args_group.func(*new_args),
-            scratch_group=state.scratch_group,
+            state.definition_group,
+            args_outer_group.func(*new_args),
+            state.scratch_group,
         )
 
 class CreateArgsGroup(
-    BaseAction[CreateArgsGroupOutput],
-    BasicActionGenerator,
+    BasicAction[CreateArgsGroupOutput],
     IInstantiable,
 ):
 
@@ -693,14 +678,14 @@ class CreateArgsGroup(
             self.args[self.idx_args_group_source_index],
         ).value
 
-        state = full_state.current.state
+        state = full_state.current_state.apply().cast(State)
 
         if args_group_source_index is not None:
             args_group_source = args_group_source_index.find_in_outer_node(state).value_or_raise
             assert isinstance(args_group_source, PartialArgsGroup)
             args_group_source.validate()
-            type_group = args_group_source.param_type_group
-            optional_group = args_group_source.inner_args_group
+            type_group = args_group_source.param_type_group.apply().cast(ExtendedTypeGroup)
+            optional_group = args_group_source.scope_child.apply().cast(OptionalValueGroup)
 
             if args_amount != len(optional_group.as_tuple):
                 type_group = type_group.new_amount(args_amount)
@@ -760,7 +745,7 @@ class DefineArgsGroupArgOutput(GeneralAction, IInstantiable):
         arg_index = typing.cast(NodeArgIndex, self.args[self.idx_arg_index])
         new_arg = typing.cast(INode, self.args[self.idx_new_arg])
 
-        state = full_state.current.state
+        state = full_state.current_state.apply().cast(State)
         new_arg.as_node.validate()
         args_group = group_index.find_in_outer_node(state).value_or_raise
 
@@ -775,8 +760,7 @@ class DefineArgsGroupArgOutput(GeneralAction, IInstantiable):
         return new_state
 
 class DefineArgsGroup(
-    BaseAction[DefineArgsGroupArgOutput],
-    BasicActionGenerator,
+    BasicAction[DefineArgsGroupArgOutput],
     IInstantiable,
 ):
 
@@ -812,7 +796,7 @@ class DefineArgsGroup(
         arg_index = typing.cast(NodeArgIndex, self.args[self.idx_arg_index])
         scratch_index = typing.cast(StateScratchIndex, self.args[self.idx_scratch_index])
 
-        state = full_state.current.state
+        state = full_state.current_state.apply().cast(State)
         args_group_index.find_in_outer_node(state).raise_if_empty()
         new_arg = scratch_index.find_in_outer_node(state).value_or_raise
 

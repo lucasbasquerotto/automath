@@ -206,6 +206,38 @@ class IInstantiable(INode, ABC):
     def as_instance(self) -> typing.Self:
         return self
 
+class TmpNestedArg:
+
+    def __init__(self, node: BaseNode, idx: int):
+        assert isinstance(node, BaseNode)
+        assert isinstance(idx, int)
+        self.node = node
+        self.idx = idx
+
+    def apply(self) -> BaseNode:
+        node = self.node
+        idx = self.idx
+        node_aux = node.args[idx]
+        assert isinstance(node_aux, BaseNode)
+        node = node_aux
+        return node
+
+class TmpNestedArgs:
+
+    def __init__(self, node: BaseNode, idxs: tuple[int, ...]):
+        assert isinstance(node, BaseNode)
+        assert all(isinstance(idx, int) for idx in idxs)
+        self.node = node
+        self.idxs = idxs
+
+    def apply(self) -> BaseNode:
+        node = self.node
+        idxs = self.idxs
+        for idx in idxs:
+            node_aux = node.args[idx]
+            assert isinstance(node_aux, BaseNode)
+            node = node_aux
+        return node
 
 ###########################################################
 ######################## BASE NODE ########################
@@ -342,10 +374,20 @@ class BaseNode(INode, ABC):
         # pylint: disable=not-callable
         return fn(*args)
 
+    def nested_arg(self, idx: int) -> TmpNestedArg:
+        return TmpNestedArg(self, idx)
+
+    def nested_args(self, idxs: tuple[int, ...]) -> TmpNestedArgs:
+        return TmpNestedArgs(self, idxs)
+
     def validate(self):
         for arg in self.args:
             if isinstance(arg, INode):
                 arg.as_node.validate()
+
+    def cast(self, t: typing.Type[T]) -> T:
+        assert isinstance(self, t)
+        return typing.cast(T, self)
 
 ###########################################################
 ######################## TYPE NODE ########################
@@ -518,6 +560,9 @@ class Scope(InheritableNode, ABC):
         return node
 
 class SimpleScope(Scope, typing.Generic[T], IInstantiable):
+
+    idx_id = 0
+    idx_child = 1
 
     def __init__(self, id: ScopeId, child: T):
         assert isinstance(id, ScopeId)
@@ -914,6 +959,9 @@ class ExtendedTypeGroup(
 ###########################################################
 
 class FunctionExpr(InheritableNode, IFunction, typing.Generic[T]):
+
+    idx_param_type_group = 0
+    idx_scope = 1
 
     def __init__(self, param_type_group: ExtendedTypeGroup, scope: SimpleScope[T]):
         assert isinstance(param_type_group, ExtendedTypeGroup)

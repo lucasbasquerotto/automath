@@ -20,4 +20,4 @@ def setup_logger() -> logging.Logger:
 
     return log
 
-logger = setup_logger()
+env_logger = setup_logger()

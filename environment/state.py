@@ -12,6 +12,7 @@ from environment.core import (
     NodeMainIndex,
     NodeArgIndex,
     OpaqueScope,
+    SimpleScope,
     BaseInt,
     ScopeId,
     OptionalValueGroup,
@@ -19,9 +20,10 @@ from environment.core import (
     RestTypeGroup,
     UnknownType,
     FunctionExpr,
-    SimpleScope,
     ITypedIndex,
     ITypedIntIndex,
+    CountableTypeGroup,
+    TmpNestedArgs,
     IInstantiable,
 )
 
@@ -33,10 +35,19 @@ K = typing.TypeVar('K', bound=INode)
 ###########################################################
 
 class Scratch(OpaqueScope[IOptional[INode]], IInstantiable):
-    def __init__(self, id: ScopeId, child: IOptional[INode]):
-        super().__init__(id, child)
+
+    idx_id = 0
+    idx_child = 1
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            ScopeId,
+            IOptional[INode],
+        ]))
 
 class ScratchGroup(BaseGroup[Scratch], IInstantiable):
+
     @classmethod
     def item_type(cls):
         return OpaqueScope[Scratch]
@@ -53,37 +64,31 @@ class PartialArgsGroup(
     IInstantiable,
 ):
 
-    def __init__(
-        self,
-        param_type_group: ExtendedTypeGroup,
-        scope: OpaqueScope[OptionalValueGroup[T]],
-    ):
-        assert isinstance(param_type_group, ExtendedTypeGroup)
-        assert isinstance(scope, OpaqueScope)
-        assert isinstance(scope.child, OptionalValueGroup)
-        super().__init__(param_type_group, scope)
+    idx_param_type_group = 0
+    idx_scope = 1
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            ExtendedTypeGroup,
+            OpaqueScope[OptionalValueGroup[T]],
+        ]))
 
     @property
-    def param_type_group(self) -> ExtendedTypeGroup:
-        param_type_group = self.args[0]
-        assert isinstance(param_type_group, ExtendedTypeGroup)
-        return param_type_group
+    def param_type_group(self):
+        return self.nested_arg(self.idx_param_type_group)
 
     @property
-    def scope(self) -> OpaqueScope[OptionalValueGroup[T]]:
-        scope = self.args[1]
-        assert isinstance(scope, OpaqueScope)
-        assert isinstance(scope.child, OptionalValueGroup)
-        return scope
+    def scope(self):
+        return self.nested_arg(self.idx_scope)
 
     @property
-    def inner_args_group(self) -> OptionalValueGroup[T]:
-        inner_args = self.scope.child
-        return typing.cast(OptionalValueGroup[T], inner_args)
+    def scope_child(self):
+        return self.nested_args((self.idx_scope, SimpleScope.idx_child))
 
     @property
     def inner_args(self) -> tuple[INode, ...]:
-        return self.inner_args_group.as_tuple
+        return self.scope_child.apply().cast(OptionalValueGroup[T]).as_tuple
 
     @classmethod
     def create(cls) -> typing.Self:
@@ -106,18 +111,16 @@ class FunctionId(BaseInt, IDefinitionKey, IFunction, IInstantiable):
 
 class StateDefinition(InheritableNode, typing.Generic[D, T], ABC):
 
-    def __init__(self, definition_key: D, definition_expr: T):
-        super().__init__(definition_key, definition_expr)
+    idx_definition_key = 0
+    idx_definition_expr = 1
 
     @property
-    def definition_key(self) -> D:
-        definition_key = self.args[0]
-        return typing.cast(D, definition_key)
+    def definition_key(self):
+        return self.nested_arg(self.idx_definition_key)
 
     @property
-    def definition_expr(self) -> T:
-        definition_expr = self.args[1]
-        return typing.cast(T, definition_expr)
+    def definition_expr(self):
+        return self.nested_arg(self.idx_definition_expr)
 
 class FunctionDefinition(
     StateDefinition[FunctionId, FunctionExpr[T]],
@@ -125,9 +128,18 @@ class FunctionDefinition(
     IInstantiable,
 ):
 
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            FunctionId,
+            FunctionExpr[T],
+        ]))
+
     @property
-    def scope(self) -> SimpleScope[T]:
-        return self.definition_expr.scope
+    def scope(self) -> TmpNestedArgs:
+        return self.nested_args(
+            (self.idx_definition_expr, FunctionExpr.idx_scope)
+        )
 
 class StateDefinitionGroup(BaseGroup[StateDefinition], IInstantiable):
     @classmethod
@@ -139,30 +151,22 @@ class StateDefinitionGroup(BaseGroup[StateDefinition], IInstantiable):
 ###########################################################
 
 class State(InheritableNode, IInstantiable):
-    def __init__(
-        self,
-        definition_group: StateDefinitionGroup,
-        args_outer_group: PartialArgsOuterGroup,
-        scratch_group: ScratchGroup,
-    ):
-        super().__init__(definition_group, args_outer_group, scratch_group)
+
+    idx_definition_group = 0
+    idx_args_outer_group = 1
+    idx_scratch_group = 2
 
     @property
-    def definition_group(self) -> StateDefinitionGroup:
-        definition_group = self.args[0]
-        return typing.cast(StateDefinitionGroup, definition_group)
+    def definition_group(self):
+        return self.nested_arg(self.idx_definition_group)
 
     @property
-    def args_outer_group(self) -> PartialArgsOuterGroup:
-        args_outer_group = self.args[2]
-        assert isinstance(args_outer_group, PartialArgsOuterGroup)
-        return args_outer_group
+    def args_outer_group(self):
+        return self.nested_arg(self.idx_args_outer_group)
 
     @property
-    def scratch_group(self) -> ScratchGroup:
-        scratch_group = self.args[1]
-        assert isinstance(scratch_group, ScratchGroup)
-        return scratch_group
+    def scratch_group(self):
+        return self.nested_arg(self.idx_scratch_group)
 
     @classmethod
     def from_raw(
@@ -209,29 +213,29 @@ class StateDefinitionIndex(StateIntIndex[StateDefinition], IInstantiable):
         return StateDefinition
 
     def find_in_outer_node(self, node: State):
-        return self.find_arg(node.definition_group)
+        return self.find_arg(node.definition_group.apply())
 
     def replace_in_outer_target(self, target: State, new_node: StateDefinition):
-        definitions = list(target.definition_group.as_tuple)
+        definitions = list(target.definition_group.apply().cast(StateDefinitionGroup).as_tuple)
         for i, definition in enumerate(definitions):
             if self.value == (i+1):
-                assert new_node.definition_key == definition.definition_key
+                assert new_node.definition_key.apply() == definition.definition_key.apply()
                 definitions[i] = new_node
                 return Optional(State(
-                    definition_group=StateDefinitionGroup.from_items(definitions),
-                    args_outer_group=target.args_outer_group,
-                    scratch_group=target.scratch_group))
+                    StateDefinitionGroup.from_items(definitions),
+                    target.nested_arg(target.idx_args_outer_group).apply(),
+                    target.nested_arg(target.idx_scratch_group).apply()))
         return Optional.create()
 
     def remove_in_outer_target(self, target: State):
-        definitions = list(target.definition_group.as_tuple)
+        definitions = list(target.definition_group.apply().cast(StateDefinitionGroup).as_tuple)
         for i, _ in enumerate(definitions):
             if self.value == (i+1):
                 definitions.pop(i)
                 return Optional(State(
-                    definition_group=StateDefinitionGroup.from_items(definitions),
-                    args_outer_group=target.args_outer_group,
-                    scratch_group=target.scratch_group))
+                    StateDefinitionGroup.from_items(definitions),
+                    target.args_outer_group,
+                    target.scratch_group))
         return Optional.create()
 
 class StateScratchIndex(StateIntIndex[Scratch], IInstantiable):
@@ -241,25 +245,25 @@ class StateScratchIndex(StateIntIndex[Scratch], IInstantiable):
         return Scratch
 
     def find_in_outer_node(self, node: State):
-        return self.find_arg(node.scratch_group)
+        return self.find_arg(node.scratch_group.apply())
 
     def replace_in_outer_target(self, target: State, new_node: Scratch):
-        group = self.replace_arg(target.scratch_group, new_node).value
+        group = self.replace_arg(target.scratch_group.apply(), new_node).value
         if group is None:
             return Optional.create()
         return Optional(State(
-            definition_group=target.definition_group,
-            args_outer_group=target.args_outer_group,
-            scratch_group=group))
+            target.definition_group.apply(),
+            target.args_outer_group.apply(),
+            group))
 
     def remove_in_outer_target(self, target: State):
         group = self.remove_arg(target.scratch_group).value
         if group is None:
             return Optional.create()
         return Optional(State(
-            definition_group=target.definition_group,
-            args_outer_group=target.args_outer_group,
-            scratch_group=group))
+            target.definition_group.apply(),
+            target.args_outer_group.apply(),
+            group))
 
 class ScratchNodeIndex(NodeIntBaseIndex, IInstantiable):
 
@@ -302,9 +306,9 @@ class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup], IInstantiable):
         if args_outer_group is None:
             return Optional.create()
         return State(
-            definition_group=target.definition_group,
-            args_outer_group=args_outer_group,
-            scratch_group=target.scratch_group)
+            target.definition_group.apply(),
+            args_outer_group,
+            target.scratch_group.apply())
 
     def remove_in_outer_target(self, target: State):
         group = self.remove_arg(target.args_outer_group)
@@ -312,58 +316,71 @@ class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup], IInstantiable):
         if args_outer_group is None:
             return Optional.create()
         return State(
-            definition_group=target.definition_group,
-            args_outer_group=args_outer_group,
-            scratch_group=target.scratch_group)
+            target.definition_group.apply(),
+            args_outer_group,
+            target.scratch_group.apply())
 
 class StateArgsGroupArgIndex(InheritableNode, IStateIndex[INode], IInstantiable):
+
+    idx_group_index = 0
+    idx_arg_index = 1
 
     @classmethod
     def item_type(cls):
         return INode
 
-    def __init__(self, group_index: StateArgsGroupIndex, arg_index: NodeArgIndex):
-        assert isinstance(group_index, StateArgsGroupIndex)
-        assert isinstance(arg_index, NodeArgIndex)
-        super().__init__(group_index, arg_index)
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            StateArgsGroupIndex,
+            NodeArgIndex,
+        ]))
 
     @property
-    def group_index(self) -> StateArgsGroupIndex:
-        group_index = self.args[0]
-        assert isinstance(group_index, StateArgsGroupIndex)
-        return group_index
+    def group_index(self):
+        return self.nested_arg(self.idx_group_index)
 
     @property
-    def arg_index(self) -> NodeArgIndex:
-        arg_index = self.args[1]
-        assert isinstance(arg_index, NodeArgIndex)
-        return arg_index
+    def arg_index(self):
+        return self.nested_arg(self.idx_arg_index)
 
     def find_in_outer_node(self, node: State):
-        group = self.group_index.find_in_outer_node(node).value
+        group_index = self.group_index.apply().cast(StateArgsGroupIndex)
+        arg_index = self.arg_index.apply().cast(NodeArgIndex)
+
+        group = group_index.find_in_outer_node(node).value
         if group is None:
             return Optional.create()
-        return Optional(group[self.arg_index])
+
+        return Optional(group[arg_index])
 
     def replace_in_outer_target(self, target: State, new_node: INode):
-        group = self.group_index.find_in_outer_node(target).value
+        group_index = self.group_index.apply().cast(StateArgsGroupIndex)
+        arg_index = self.arg_index.apply().cast(NodeArgIndex)
+
+        group = group_index.find_in_outer_node(target).value
         if group is None:
             return Optional.create()
-        new_group = self.arg_index.replace_in_target(
+        new_group = arg_index.replace_in_target(
             target_node=group,
             new_node=new_node,
         ).value
         if new_group is None:
             return Optional.create()
-        result = self.group_index.replace_in_outer_target(target, new_group)
+        result = group_index.replace_in_outer_target(target, new_group)
+
         return Optional(result)
 
     def remove_in_outer_target(self, target: State):
-        group = self.group_index.find_in_outer_node(target).value
+        group_index = self.group_index.apply().cast(StateArgsGroupIndex)
+        arg_index = self.arg_index.apply().cast(NodeArgIndex)
+
+        group = group_index.find_in_outer_node(target).value
         if group is None:
             return Optional.create()
-        new_group = self.arg_index.remove_in_target(group).value
+        new_group = arg_index.remove_in_target(group).value
         if new_group is None:
             return Optional.create()
-        result = self.group_index.replace_in_outer_target(target, new_group)
+        result = group_index.replace_in_outer_target(target, new_group)
+
         return Optional(result)

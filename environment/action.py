@@ -1,7 +1,7 @@
 from __future__ import annotations
 import typing
 from abc import ABC
-from utils.logger import logger
+from utils.env_logger import env_logger
 from environment.core import (
     InheritableNode,
     IExceptionInfo,
@@ -10,9 +10,20 @@ from environment.core import (
     IsInsideRange,
     InvalidNodeException,
     IOptional,
+    ExtendedTypeGroup,
+    CountableTypeGroup,
+    IInt,
     IInstantiable)
 from environment.state import State
-from environment.meta_env import IMetaData, IActionOutput, IAction
+from environment.meta_env import (
+    IMetaData,
+    MetaInfo,
+    IActionOutput,
+    IAction,
+    IBasicAction,
+    SubtypeOuterGroup,
+    GeneralTypeGroup,
+    MetaInfoOptions)
 from environment.full_state import FullState, HistoryNode, HistoryGroupNode
 
 ###########################################################
@@ -21,54 +32,57 @@ from environment.full_state import FullState, HistoryNode, HistoryGroupNode
 
 O = typing.TypeVar('O', bound=IActionOutput)
 
-class FullActionOutput(InheritableNode, typing.Generic[O], IInstantiable):
+class FullActionOutput(InheritableNode, IInstantiable):
 
-    def __init__(
-        self,
-        output: O,
-        new_state: State,
-    ):
-        assert isinstance(output, IActionOutput)
-        assert isinstance(new_state, State)
-        super().__init__(output, new_state)
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            IActionOutput,
+            State,
+        ]))
 
     @property
-    def output(self) -> O:
-        output = self.args[0]
-        return typing.cast(O, output)
+    def idx_output(self) -> int:
+        return 0
 
     @property
-    def new_state(self) -> State:
-        new_state = self.args[1]
-        return typing.cast(State, new_state)
+    def idx_new_state(self) -> int:
+        return 1
 
 ###########################################################
 ####################### ACTION DATA #######################
 ###########################################################
 
 class ActionData(InheritableNode, IMetaData, IInstantiable):
-    def __init__(
-        self,
-        action: IOptional['BaseAction'],
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            IOptional[IAction],
+            IOptional[IActionOutput],
+            IOptional[IExceptionInfo],
+        ]))
+
+    @classmethod
+    def from_args(
+        cls,
+        action: IOptional[IAction],
         output: IOptional[IActionOutput],
         exception: IOptional[IExceptionInfo],
-    ):
-        super().__init__(action, output, exception)
+    ) -> typing.Self:
+        return cls(action, output, exception)
 
     @property
-    def action(self) -> IOptional['BaseAction']:
-        action = self.args[0]
-        return typing.cast(IOptional[BaseAction], action)
+    def idx_action(self) -> int:
+        return 0
 
     @property
-    def output(self) -> IOptional[IActionOutput]:
-        output = self.args[1]
-        return typing.cast(IOptional[IActionOutput], output)
+    def idx_output(self) -> int:
+        return 1
 
     @property
-    def exception(self) -> IOptional[IExceptionInfo]:
-        exception = self.args[2]
-        return typing.cast(IOptional[IExceptionInfo], exception)
+    def idx_exception(self) -> int:
+        return 2
 
 ###########################################################
 #################### ACTION EXCEPTION #####################
@@ -94,15 +108,23 @@ class InvalidActionException(InvalidNodeException):
 
 class ActionTypeExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiable):
 
-    def __init__(
-        self,
-        action_type: TypeNode['BaseAction'],
-        exception: IExceptionInfo,
-    ):
-        super().__init__(action_type, exception)
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            TypeNode[IAction],
+            IExceptionInfo,
+        ]))
+
+    @property
+    def idx_action_type(self) -> int:
+        return 0
+
+    @property
+    def idx_exception(self) -> int:
+        return 1
 
     def to_action_data(self) -> ActionData:
-        return ActionData(
+        return ActionData.from_args(
             action=Optional.create(),
             output=Optional.create(),
             exception=Optional(self),
@@ -110,40 +132,55 @@ class ActionTypeExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiab
 
 class ActionInputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiable):
 
-    def __init__(
-        self,
-        action: 'BaseAction',
-        exception: IExceptionInfo,
-    ):
-        assert isinstance(action, BaseAction)
-        assert isinstance(exception, IExceptionInfo)
-        super().__init__(action, exception)
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            IAction,
+            IExceptionInfo,
+        ]))
+
+    @property
+    def idx_action(self) -> int:
+        return 0
+
+    @property
+    def idx_exception(self) -> int:
+        return 1
 
     def to_action_data(self) -> ActionData:
-        return ActionData(
-            action=Optional(typing.cast(BaseAction, self.args[0])),
+        return ActionData.from_args(
+            action=Optional(typing.cast(BaseAction, self.args[self.idx_action])),
             output=Optional.create(),
-            exception=Optional(typing.cast(IExceptionInfo, self.args[1])),
+            exception=Optional(typing.cast(IExceptionInfo, self.args[self.idx_exception])),
         )
 
 class ActionOutputExceptionInfo(InheritableNode, IExceptionInfo, IInstantiable):
 
-    def __init__(
-        self,
-        action: 'BaseAction',
-        output: IActionOutput,
-        exception: IExceptionInfo,
-    ):
-        assert isinstance(action, BaseAction)
-        assert isinstance(output, IActionOutput)
-        assert isinstance(exception, IExceptionInfo)
-        super().__init__(action, output, exception)
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            IAction,
+            IActionOutput,
+            IExceptionInfo,
+        ]))
+
+    @property
+    def idx_action(self) -> int:
+        return 0
+
+    @property
+    def idx_output(self) -> int:
+        return 1
+
+    @property
+    def idx_exception(self) -> int:
+        return 2
 
     def to_action_data(self) -> ActionData:
-        return ActionData(
-            action=Optional(typing.cast(BaseAction, self.args[0])),
-            output=Optional(typing.cast(IActionOutput, self.args[1])),
-            exception=Optional(typing.cast(IExceptionInfo, self.args[2])),
+        return ActionData.from_args(
+            action=Optional(typing.cast(BaseAction, self.args[self.idx_action])),
+            output=Optional(typing.cast(IActionOutput, self.args[self.idx_output])),
+            exception=Optional(typing.cast(IExceptionInfo, self.args[self.idx_exception])),
         )
 
 ###########################################################
@@ -158,12 +195,18 @@ class BaseAction(InheritableNode, IAction[FullState, O], typing.Generic[O], ABC)
     def _run(self, full_state: FullState) -> O:
         raise NotImplementedError
 
-    def inner_run(self, full_state: FullState) -> FullActionOutput[O]:
+    def inner_run(self, full_state: FullState) -> FullActionOutput:
         try:
-            allowed_actions = full_state.meta.allowed_actions
+            meta = typing.cast(MetaInfo, full_state.args[full_state.idx_meta])
+            allowed_actions = typing.cast(
+                SubtypeOuterGroup[IAction],
+                meta.args[meta.idx_allowed_actions])
             min_index = 1
-            max_index = len(allowed_actions.subtypes.as_tuple)
-            action_type = allowed_actions.subtypes.as_tuple.index(self.wrap_type()) + 1
+            subtypes = typing.cast(
+                GeneralTypeGroup[IAction],
+                allowed_actions.args[allowed_actions.idx_subtypes])
+            max_index = len(subtypes.as_tuple)
+            action_type = subtypes.as_tuple.index(self.wrap_type()) + 1
             IsInsideRange.from_raw(
                 value=action_type,
                 min_value=min_index,
@@ -185,34 +228,52 @@ class BaseAction(InheritableNode, IAction[FullState, O], typing.Generic[O], ABC)
             raise ActionOutputExceptionInfo(self, output, e.info).as_exception()
 
     def run_action(self, full_state: FullState) -> FullState:
+        meta = typing.cast(MetaInfo, full_state.args[full_state.idx_meta])
+        options = typing.cast(MetaInfoOptions, meta.args[meta.idx_options])
+        max_history_state_size = typing.cast(
+            IOptional[IInt],
+            options.args[options.idx_max_history_state_size],
+        ).value
+        current = typing.cast(HistoryNode, full_state.args[full_state.idx_current])
+
         try:
             full_output = self.inner_run(full_state)
-            output = full_output.output
-            next_state = full_output.new_state
-            action_data = ActionData(
+            output = typing.cast(IActionOutput, full_output.args[full_output.idx_output])
+            next_state = typing.cast(State, full_output.args[full_output.idx_new_state])
+            action_data = ActionData.from_args(
                 action=Optional(self),
                 output=Optional(output),
                 exception=Optional.create(),
             )
         except InvalidActionException as e:
-            logger.debug(f"Invalid action: {e}")
-            next_state = full_state.current.state
+            env_logger.debug(f"Invalid action: {e}")
+            next_state = typing.cast(State, current.args[current.idx_state])
             action_data = e.to_action_data()
 
         current = HistoryNode(next_state, Optional(action_data))
 
-        history = list(full_state.history.as_tuple)
-        history.append(full_state.current)
+        history = list(typing.cast(
+            HistoryGroupNode,
+            full_state.args[full_state.idx_history],
+        ).as_tuple)
+        history.append(current)
 
-        max_history_state_size = full_state.meta.options.max_history_state_size.value
         if max_history_state_size is not None:
             history = history[-max_history_state_size.to_int:]
 
         return FullState(
-            full_state.meta,
-            current=current,
-            history=HistoryGroupNode.from_items(history),
+            full_state.args[full_state.idx_meta],
+            current,
+            HistoryGroupNode.from_items(history),
         )
+
+class BasicAction(
+    BaseAction[O],
+    IBasicAction[FullState, O],
+    typing.Generic[O],
+    ABC,
+):
+    pass
 
 class GeneralAction(
     BaseAction[typing.Self], # type: ignore[misc]
