@@ -818,6 +818,10 @@ class CountableTypeGroup(BaseGroup[TypeNode[T]], IBaseTypeGroup, typing.Generic[
     def item_type(cls) -> type[TypeNode[T]]:
         return TypeNode
 
+    @classmethod
+    def from_types(cls, types: typing.Sequence[type[INode]]) -> typing.Self:
+        return cls(*[typing.cast(TypeNode[T], TypeNode(t)) for t in types])
+
 class RestTypeGroup(InheritableNode, IBaseTypeGroup, ISingleChild[TypeNode[T]], typing.Generic[T]):
 
     @classmethod
