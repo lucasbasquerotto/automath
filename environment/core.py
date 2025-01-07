@@ -19,6 +19,10 @@ class INode(ABC):
         raise NotImplementedError()
 
     @property
+    def as_instance(self) -> IInstantiable:
+        raise NotImplementedError()
+
+    @property
     def func(self) -> typing.Type[typing.Self]:
         return type(self)
 
@@ -194,15 +198,20 @@ class IInstantiable(INode, ABC):
     def new(cls, *args: int | INode | typing.Type[INode]) -> typing.Self:
         return cls(*args)
 
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        raise NotImplementedError()
+
+    @property
+    def as_instance(self) -> typing.Self:
+        return self
+
+
 ###########################################################
 ######################## BASE NODE ########################
 ###########################################################
 
 class BaseNode(INode, ABC):
-
-    @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(RestTypeGroup(UnknownType()))
 
     @classmethod
     def wrap_type(cls) -> TypeNode[typing.Self]:
@@ -428,7 +437,7 @@ class InheritableNode(BaseNode, ABC):
         if isinstance(index, NodeArgIndex):
             value = index.to_int
             args = self.args
-            if value >= 0 and value <= len(args):
+            if 0 <= value <= len(args):
                 return self.func(*[
                     (new_node if i == value - 1 else arg)
                     for i, arg in enumerate(args)
@@ -438,7 +447,7 @@ class InheritableNode(BaseNode, ABC):
 
     def run(self):
         args = self.args
-        self.arg_type_group().validate_values(DefaultGroup(*args))
+        self.as_instance.arg_type_group().validate_values(DefaultGroup(*args))
 
 ###########################################################
 ###################### SPECIAL NODES ######################
@@ -691,7 +700,7 @@ class NodeArgIndex(NodeIntBaseIndex, IInstantiable):
         if not isinstance(node, InheritableNode):
             return Optional.create()
         args = node.args
-        if index > 0 and index <= len(args):
+        if 0 < index <= len(args):
             return Optional(args[index - 1])
         return Optional.create()
 
@@ -700,7 +709,7 @@ class NodeArgIndex(NodeIntBaseIndex, IInstantiable):
             return Optional.create()
         index = self.to_int
         args = target_node.args
-        if index > 0 and index <= len(args):
+        if 0 < index <= len(args):
             new_target = target_node.func(*[
                 (new_node if i == index - 1 else arg)
                 for i, arg in enumerate(args)
@@ -714,7 +723,7 @@ class NodeArgIndex(NodeIntBaseIndex, IInstantiable):
             return Optional.create()
         index = self.to_int
         args = target_node.args
-        if index > 0 and index <= len(args):
+        if 0 < index <= len(args):
             new_args = [
                 arg
                 for i, arg in enumerate(args)
@@ -837,7 +846,7 @@ class ExtendedTypeGroup(
 ):
 
     def __init__(self, group: IBaseTypeGroup):
-        assert isinstance(group, CountableTypeGroup) or isinstance(group, RestTypeGroup)
+        assert isinstance(group, (CountableTypeGroup, RestTypeGroup))
         super().__init__(group)
 
     @property
@@ -1040,7 +1049,12 @@ class InvalidNodeException(Exception):
 ######################## EXCEPTION ########################
 ###########################################################
 
-class ExceptionInfoWrapper(InheritableNode, ISingleChild[IExceptionInfo], IExceptionInfo, IInstantiable):
+class ExceptionInfoWrapper(
+    InheritableNode,
+    ISingleChild[IExceptionInfo],
+    IExceptionInfo,
+    IInstantiable,
+):
 
     @classmethod
     def with_child(cls, child: IExceptionInfo) -> typing.Self:

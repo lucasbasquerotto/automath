@@ -3,7 +3,6 @@ import typing
 from abc import ABC
 from utils.logger import logger
 from environment.core import (
-    INode,
     InheritableNode,
     IExceptionInfo,
     Optional,
@@ -13,25 +12,14 @@ from environment.core import (
     IOptional,
     IInstantiable)
 from environment.state import State
-from environment.meta_env import IMetaData
+from environment.meta_env import IMetaData, IActionOutput, IAction
 from environment.full_state import FullState, HistoryNode, HistoryGroupNode
 
 ###########################################################
 ########################## MAIN ###########################
 ###########################################################
 
-class IActionOutput(INode, ABC):
-
-    def apply(self, full_state: FullState) -> State:
-        raise NotImplementedError
-
-T = typing.TypeVar('T', bound=INode)
 O = typing.TypeVar('O', bound=IActionOutput)
-
-class IAction(INode, typing.Generic[O], ABC):
-
-    def as_action(self) -> 'BaseAction[O]':
-        raise NotImplementedError
 
 class FullActionOutput(InheritableNode, typing.Generic[O], IInstantiable):
 
@@ -162,7 +150,7 @@ class ActionOutputExceptionInfo(InheritableNode, IExceptionInfo, IInstantiable):
 ##################### IMPLEMENTATION ######################
 ###########################################################
 
-class BaseAction(InheritableNode, IAction[O], typing.Generic[O], ABC):
+class BaseAction(InheritableNode, IAction[FullState, O], typing.Generic[O], ABC):
 
     def as_action(self) -> typing.Self:
         return self

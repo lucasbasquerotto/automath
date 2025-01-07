@@ -29,7 +29,7 @@ from environment.state import (
     PartialArgsGroup)
 from environment.full_state import (
     FullState,
-    FullStateIntIndex,
+    IFullStateIntIndex,
     MetaDefaultTypeIndex,
     MetaFromIntTypeIndex,
     MetaSingleChildTypeIndex,
@@ -364,9 +364,9 @@ class DefineScratchFromIntIndex(
     def _run(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.scratch_index
         node_type = self.type_index.find_in_outer_node(full_state).value_or_raise
-        assert isinstance(node_type, TypeNode) and issubclass(node_type.type, FullStateIntIndex)
+        assert isinstance(node_type, TypeNode) and issubclass(node_type.type, IFullStateIntIndex)
         node_index = typing.cast(
-            FullStateIntIndex[INode],
+            IFullStateIntIndex[INode],
             node_type.type.from_int(self.index_value.to_int))
         content = node_index.find_in_outer_node(full_state).value_or_raise
         content = IsEmpty.with_optional(content).value_or_raise

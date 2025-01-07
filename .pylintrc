@@ -37,7 +37,8 @@ disable=
     consider-using-generator,
     too-many-branches,
     logging-fstring-interpolation,
-    no-else-return
+    no-else-return,
+    too-many-ancestors
 
 [MASTER]
 ignore=lint.ipynb, server.py, test.py, tmp/*

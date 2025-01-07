@@ -3,11 +3,8 @@ from abc import ABC
 from environment.core import (
     INode,
     InheritableNode,
-    BaseInt,
     IDefault,
     BaseGroup,
-    ITypedIndex,
-    ITypedIntIndex,
     IFromInt,
     IInt,
     INodeIndex,
@@ -29,9 +26,14 @@ from environment.state import (
     PartialArgsOuterGroup,
     StateDefinition,
     StateDefinitionGroup)
-from environment.meta_env import MetaInfo, IMetaData
-from environment.action import BaseAction
-
+from environment.meta_env import (
+    MetaInfo,
+    IMetaData,
+    IFullState,
+    IFullStateIndex,
+    IFullStateIntIndex,
+    IAction,
+    IActionOutput)
 
 T = typing.TypeVar('T', bound=INode)
 
@@ -63,7 +65,7 @@ class HistoryGroupNode(BaseGroup[HistoryNode], IInstantiable):
 ####################### FULL STATE ########################
 ###########################################################
 
-class FullState(InheritableNode, IInstantiable):
+class FullState(InheritableNode, IFullState, IInstantiable):
     def __init__(self, meta: MetaInfo, current: HistoryNode, history: HistoryGroupNode):
         super().__init__(meta, current, history)
 
@@ -86,24 +88,17 @@ class FullState(InheritableNode, IInstantiable):
 ###################### MAIN INDICES #######################
 ###########################################################
 
-class IFullStateIndex(ITypedIndex[FullState, T], typing.Generic[T], ABC):
+class FullStateIndex(IFullStateIndex[FullState, T], typing.Generic[T], ABC):
 
     @classmethod
-    def outer_type(cls) -> type[FullState]:
+    def outer_type(cls):
         return FullState
 
-    @classmethod
-    def item_type(cls) -> type[T]:
-        raise NotImplementedError
+class FullStateIntIndex(IFullStateIntIndex[FullState, T], typing.Generic[T], ABC):
 
-class FullStateIntIndex(
-    BaseInt,
-    IFullStateIndex[T],
-    ITypedIntIndex[FullState, T],
-    typing.Generic[T],
-    ABC,
-):
-    pass
+    @classmethod
+    def outer_type(cls):
+        return FullState
 
 class FullStateMainIndex(NodeMainIndex, IInstantiable):
     pass
@@ -182,11 +177,11 @@ class MetaNodeIndexTypeIndex(FullStateGroupTypeBaseIndex[INodeIndex], IInstantia
     def group(cls, full_state: FullState):
         return full_state.meta.node_index_group.subtypes
 
-class MetaFullStateIndexTypeIndex(FullStateGroupTypeBaseIndex[IFullStateIndex], IInstantiable):
+class MetaFullStateIndexTypeIndex(FullStateGroupTypeBaseIndex[FullStateIndex], IInstantiable):
 
     @classmethod
     def inner_item_type(cls):
-        return IFullStateIndex
+        return FullStateIndex
 
     @classmethod
     def group(cls, full_state: FullState):
@@ -196,7 +191,7 @@ class MetaFullStateIntIndexTypeIndex(FullStateGroupTypeBaseIndex[FullStateIntInd
 
     @classmethod
     def inner_item_type(cls):
-        return IFullStateIndex
+        return FullStateIntIndex
 
     @classmethod
     def group(cls, full_state: FullState):
@@ -242,11 +237,16 @@ class MetaBooleanTypeIndex(FullStateGroupTypeBaseIndex[IBoolean], IInstantiable)
     def group(cls, full_state: FullState):
         return full_state.meta.boolean_group.subtypes
 
-class MetaAllowedActionsTypeIndex(FullStateGroupTypeBaseIndex[BaseAction], IInstantiable):
+O = typing.TypeVar('O', bound=IActionOutput)
+
+class MetaAllowedActionsTypeIndex(
+    FullStateGroupTypeBaseIndex[IAction[FullState, O]],
+    typing.Generic[O],
+    IInstantiable):
 
     @classmethod
     def inner_item_type(cls):
-        return BaseAction
+        return IAction
 
     @classmethod
     def group(cls, full_state: FullState):
@@ -266,7 +266,10 @@ class CurrentStateScratchIndex(FullStateReadonlyGroupBaseIndex[Scratch], IInstan
     def group(cls, full_state: FullState) -> ScratchGroup:
         return full_state.current.state.scratch_group
 
-class CurrentStateArgsOuterGroupIndex(FullStateReadonlyGroupBaseIndex[PartialArgsGroup], IInstantiable):
+class CurrentStateArgsOuterGroupIndex(
+    FullStateReadonlyGroupBaseIndex[PartialArgsGroup],
+    IInstantiable,
+):
 
     @classmethod
     def item_type(cls):
