@@ -417,6 +417,9 @@ class InheritableNode(BaseNode, ABC):
 
     def __init__(self, *args: INode):
         assert all(isinstance(arg, INode) for arg in args)
+        type_group = self.as_instance.__class__.arg_type_group().group
+        if isinstance(type_group, CountableTypeGroup):
+            assert len(args) == len(type_group.args)
         super().__init__(*args)
 
     @property
