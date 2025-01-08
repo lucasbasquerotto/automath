@@ -2,7 +2,7 @@ from __future__ import annotations
 import typing
 from abc import ABC
 from utils.env_logger import env_logger
-from environment.core import (
+from env.core import (
     InheritableNode,
     IExceptionInfo,
     Optional,
@@ -14,8 +14,8 @@ from environment.core import (
     CountableTypeGroup,
     IInt,
     IInstantiable)
-from environment.state import State
-from environment.meta_env import (
+from env.state import State
+from env.meta_env import (
     IMetaData,
     MetaInfo,
     IActionOutput,
@@ -24,7 +24,7 @@ from environment.meta_env import (
     SubtypeOuterGroup,
     GeneralTypeGroup,
     MetaInfoOptions)
-from environment.full_state import FullState, HistoryNode, HistoryGroupNode
+from env.full_state import FullState, HistoryNode, HistoryGroupNode
 
 ###########################################################
 ########################## MAIN ###########################
@@ -94,9 +94,6 @@ class IActionExceptionInfo(IExceptionInfo, ABC):
         raise NotImplementedError
 
 class InvalidActionException(InvalidNodeException):
-
-    def __init__(self, info: IActionExceptionInfo):
-        super().__init__(info)
 
     @property
     def info(self) -> IActionExceptionInfo:
@@ -187,7 +184,7 @@ class ActionOutputExceptionInfo(InheritableNode, IExceptionInfo, IInstantiable):
 ##################### IMPLEMENTATION ######################
 ###########################################################
 
-class BaseAction(InheritableNode, IAction[FullState, O], typing.Generic[O], ABC):
+class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
 
     def as_action(self) -> typing.Self:
         return self
@@ -206,14 +203,14 @@ class BaseAction(InheritableNode, IAction[FullState, O], typing.Generic[O], ABC)
                 GeneralTypeGroup[IAction],
                 allowed_actions.args[allowed_actions.idx_subtypes])
             max_index = len(subtypes.as_tuple)
-            action_type = subtypes.as_tuple.index(self.wrap_type()) + 1
+            action_type = subtypes.as_tuple.index(self.as_type()) + 1
             IsInsideRange.from_raw(
                 value=action_type,
                 min_value=min_index,
                 max_value=max_index,
             ).raise_on_false()
         except InvalidNodeException as e:
-            raise ActionTypeExceptionInfo(self.wrap_type(), e.info).as_exception()
+            raise ActionTypeExceptionInfo(self.as_type(), e.info).as_exception()
 
         try:
             output = self._run(full_state)
@@ -259,7 +256,7 @@ class BaseAction(InheritableNode, IAction[FullState, O], typing.Generic[O], ABC)
         history.append(current)
 
         if max_history_state_size is not None:
-            history = history[-max_history_state_size.to_int:]
+            history = history[-max_history_state_size.as_int:]
 
         return FullState(
             full_state.args[full_state.idx_meta],
@@ -269,7 +266,7 @@ class BaseAction(InheritableNode, IAction[FullState, O], typing.Generic[O], ABC)
 
 class BasicAction(
     BaseAction[O],
-    IBasicAction[FullState, O],
+    IBasicAction[FullState],
     typing.Generic[O],
     ABC,
 ):

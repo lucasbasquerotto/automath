@@ -1,7 +1,6 @@
 import typing
 from abc import ABC
-from environment.core import (
-    BASIC_NODE_TYPES,
+from env.core import (
     IDefault,
     IFromInt,
     IInt,
@@ -23,7 +22,7 @@ from environment.core import (
     CountableTypeGroup,
     TmpNestedArg,
     IInstantiable)
-from environment.state import State
+from env.state import State
 
 T = typing.TypeVar('T', bound=INode)
 
@@ -214,8 +213,7 @@ class MetaInfo(InheritableNode, IInstantiable):
         ]))
 
     @classmethod
-    def with_defaults(cls, goal: GoalNode) -> typing.Self:
-        all_types = [TypeNode(t) for t in BASIC_NODE_TYPES]
+    def with_defaults(cls, goal: GoalNode, all_types: typing.Sequence[TypeNode]) -> typing.Self:
         all_types_group = GeneralTypeGroup.from_items(all_types)
         return cls(
             goal,

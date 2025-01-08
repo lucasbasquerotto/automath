@@ -1,6 +1,6 @@
 import typing
 from abc import ABC
-from environment.core import (
+from env.core import (
     INode,
     InheritableNode,
     IDefault,
@@ -22,12 +22,12 @@ from environment.core import (
     TmpNestedArg,
     TmpNestedArgs,
     IInstantiable)
-from environment.state import (
+from env.state import (
     State,
     Scratch,
     PartialArgsGroup,
     StateDefinition)
-from environment.meta_env import (
+from env.meta_env import (
     MetaInfo,
     IMetaData,
     IFullState,
@@ -46,7 +46,7 @@ T = typing.TypeVar('T', bound=INode)
 ################# FULL STATE DEFINITIONS ##################
 ###########################################################
 
-class HistoryNode(InheritableNode, IInstantiable):
+class HistoryNode(InheritableNode, IDefault, IInstantiable):
 
     idx_state = 0
     idx_meta_data = 1
@@ -57,6 +57,10 @@ class HistoryNode(InheritableNode, IInstantiable):
             State,
             IOptional[IMetaData],
         ]))
+
+    @classmethod
+    def create(cls):
+        return cls(State.create(), Optional.create())
 
 class HistoryGroupNode(BaseGroup[HistoryNode], IInstantiable):
 
@@ -70,7 +74,7 @@ class HistoryGroupNode(BaseGroup[HistoryNode], IInstantiable):
 ####################### FULL STATE ########################
 ###########################################################
 
-class FullState(InheritableNode, IFullState, IInstantiable):
+class FullState(InheritableNode, IFullState, IFromSingleChild[MetaInfo], IInstantiable):
 
     idx_meta = 0
     idx_current = 1
@@ -83,6 +87,10 @@ class FullState(InheritableNode, IFullState, IInstantiable):
             HistoryNode,
             HistoryGroupNode,
         ]))
+
+    @classmethod
+    def with_child(cls, child: MetaInfo) -> typing.Self:
+        return cls.new(child, HistoryNode.create(), HistoryGroupNode())
 
     @property
     def meta(self) -> TmpNestedArg:

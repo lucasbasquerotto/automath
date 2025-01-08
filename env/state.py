@@ -1,6 +1,6 @@
 import typing
 from abc import ABC
-from environment.core import (
+from env.core import (
     INode,
     IDefault,
     IFunction,
@@ -147,6 +147,7 @@ class FunctionDefinition(
         )
 
 class StateDefinitionGroup(BaseGroup[StateDefinition], IInstantiable):
+
     @classmethod
     def item_type(cls):
         return StateDefinition
@@ -155,11 +156,26 @@ class StateDefinitionGroup(BaseGroup[StateDefinition], IInstantiable):
 ########################## STATE ##########################
 ###########################################################
 
-class State(InheritableNode, IInstantiable):
+class State(InheritableNode, IDefault, IInstantiable):
 
     idx_definition_group = 0
     idx_args_outer_group = 1
     idx_scratch_group = 2
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            StateDefinitionGroup,
+            PartialArgsOuterGroup,
+            ScratchGroup,
+        ]))
+
+    @classmethod
+    def create(cls) -> typing.Self:
+        return cls(
+            StateDefinitionGroup(),
+            PartialArgsOuterGroup(),
+            ScratchGroup())
 
     @property
     def definition_group(self) -> TmpNestedArg:
@@ -223,7 +239,7 @@ class StateDefinitionIndex(StateIntIndex[StateDefinition], IInstantiable):
     def replace_in_outer_target(self, target: State, new_node: StateDefinition):
         definitions = list(target.definition_group.apply().cast(StateDefinitionGroup).as_tuple)
         for i, definition in enumerate(definitions):
-            if self.value == (i+1):
+            if self.as_int == (i+1):
                 assert new_node.definition_key.apply() == definition.definition_key.apply()
                 definitions[i] = new_node
                 return Optional(State(
@@ -235,7 +251,7 @@ class StateDefinitionIndex(StateIntIndex[StateDefinition], IInstantiable):
     def remove_in_outer_target(self, target: State):
         definitions = list(target.definition_group.apply().cast(StateDefinitionGroup).as_tuple)
         for i, _ in enumerate(definitions):
-            if self.value == (i+1):
+            if self.as_int == (i+1):
                 definitions.pop(i)
                 return Optional(State(
                     StateDefinitionGroup.from_items(definitions),
@@ -277,23 +293,23 @@ class ScratchNodeIndex(NodeIntBaseIndex, IInstantiable):
         content = node.child.apply().cast(IOptional).value
         if content is None:
             return Optional.create()
-        return NodeMainIndex(self.to_int).find_in_node(content)
+        return NodeMainIndex(self.as_int).find_in_node(content)
 
     def replace_in_target(self, target_node: INode, new_node: INode):
         assert isinstance(target_node, Scratch)
         assert isinstance(new_node, INode)
-        if self.to_int == 1:
+        if self.as_int == 1:
             return Optional(new_node)
         old_content = target_node.child.apply().cast(IOptional).value_or_raise
-        content = NodeMainIndex(self.to_int).replace_in_target(old_content, new_node)
+        content = NodeMainIndex(self.as_int).replace_in_target(old_content, new_node)
         return content
 
     def remove_in_target(self, target_node: INode):
         assert isinstance(target_node, Scratch)
-        if self.to_int == 1:
+        if self.as_int == 1:
             return Optional.create()
         old_content = target_node.child.apply().cast(IOptional).value_or_raise
-        content = NodeMainIndex(self.to_int).remove_in_target(old_content)
+        content = NodeMainIndex(self.as_int).remove_in_target(old_content)
         return content
 
 class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup], IInstantiable):

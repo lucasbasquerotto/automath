@@ -11,6 +11,10 @@ import sympy
 class INode(ABC):
 
     @classmethod
+    def as_type(cls) -> TypeNode[typing.Self]:
+        return TypeNode(cls)
+
+    @classmethod
     def new(cls, *args: int | INode | typing.Type[INode]) -> typing.Self:
         raise NotImplementedError()
 
@@ -51,7 +55,7 @@ class IFromInt(INode, ABC):
 class IInt(IFromInt, ABC):
 
     @property
-    def to_int(self) -> int:
+    def as_int(self) -> int:
         raise NotImplementedError()
 
 class INodeIndex(INode, ABC):
@@ -79,10 +83,6 @@ class IFromSingleChild(INode, typing.Generic[T], ABC):
     @classmethod
     def with_child(cls, child: T) -> typing.Self:
         return cls.new(child)
-
-    @property
-    def as_node(self) -> BaseNode:
-        raise NotImplementedError()
 
 class ISingleChild(IFromSingleChild, typing.Generic[T], ABC):
 
@@ -142,11 +142,11 @@ class IFunction(INode, ABC):
 class IBoolean(INode):
 
     @property
-    def value(self) -> bool | None:
+    def as_bool(self) -> bool | None:
         raise NotImplementedError
 
     def raise_on_false(self):
-        if self.value is False:
+        if self.as_bool is False:
             raise InvalidNodeException(BooleanExceptionInfo(self))
 
 
@@ -189,16 +189,16 @@ class ITypedIntIndex(IInt, ITypedIndex[O, T], typing.Generic[O, T], ABC):
         raise NotImplementedError
 
     def find_arg(self, node: INode) -> IOptional[T]:
-        result = NodeArgIndex(self.to_int).find_in_node(node)
+        result = NodeArgIndex(self.as_int).find_in_node(node)
         if result.value is not None:
             assert isinstance(result, self.item_type())
         return typing.cast(IOptional[T], result)
 
     def replace_arg(self, target: K, new_node: T) -> IOptional[K]:
-        return NodeArgIndex(self.to_int).replace_in_target(target, new_node)
+        return NodeArgIndex(self.as_int).replace_in_target(target, new_node)
 
     def remove_arg(self, target: K) -> IOptional[K]:
-        return NodeArgIndex(self.to_int).remove_in_target(target)
+        return NodeArgIndex(self.as_int).remove_in_target(target)
 
 class IInstantiable(INode, ABC):
 
@@ -256,10 +256,6 @@ class TmpNestedArgs:
 ###########################################################
 
 class BaseNode(INode, ABC):
-
-    @classmethod
-    def wrap_type(cls) -> TypeNode[typing.Self]:
-        return TypeNode(cls)
 
     def __init__(self, *args: int | INode | typing.Type[INode]):
         if not isinstance(self, IInstantiable):
@@ -468,19 +464,15 @@ class BaseInt(BaseNode, IInt, ISpecialValue, ABC):
         assert isinstance(value, int)
         super().__init__(value)
 
-    @property
-    def value(self) -> int:
-        value = self.args[0]
-        assert isinstance(value, int)
-        return value
-
     @classmethod
     def from_int(cls, value: int) -> typing.Self:
         return cls(value)
 
     @property
-    def to_int(self) -> int:
-        return self.value
+    def as_int(self) -> int:
+        value = self.args[0]
+        assert isinstance(value, int)
+        return value
 
     @property
     def node_value(self) -> INode:
@@ -511,8 +503,8 @@ class InheritableNode(BaseNode, ABC):
     def __getitem__(self, index: INodeIndex) -> INode | None:
         if isinstance(index, NodeArgIndex):
             args = self.args
-            if index.to_int > 0 and index.to_int <= len(args):
-                return args[index.to_int - 1]
+            if index.as_int > 0 and index.as_int <= len(args):
+                return args[index.as_int - 1]
             return None
         return super().__getitem__(index)
 
@@ -520,7 +512,7 @@ class InheritableNode(BaseNode, ABC):
         assert isinstance(index, INodeIndex)
         assert isinstance(new_node, INode)
         if isinstance(index, NodeArgIndex):
-            value = index.to_int
+            value = index.as_int
             args = self.args
             if 0 <= value <= len(args):
                 return self.func(*[
@@ -600,8 +592,8 @@ class BooleanWrapper(
         return self.raw_child.apply().cast(IBoolean)
 
     @property
-    def value(self) -> bool | None:
-        return self.child.value
+    def as_bool(self) -> bool | None:
+        return self.child.as_bool
 
 class SingleOptionalChildWrapper(InheritableNode, ISingleOptionalChild[T], typing.Generic[T]):
 
@@ -724,7 +716,7 @@ class OpaqueScope(SimpleScope[T], typing.Generic[T], ABC):
         node = self.func(TemporaryScopeId(next_id), child)
         tmp_ids = node.find_until(TemporaryScopeId, OpaqueScope)
         for tmp_id in tmp_ids:
-            node_aux = node.replace_until(tmp_id, ScopeId(tmp_id.value), OpaqueScope)
+            node_aux = node.replace_until(tmp_id, ScopeId(tmp_id.as_int), OpaqueScope)
             assert isinstance(node_aux, self.__class__)
             node = node_aux
         return node
@@ -839,21 +831,21 @@ class NodeMainIndex(NodeIntBaseIndex, IInstantiable):
         return [], index
 
     def find_in_node(self, node: INode):
-        item, _ = self._inner_getitem(node, self.to_int)
+        item, _ = self._inner_getitem(node, self.as_int)
         return Optional(item) if item is not None else Optional()
 
     def replace_in_target(self, target_node: INode, new_node: INode):
-        new_target, _ = self._replace(target_node, new_node, self.to_int)
+        new_target, _ = self._replace(target_node, new_node, self.as_int)
         return Optional(new_target) if new_target is not None else Optional()
 
     def ancestors(self, node: INode) -> tuple[INode, ...]:
-        ancestors, _ = self._ancestors(node, self.to_int)
+        ancestors, _ = self._ancestors(node, self.as_int)
         return tuple(ancestors)
 
 class NodeArgIndex(NodeIntBaseIndex, IInstantiable):
 
     def find_in_node(self, node: INode) -> IOptional[INode]:
-        index = self.to_int
+        index = self.as_int
         if not isinstance(node, InheritableNode):
             return Optional()
         args = node.args
@@ -864,7 +856,7 @@ class NodeArgIndex(NodeIntBaseIndex, IInstantiable):
     def replace_in_target(self, target_node: T, new_node: INode) -> IOptional[T]:
         if not isinstance(target_node, InheritableNode):
             return Optional()
-        index = self.to_int
+        index = self.as_int
         args = target_node.args
         if 0 < index <= len(args):
             new_target = target_node.func(*[
@@ -878,7 +870,7 @@ class NodeArgIndex(NodeIntBaseIndex, IInstantiable):
     def remove_in_target(self, target_node: T) -> Optional[T]:
         if not isinstance(target_node, InheritableNode):
             return Optional()
-        index = self.to_int
+        index = self.as_int
         args = target_node.args
         if 0 < index <= len(args):
             new_args = [
@@ -1054,11 +1046,15 @@ class ExtendedTypeGroup(
 
     @classmethod
     def with_child(cls, child: IOptional[INT]) -> typing.Self:
-        value = child.value.to_int if child.value is not None else None
+        value = child.value.as_int if child.value is not None else None
         if value is None:
             return cls(SingleValueTypeGroup(UnknownType()))
         return cls(
             CountableTypeGroup.from_items([UnknownType()] * value))
+
+    @classmethod
+    def rest(cls, type_node: IType = UnknownType()) -> typing.Self:
+        return cls(RestTypeGroup(type_node))
 
     def new_amount(self, amount: int) -> typing.Self:
         group = self.group.apply().cast(IBaseTypeGroup)
@@ -1077,7 +1073,7 @@ class ExtendedTypeGroup(
 ###################### FUNCTION NODE ######################
 ###########################################################
 
-class FunctionExpr(InheritableNode, IFunction, typing.Generic[T]):
+class FunctionExpr(InheritableNode, IFunction, IFromSingleChild[T], typing.Generic[T]):
 
     idx_param_type_group = 0
     idx_scope = 1
@@ -1088,6 +1084,10 @@ class FunctionExpr(InheritableNode, IFunction, typing.Generic[T]):
             ExtendedTypeGroup,
             SimpleScope[T],
         ]))
+
+    @classmethod
+    def with_child(cls, child: T) -> typing.Self:
+        return cls.new(ExtendedTypeGroup.rest(), child)
 
     @property
     def param_type_group(self) -> TmpNestedArg:
@@ -1109,8 +1109,8 @@ class FunctionExpr(InheritableNode, IFunction, typing.Generic[T]):
         params = [
             param
             for param in self.expr.apply().find_until(Param, OpaqueScope)
-            if param.parent_scope.apply().cast(IInt).to_int == self.scope_id]
-        params = sorted(params, key=lambda param: param.index.apply().cast(IInt).to_int)
+            if param.parent_scope.apply().cast(IInt).as_int == self.scope_id]
+        params = sorted(params, key=lambda param: param.index.apply().cast(IInt).as_int)
         return params
 
     def with_args(self, *args: INode) -> INode:
@@ -1124,7 +1124,7 @@ class FunctionExpr(InheritableNode, IFunction, typing.Generic[T]):
         params = self.owned_params()
         scope = self.scope.apply().cast(SimpleScope)
         for param in params:
-            index = param.index.apply().cast(IInt).to_int
+            index = param.index.apply().cast(IInt).as_int
             assert index > 0
             assert index <= len(args)
             arg = args[index-1]
@@ -1143,7 +1143,7 @@ class FunctionExpr(InheritableNode, IFunction, typing.Generic[T]):
         ).apply().cast(IBaseTypeGroup)
         scope = self.scope
         for param in params:
-            index = param.index.apply().cast(IInt).to_int
+            index = param.index.apply().cast(IInt).as_int
             assert index > 0
             if isinstance(group, CountableTypeGroup):
                 assert index <= len(group.args)
@@ -1160,7 +1160,7 @@ class FunctionExpr(InheritableNode, IFunction, typing.Generic[T]):
             all_functions_scope_ids = {f.scope.id for f in all_functions}
             all_inner_params = scope.find_until(Param, OpaqueScope)
             all_inner_params_scope_ids = {
-                p.parent_scope.apply().cast(IInt).to_int
+                p.parent_scope.apply().cast(IInt).as_int
                 for p in all_inner_params
             }
             assert all_inner_params_scope_ids.issubset(all_functions_scope_ids)
@@ -1267,18 +1267,18 @@ class ExceptionInfoWrapper(
 class Not(BooleanWrapper, IInstantiable):
 
     @property
-    def value(self) -> bool | None:
+    def as_bool(self) -> bool | None:
         child = self.raw_child.apply()
         if not isinstance(child, IBoolean):
             return None
-        if child.value is None:
+        if child.as_bool is None:
             return None
-        return not child.value
+        return not child.as_bool
 
 class IsEmpty(SingleOptionalChildWrapper[INode], IBoolean, IInstantiable):
 
     @property
-    def value(self) -> bool | None:
+    def as_bool(self) -> bool | None:
         value = self.args[0]
         if not isinstance(value, IOptional):
             return None
@@ -1316,7 +1316,7 @@ class IsInsideRange(InheritableNode, IBoolean, IInstantiable):
         return self.nested_arg(self.idx_max_value)
 
     @property
-    def value(self) -> bool | None:
+    def as_bool(self) -> bool | None:
         value = self.raw_value.apply()
         if not isinstance(value, IInt):
             return None
@@ -1326,12 +1326,4 @@ class IsInsideRange(InheritableNode, IBoolean, IInstantiable):
         max_value = self.max_value.apply()
         if not isinstance(max_value, IInt):
             return None
-        return min_value.to_int <= value.to_int <= max_value.to_int
-
-###########################################################
-####################### BASIC NODES #######################
-###########################################################
-
-BASIC_NODE_TYPES: tuple[type[INode], ...] = (
-    INode,
-)
+        return min_value.as_int <= value.as_int <= max_value.as_int

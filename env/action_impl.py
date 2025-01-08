@@ -1,6 +1,6 @@
 import typing
 from abc import ABC
-from environment.core import (
+from env.core import (
     INode,
     NodeArgIndex,
     DefaultGroup,
@@ -21,7 +21,7 @@ from environment.core import (
     CountableTypeGroup,
     IOptional,
     IInstantiable)
-from environment.state import (
+from env.state import (
     State,
     Scratch,
     ScratchGroup,
@@ -30,14 +30,14 @@ from environment.state import (
     StateArgsGroupIndex,
     PartialArgsOuterGroup,
     PartialArgsGroup)
-from environment.full_state import (
+from env.full_state import (
     FullState,
     FullStateIntIndex,
     MetaDefaultTypeIndex,
     MetaFromIntTypeIndex,
     MetaSingleChildTypeIndex,
     MetaFullStateIntIndexTypeIndex)
-from environment.action import (
+from env.action import (
     BasicAction,
     GeneralAction)
 
@@ -100,7 +100,7 @@ class CreateScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
 
         state = full_state.current_state.apply().cast(State)
         scratch_group = state.scratch_group.apply().cast(ScratchGroup)
-        assert index.value == len(scratch_group.as_tuple) + 1
+        assert index.as_int == len(scratch_group.as_tuple) + 1
         new_args = list(scratch_group.as_tuple) + [Scratch.with_content(node)]
 
         return State(
@@ -283,7 +283,7 @@ class DefineScratchFromInt(
 
         node_type = type_index.find_in_outer_node(full_state).value_or_raise
         assert isinstance(node_type, TypeNode) and issubclass(node_type.type, IFromInt)
-        content = node_type.type.from_int(index_value.to_int)
+        content = node_type.type.from_int(index_value.as_int)
 
         return DefineScratchOutput(scratch_index, Optional(content))
 
@@ -371,7 +371,7 @@ class DefineScratchFromIntIndex(
         assert isinstance(node_type, TypeNode) and issubclass(node_type.type, FullStateIntIndex)
         node_index = typing.cast(
             FullStateIntIndex[INode],
-            node_type.type.from_int(index_value.to_int))
+            node_type.type.from_int(index_value.as_int))
         content = node_index.find_in_outer_node(full_state).value_or_raise
         content = IsEmpty.with_optional(content).value_or_raise
 
@@ -558,7 +558,7 @@ class UpdateScratchFromAnother(
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
         scratch_inner_index = ScratchNodeIndex(arg2)
-        source_index = StateScratchIndex(arg2)
+        source_index = StateScratchIndex(arg3)
         return cls(scratch_index, scratch_inner_index, source_index)
 
     @classmethod
@@ -625,7 +625,7 @@ class CreateArgsGroupOutput(GeneralAction, IInstantiable):
 
         state = full_state.current_state.apply().cast(State)
         args_outer_group = state.args_outer_group.apply().cast(PartialArgsOuterGroup)
-        assert index.value == len(args_outer_group.as_tuple) + 1
+        assert index.as_int == len(args_outer_group.as_tuple) + 1
         scope_child = new_args_group.scope_child.apply().cast(OptionalValueGroup)
         for arg in scope_child.as_tuple:
             arg.as_node.validate()
@@ -678,7 +678,7 @@ class CreateArgsGroup(
         return 2
 
     def _run(self, full_state: FullState) -> CreateArgsGroupOutput:
-        args_amount = typing.cast(Integer, self.args[self.idx_args_amount]).to_int
+        args_amount = typing.cast(Integer, self.args[self.idx_args_amount]).as_int
         param_types_index = typing.cast(
             Optional[StateScratchIndex],
             self.args[self.idx_param_types_index],

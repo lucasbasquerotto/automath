@@ -1,36 +1,39 @@
-# import typing
-# from environment.core import BASIC_NODE_TYPES, BaseNode
-# from environment.action_old import BASIC_ACTION_TYPES, Action
-# from environment.reward import RewardEvaluator
-# from environment.full_state_old import StateHistoryItem
-# from environment.environment import Environment
-# from environment.meta_env import (
-#   FullEnvMetaInfo,
-#   NodeTypeHandler,
-#   DefaultNodeTypeHandler,
-#   GoalNode)
+import typing
+from env import core
+from env import meta_env
+from env import full_state
+from env import reward
+from env.environment import Environment
 
-# class GoalEnv(Environment):
-#     def __init__(
-#         self,
-#         goal: GoalNode,
-#         reward_evaluator: RewardEvaluator | None = None,
-#         initial_history: tuple[StateHistoryItem, ...] = tuple(),
-#         node_types: tuple[typing.Type[BaseNode], ...] = BASIC_NODE_TYPES,
-#         action_types: tuple[typing.Type[Action], ...] = BASIC_ACTION_TYPES,
-#         max_steps: int | None = None,
-#         max_history_size: int | None = None,
-#     ):
-#         meta = FullEnvMetaInfo(
-#             goal=goal,
-#             reward_evaluator=reward_evaluator,
-#             initial_history=initial_history,
-#             node_types=node_types,
-#             action_types=action_types,
-#         )
+T = typing.TypeVar("T")
 
-#         super().__init__(
-#             meta=meta,
-#             max_steps=max_steps,
-#             max_history_size=max_history_size,
-#         )
+def get_all_subclasses(cls: type[T]) -> set[type[T]]:
+    subclasses = set([cls])
+    for subclass in cls.__subclasses__():
+        subclasses.update(get_all_subclasses(subclass))
+    return subclasses
+
+
+def get_all_subclasses_sorted(cls: type[T]) -> list[type[T]]:
+    result_set = get_all_subclasses(cls)
+    result = sorted([t for t in result_set], key=lambda t: t.__name__)
+    return result
+
+class GoalEnv(Environment):
+    def __init__(
+        self,
+        goal: meta_env.GoalNode,
+        reward_evaluator: reward.IRewardEvaluator | None = None,
+        max_steps: int | None = None,
+    ):
+        all_types = [t.as_type() for t in get_all_subclasses_sorted(core.INode)]
+        meta = meta_env.MetaInfo.with_defaults(
+            goal=goal,
+            all_types=all_types,
+        )
+
+        super().__init__(
+            initial_state=full_state.FullState.with_child(meta),
+            reward_evaluator=reward_evaluator,
+            max_steps=max_steps,
+        )
