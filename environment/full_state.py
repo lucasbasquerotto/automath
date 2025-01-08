@@ -37,6 +37,7 @@ from environment.meta_env import (
     IBasicAction,
     SubtypeOuterGroup,
     GoalNode,
+    GeneralTypeGroup,
     IActionOutput)
 
 T = typing.TypeVar('T', bound=INode)
@@ -106,6 +107,12 @@ class FullState(InheritableNode, IFullState, IInstantiable):
         state = self.current_state.apply().cast(State)
         goal = meta.goal.apply().cast(GoalNode)
         return goal.evaluate(state)
+
+    def node_types(self) -> tuple[type[INode], ...]:
+        meta = self.nested_arg(self.idx_meta).apply().cast(MetaInfo)
+        all_types_wrappers = meta.all_types.apply().cast(GeneralTypeGroup).as_tuple
+        all_types = tuple(wrapper.type for wrapper in all_types_wrappers)
+        return all_types
 
 ###########################################################
 ###################### MAIN INDICES #######################

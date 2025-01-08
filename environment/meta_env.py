@@ -239,3 +239,11 @@ class MetaInfo(InheritableNode, IInstantiable):
     @property
     def goal(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_goal)
+
+    @property
+    def options(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_options)
+
+    @property
+    def all_types(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_all_types)

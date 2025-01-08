@@ -26,6 +26,12 @@ class INode(ABC):
     def func(self) -> typing.Type[typing.Self]:
         return type(self)
 
+class ISpecialValue(ABC):
+
+    @property
+    def node_value(self) -> INode:
+        raise NotImplementedError()
+
 class IDefault(INode, ABC):
 
     @classmethod
@@ -411,7 +417,7 @@ class IType(INode, ABC):
         if self.valid(instance) is False:
             raise InvalidNodeException(TypeExceptionInfo(self, instance))
 
-class TypeNode(BaseNode, IType, IFunction, typing.Generic[T], ABC):
+class TypeNode(BaseNode, IType, IFunction, ISpecialValue, typing.Generic[T], ABC):
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -425,6 +431,10 @@ class TypeNode(BaseNode, IType, IFunction, typing.Generic[T], ABC):
     def type(self) -> typing.Type[INode]:
         t = self.args[0]
         return typing.cast(typing.Type[INode], t)
+
+    @property
+    def node_value(self) -> INode:
+        return self
 
     def with_arg_group(self, group: BaseGroup) -> INode:
         return self.type.new(*group.as_tuple)
@@ -448,7 +458,7 @@ class TypeNode(BaseNode, IType, IFunction, typing.Generic[T], ABC):
 ######################## INT NODE #########################
 ###########################################################
 
-class BaseInt(BaseNode, IInt, ABC):
+class BaseInt(BaseNode, IInt, ISpecialValue, ABC):
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -471,6 +481,10 @@ class BaseInt(BaseNode, IInt, ABC):
     @property
     def to_int(self) -> int:
         return self.value
+
+    @property
+    def node_value(self) -> INode:
+        return self
 
 class Integer(BaseInt, IInstantiable):
     pass
