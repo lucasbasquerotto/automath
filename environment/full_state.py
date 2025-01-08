@@ -19,6 +19,7 @@ from environment.core import (
     Optional,
     ExtendedTypeGroup,
     CountableTypeGroup,
+    TmpNestedArg,
     TmpNestedArgs,
     IInstantiable)
 from environment.state import (
@@ -82,19 +83,19 @@ class FullState(InheritableNode, IFullState, IInstantiable):
         ]))
 
     @property
-    def meta(self):
+    def meta(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_meta)
 
     @property
-    def current(self):
+    def current(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_current)
 
     @property
-    def history(self):
+    def history(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_history)
 
     @property
-    def current_state(self):
+    def current_state(self) -> TmpNestedArgs:
         return self.nested_args(
             (self.idx_current, HistoryNode.idx_state)
         )
@@ -159,7 +160,7 @@ class MetaDefaultTypeIndex(FullStateGroupTypeBaseIndex[IDefault], IInstantiable)
         return IDefault
 
     @classmethod
-    def group(cls, full_state: FullState):
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
         return full_state.nested_args((
             FullState.idx_meta,
             MetaInfo.idx_default_group,
@@ -173,7 +174,7 @@ class MetaFromIntTypeIndex(FullStateGroupTypeBaseIndex[IFromInt], IInstantiable)
         return IFromInt
 
     @classmethod
-    def group(cls, full_state: FullState):
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
         return full_state.nested_args((
             FullState.idx_meta,
             MetaInfo.idx_from_int_group,
@@ -187,7 +188,7 @@ class MetaIntTypeIndex(FullStateGroupTypeBaseIndex[IInt], IInstantiable):
         return IInt
 
     @classmethod
-    def group(cls, full_state: FullState):
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
         return full_state.nested_args((
             FullState.idx_meta,
             MetaInfo.idx_int_group,
@@ -201,7 +202,7 @@ class MetaNodeIndexTypeIndex(FullStateGroupTypeBaseIndex[INodeIndex], IInstantia
         return INodeIndex
 
     @classmethod
-    def group(cls, full_state: FullState):
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
         return full_state.nested_args((
             FullState.idx_meta,
             MetaInfo.idx_node_index_group,
@@ -215,7 +216,7 @@ class MetaFullStateIndexTypeIndex(FullStateGroupTypeBaseIndex[FullStateIndex], I
         return FullStateIndex
 
     @classmethod
-    def group(cls, full_state: FullState):
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
         return full_state.nested_args((
             FullState.idx_meta,
             MetaInfo.idx_full_state_index_group,
@@ -229,7 +230,7 @@ class MetaFullStateIntIndexTypeIndex(FullStateGroupTypeBaseIndex[FullStateIntInd
         return FullStateIntIndex
 
     @classmethod
-    def group(cls, full_state: FullState):
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
         return full_state.nested_args((
             FullState.idx_meta,
             MetaInfo.idx_full_state_int_index_group,
@@ -243,7 +244,7 @@ class MetaSingleChildTypeIndex(FullStateGroupTypeBaseIndex[IFromSingleChild], II
         return IFromSingleChild
 
     @classmethod
-    def group(cls, full_state: FullState):
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
         return full_state.nested_args((
             FullState.idx_meta,
             MetaInfo.idx_single_child_group,
@@ -257,7 +258,7 @@ class MetaGroupTypeIndex(FullStateGroupTypeBaseIndex[IGroup], IInstantiable):
         return IGroup
 
     @classmethod
-    def group(cls, full_state: FullState):
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
         return full_state.nested_args((
             FullState.idx_meta,
             MetaInfo.idx_group_outer_group,
@@ -271,7 +272,7 @@ class MetaFunctionTypeIndex(FullStateGroupTypeBaseIndex[IFunction], IInstantiabl
         return IFunction
 
     @classmethod
-    def group(cls, full_state: FullState):
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
         return full_state.nested_args((
             FullState.idx_meta,
             MetaInfo.idx_function_group,
@@ -285,7 +286,7 @@ class MetaBooleanTypeIndex(FullStateGroupTypeBaseIndex[IBoolean], IInstantiable)
         return IBoolean
 
     @classmethod
-    def group(cls, full_state: FullState):
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
         return full_state.nested_args((
             FullState.idx_meta,
             MetaInfo.idx_boolean_group,
@@ -304,7 +305,7 @@ class MetaAllowedActionsTypeIndex(
         return IAction
 
     @classmethod
-    def group(cls, full_state: FullState):
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
         return full_state.nested_args((
             FullState.idx_meta,
             MetaInfo.idx_allowed_actions,
@@ -321,7 +322,7 @@ class MetaBasicActionsTypeIndex(
         return IAction
 
     @classmethod
-    def group(cls, full_state: FullState):
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
         return full_state.nested_args((
             FullState.idx_meta,
             MetaInfo.idx_basic_actions,
@@ -339,7 +340,7 @@ class CurrentStateScratchIndex(FullStateReadonlyGroupBaseIndex[Scratch], IInstan
         return Scratch
 
     @classmethod
-    def group(cls, full_state: FullState):
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
         return full_state.nested_args((
             FullState.idx_current,
             HistoryNode.idx_state,
@@ -356,7 +357,7 @@ class CurrentStateArgsOuterGroupIndex(
         return PartialArgsGroup
 
     @classmethod
-    def group(cls, full_state: FullState):
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
         return full_state.nested_args((
             FullState.idx_current,
             HistoryNode.idx_state,
@@ -370,7 +371,7 @@ class CurrentStateDefinitionIndex(FullStateReadonlyGroupBaseIndex[StateDefinitio
         return StateDefinition
 
     @classmethod
-    def group(cls, full_state: FullState):
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
         return full_state.nested_args((
             FullState.idx_current,
             HistoryNode.idx_state,

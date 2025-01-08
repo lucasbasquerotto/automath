@@ -19,6 +19,7 @@ from environment.core import (
     IFromSingleChild,
     IsEmpty,
     CountableTypeGroup,
+    IOptional,
     IInstantiable)
 from environment.state import (
     State,
@@ -103,8 +104,8 @@ class CreateScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
         new_args = list(scratch_group.as_tuple) + [Scratch.with_content(node)]
 
         return State(
-            state.definition_group,
-            state.args_outer_group,
+            state.definition_group.apply(),
+            state.args_outer_group.apply(),
             scratch_group.func(*new_args),
         )
 
@@ -117,7 +118,10 @@ class CreateScratch(
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
-        clone_index = Optional.create() if arg1 == 0 else Optional(StateScratchIndex(arg1))
+        clone_index: Optional[StateScratchIndex] = (
+            Optional.create()
+            if arg1 == 0
+            else Optional(StateScratchIndex(arg1)))
         assert arg2 == 0
         assert arg3 == 0
         return cls(clone_index)
@@ -151,15 +155,15 @@ class CreateScratch(
         scratch = clone_index.value.find_in_outer_node(state).value_or_raise
         assert isinstance(scratch, Scratch)
         scratch.validate()
-        node = scratch.child.value
+        node = scratch.child.apply().cast(IOptional).value
 
-        return CreateScratchOutput(index, Optional(node))
+        return CreateScratchOutput(index, Optional(node) if node is not None else Optional())
 
 class DeleteScratchOutput(ScratchBaseActionOutput, IInstantiable):
 
     def apply(self, full_state: FullState) -> State:
         index = typing.cast(StateScratchIndex, self.args[self.idx_index])
-        state = full_state.current.state
+        state = full_state.current_state.apply().cast(State)
         new_state = index.remove_in_outer_target(state).value_or_raise
         return new_state
 
@@ -415,7 +419,7 @@ class DefineScratchFromFunctionWithIntArg(
         assert isinstance(source_scratch, Scratch)
         source_scratch.validate()
 
-        content = source_scratch.child.value
+        content = source_scratch.child.apply().cast(IOptional).value
         assert content is not None
 
         content = FunctionCall(
@@ -466,14 +470,14 @@ class DefineScratchFromFunctionWithSingleArg(
         assert isinstance(source_scratch, Scratch)
         source_scratch.validate()
 
-        content = source_scratch.child.value
+        content = source_scratch.child.apply().cast(IOptional).value
         assert content is not None
 
         single_arg_outer = single_arg_index.find_in_outer_node(state).value_or_raise
         assert isinstance(single_arg_outer, Scratch)
         single_arg_outer.validate()
 
-        single_arg = single_arg_outer.child.value
+        single_arg = single_arg_outer.child.apply().cast(IOptional).value
         assert single_arg is not None
 
         content = FunctionCall(
@@ -491,7 +495,10 @@ class DefineScratchFromFunctionWithArgs(
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
         source_index = StateScratchIndex(arg2)
-        args_group_index = Optional.create() if arg3 == 0 else Optional(StateArgsGroupIndex(arg3))
+        args_group_index: Optional[StateArgsGroupIndex] = (
+            Optional.create()
+            if arg3 == 0
+            else Optional(StateArgsGroupIndex(arg3)))
         return cls(scratch_index, source_index, args_group_index)
 
     @classmethod
@@ -526,7 +533,7 @@ class DefineScratchFromFunctionWithArgs(
         assert isinstance(source_scratch, Scratch)
         source_scratch.validate()
 
-        content = source_scratch.child.value
+        content = source_scratch.child.apply().cast(IOptional).value
         assert content is not None
 
         if args_group_index is not None:
@@ -627,9 +634,9 @@ class CreateArgsGroupOutput(GeneralAction, IInstantiable):
         new_args = list(args_outer_group.as_tuple) + [new_args_group]
 
         return State(
-            state.definition_group,
+            state.definition_group.apply(),
             args_outer_group.func(*new_args),
-            state.scratch_group,
+            state.scratch_group.apply(),
         )
 
 class CreateArgsGroup(
@@ -640,8 +647,11 @@ class CreateArgsGroup(
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         args_amount = Integer(arg1)
-        param_types_index = Optional.create() if arg2 == 0 else Optional(StateScratchIndex(arg2))
-        args_group_source_index = (
+        param_types_index: Optional[StateScratchIndex] = (
+            Optional.create()
+            if arg2 == 0
+            else Optional(StateScratchIndex(arg2)))
+        args_group_source_index: Optional[StateArgsGroupIndex] = (
             Optional.create()
             if arg3 == 0
             else Optional(StateArgsGroupIndex(arg3)))
@@ -699,7 +709,7 @@ class CreateArgsGroup(
             assert isinstance(param_types, Scratch)
             param_types.validate()
 
-            type_group_aux = param_types.child.value
+            type_group_aux = param_types.child.apply().cast(IOptional).value
             assert isinstance(type_group_aux, ExtendedTypeGroup)
             type_group = type_group_aux
 
@@ -710,7 +720,8 @@ class CreateArgsGroup(
         scope = OpaqueScope.with_content(optional_group)
         new_args_group = PartialArgsGroup(type_group, scope)
 
-        index = StateArgsGroupIndex(len(state.args_outer_group.as_tuple))
+        index = StateArgsGroupIndex(
+            len(state.args_outer_group.apply().cast(PartialArgsOuterGroup).as_tuple))
 
         return CreateArgsGroupOutput(index, new_args_group)
 
@@ -752,8 +763,8 @@ class DefineArgsGroupArgOutput(GeneralAction, IInstantiable):
         new_args_group = arg_index.replace_in_target(args_group, new_arg).value_or_raise
         assert isinstance(new_args_group, PartialArgsGroup)
         new_args_group = PartialArgsGroup(
-            new_args_group.param_type_group,
-            new_args_group.scope.normalize())
+            new_args_group.param_type_group.apply(),
+            new_args_group.scope.apply())
 
         new_state = group_index.replace_in_outer_target(state, new_args_group).value_or_raise
 

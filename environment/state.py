@@ -23,6 +23,7 @@ from environment.core import (
     ITypedIndex,
     ITypedIntIndex,
     CountableTypeGroup,
+    TmpNestedArg,
     TmpNestedArgs,
     IInstantiable,
 )
@@ -60,7 +61,7 @@ class ScratchGroup(BaseGroup[Scratch], IInstantiable):
         ])
 
     def to_raw_items(self) -> tuple[INode, ...]:
-        return tuple(s.child for s in self.as_tuple)
+        return tuple(s.child.apply() for s in self.as_tuple)
 
 class PartialArgsGroup(
     FunctionExpr[OptionalValueGroup],
@@ -79,15 +80,15 @@ class PartialArgsGroup(
         ]))
 
     @property
-    def param_type_group(self):
+    def param_type_group(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_param_type_group)
 
     @property
-    def scope(self):
+    def scope(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_scope)
 
     @property
-    def scope_child(self):
+    def scope_child(self) -> TmpNestedArgs:
         return self.nested_args((self.idx_scope, SimpleScope.idx_child))
 
     @property
@@ -119,11 +120,11 @@ class StateDefinition(InheritableNode, typing.Generic[D, T], ABC):
     idx_definition_expr = 1
 
     @property
-    def definition_key(self):
+    def definition_key(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_definition_key)
 
     @property
-    def definition_expr(self):
+    def definition_expr(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_definition_expr)
 
 class FunctionDefinition(
@@ -161,15 +162,15 @@ class State(InheritableNode, IInstantiable):
     idx_scratch_group = 2
 
     @property
-    def definition_group(self):
+    def definition_group(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_definition_group)
 
     @property
-    def args_outer_group(self):
+    def args_outer_group(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_args_outer_group)
 
     @property
-    def scratch_group(self):
+    def scratch_group(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_scratch_group)
 
     @classmethod
@@ -238,8 +239,8 @@ class StateDefinitionIndex(StateIntIndex[StateDefinition], IInstantiable):
                 definitions.pop(i)
                 return Optional(State(
                     StateDefinitionGroup.from_items(definitions),
-                    target.args_outer_group,
-                    target.scratch_group))
+                    target.args_outer_group.apply(),
+                    target.scratch_group.apply()))
         return Optional.create()
 
 class StateScratchIndex(StateIntIndex[Scratch], IInstantiable):
@@ -261,7 +262,7 @@ class StateScratchIndex(StateIntIndex[Scratch], IInstantiable):
             group))
 
     def remove_in_outer_target(self, target: State):
-        group = self.remove_arg(target.scratch_group).value
+        group = self.remove_arg(target.scratch_group.apply()).value
         if group is None:
             return Optional.create()
         return Optional(State(
@@ -273,7 +274,7 @@ class ScratchNodeIndex(NodeIntBaseIndex, IInstantiable):
 
     def find_in_node(self, node: INode):
         assert isinstance(node, Scratch)
-        content = node.child.value
+        content = node.child.apply().cast(IOptional).value
         if content is None:
             return Optional.create()
         return NodeMainIndex(self.to_int).find_in_node(content)
@@ -283,7 +284,7 @@ class ScratchNodeIndex(NodeIntBaseIndex, IInstantiable):
         assert isinstance(new_node, INode)
         if self.to_int == 1:
             return Optional(new_node)
-        old_content = target_node.child.value_or_raise
+        old_content = target_node.child.apply().cast(IOptional).value_or_raise
         content = NodeMainIndex(self.to_int).replace_in_target(old_content, new_node)
         return content
 
@@ -291,7 +292,7 @@ class ScratchNodeIndex(NodeIntBaseIndex, IInstantiable):
         assert isinstance(target_node, Scratch)
         if self.to_int == 1:
             return Optional.create()
-        old_content = target_node.child.value_or_raise
+        old_content = target_node.child.apply().cast(IOptional).value_or_raise
         content = NodeMainIndex(self.to_int).remove_in_target(old_content)
         return content
 
@@ -302,10 +303,10 @@ class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup], IInstantiable):
         return PartialArgsGroup
 
     def find_in_outer_node(self, node: State):
-        return self.find_arg(node.args_outer_group)
+        return self.find_arg(node.args_outer_group.apply())
 
     def replace_in_outer_target(self, target: State, new_node: PartialArgsGroup):
-        group = self.replace_arg(target.args_outer_group, new_node)
+        group = self.replace_arg(target.args_outer_group.apply(), new_node)
         args_outer_group = group.value
         if args_outer_group is None:
             return Optional.create()
@@ -315,7 +316,7 @@ class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup], IInstantiable):
             target.scratch_group.apply())
 
     def remove_in_outer_target(self, target: State):
-        group = self.remove_arg(target.args_outer_group)
+        group = self.remove_arg(target.args_outer_group.apply())
         args_outer_group = group.value
         if args_outer_group is None:
             return Optional.create()
@@ -341,11 +342,11 @@ class StateArgsGroupArgIndex(InheritableNode, IStateIndex[INode], IInstantiable)
         ]))
 
     @property
-    def group_index(self):
+    def group_index(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_group_index)
 
     @property
-    def arg_index(self):
+    def arg_index(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_arg_index)
 
     def find_in_outer_node(self, node: State):
