@@ -48,9 +48,10 @@ class SympyFunction(sympy.Basic):
     def _latex(self, printer: LatexPrinter) -> str:
         name = self.args[0]
         args = self.args[1:]
-        args_latex = r" \\ \quad ".join(printer.doprint(arg) for arg in args)
+        args_latex = r" \\ ".join(printer.doprint(arg) for arg in args)
         if len(args) <= 1:
             return f"{name}({args_latex})"
+        args_latex = args_latex.replace(r" \\ ", r" \\ \quad ")
         newline = r" \\ "
         return f"{name}( {newline} \\quad {args_latex} {newline} )"
 
