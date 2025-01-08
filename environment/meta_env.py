@@ -21,6 +21,7 @@ from environment.core import (
     ITypedIntIndex,
     ExtendedTypeGroup,
     CountableTypeGroup,
+    TmpNestedArg,
     IInstantiable)
 from environment.state import State
 
@@ -157,14 +158,12 @@ class IActionOutput(INode, typing.Generic[S], ABC):
     def apply(self, full_state: S) -> State:
         raise NotImplementedError
 
-O = typing.TypeVar('O', bound=IActionOutput)
-
-class IAction(INode, typing.Generic[S, O], ABC):
+class IAction(INode, typing.Generic[S], ABC):
 
     def run_action(self, full_state: S) -> S:
         raise NotImplementedError
 
-class IBasicAction(IAction[S, O], typing.Generic[S, O], ABC):
+class IBasicAction(IAction[S], typing.Generic[S], ABC):
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
@@ -236,3 +235,7 @@ class MetaInfo(InheritableNode, IInstantiable):
             SubtypeOuterGroup.from_all_types(TypeNode(IAction), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IBasicAction), all_types_group),
         )
+
+    @property
+    def goal(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_goal)

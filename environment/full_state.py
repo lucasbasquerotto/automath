@@ -36,6 +36,7 @@ from environment.meta_env import (
     IAction,
     IBasicAction,
     SubtypeOuterGroup,
+    GoalNode,
     IActionOutput)
 
 T = typing.TypeVar('T', bound=INode)
@@ -99,6 +100,12 @@ class FullState(InheritableNode, IFullState, IInstantiable):
         return self.nested_args(
             (self.idx_current, HistoryNode.idx_state)
         )
+
+    def goal_achieved(self) -> bool:
+        meta = self.nested_arg(self.idx_meta).apply().cast(MetaInfo)
+        state = self.current_state.apply().cast(State)
+        goal = meta.goal.apply().cast(GoalNode)
+        return goal.evaluate(state)
 
 ###########################################################
 ###################### MAIN INDICES #######################
@@ -296,8 +303,7 @@ class MetaBooleanTypeIndex(FullStateGroupTypeBaseIndex[IBoolean], IInstantiable)
 O = typing.TypeVar('O', bound=IActionOutput)
 
 class MetaAllowedActionsTypeIndex(
-    FullStateGroupTypeBaseIndex[IAction[FullState, O]],
-    typing.Generic[O],
+    FullStateGroupTypeBaseIndex[IAction[FullState]],
     IInstantiable):
 
     @classmethod
@@ -313,13 +319,12 @@ class MetaAllowedActionsTypeIndex(
         ))
 
 class MetaBasicActionsTypeIndex(
-    FullStateGroupTypeBaseIndex[IBasicAction[FullState, O]],
-    typing.Generic[O],
+    FullStateGroupTypeBaseIndex[IBasicAction[FullState]],
     IInstantiable):
 
     @classmethod
     def inner_item_type(cls):
-        return IAction
+        return IBasicAction
 
     @classmethod
     def group(cls, full_state: FullState) -> TmpNestedArgs:

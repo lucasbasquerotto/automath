@@ -1,25 +1,23 @@
-import typing
-from environment.state import State
+from environment.full_state import FullState
 
 class RewardEvaluator:
-    def __call__(self, current_state: State, next_state: State) -> float:
+
+    def evaluate(self, current_state: FullState, next_state: FullState) -> float:
         raise NotImplementedError
 
 class DefaultRewardEvaluator(RewardEvaluator):
     def __init__(
         self,
-        is_terminal: typing.Callable[[State], bool],
         goal_reward: int = 10000,
     ):
-        self._is_terminal = is_terminal
         self._goal_reward = goal_reward
 
-    def __call__(self, current_state: State, next_state: State) -> float:
-        if self._is_terminal(next_state):
+    def evaluate(self, current_state: FullState, next_state: FullState) -> float:
+        if next_state.goal_achieved():
             return self._goal_reward  # Reached the objective
 
         weight = len(next_state)
 
-        if next_state == current_state:
+        if next_state.current_state.apply() == current_state.current_state.apply():
             return -10 * weight # No change applied
         return -weight  # Small penalty for each step taken
