@@ -10,7 +10,7 @@ from env.core import (
     IFunction,
     ISingleChild,
     OptionalValueGroup,
-    OpaqueScope,
+    LaxOpaqueScope,
     FunctionCall,
     TypeNode,
     IDefault,
@@ -717,7 +717,7 @@ class CreateArgsGroup(
             if isinstance(inner_group, CountableTypeGroup):
                 assert len(inner_group.as_tuple) == args_amount
 
-        scope = OpaqueScope.with_content(optional_group)
+        scope = LaxOpaqueScope.with_content(optional_group)
         new_args_group = PartialArgsGroup(type_group, scope)
 
         index = StateArgsGroupIndex(

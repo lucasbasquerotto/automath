@@ -259,7 +259,7 @@ class BaseNode(INode, ABC):
 
     def __init__(self, *args: int | INode | typing.Type[INode]):
         if not isinstance(self, IInstantiable):
-            raise NotImplementedError()
+            raise NotImplementedError(self.__class__)
         self._args = args
         self._cached_length: int | None = None
         self._cached_hash: int | None = None
@@ -413,15 +413,15 @@ class IType(INode, ABC):
         if self.valid(instance) is False:
             raise InvalidNodeException(TypeExceptionInfo(self, instance))
 
-class TypeNode(BaseNode, IType, IFunction, ISpecialValue, typing.Generic[T], ABC):
+class TypeNode(BaseNode, IType, IFunction, ISpecialValue, typing.Generic[T], IInstantiable):
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup())
 
-    def __init__(self, type: type[T]):
-        assert isinstance(type, type) and issubclass(type, INode)
-        super().__init__(type)
+    def __init__(self, t: type[T]):
+        assert isinstance(t, type) and issubclass(t, INode), t
+        super().__init__(t)
 
     @property
     def type(self) -> typing.Type[INode]:
@@ -489,11 +489,6 @@ class InheritableNode(BaseNode, ABC):
 
     def __init__(self, *args: INode):
         assert all(isinstance(arg, INode) for arg in args)
-        type_group = self.as_instance.__class__.arg_type_group().group
-        if isinstance(type_group, OptionalTypeGroup):
-            assert len(args) <= 1
-        elif isinstance(type_group, CountableTypeGroup):
-            assert len(args) == len(type_group.args)
         super().__init__(*args)
 
     @property
@@ -522,6 +517,15 @@ class InheritableNode(BaseNode, ABC):
             return None
         return super().replace_at(index, new_node)
 
+    def validate(self):
+        super().validate()
+        args = self.args
+        type_group = self.as_instance.__class__.arg_type_group().group
+        if isinstance(type_group, OptionalTypeGroup):
+            assert len(args) <= 1
+        elif isinstance(type_group, CountableTypeGroup):
+            assert len(args) == len(type_group.args)
+
     def run(self):
         args = self.args
         self.as_instance.arg_type_group().validate_values(DefaultGroup(*args))
@@ -548,7 +552,7 @@ class UnknownType(InheritableNode, IType, IDefault, IInstantiable):
     def valid(self, instance: INode) -> bool | None:
         return None
 
-class Optional(InheritableNode, IOptional[T], typing.Generic[T], IInstantiable):
+class Optional(InheritableNode, IOptional[T], IInstantiable, typing.Generic[T]):
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -569,6 +573,7 @@ class BooleanWrapper(
     InheritableNode,
     ISingleChild[IBoolean],
     IBoolean,
+    ABC,
 ):
 
     idx_value = 0
@@ -595,7 +600,12 @@ class BooleanWrapper(
     def as_bool(self) -> bool | None:
         return self.child.as_bool
 
-class SingleOptionalChildWrapper(InheritableNode, ISingleOptionalChild[T], typing.Generic[T]):
+class SingleOptionalChildWrapper(
+    InheritableNode,
+    ISingleOptionalChild[T],
+    typing.Generic[T],
+    ABC,
+):
 
     idx_value = 0
 
@@ -764,10 +774,10 @@ class Placeholder(InheritableNode, IFromInt, typing.Generic[T], ABC):
     def type_node(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_type_node)
 
-class Param(Placeholder[T], typing.Generic[T], IInstantiable):
+class Param(Placeholder[T], IInstantiable, typing.Generic[T]):
     pass
 
-class Var(Placeholder[T], typing.Generic[T], IInstantiable):
+class Var(Placeholder[T], IInstantiable, typing.Generic[T]):
     pass
 
 ###########################################################
@@ -917,7 +927,7 @@ class IntGroup(BaseGroup[IInt], IInstantiable):
     def item_type(cls):
         return IInt
 
-class OptionalValueGroup(BaseGroup[IOptional[T]], IFromInt, typing.Generic[T], IInstantiable):
+class OptionalValueGroup(BaseGroup[IOptional[T]], IFromInt, IInstantiable, typing.Generic[T]):
 
     @classmethod
     def from_int(cls, value: int) -> typing.Self:
@@ -961,7 +971,7 @@ class OptionalValueGroup(BaseGroup[IOptional[T]], IFromInt, typing.Generic[T], I
 class IBaseTypeGroup(INode, ABC):
     pass
 
-class CountableTypeGroup(BaseGroup[IType], IBaseTypeGroup, typing.Generic[T]):
+class CountableTypeGroup(BaseGroup[IType], IBaseTypeGroup, IInstantiable, typing.Generic[T]):
 
     @classmethod
     def item_type(cls) -> type[IType]:
@@ -975,6 +985,7 @@ class SingleValueTypeGroup(
     InheritableNode,
     IBaseTypeGroup,
     ISingleChild[IType],
+    ABC,
 ):
 
     idx_type_node = 0
@@ -998,16 +1009,17 @@ class SingleValueTypeGroup(
         return self.type_node.apply().cast(IType)
 
 
-class RestTypeGroup(SingleValueTypeGroup):
+class RestTypeGroup(SingleValueTypeGroup, IInstantiable):
     pass
 
-class OptionalTypeGroup(SingleValueTypeGroup):
+class OptionalTypeGroup(SingleValueTypeGroup, IInstantiable):
     pass
 
 class ExtendedTypeGroup(
     InheritableNode,
     IDefault,
     IFromSingleChild[IOptional[IInt]],
+    IInstantiable,
 ):
 
     idx_group = 0
@@ -1073,7 +1085,13 @@ class ExtendedTypeGroup(
 ###################### FUNCTION NODE ######################
 ###########################################################
 
-class FunctionExpr(InheritableNode, IFunction, IFromSingleChild[T], typing.Generic[T]):
+class FunctionExpr(
+    InheritableNode,
+    IFunction,
+    IFromSingleChild[T],
+    IInstantiable,
+    typing.Generic[T],
+):
 
     idx_param_type_group = 0
     idx_scope = 1
@@ -1166,7 +1184,7 @@ class FunctionExpr(InheritableNode, IFunction, IFromSingleChild[T], typing.Gener
             assert all_inner_params_scope_ids.issubset(all_functions_scope_ids)
         super().validate()
 
-class FunctionCall(InheritableNode, typing.Generic[T]):
+class FunctionCall(InheritableNode, IInstantiable, typing.Generic[T]):
 
     idx_function = 0
     idx_arg_group = 1

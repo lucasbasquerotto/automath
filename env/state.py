@@ -12,6 +12,7 @@ from env.core import (
     NodeMainIndex,
     NodeArgIndex,
     OpaqueScope,
+    LaxOpaqueScope,
     SimpleScope,
     BaseInt,
     ScopeId,
@@ -99,7 +100,7 @@ class PartialArgsGroup(
     def create(cls) -> typing.Self:
         return cls(
             ExtendedTypeGroup(SingleValueTypeGroup(UnknownType())),
-            OpaqueScope.with_content(OptionalValueGroup()))
+            LaxOpaqueScope.with_content(OptionalValueGroup()))
 
 class PartialArgsOuterGroup(BaseGroup[PartialArgsGroup], IInstantiable):
     @classmethod
@@ -129,8 +130,8 @@ class StateDefinition(InheritableNode, typing.Generic[D, T], ABC):
 
 class FunctionDefinition(
     StateDefinition[FunctionId, FunctionExpr[T]],
-    typing.Generic[T],
     IInstantiable,
+    typing.Generic[T],
 ):
 
     @classmethod

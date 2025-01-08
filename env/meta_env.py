@@ -38,7 +38,7 @@ class GoalNode(InheritableNode, ABC):
 class IMetaData(INode, ABC):
     pass
 
-class GeneralTypeGroup(BaseGroup[TypeNode[T]], typing.Generic[T], IInstantiable):
+class GeneralTypeGroup(BaseGroup[TypeNode[T]], IInstantiable, typing.Generic[T]):
 
     @classmethod
     def item_type(cls):
@@ -47,8 +47,8 @@ class GeneralTypeGroup(BaseGroup[TypeNode[T]], typing.Generic[T], IInstantiable)
 class DetailedType(
     InheritableNode,
     IFromSingleChild[TypeNode[T]],
-    typing.Generic[T],
     IInstantiable,
+    typing.Generic[T],
 ):
     idx_node_type = 0
 
@@ -67,7 +67,7 @@ class DetailedType(
     def with_child(cls, child: TypeNode[T]) -> typing.Self:
         return cls(child)
 
-class DetailedTypeGroup(BaseGroup[DetailedType[T]], typing.Generic[T], IInstantiable):
+class DetailedTypeGroup(BaseGroup[DetailedType[T]], IInstantiable, typing.Generic[T]):
 
     @classmethod
     def item_type(cls):
@@ -80,7 +80,7 @@ class DetailedTypeGroup(BaseGroup[DetailedType[T]], typing.Generic[T], IInstanti
     def to_type_group(self) -> GeneralTypeGroup[T]:
         return GeneralTypeGroup.from_items([item.child for item in self.as_tuple])
 
-class SubtypeOuterGroup(InheritableNode, typing.Generic[T], IInstantiable):
+class SubtypeOuterGroup(InheritableNode, IInstantiable, typing.Generic[T]):
     idx_common_type = 0
     idx_subtypes = 1
 
@@ -105,7 +105,7 @@ class SubtypeOuterGroup(InheritableNode, typing.Generic[T], IInstantiable):
         subtypes = GeneralTypeGroup.from_items(
             [item for item in all_types.as_tuple if issubclass(item.type, common_type.type)]
         )
-        cls(common_type, subtypes)
+        return cls(common_type, subtypes)
 
 class MetaInfoOptions(InheritableNode, IDefault, IInstantiable):
     idx_max_history_state_size = 0
@@ -220,7 +220,7 @@ class MetaInfo(InheritableNode, IInstantiable):
             MetaInfoOptions.create(),
             all_types_group,
             DetailedTypeGroup.from_types(all_types),
-            SubtypeOuterGroup.from_all_types(TypeNode(INode), all_types_group),
+            SubtypeOuterGroup.from_all_types(TypeNode(IDefault), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IFromInt), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IInt), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(INodeIndex), all_types_group),

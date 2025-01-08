@@ -6,11 +6,12 @@ from env.core import (
     IBoolean,
     BaseInt,
     ExtendedTypeGroup,
-    CountableTypeGroup)
+    CountableTypeGroup,
+    IInstantiable)
 from env.state import State, StateDefinitionGroup
 from env.meta_env import GoalNode
 
-class HaveDefinition(GoalNode):
+class HaveDefinition(GoalNode, IInstantiable):
 
     idx_definition_expr = 0
 
@@ -30,7 +31,7 @@ class HaveDefinition(GoalNode):
         definitions = [d.definition_expr.apply() for d in group.as_tuple]
         return definition in definitions
 
-class IntBooleanNode(BaseInt, IBoolean):
+class IntBooleanNode(BaseInt, IBoolean, IInstantiable):
 
     @property
     def as_bool(self) -> bool | None:
@@ -50,7 +51,7 @@ class MultiArgBooleanNode(InheritableNode, IBoolean, ABC):
     def as_bool(self) -> bool | None:
         raise NotImplementedError
 
-class AndNode(MultiArgBooleanNode):
+class AndNode(MultiArgBooleanNode, IInstantiable):
 
     @property
     def as_bool(self) -> bool | None:
@@ -65,7 +66,7 @@ class AndNode(MultiArgBooleanNode):
                 return False
         return None if has_none else True
 
-class OrNode(MultiArgBooleanNode):
+class OrNode(MultiArgBooleanNode, IInstantiable):
 
     @property
     def as_bool(self) -> bool | None:

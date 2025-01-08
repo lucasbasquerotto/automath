@@ -16,7 +16,7 @@ def get_all_subclasses(cls: type[T]) -> set[type[T]]:
 
 def get_all_subclasses_sorted(cls: type[T]) -> list[type[T]]:
     result_set = get_all_subclasses(cls)
-    result = sorted([t for t in result_set], key=lambda t: t.__name__)
+    result = sorted([t for t in result_set], key=lambda t: f'{t.__module__}.{t.__qualname__}')
     return result
 
 class GoalEnv(Environment):
@@ -37,3 +37,5 @@ class GoalEnv(Environment):
             reward_evaluator=reward_evaluator,
             max_steps=max_steps,
         )
+
+        self.all_types = all_types
