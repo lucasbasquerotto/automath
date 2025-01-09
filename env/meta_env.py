@@ -248,6 +248,13 @@ class MetaInfo(InheritableNode, IInstantiable):
         all_types: typing.Sequence[TypeNode],
         allowed_actions: typing.Sequence[TypeNode[IAction]] | None = None,
     ) -> typing.Self:
+        for t in all_types:
+            if issubclass(t.type, IInstantiable):
+                for st in t.type.__bases__:
+                    if st != IInstantiable:
+                        assert not issubclass(st, IInstantiable), \
+                            f"Instantiable class {t.type} has subclass {st}"
+
         all_types_group = GeneralTypeGroup.from_items(all_types)
         allowed_actions = [
             t

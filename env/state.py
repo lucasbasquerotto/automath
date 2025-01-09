@@ -14,14 +14,14 @@ from env.core import (
     NodeArgIndex,
     OpaqueScope,
     LaxOpaqueScope,
-    SimpleScope,
+    SimpleBaseScope,
     BaseInt,
     ScopeId,
     OptionalValueGroup,
     ExtendedTypeGroup,
     SingleValueTypeGroup,
     UnknownType,
-    FunctionExpr,
+    FunctionExprBase,
     ITypedIndex,
     ITypedIntIndex,
     CountableTypeGroup,
@@ -79,7 +79,7 @@ class ScratchGroup(BaseGroup[Scratch], IInstantiable):
         return tuple(s.child.apply() for s in self.as_tuple)
 
 class PartialArgsGroup(
-    FunctionExpr[OptionalValueGroup],
+    FunctionExprBase[OptionalValueGroup],
     IDefault,
     IInstantiable,
 ):
@@ -104,7 +104,7 @@ class PartialArgsGroup(
 
     @property
     def scope_child(self) -> TmpNestedArgs:
-        return self.nested_args((self.idx_scope, SimpleScope.idx_child))
+        return self.nested_args((self.idx_scope, SimpleBaseScope.idx_child))
 
     @property
     def inner_args(self) -> tuple[INode, ...]:
@@ -146,7 +146,7 @@ class StateDefinition(InheritableNode, typing.Generic[D, T], ABC):
         return self.nested_arg(self.idx_definition_expr)
 
 class FunctionDefinition(
-    StateDefinition[FunctionId, FunctionExpr[T]],
+    StateDefinition[FunctionId, FunctionExprBase[T]],
     IInstantiable,
     typing.Generic[T],
 ):
@@ -155,13 +155,13 @@ class FunctionDefinition(
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             FunctionId,
-            FunctionExpr[T],
+            FunctionExprBase[T],
         ]))
 
     @property
     def scope(self) -> TmpNestedArgs:
         return self.nested_args(
-            (self.idx_definition_expr, FunctionExpr.idx_scope)
+            (self.idx_definition_expr, FunctionExprBase.idx_scope)
         )
 
 class StateDefinitionGroup(BaseGroup[StateDefinition], IInstantiable):

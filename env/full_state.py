@@ -8,8 +8,8 @@ from env.core import (
     IFromInt,
     IInt,
     INodeIndex,
-    NodeMainIndex,
-    NodeArgIndex,
+    NodeMainBaseIndex,
+    NodeArgBaseIndex,
     IFromSingleChild,
     IGroup,
     IFunction,
@@ -138,10 +138,10 @@ class FullStateIntIndex(IFullStateIntIndex[FullState, T], typing.Generic[T], ABC
     def outer_type(cls):
         return FullState
 
-class FullStateMainIndex(NodeMainIndex, IInstantiable):
+class FullStateMainIndex(NodeMainBaseIndex, IInstantiable):
     pass
 
-class FullStateArgIndex(NodeArgIndex, IInstantiable):
+class FullStateArgIndex(NodeArgBaseIndex, IInstantiable):
     pass
 
 class FullStateGroupBaseIndex(FullStateIntIndex[T], ABC):

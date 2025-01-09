@@ -655,30 +655,33 @@ class SingleOptionalChildWrapper(
 ########################## SCOPE ##########################
 ###########################################################
 
-class ScopeId(BaseInt, IDefault, IInstantiable):
+class ScopeBaseId(BaseInt, IDefault, ABC):
 
     @classmethod
-    def create(cls) -> ScopeId:
+    def create(cls) -> typing.Self:
         return cls(1)
 
-class TemporaryScopeId(ScopeId, IInstantiable):
+class ScopeId(ScopeBaseId, IInstantiable):
+    pass
+
+class TemporaryScopeId(ScopeBaseId, IInstantiable):
     pass
 
 class Scope(InheritableNode, ABC):
 
     @property
-    def id(self) -> ScopeId:
+    def id(self) -> ScopeBaseId:
         raise NotImplementedError
 
     def has_dependency(self) -> bool:
         raise NotImplementedError
 
-    def replace_id(self, new_id: ScopeId) -> typing.Self:
+    def replace_id(self, new_id: ScopeBaseId) -> typing.Self:
         node = self.replace_until(self.id, new_id, OpaqueScope)
         assert isinstance(node, self.__class__)
         return node
 
-class SimpleScope(Scope, typing.Generic[T], IInstantiable):
+class SimpleBaseScope(Scope, typing.Generic[T], ABC):
 
     idx_id = 1
     idx_child = 2
@@ -686,7 +689,7 @@ class SimpleScope(Scope, typing.Generic[T], IInstantiable):
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            ScopeId,
+            ScopeBaseId,
             INode,
         ]))
 
@@ -695,8 +698,8 @@ class SimpleScope(Scope, typing.Generic[T], IInstantiable):
         return self.nested_arg(self.idx_id)
 
     @property
-    def id(self) -> ScopeId:
-        return self.raw_id.apply().cast(ScopeId)
+    def id(self) -> ScopeBaseId:
+        return self.raw_id.apply().cast(ScopeBaseId)
 
     @property
     def child(self) -> TmpNestedArg:
@@ -705,7 +708,10 @@ class SimpleScope(Scope, typing.Generic[T], IInstantiable):
     def has_dependency(self) -> bool:
         return self.child.apply().has_until(self.id, OpaqueScope)
 
-class OpaqueScope(SimpleScope[T], typing.Generic[T], ABC):
+class SimpleScope(SimpleBaseScope[T], IInstantiable, typing.Generic[T]):
+    pass
+
+class OpaqueScope(SimpleBaseScope[T], typing.Generic[T], ABC):
 
     @classmethod
     def with_content(cls, child: T) -> typing.Self:
@@ -744,10 +750,10 @@ class OpaqueScope(SimpleScope[T], typing.Generic[T], ABC):
             node = node_aux
         return node
 
-class LaxOpaqueScope(OpaqueScope[T], typing.Generic[T], IInstantiable):
+class LaxOpaqueScope(OpaqueScope[T], IInstantiable, typing.Generic[T]):
     pass
 
-class StrictOpaqueScope(OpaqueScope[T], typing.Generic[T], IInstantiable):
+class StrictOpaqueScope(OpaqueScope[T], IInstantiable, typing.Generic[T]):
 
     def validate(self):
         assert self == self.normalize()
@@ -762,7 +768,7 @@ class Placeholder(InheritableNode, IFromInt, typing.Generic[T], ABC):
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            ScopeId,
+            ScopeBaseId,
             BaseInt,
             IType,
         ]))
@@ -800,7 +806,7 @@ class Var(Placeholder[T], IInstantiable, typing.Generic[T]):
 class NodeIntBaseIndex(BaseInt, INodeIndex, IInt, ABC):
     pass
 
-class NodeMainIndex(NodeIntBaseIndex, IInstantiable):
+class NodeMainBaseIndex(NodeIntBaseIndex, ABC):
 
     @classmethod
     def _inner_getitem(cls, node: INode, index: int) -> tuple[INode | None, int]:
@@ -865,7 +871,10 @@ class NodeMainIndex(NodeIntBaseIndex, IInstantiable):
         ancestors, _ = self._ancestors(node, self.as_int)
         return tuple(ancestors)
 
-class NodeArgIndex(NodeIntBaseIndex, IInstantiable):
+class NodeMainIndex(NodeMainBaseIndex, IInstantiable):
+    pass
+
+class NodeArgBaseIndex(NodeIntBaseIndex, ABC):
 
     def find_in_node(self, node: INode) -> IOptional[INode]:
         index = self.as_int
@@ -905,6 +914,9 @@ class NodeArgIndex(NodeIntBaseIndex, IInstantiable):
             assert isinstance(new_target, type(target_node))
             return Optional(typing.cast(T, new_target))
         return Optional()
+
+class NodeArgIndex(NodeArgBaseIndex, IInstantiable):
+    pass
 
 ###########################################################
 ####################### ITEMS GROUP #######################
@@ -1098,12 +1110,12 @@ class ExtendedTypeGroup(
 ###################### FUNCTION NODE ######################
 ###########################################################
 
-class FunctionExpr(
+class FunctionExprBase(
     InheritableNode,
     IFunction,
     IFromSingleChild[T],
-    IInstantiable,
     typing.Generic[T],
+    ABC,
 ):
 
     idx_param_type_group = 1
@@ -1113,7 +1125,7 @@ class FunctionExpr(
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             ExtendedTypeGroup,
-            SimpleScope[T],
+            SimpleBaseScope[T],
         ]))
 
     @classmethod
@@ -1130,11 +1142,11 @@ class FunctionExpr(
 
     @property
     def scope_id(self) -> TmpNestedArgs:
-        return self.nested_args((self.idx_scope, SimpleScope.idx_id))
+        return self.nested_args((self.idx_scope, SimpleBaseScope.idx_id))
 
     @property
     def expr(self) -> TmpNestedArgs:
-        return self.nested_args((self.idx_scope, SimpleScope.idx_child))
+        return self.nested_args((self.idx_scope, SimpleBaseScope.idx_child))
 
     def owned_params(self) -> typing.Sequence[Param]:
         params = [
@@ -1153,7 +1165,7 @@ class FunctionExpr(
         args = group.as_tuple
         type_group.validate_values(group)
         params = self.owned_params()
-        scope = self.scope.apply().cast(SimpleScope)
+        scope = self.scope.apply().cast(SimpleBaseScope)
         for param in params:
             index = param.index.apply().cast(IInt).as_int
             assert index > 0
@@ -1162,7 +1174,7 @@ class FunctionExpr(
             param_type = param.type_node.apply().cast(IType)
             param_type.verify(arg)
             scope_aux = scope.replace_until(param, arg, OpaqueScope)
-            assert isinstance(scope_aux, SimpleScope)
+            assert isinstance(scope_aux, SimpleBaseScope)
             scope = scope_aux
         assert not scope.has_dependency()
         return scope.child.apply()
@@ -1196,6 +1208,13 @@ class FunctionExpr(
             }
             assert all_inner_params_scope_ids.issubset(all_functions_scope_ids)
         super().validate()
+
+class FunctionExpr(
+    FunctionExprBase[T],
+    IInstantiable,
+    typing.Generic[T],
+):
+    pass
 
 class FunctionCall(InheritableNode, IInstantiable):
 
