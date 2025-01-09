@@ -1,3 +1,5 @@
+import importlib
+import pkgutil
 import typing
 from env import core
 from env import meta_env
@@ -7,6 +9,11 @@ from env.environment import Environment
 
 T = typing.TypeVar("T")
 
+def import_submodules(package_name: str):
+    package = importlib.import_module(package_name)
+    for _, module_name, _ in pkgutil.walk_packages(package.__path__, package.__name__ + "."):
+        importlib.import_module(module_name)
+
 def get_all_subclasses(cls: type[T]) -> set[type[T]]:
     subclasses = set([cls])
     for subclass in cls.__subclasses__():
@@ -15,6 +22,7 @@ def get_all_subclasses(cls: type[T]) -> set[type[T]]:
 
 
 def get_all_subclasses_sorted(cls: type[T]) -> list[type[T]]:
+    import_submodules('env')
     result_set = get_all_subclasses(cls)
     result = sorted([t for t in result_set], key=lambda t: f'{t.__module__}.{t.__qualname__}')
     return result

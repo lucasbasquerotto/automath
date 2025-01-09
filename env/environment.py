@@ -9,7 +9,7 @@ from env import full_state as full_state_module
 from env import reward as reward_module
 
 WRAPPERS = (
-    core.BaseGroup,
+    core.IGroup,
     state.State,
     meta_env.MetaInfo,
     meta_env.SubtypeOuterGroup,
@@ -34,7 +34,9 @@ class SympyWrapper(sympy.Basic):
         amount_str = r"\{" + str(amount) + r"\}"
         if len(args) == 0:
             return f"{name_str}{amount_str}"
-        args_latex = r" \\ ".join(printer.doprint(arg) for arg in args)
+        args_latex = r" \\ ".join(
+            r"\{" + str(i+1) + r"\}\text{ }" + printer.doprint(arg)
+            for i, arg in enumerate(args))
         begin = r"\begin{cases}"
         end = r"\end{cases}"
         return f"{name_str}{amount_str} {begin} {args_latex} {end}"

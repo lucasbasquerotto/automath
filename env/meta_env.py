@@ -190,6 +190,7 @@ class MetaInfo(InheritableNode, IInstantiable):
     idx_boolean_group = 13
     idx_allowed_actions = 14
     idx_basic_actions = 15
+    idx_instantiable_group = 16
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -210,6 +211,7 @@ class MetaInfo(InheritableNode, IInstantiable):
             SubtypeOuterGroup[IBoolean],
             SubtypeOuterGroup[IAction],
             SubtypeOuterGroup[IBasicAction],
+            SubtypeOuterGroup[IInstantiable],
         ]))
 
     @classmethod
@@ -232,6 +234,7 @@ class MetaInfo(InheritableNode, IInstantiable):
             SubtypeOuterGroup.from_all_types(TypeNode(IBoolean), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IAction), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IBasicAction), all_types_group),
+            SubtypeOuterGroup.from_all_types(TypeNode(IInstantiable), all_types_group),
         )
 
     @property

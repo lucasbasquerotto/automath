@@ -1,6 +1,6 @@
 from env.core import FunctionExpr, Param
-from impl.goal_env import GoalEnv
-from impl.node_types import HaveDefinition, AndNode, OrNode, IntBooleanNode
+from env.goal_env import GoalEnv
+from env.node_types import HaveDefinition, AndNode, OrNode, IntBooleanNode
 
 
 def test_env():
