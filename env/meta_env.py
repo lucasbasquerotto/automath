@@ -23,6 +23,7 @@ from env.core import (
     TmpNestedArg,
     IInstantiable)
 from env.state import State
+from env.env_utils import load_all_superclasses_sorted
 
 T = typing.TypeVar('T', bound=INode)
 
@@ -44,6 +45,10 @@ class GeneralTypeGroup(BaseGroup[TypeNode[T]], IInstantiable, typing.Generic[T])
     def item_type(cls):
         return TypeNode
 
+    @classmethod
+    def from_types(cls, types: typing.Sequence[type[T]]) -> typing.Self:
+        return cls.from_items([TypeNode(t) for t in types])
+
 class DetailedType(
     InheritableNode,
     IFromSingleChild[TypeNode[T]],
@@ -51,11 +56,14 @@ class DetailedType(
     typing.Generic[T],
 ):
     idx_node_type = 1
+    idx_superclasses = 2
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             TypeNode[T],
+            Optional[ExtendedTypeGroup],
+            GeneralTypeGroup[INode],
         ]))
 
     @property
@@ -65,7 +73,15 @@ class DetailedType(
 
     @classmethod
     def with_child(cls, child: TypeNode[T]) -> typing.Self:
-        return cls(child)
+        return cls(
+            child,
+            (
+                Optional(child.type.arg_type_group())
+                if issubclass(child.type, IInstantiable) and child.type != IInstantiable
+                else Optional()
+            ),
+            GeneralTypeGroup.from_types(load_all_superclasses_sorted(cls))
+        )
 
 class DetailedTypeGroup(BaseGroup[DetailedType[T]], IInstantiable, typing.Generic[T]):
 
@@ -103,7 +119,19 @@ class SubtypeOuterGroup(InheritableNode, IInstantiable, typing.Generic[T]):
         assert isinstance(common_type, TypeNode)
         assert isinstance(all_types, GeneralTypeGroup)
         subtypes = GeneralTypeGroup.from_items(
-            [item for item in all_types.as_tuple if issubclass(item.type, common_type.type)]
+            [
+                item
+                for item in all_types.as_tuple
+                if (
+                    issubclass(item.type, common_type.type)
+                    and
+                    (
+                        (common_type != IInstantiable)
+                        or
+                        (item.type != IInstantiable)
+                    )
+                )
+            ]
         )
         return cls(common_type, subtypes)
 
@@ -188,9 +216,9 @@ class MetaInfo(InheritableNode, IInstantiable):
     idx_group_outer_group = 12
     idx_function_group = 13
     idx_boolean_group = 14
-    idx_allowed_actions = 15
-    idx_basic_actions = 16
-    idx_instantiable_group = 17
+    idx_basic_actions = 15
+    idx_instantiable_group = 16
+    idx_allowed_actions = 17
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -209,14 +237,25 @@ class MetaInfo(InheritableNode, IInstantiable):
             SubtypeOuterGroup[IGroup],
             SubtypeOuterGroup[IFunction],
             SubtypeOuterGroup[IBoolean],
+            SubtypeOuterGroup[IInstantiable],
             SubtypeOuterGroup[IAction],
             SubtypeOuterGroup[IBasicAction],
-            SubtypeOuterGroup[IInstantiable],
         ]))
 
     @classmethod
-    def with_defaults(cls, goal: GoalNode, all_types: typing.Sequence[TypeNode]) -> typing.Self:
+    def with_defaults(
+        cls,
+        goal: GoalNode,
+        all_types: typing.Sequence[TypeNode],
+        allowed_actions: typing.Sequence[TypeNode[IAction]] | None = None,
+    ) -> typing.Self:
         all_types_group = GeneralTypeGroup.from_items(all_types)
+        allowed_actions = [
+            t
+            for t in all_types
+            if issubclass(t.type, IAction) and (allowed_actions is None or t in allowed_actions)
+        ]
+        allowed_actions_group = GeneralTypeGroup.from_items(allowed_actions)
         return cls(
             goal,
             MetaInfoOptions.create(),
@@ -232,9 +271,9 @@ class MetaInfo(InheritableNode, IInstantiable):
             SubtypeOuterGroup.from_all_types(TypeNode(IGroup), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IFunction), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IBoolean), all_types_group),
-            SubtypeOuterGroup.from_all_types(TypeNode(IAction), all_types_group),
-            SubtypeOuterGroup.from_all_types(TypeNode(IBasicAction), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IInstantiable), all_types_group),
+            SubtypeOuterGroup.from_all_types(TypeNode(IAction), allowed_actions_group),
+            SubtypeOuterGroup.from_all_types(TypeNode(IBasicAction), allowed_actions_group),
         )
 
     @property

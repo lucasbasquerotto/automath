@@ -16,15 +16,19 @@ class INode(ABC):
 
     @classmethod
     def new(cls, *args: int | INode | typing.Type[INode]) -> typing.Self:
-        raise NotImplementedError()
+        raise NotImplementedError(cls)
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        raise NotImplementedError(cls)
 
     @property
     def as_node(self) -> BaseNode:
-        raise NotImplementedError()
+        raise NotImplementedError(self.__class__)
 
     @property
     def as_instance(self) -> IInstantiable:
-        raise NotImplementedError()
+        raise NotImplementedError(self.__class__)
 
     @property
     def func(self) -> typing.Type[typing.Self]:
@@ -34,7 +38,7 @@ class ISpecialValue(ABC):
 
     @property
     def node_value(self) -> INode:
-        raise NotImplementedError()
+        raise NotImplementedError(self.__class__)
 
 class IDefault(INode, ABC):
 
@@ -44,24 +48,24 @@ class IDefault(INode, ABC):
 
     @property
     def as_node(self) -> BaseNode:
-        raise NotImplementedError()
+        raise NotImplementedError(self.__class__)
 
 class IFromInt(INode, ABC):
 
     @classmethod
     def from_int(cls, value: int) -> typing.Self:
-        raise NotImplementedError()
+        raise NotImplementedError(cls)
 
 class IInt(IFromInt, ABC):
 
     @property
     def as_int(self) -> int:
-        raise NotImplementedError()
+        raise NotImplementedError(self.__class__)
 
 class INodeIndex(INode, ABC):
 
     def find_in_node(self, node: INode) -> IOptional[INode]:
-        raise NotImplementedError
+        raise NotImplementedError(self.__class__)
 
     def replace_in_target(
         self,
@@ -71,7 +75,7 @@ class INodeIndex(INode, ABC):
         raise NotImplementedError
 
     def remove_in_target(self, target_node: INode) -> IOptional[INode]:
-        raise NotImplementedError
+        raise NotImplementedError(self.__class__)
 
 T = typing.TypeVar('T', bound=INode)
 O = typing.TypeVar('O', bound=INode)
@@ -88,7 +92,7 @@ class ISingleChild(IFromSingleChild, typing.Generic[T], ABC):
 
     @property
     def child(self) -> T:
-        raise NotImplementedError()
+        raise NotImplementedError(self.__class__)
 
 class IOptional(IDefault, IFromSingleChild[T], typing.Generic[T], ABC):
 
@@ -118,17 +122,17 @@ class ISingleOptionalChild(ISingleChild[IOptional[T]], typing.Generic[T], ABC):
 
     @property
     def child(self) -> IOptional[T]:
-        raise NotImplementedError()
+        raise NotImplementedError(self.__class__)
 
 class IGroup(INode, typing.Generic[T], ABC):
 
     @classmethod
     def item_type(cls) -> type[T]:
-        raise NotImplementedError()
+        raise NotImplementedError(cls)
 
     @property
     def as_tuple(self) -> tuple[T, ...]:
-        raise NotImplementedError()
+        raise NotImplementedError(self.__class__)
 
     @classmethod
     def from_items(cls, items: typing.Sequence[T]) -> typing.Self:
@@ -137,13 +141,13 @@ class IGroup(INode, typing.Generic[T], ABC):
 class IFunction(INode, ABC):
 
     def with_arg_group(self, group: BaseGroup) -> INode:
-        raise NotImplementedError
+        raise NotImplementedError(self.__class__)
 
 class IBoolean(INode):
 
     @property
     def as_bool(self) -> bool | None:
-        raise NotImplementedError
+        raise NotImplementedError(self.__class__)
 
     def raise_on_false(self):
         if self.as_bool is False:
@@ -154,11 +158,11 @@ class ITypedIndex(INodeIndex, typing.Generic[O, T], ABC):
 
     @classmethod
     def outer_type(cls) -> type[O]:
-        raise NotImplementedError
+        raise NotImplementedError(cls)
 
     @classmethod
     def item_type(cls) -> type[T]:
-        raise NotImplementedError
+        raise NotImplementedError(cls)
 
     def find_in_node(self, node: INode):
         assert isinstance(node, self.outer_type())
@@ -174,13 +178,13 @@ class ITypedIndex(INodeIndex, typing.Generic[O, T], ABC):
         return self.remove_in_outer_target(target_node)
 
     def find_in_outer_node(self, node: O) -> IOptional[T]:
-        raise NotImplementedError
+        raise NotImplementedError(self.__class__)
 
     def replace_in_outer_target(self, target: O, new_node: T) -> IOptional[O]:
-        raise NotImplementedError
+        raise NotImplementedError(self.__class__)
 
     def remove_in_outer_target(self, target: O) -> IOptional[O]:
-        raise NotImplementedError
+        raise NotImplementedError(self.__class__)
 
 class ITypedIntIndex(IInt, ITypedIndex[O, T], typing.Generic[O, T], ABC):
 
@@ -205,10 +209,6 @@ class IInstantiable(INode, ABC):
     @classmethod
     def new(cls, *args: int | INode | typing.Type[INode]) -> typing.Self:
         return cls(*args)
-
-    @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        raise NotImplementedError()
 
     @property
     def as_instance(self) -> typing.Self:
@@ -420,6 +420,8 @@ class TypeNode(BaseNode, IType, IFunction, ISpecialValue, typing.Generic[T], IIn
         return ExtendedTypeGroup(CountableTypeGroup())
 
     def __init__(self, t: type[T]):
+        origin = typing.get_origin(t)
+        t = origin if origin is not None else t
         assert isinstance(t, type) and issubclass(t, INode), t
         super().__init__(t)
 
@@ -552,7 +554,7 @@ class UnknownType(InheritableNode, IType, IDefault, IInstantiable):
     def valid(self, instance: INode) -> bool | None:
         return None
 
-class Optional(InheritableNode, IOptional[T], IInstantiable, typing.Generic[T]):
+class OptionalBase(InheritableNode, IOptional[T], typing.Generic[T], ABC):
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -564,6 +566,9 @@ class Optional(InheritableNode, IOptional[T], IInstantiable, typing.Generic[T]):
             return None
         value = self.args[0]
         return typing.cast(T, value)
+
+class Optional(OptionalBase[T], IInstantiable, typing.Generic[T]):
+    pass
 
 ###########################################################
 ######################## WRAPPERS #########################
@@ -1188,6 +1193,13 @@ class FunctionCall(InheritableNode, IInstantiable, typing.Generic[T]):
 
     idx_function = 1
     idx_arg_group = 2
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            IFunction,
+            BaseGroup,
+        ]))
 
     @property
     def function(self) -> TmpNestedArg:

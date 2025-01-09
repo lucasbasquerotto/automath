@@ -130,7 +130,7 @@ class Environment:
             context_node_id = (
                 (context_parent_node_id + (node_id - parent_id))
                 if context_parent_node_id > 0
-                else (1 if isinstance(node, core.OpaqueScope) else 0)
+                else (1 if isinstance(node, state.IContext) else 0)
             )
             assert node_type_id > 0
             result[idx][0] = node_id

@@ -5,6 +5,7 @@ from env.core import (
     IDefault,
     IFunction,
     IOptional,
+    OptionalBase,
     Optional,
     InheritableNode,
     BaseGroup,
@@ -36,7 +37,15 @@ K = typing.TypeVar('K', bound=INode)
 #################### STATE DEFINITIONS ####################
 ###########################################################
 
-class Scratch(OpaqueScope[IOptional[INode]], IInstantiable):
+
+class IContext(INode, ABC):
+    pass
+
+class OptionalContext(OptionalBase[T], IContext, IInstantiable, typing.Generic[T]):
+    pass
+
+
+class Scratch(OpaqueScope[OptionalContext[INode]], IInstantiable):
 
     idx_id = 1
     idx_child = 2
@@ -45,7 +54,7 @@ class Scratch(OpaqueScope[IOptional[INode]], IInstantiable):
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             ScopeId,
-            IOptional[INode],
+            OptionalContext[INode],
         ]))
 
 class ScratchGroup(BaseGroup[Scratch], IInstantiable):
@@ -57,7 +66,7 @@ class ScratchGroup(BaseGroup[Scratch], IInstantiable):
     @classmethod
     def from_raw_items(cls, items: tuple[INode | None, ...]) -> typing.Self:
         return cls.from_items([
-            Scratch.with_content(Optional(s) if s is not None else Optional())
+            Scratch.with_content(OptionalContext(s) if s is not None else OptionalContext())
             for s in items
         ])
 
