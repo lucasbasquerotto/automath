@@ -34,6 +34,9 @@ O = typing.TypeVar('O', bound=IActionOutput)
 
 class FullActionOutput(InheritableNode, IInstantiable):
 
+    idx_output = 1
+    idx_new_state = 2
+
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
@@ -41,19 +44,15 @@ class FullActionOutput(InheritableNode, IInstantiable):
             State,
         ]))
 
-    @property
-    def idx_output(self) -> int:
-        return 0
-
-    @property
-    def idx_new_state(self) -> int:
-        return 1
-
 ###########################################################
 ####################### ACTION DATA #######################
 ###########################################################
 
 class ActionData(InheritableNode, IMetaData, IInstantiable):
+
+    idx_action = 1
+    idx_output = 2
+    idx_exception = 3
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -71,18 +70,6 @@ class ActionData(InheritableNode, IMetaData, IInstantiable):
         exception: IOptional[IExceptionInfo],
     ) -> typing.Self:
         return cls(action, output, exception)
-
-    @property
-    def idx_action(self) -> int:
-        return 0
-
-    @property
-    def idx_output(self) -> int:
-        return 1
-
-    @property
-    def idx_exception(self) -> int:
-        return 2
 
 ###########################################################
 #################### ACTION EXCEPTION #####################
@@ -105,20 +92,15 @@ class InvalidActionException(InvalidNodeException):
 
 class ActionTypeExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiable):
 
+    idx_action_type = 1
+    idx_exception = 2
+
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             TypeNode[IAction],
             IExceptionInfo,
         ]))
-
-    @property
-    def idx_action_type(self) -> int:
-        return 0
-
-    @property
-    def idx_exception(self) -> int:
-        return 1
 
     def to_action_data(self) -> ActionData:
         return ActionData.from_args(
@@ -129,20 +111,15 @@ class ActionTypeExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiab
 
 class ActionInputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiable):
 
+    idx_action = 1
+    idx_exception = 2
+
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             IAction,
             IExceptionInfo,
         ]))
-
-    @property
-    def idx_action(self) -> int:
-        return 0
-
-    @property
-    def idx_exception(self) -> int:
-        return 1
 
     def to_action_data(self) -> ActionData:
         return ActionData.from_args(
@@ -153,6 +130,10 @@ class ActionInputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantia
 
 class ActionOutputExceptionInfo(InheritableNode, IExceptionInfo, IInstantiable):
 
+    idx_action = 1
+    idx_output = 2
+    idx_exception = 3
+
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
@@ -160,18 +141,6 @@ class ActionOutputExceptionInfo(InheritableNode, IExceptionInfo, IInstantiable):
             IActionOutput,
             IExceptionInfo,
         ]))
-
-    @property
-    def idx_action(self) -> int:
-        return 0
-
-    @property
-    def idx_output(self) -> int:
-        return 1
-
-    @property
-    def idx_exception(self) -> int:
-        return 2
 
     def to_action_data(self) -> ActionData:
         return ActionData.from_args(

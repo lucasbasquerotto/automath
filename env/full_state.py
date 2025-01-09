@@ -48,8 +48,8 @@ T = typing.TypeVar('T', bound=INode)
 
 class HistoryNode(InheritableNode, IDefault, IInstantiable):
 
-    idx_state = 0
-    idx_meta_data = 1
+    idx_state = 1
+    idx_meta_data = 2
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -64,7 +64,7 @@ class HistoryNode(InheritableNode, IDefault, IInstantiable):
 
 class HistoryGroupNode(BaseGroup[HistoryNode], IInstantiable):
 
-    idx_state_nodes = 0
+    idx_state_nodes = 1
 
     @classmethod
     def item_type(cls) -> type[HistoryNode]:
@@ -76,9 +76,9 @@ class HistoryGroupNode(BaseGroup[HistoryNode], IInstantiable):
 
 class FullState(InheritableNode, IFullState, IFromSingleChild[MetaInfo], IInstantiable):
 
-    idx_meta = 0
-    idx_current = 1
-    idx_history = 2
+    idx_meta = 1
+    idx_current = 2
+    idx_history = 3
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -400,8 +400,8 @@ class CurrentStateDefinitionIndex(FullStateReadonlyGroupBaseIndex[StateDefinitio
 
 class FullStateNode(InheritableNode, ABC):
 
-    idx_state_type = 0
-    idx_state_value = 1
+    idx_state_type = 1
+    idx_state_value = 2
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -412,7 +412,7 @@ class FullStateNode(InheritableNode, ABC):
 
 class FullStateGroup(BaseGroup[FullStateNode], IInstantiable):
 
-    idx_state_nodes = 0
+    idx_state_nodes = 1
 
     @classmethod
     def item_type(cls):

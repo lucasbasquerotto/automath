@@ -25,5 +25,3 @@ class GoalEnv(Environment):
             reward_evaluator=reward_evaluator,
             max_steps=max_steps,
         )
-
-        self.all_types = all_types

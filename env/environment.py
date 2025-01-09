@@ -19,43 +19,53 @@ WRAPPERS = (
     full_state_module.HistoryGroupNode,
 )
 
-class SympyWrapper(sympy.Basic):
+class SympyShared(sympy.Basic):
 
-    def __init__(self, name: sympy.Symbol, *args: sympy.Basic):
+    def __init__(self, node_id: sympy.Integer, name: sympy.Symbol, *args: sympy.Basic):
         super().__init__()
-        self._args = (name, *args)
+        self._args = (node_id, name, *args)
+
+    def _data(self) -> tuple[str, tuple[sympy.Basic, ...]]:
+        node_id = self.args[0]
+        assert isinstance(node_id, sympy.Integer)
+        name = self.args[1]
+        assert isinstance(name, sympy.Symbol)
+        args = self.args[2:]
+        amount = len(args)
+        name_str = r"\text{" + name.name + r"<" + str(node_id) + r">}"
+        amount_str = r"\{" + str(amount) + r"\}"
+        node_name = f"{name_str}{amount_str}"
+        return node_name, args
+
+class SympyWrapper(SympyShared):
 
     def _latex(self, printer: LatexPrinter) -> str:
-        name = self.args[0]
-        assert isinstance(name, sympy.Symbol)
-        args = self.args[1:]
-        amount = len(args)
-        name_str = r"\text{" + name.name + r"}"
-        amount_str = r"\{" + str(amount) + r"\}"
+        node_name, args = self._data()
+
         if len(args) == 0:
-            return f"{name_str}{amount_str}"
+            return node_name
         args_latex = r" \\ ".join(
             r"\{" + str(i+1) + r"\}\text{ }" + printer.doprint(arg)
             for i, arg in enumerate(args))
         begin = r"\begin{cases}"
         end = r"\end{cases}"
-        return f"{name_str}{amount_str} {begin} {args_latex} {end}"
 
-class SympyFunction(sympy.Basic):
+        return f"{node_name} {begin} {args_latex} {end}"
 
-    def __init__(self, name: sympy.Symbol, *args: sympy.Basic):
-        super().__init__()
-        self._args = (name, *args)
+class SympyFunction(SympyShared):
 
     def _latex(self, printer: LatexPrinter) -> str:
-        name = self.args[0]
-        args = self.args[1:]
+        node_name, args = self._data()
+
         args_latex = r" \\ ".join(printer.doprint(arg) for arg in args)
+        if len(args) == 0:
+            return node_name
         if len(args) <= 1:
-            return f"{name}({args_latex})"
+            return f"{node_name}({args_latex})"
         args_latex = args_latex.replace(r" \\ ", r" \\ \quad ")
         newline = r" \\ "
-        return f"{name}( {newline} \\quad {args_latex} {newline} )"
+
+        return f"{node_name}( {newline} \\quad {args_latex} {newline} )"
 
 
 class Environment:
@@ -66,29 +76,29 @@ class Environment:
         max_steps: int | None = None,
     ):
         self._initial_state = initial_state
-        self._current_state = initial_state
+        self._full_state = initial_state
         self._reward_evaluator = reward_evaluator or reward_module.DefaultRewardEvaluator()
         self._max_steps = max_steps
         self._current_step = 0
 
     @property
-    def current_state(self) -> full_state_module.FullState:
-        return self._current_state
+    def full_state(self) -> full_state_module.FullState:
+        return self._full_state
 
     def reset(self) -> full_state_module.FullState:
-        self._current_state = self._initial_state
+        self._full_state = self._initial_state
         self._current_step = 0
-        return self._current_state
+        return self._full_state
 
     def step(
         self,
         action: action_module.IAction[full_state_module.FullState],
     ) -> tuple[full_state_module.FullState, float, bool, bool]:
         reward_evaluator = self._reward_evaluator
-        current_state = self._current_state
+        current_state = self._full_state
         next_state = action.run_action(current_state)
         reward = reward_evaluator.evaluate(
-            self._current_state,
+            self._full_state,
             next_state)
         self._current_step += 1
         terminated = next_state.goal_achieved()
@@ -97,18 +107,18 @@ class Environment:
             if self._max_steps is not None
             else False
         )
-        self._current_state = next_state
+        self._full_state = next_state
         return next_state, reward, terminated, truncated
 
     @classmethod
-    def state_array(
+    def data_array(
         cls,
-        full_state: full_state_module.FullState,
+        root_node: core.BaseNode,
+        node_types: tuple[type[core.INode], ...],
     ) -> np.ndarray[np.int_, np.dtype]:
-        size = len(full_state)
+        size = len(root_node)
         result = np.zeros((size, 6), dtype=np.int_)
-        pending_node_stack: list[tuple[int, int, core.INode]] = [(0, 0, full_state)]
-        node_types = full_state.node_types()
+        pending_node_stack: list[tuple[int, int, core.INode]] = [(0, 0, root_node)]
         node_id = 0
 
         while pending_node_stack:
@@ -153,18 +163,22 @@ class Environment:
         node_types: tuple[type[core.INode], ...],
     ) -> sympy.Basic:
         assert isinstance(node, core.BaseNode)
-        name = sympy.Symbol(node.func.__name__)
+        node_id = node_types.index(node.func) + 1
+        name = node.func.__name__
 
         if isinstance(node, core.ISpecialValue):
             value_aux = node.node_value
 
             if isinstance(value_aux, core.IInt):
                 value = value_aux.as_int
-                return sympy.Symbol(f'{name}[{value}]')
+                name_str = r"\text{" + name + r"<" + str(node_id) + r">}"
+                return sympy.Symbol(f'{name_str}[{value}]')
             elif isinstance(value_aux, core.TypeNode):
-                value = node_types.index(value_aux.type) + 1
-                type_name = r"\text{" + value_aux.type.__name__ + r"}"
-                return sympy.Symbol(f'type[{value}][{type_name}]')
+                name_str = r"\text{" + name + r"<" + str(node_id) + r">}"
+                type_id = node_types.index(value_aux.type) + 1
+                type_name = value_aux.type.__name__
+                type_name_str = r"\text{" + type_name + r"<" + str(type_id) + r">}"
+                return sympy.Symbol(f'{name_str}[{type_name_str}]')
             else:
                 raise ValueError(f'Invalid value type: {type(value_aux)}')
 
@@ -175,20 +189,28 @@ class Environment:
             cls.symbolic(arg, node_types) for arg in raw_args
         ])
 
+        outer_args = (sympy.Integer(node_id), sympy.Symbol(name), *args)
+
         if any(isinstance(node, w) for w in WRAPPERS):
-            return SympyWrapper(name, *args)
+            return SympyWrapper(*outer_args)
 
-        if len(node.args) == 0:
-            return name
-
-        return SympyFunction(name, *args)
+        return SympyFunction(*outer_args)
 
     def to_data_array(self) -> np.ndarray[np.int_, np.dtype]:
-        return self.state_array(self.current_state)
+        node_types = self.full_state.node_types()
+        return self.data_array(self.full_state, node_types)
+
+    def to_data_array_current_state(self) -> np.ndarray[np.int_, np.dtype]:
+        current_state = self.full_state.current_state.apply()
+        node_types = self.full_state.node_types()
+        return self.data_array(current_state, node_types)
 
     def to_symbolic(self) -> sympy.Basic:
-        return self.symbolic(self.current_state, self.current_state.node_types())
+        node_types = self.full_state.node_types()
+        return self.symbolic(self.full_state, node_types)
 
-    def to_symbolic_state(self) -> sympy.Basic:
-        return self.symbolic(self.current_state.current_state.apply(), self.current_state.node_types())
+    def to_symbolic_current_state(self) -> sympy.Basic:
+        current_state = self.full_state.current_state.apply()
+        node_types = self.full_state.node_types()
+        return self.symbolic(current_state, node_types)
 

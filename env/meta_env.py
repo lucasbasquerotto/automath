@@ -50,7 +50,7 @@ class DetailedType(
     IInstantiable,
     typing.Generic[T],
 ):
-    idx_node_type = 0
+    idx_node_type = 1
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -81,8 +81,8 @@ class DetailedTypeGroup(BaseGroup[DetailedType[T]], IInstantiable, typing.Generi
         return GeneralTypeGroup.from_items([item.child for item in self.as_tuple])
 
 class SubtypeOuterGroup(InheritableNode, IInstantiable, typing.Generic[T]):
-    idx_common_type = 0
-    idx_subtypes = 1
+    idx_common_type = 1
+    idx_subtypes = 2
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -108,7 +108,7 @@ class SubtypeOuterGroup(InheritableNode, IInstantiable, typing.Generic[T]):
         return cls(common_type, subtypes)
 
 class MetaInfoOptions(InheritableNode, IDefault, IInstantiable):
-    idx_max_history_state_size = 0
+    idx_max_history_state_size = 1
 
     @classmethod
     def create(cls) -> typing.Self:
@@ -174,23 +174,23 @@ class IBasicAction(IAction[S], typing.Generic[S], ABC):
 ###########################################################
 
 class MetaInfo(InheritableNode, IInstantiable):
-    idx_goal = 0
-    idx_options = 1
-    idx_all_types = 2
-    idx_all_types_details = 3
-    idx_default_group = 4
-    idx_from_int_group = 5
-    idx_int_group = 6
-    idx_node_index_group = 7
-    idx_full_state_index_group = 8
-    idx_full_state_int_index_group = 9
-    idx_single_child_group = 10
-    idx_group_outer_group = 11
-    idx_function_group = 12
-    idx_boolean_group = 13
-    idx_allowed_actions = 14
-    idx_basic_actions = 15
-    idx_instantiable_group = 16
+    idx_goal = 1
+    idx_options = 2
+    idx_all_types = 3
+    idx_all_types_details = 4
+    idx_default_group = 5
+    idx_from_int_group = 6
+    idx_int_group = 7
+    idx_node_index_group = 8
+    idx_full_state_index_group = 9
+    idx_full_state_int_index_group = 10
+    idx_single_child_group = 11
+    idx_group_outer_group = 12
+    idx_function_group = 13
+    idx_boolean_group = 14
+    idx_allowed_actions = 15
+    idx_basic_actions = 16
+    idx_instantiable_group = 17
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:

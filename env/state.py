@@ -38,8 +38,8 @@ K = typing.TypeVar('K', bound=INode)
 
 class Scratch(OpaqueScope[IOptional[INode]], IInstantiable):
 
-    idx_id = 0
-    idx_child = 1
+    idx_id = 1
+    idx_child = 2
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -70,8 +70,8 @@ class PartialArgsGroup(
     IInstantiable,
 ):
 
-    idx_param_type_group = 0
-    idx_scope = 1
+    idx_param_type_group = 1
+    idx_scope = 2
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -117,8 +117,8 @@ class FunctionId(BaseInt, IDefinitionKey, IFunction, IInstantiable):
 
 class StateDefinition(InheritableNode, typing.Generic[D, T], ABC):
 
-    idx_definition_key = 0
-    idx_definition_expr = 1
+    idx_definition_key = 1
+    idx_definition_expr = 2
 
     @property
     def definition_key(self) -> TmpNestedArg:
@@ -159,9 +159,9 @@ class StateDefinitionGroup(BaseGroup[StateDefinition], IInstantiable):
 
 class State(InheritableNode, IDefault, IInstantiable):
 
-    idx_definition_group = 0
-    idx_args_outer_group = 1
-    idx_scratch_group = 2
+    idx_definition_group = 1
+    idx_args_outer_group = 2
+    idx_scratch_group = 3
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -344,8 +344,8 @@ class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup], IInstantiable):
 
 class StateArgsGroupArgIndex(InheritableNode, IStateIndex[INode], IInstantiable):
 
-    idx_group_index = 0
-    idx_arg_index = 1
+    idx_group_index = 1
+    idx_arg_index = 2
 
     @classmethod
     def item_type(cls):

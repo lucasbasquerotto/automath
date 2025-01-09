@@ -229,7 +229,7 @@ class TmpNestedArg:
     def apply(self) -> BaseNode:
         node = self.node
         idx = self.idx
-        node_aux = node.args[idx]
+        node_aux = node.args[idx-1]
         assert isinstance(node_aux, BaseNode)
         node = node_aux
         return node
@@ -246,7 +246,7 @@ class TmpNestedArgs:
         node = self.node
         idxs = self.idxs
         for idx in idxs:
-            node_aux = node.args[idx]
+            node_aux = node.args[idx-1]
             assert isinstance(node_aux, BaseNode)
             node = node_aux
         return node
@@ -576,7 +576,7 @@ class BooleanWrapper(
     ABC,
 ):
 
-    idx_value = 0
+    idx_value = 1
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -607,7 +607,7 @@ class SingleOptionalChildWrapper(
     ABC,
 ):
 
-    idx_value = 0
+    idx_value = 1
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -667,8 +667,8 @@ class Scope(InheritableNode, ABC):
 
 class SimpleScope(Scope, typing.Generic[T], IInstantiable):
 
-    idx_id = 0
-    idx_child = 1
+    idx_id = 1
+    idx_child = 2
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -742,9 +742,9 @@ class StrictOpaqueScope(OpaqueScope[T], typing.Generic[T], IInstantiable):
 
 class Placeholder(InheritableNode, IFromInt, typing.Generic[T], ABC):
 
-    idx_parent_scope = 0
-    idx_index = 1
-    idx_type_node = 2
+    idx_parent_scope = 1
+    idx_index = 2
+    idx_type_node = 3
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -988,7 +988,7 @@ class SingleValueTypeGroup(
     ABC,
 ):
 
-    idx_type_node = 0
+    idx_type_node = 1
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -1022,7 +1022,7 @@ class ExtendedTypeGroup(
     IInstantiable,
 ):
 
-    idx_group = 0
+    idx_group = 1
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -1093,8 +1093,8 @@ class FunctionExpr(
     typing.Generic[T],
 ):
 
-    idx_param_type_group = 0
-    idx_scope = 1
+    idx_param_type_group = 1
+    idx_scope = 2
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -1186,8 +1186,8 @@ class FunctionExpr(
 
 class FunctionCall(InheritableNode, IInstantiable, typing.Generic[T]):
 
-    idx_function = 0
-    idx_arg_group = 1
+    idx_function = 1
+    idx_arg_group = 2
 
     @property
     def function(self) -> TmpNestedArg:
@@ -1219,8 +1219,8 @@ class TypeExceptionInfo(
     IInstantiable,
 ):
 
-    idx_type = 0
-    idx_node = 1
+    idx_type = 1
+    idx_node = 2
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -1258,7 +1258,7 @@ class ExceptionInfoWrapper(
     IInstantiable,
 ):
 
-    idx_info = 0
+    idx_info = 1
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -1304,9 +1304,9 @@ class IsEmpty(SingleOptionalChildWrapper[INode], IBoolean, IInstantiable):
 
 class IsInsideRange(InheritableNode, IBoolean, IInstantiable):
 
-    idx_value = 0
-    idx_min_value = 1
-    idx_max_value = 2
+    idx_value = 1
+    idx_min_value = 2
+    idx_max_value = 3
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:

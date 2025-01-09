@@ -47,6 +47,8 @@ from env.action import (
 
 class ScratchBaseActionOutput(GeneralAction, ISingleChild[StateScratchIndex], ABC):
 
+    idx_index = 1
+
     @classmethod
     def with_child(cls, child: StateScratchIndex) -> typing.Self:
         return cls.new(child)
@@ -58,10 +60,6 @@ class ScratchBaseActionOutput(GeneralAction, ISingleChild[StateScratchIndex], AB
         ]))
 
     @property
-    def idx_index(self) -> int:
-        return 0
-
-    @property
     def child(self):
         return self.args[self.idx_index]
 
@@ -69,6 +67,9 @@ class ScratchBaseActionOutput(GeneralAction, ISingleChild[StateScratchIndex], AB
         raise NotImplementedError
 
 class ScratchWithNodeBaseActionOutput(GeneralAction, ABC):
+
+    idx_index = 1
+    idx_node = 2
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -78,12 +79,8 @@ class ScratchWithNodeBaseActionOutput(GeneralAction, ABC):
         ]))
 
     @property
-    def idx_index(self) -> int:
-        return 0
-
-    @property
-    def idx_node(self) -> int:
-        return 1
+    def child(self):
+        return self.args[self.idx_index]
 
     def apply(self, full_state: FullState) -> State:
         raise NotImplementedError
@@ -116,6 +113,8 @@ class CreateScratch(
     IInstantiable,
 ):
 
+    idx_clone_index = 1
+
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         clone_index: Optional[StateScratchIndex] = (
@@ -135,10 +134,6 @@ class CreateScratch(
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             Optional[StateScratchIndex],
         ]))
-
-    @property
-    def idx_clone_index(self) -> int:
-        return 0
 
     @property
     def child(self):
@@ -186,6 +181,8 @@ class DefineScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
 
 class ClearScratch(BasicAction[DefineScratchOutput], IInstantiable):
 
+    idx_scratch_index = 1
+
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
@@ -199,10 +196,6 @@ class ClearScratch(BasicAction[DefineScratchOutput], IInstantiable):
             StateScratchIndex,
         ]))
 
-    @property
-    def idx_scratch_index(self) -> int:
-        return 0
-
     def _run(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = typing.cast(StateScratchIndex, self.args[self.idx_scratch_index])
         return DefineScratchOutput(scratch_index, Optional.create())
@@ -211,6 +204,9 @@ class DefineScratchFromDefault(
     BasicAction[DefineScratchOutput],
     IInstantiable,
 ):
+
+    idx_scratch_index = 1
+    idx_type_index = 2
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
@@ -225,14 +221,6 @@ class DefineScratchFromDefault(
             StateScratchIndex,
             MetaDefaultTypeIndex,
         ]))
-
-    @property
-    def idx_scratch_index(self) -> int:
-        return 0
-
-    @property
-    def idx_type_index(self) -> int:
-        return 1
 
     def _run(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = typing.cast(StateScratchIndex, self.args[self.idx_scratch_index])
@@ -249,6 +237,10 @@ class DefineScratchFromInt(
     IInstantiable,
 ):
 
+    idx_scratch_index = 1
+    idx_type_index = 2
+    idx_index_value = 3
+
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
@@ -263,18 +255,6 @@ class DefineScratchFromInt(
             MetaFromIntTypeIndex,
             Integer,
         ]))
-
-    @property
-    def idx_scratch_index(self) -> int:
-        return 0
-
-    @property
-    def idx_type_index(self) -> int:
-        return 1
-
-    @property
-    def idx_index_value(self) -> int:
-        return 2
 
     def _run(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = typing.cast(StateScratchIndex, self.args[self.idx_scratch_index])
@@ -292,6 +272,10 @@ class DefineScratchFromSingleArg(
     IInstantiable,
 ):
 
+    idx_scratch_index = 1
+    idx_type_index = 2
+    idx_arg = 3
+
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
@@ -306,18 +290,6 @@ class DefineScratchFromSingleArg(
             MetaSingleChildTypeIndex,
             StateScratchIndex,
         ]))
-
-    @property
-    def idx_scratch_index(self) -> int:
-        return 0
-
-    @property
-    def idx_type_index(self) -> int:
-        return 1
-
-    @property
-    def idx_arg(self) -> int:
-        return 2
 
     def _run(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = typing.cast(StateScratchIndex, self.args[self.idx_scratch_index])
@@ -335,6 +307,10 @@ class DefineScratchFromIntIndex(
     IInstantiable,
 ):
 
+    idx_scratch_index = 1
+    idx_type_index = 2
+    idx_index_value = 3
+
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
@@ -349,18 +325,6 @@ class DefineScratchFromIntIndex(
             MetaFullStateIntIndexTypeIndex,
             Integer,
         ]))
-
-    @property
-    def idx_scratch_index(self) -> int:
-        return 0
-
-    @property
-    def idx_type_index(self) -> int:
-        return 1
-
-    @property
-    def idx_index_value(self) -> int:
-        return 2
 
     def _run(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = typing.cast(StateScratchIndex, self.args[self.idx_scratch_index])
@@ -382,6 +346,10 @@ class DefineScratchFromFunctionWithIntArg(
     IInstantiable,
 ):
 
+    idx_scratch_index = 1
+    idx_source_index = 2
+    idx_int_arg = 3
+
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
@@ -396,18 +364,6 @@ class DefineScratchFromFunctionWithIntArg(
             StateScratchIndex,
             Integer,
         ]))
-
-    @property
-    def idx_scratch_index(self) -> int:
-        return 0
-
-    @property
-    def idx_source_index(self) -> int:
-        return 1
-
-    @property
-    def idx_int_arg(self) -> int:
-        return 2
 
     def _run(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = typing.cast(StateScratchIndex, self.args[self.idx_scratch_index])
@@ -433,6 +389,10 @@ class DefineScratchFromFunctionWithSingleArg(
     IInstantiable,
 ):
 
+    idx_scratch_index = 1
+    idx_source_index = 2
+    idx_single_arg_index = 3
+
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
@@ -447,18 +407,6 @@ class DefineScratchFromFunctionWithSingleArg(
             StateScratchIndex,
             StateScratchIndex,
         ]))
-
-    @property
-    def idx_scratch_index(self) -> int:
-        return 0
-
-    @property
-    def idx_source_index(self) -> int:
-        return 1
-
-    @property
-    def idx_single_arg_index(self) -> int:
-        return 2
 
     def _run(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = typing.cast(StateScratchIndex, self.args[self.idx_scratch_index])
@@ -491,6 +439,10 @@ class DefineScratchFromFunctionWithArgs(
     IInstantiable,
 ):
 
+    idx_scratch_index = 1
+    idx_source_index = 2
+    idx_args_group_index = 3
+
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
@@ -508,18 +460,6 @@ class DefineScratchFromFunctionWithArgs(
             StateScratchIndex,
             Optional[StateArgsGroupIndex],
         ]))
-
-    @property
-    def idx_scratch_index(self) -> int:
-        return 0
-
-    @property
-    def idx_source_index(self) -> int:
-        return 1
-
-    @property
-    def idx_args_group_index(self) -> int:
-        return 2
 
     def _run(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = typing.cast(StateScratchIndex, self.args[self.idx_scratch_index])
@@ -554,6 +494,10 @@ class UpdateScratchFromAnother(
     IInstantiable,
 ):
 
+    idx_scratch_index = 1
+    idx_scratch_inner_index = 2
+    idx_source_index = 3
+
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
@@ -568,18 +512,6 @@ class UpdateScratchFromAnother(
             ScratchNodeIndex,
             StateScratchIndex,
         ]))
-
-    @property
-    def idx_scratch_index(self) -> int:
-        return 0
-
-    @property
-    def idx_scratch_inner_index(self) -> int:
-        return 1
-
-    @property
-    def idx_source_index(self) -> int:
-        return 2
 
     def _run(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = typing.cast(StateScratchIndex, self.args[self.idx_scratch_index])
@@ -604,20 +536,15 @@ class UpdateScratchFromAnother(
 
 class CreateArgsGroupOutput(GeneralAction, IInstantiable):
 
+    idx_index = 1
+    idx_new_args_group = 2
+
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             StateArgsGroupIndex,
             PartialArgsGroup,
         ]))
-
-    @property
-    def idx_index(self) -> int:
-        return 0
-
-    @property
-    def idx_new_args_group(self) -> int:
-        return 1
 
     def apply(self, full_state: FullState) -> State:
         index = typing.cast(StateArgsGroupIndex, self.args[self.idx_index])
@@ -644,6 +571,10 @@ class CreateArgsGroup(
     IInstantiable,
 ):
 
+    idx_args_amount = 1
+    idx_param_types_index = 2
+    idx_args_group_source_index = 3
+
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         args_amount = Integer(arg1)
@@ -664,18 +595,6 @@ class CreateArgsGroup(
             Optional[StateScratchIndex],
             Optional[StateArgsGroupIndex],
         ]))
-
-    @property
-    def idx_args_amount(self) -> int:
-        return 0
-
-    @property
-    def idx_param_types_index(self) -> int:
-        return 1
-
-    @property
-    def idx_args_group_source_index(self) -> int:
-        return 2
 
     def _run(self, full_state: FullState) -> CreateArgsGroupOutput:
         args_amount = typing.cast(Integer, self.args[self.idx_args_amount]).as_int
@@ -731,6 +650,10 @@ class CreateArgsGroup(
 
 class DefineArgsGroupArgOutput(GeneralAction, IInstantiable):
 
+    idx_group_index = 1
+    idx_arg_index = 2
+    idx_new_arg = 3
+
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
@@ -738,18 +661,6 @@ class DefineArgsGroupArgOutput(GeneralAction, IInstantiable):
             NodeArgIndex,
             INode,
         ]))
-
-    @property
-    def idx_group_index(self) -> int:
-        return 0
-
-    @property
-    def idx_arg_index(self) -> int:
-        return 1
-
-    @property
-    def idx_new_arg(self) -> int:
-        return 2
 
     def apply(self, full_state: FullState) -> State:
         group_index = typing.cast(StateArgsGroupIndex, self.args[self.idx_group_index])
@@ -775,6 +686,10 @@ class DefineArgsGroup(
     IInstantiable,
 ):
 
+    idx_args_group_index = 1
+    idx_arg_index = 2
+    idx_scratch_index = 3
+
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         args_group_index = StateArgsGroupIndex(arg1)
@@ -789,18 +704,6 @@ class DefineArgsGroup(
             NodeArgIndex,
             StateScratchIndex,
         ]))
-
-    @property
-    def idx_args_group_index(self) -> int:
-        return 0
-
-    @property
-    def idx_arg_index(self) -> int:
-        return 1
-
-    @property
-    def idx_scratch_index(self) -> int:
-        return 2
 
     def _run(self, full_state: FullState) -> DefineArgsGroupArgOutput:
         args_group_index = typing.cast(StateArgsGroupIndex, self.args[self.idx_args_group_index])
