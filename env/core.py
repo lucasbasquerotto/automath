@@ -403,7 +403,10 @@ class BaseNode(INode, ABC):
 
 class IType(INode, ABC):
 
-    def accepted_by(self, outer_type: TypeNode) -> bool | None:
+    def accepts(self, inner_type: IType) -> bool | None:
+        raise NotImplementedError
+
+    def accepted_by(self, outer_type: IType) -> bool | None:
         raise NotImplementedError
 
     def valid(self, instance: INode) -> bool | None:
@@ -437,8 +440,15 @@ class TypeNode(BaseNode, IType, IFunction, ISpecialValue, typing.Generic[T], IIn
     def with_arg_group(self, group: BaseGroup) -> INode:
         return self.type.new(*group.as_tuple)
 
-    def accepted_by(self, outer_type: TypeNode) -> bool | None:
-        return issubclass(self.type, outer_type.type)
+    def accepted_by(self, outer_type: IType) -> bool | None:
+        if isinstance(outer_type, TypeNode):
+            return issubclass(self.type, outer_type.type)
+        return outer_type.accepts(self)
+
+    def accepts(self, inner_type: IType) -> bool | None:
+        if isinstance(inner_type, TypeNode):
+            return issubclass(inner_type.type, self.type)
+        return inner_type.accepted_by(self)
 
     def valid(self, instance: INode) -> bool | None:
         if not issubclass(self.type, Placeholder):
@@ -548,7 +558,10 @@ class UnknownType(InheritableNode, IType, IDefault, IInstantiable):
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup())
 
-    def accepted_by(self, outer_type: TypeNode) -> bool | None:
+    def accepted_by(self, outer_type: IType) -> bool | None:
+        return None
+
+    def accepts(self, inner_type: IType) -> bool | None:
         return None
 
     def valid(self, instance: INode) -> bool | None:
@@ -1105,6 +1118,68 @@ class ExtendedTypeGroup(
                 (items[i] if i < len(items) else UnknownType())
                 for i in range(amount)
             ]))
+
+###########################################################
+########################## TYPES ##########################
+###########################################################
+
+class UnionType(InheritableNode, IType, IInstantiable):
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup.rest(IType.as_type())
+
+    def accepted_by(self, outer_type: IType) -> bool | None:
+        return IntersectionType(*self.args).accepts(outer_type)
+
+    def accepts(self, inner_type: IType) -> bool | None:
+        args = [arg for arg in self.args if isinstance(arg, IType)]
+        assert len(args) == len(self.args)
+        items = [t.accepts(inner_type) for t in args]
+        if any([item is True for item in items]):
+            return True
+        if all([item is False for item in items]):
+            return False
+        return None
+
+    def valid(self, instance: INode) -> bool | None:
+        args = [arg for arg in self.args if isinstance(arg, IType)]
+        assert len(args) == len(self.args)
+        items = [t.valid(instance) for t in args]
+        if any([item is True for item in items]):
+            return True
+        if all([item is False for item in items]):
+            return False
+        return None
+
+class IntersectionType(InheritableNode, IType, IInstantiable):
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup.rest(IType.as_type())
+
+    def accepted_by(self, outer_type: IType) -> bool | None:
+        return UnionType(*self.args).accepts(outer_type)
+
+    def accepts(self, inner_type: IType) -> bool | None:
+        args = [arg for arg in self.args if isinstance(arg, IType)]
+        assert len(args) == len(self.args)
+        items = [t.accepts(inner_type) for t in args]
+        if any([item is False for item in items]):
+            return False
+        if all([item is True for item in items]):
+            return True
+        return None
+
+    def valid(self, instance: INode) -> bool | None:
+        args = [arg for arg in self.args if isinstance(arg, IType)]
+        assert len(args) == len(self.args)
+        items = [t.valid(instance) for t in args]
+        if any([item is False for item in items]):
+            return False
+        if all([item is True for item in items]):
+            return True
+        return None
 
 ###########################################################
 ###################### FUNCTION NODE ######################

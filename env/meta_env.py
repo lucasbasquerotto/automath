@@ -20,6 +20,8 @@ from env.core import (
     ITypedIntIndex,
     ExtendedTypeGroup,
     CountableTypeGroup,
+    IntersectionType,
+    BaseNode,
     TmpNestedArg,
     IInstantiable)
 from env.state import State
@@ -104,8 +106,8 @@ class SubtypeOuterGroup(InheritableNode, IInstantiable, typing.Generic[T]):
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            TypeNode[T],
-            GeneralTypeGroup[T],
+            IntersectionType,
+            GeneralTypeGroup,
         ]))
 
     def validate(self):
@@ -119,19 +121,12 @@ class SubtypeOuterGroup(InheritableNode, IInstantiable, typing.Generic[T]):
     def from_all_types(cls, common_type: TypeNode[T], all_types: GeneralTypeGroup):
         assert isinstance(common_type, TypeNode)
         assert isinstance(all_types, GeneralTypeGroup)
+        types = IntersectionType(common_type, IInstantiable.as_type(), BaseNode.as_type())
         subtypes = GeneralTypeGroup.from_items(
             [
                 item
                 for item in all_types.as_tuple
-                if (
-                    issubclass(item.type, common_type.type)
-                    and
-                    (
-                        (common_type != IInstantiable)
-                        or
-                        (item.type != IInstantiable)
-                    )
-                )
+                if types.accepts(item.type.as_type())
             ]
         )
         return cls(common_type, subtypes)
