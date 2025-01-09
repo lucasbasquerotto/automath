@@ -191,3 +191,4 @@ class Environment:
 
     def to_symbolic_state(self) -> sympy.Basic:
         return self.symbolic(self.current_state.current_state.apply(), self.current_state.node_types())
+
