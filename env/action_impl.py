@@ -7,7 +7,6 @@ from env.core import (
     Integer,
     Optional,
     ExtendedTypeGroup,
-    IFunction,
     ISingleChild,
     OptionalValueGroup,
     LaxOpaqueScope,

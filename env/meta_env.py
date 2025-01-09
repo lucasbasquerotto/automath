@@ -23,7 +23,7 @@ from env.core import (
     TmpNestedArg,
     IInstantiable)
 from env.state import State
-from env.env_utils import load_all_superclasses_sorted
+from env.env_utils import load_all_superclasses
 
 T = typing.TypeVar('T', bound=INode)
 
@@ -51,7 +51,6 @@ class GeneralTypeGroup(BaseGroup[TypeNode[T]], IInstantiable, typing.Generic[T])
 
 class DetailedType(
     InheritableNode,
-    IFromSingleChild[TypeNode[T]],
     IInstantiable,
     typing.Generic[T],
 ):
@@ -71,7 +70,7 @@ class DetailedType(
         return self.nested_arg(self.idx_node_type).apply().cast(TypeNode[T])
 
     @classmethod
-    def with_child(cls, child: TypeNode[T]) -> typing.Self:
+    def with_child(cls, child: TypeNode[T], all_types: typing.Sequence[TypeNode[T]]) -> typing.Self:
         return cls(
             child,
             (
@@ -79,7 +78,10 @@ class DetailedType(
                 if issubclass(child.type, IInstantiable) and child.type != IInstantiable
                 else Optional()
             ),
-            GeneralTypeGroup.from_types(load_all_superclasses_sorted(cls))
+            GeneralTypeGroup.from_types(sorted(
+                [t for t in load_all_superclasses(child.type)],
+                key=lambda t: all_types.index(t.as_type()),
+            ))
         )
 
 class DetailedTypeGroup(BaseGroup[DetailedType[T]], IInstantiable, typing.Generic[T]):
@@ -90,7 +92,7 @@ class DetailedTypeGroup(BaseGroup[DetailedType[T]], IInstantiable, typing.Generi
 
     @classmethod
     def from_types(cls, types: typing.Sequence[TypeNode[T]]) -> typing.Self:
-        return cls.from_items([DetailedType.with_child(node_type) for node_type in types])
+        return cls.from_items([DetailedType.with_child(node_type, types) for node_type in types])
 
     def to_type_group(self) -> GeneralTypeGroup[T]:
         return GeneralTypeGroup.from_items([item.child for item in self.as_tuple])

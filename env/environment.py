@@ -57,13 +57,13 @@ class SympyFunction(SympyShared):
     def _latex(self, printer: LatexPrinter) -> str:
         node_name, args = self._data()
 
-        args_latex = r" \\ ".join(printer.doprint(arg) for arg in args)
+        newline = r" \\ \text{} "
+        args_latex = newline.join(printer.doprint(arg) for arg in args)
         if len(args) == 0:
             return node_name
         if len(args) <= 1:
             return f"{node_name}({args_latex})"
-        args_latex = args_latex.replace(r" \\ ", r" \\ \quad ")
-        newline = r" \\ "
+        args_latex = args_latex.replace(newline, newline + r" \quad ")
 
         return f"{node_name}( {newline} \\quad {args_latex} {newline} )"
 

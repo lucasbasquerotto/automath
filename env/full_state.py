@@ -138,11 +138,29 @@ class FullStateIntIndex(IFullStateIntIndex[FullState, T], typing.Generic[T], ABC
     def outer_type(cls):
         return FullState
 
-class FullStateMainIndex(NodeMainBaseIndex, IInstantiable):
-    pass
+class FullStateMainIndex(NodeMainBaseIndex, IFullStateIndex[FullState, INode], IInstantiable):
 
-class FullStateArgIndex(NodeArgBaseIndex, IInstantiable):
-    pass
+    @classmethod
+    def outer_type(cls):
+        return FullState
+
+    def find_in_outer_node(self, node: FullState):
+        return self.find_in_node(node)
+
+    def replace_in_outer_target(self, target: FullState, new_node: INode):
+        return self.replace_in_target(target, new_node)
+
+class FullStateArgIndex(NodeArgBaseIndex, IFullStateIndex[FullState, INode], IInstantiable):
+
+    @classmethod
+    def outer_type(cls):
+        return FullState
+
+    def find_in_outer_node(self, node: FullState):
+        return self.find_in_node(node)
+
+    def replace_in_outer_target(self, target: FullState, new_node: INode):
+        return self.replace_in_target(target, new_node)
 
 class FullStateGroupBaseIndex(FullStateIntIndex[T], ABC):
 
