@@ -117,7 +117,7 @@ class Environment:
         node_types: tuple[type[core.INode], ...],
     ) -> np.ndarray[np.int_, np.dtype]:
         size = len(root_node)
-        result = np.zeros((size, 7), dtype=np.int_)
+        result = np.zeros((size, 8), dtype=np.int_)
         pending_node_stack: list[tuple[int, int, int, int, core.INode]] = [(0, 0, 1, 0, root_node)]
         node_id = 0
 
@@ -140,21 +140,16 @@ class Environment:
             result[idx][4] = context_node_id
             result[idx][5] = node_type_id
 
+            scope_id = parent_scope_id
+
             if isinstance(node, core.Scope):
                 scope_id_wrapper = node.id
+                scope_id = 0
 
                 if isinstance(scope_id_wrapper, core.ScopeId):
                     scope_id_aux = scope_id_wrapper.as_int
-
-                    if scope_id_aux > parent_scope_id:
+                    if isinstance(node, core.OpaqueScope) or (0 < parent_scope_id < scope_id_aux):
                         scope_id = scope_id_aux
-                    else:
-                        scope_id = 0
-
-                    if parent_scope_id == 0 and not isinstance(node, core.OpaqueScope):
-                        scope_id = 0
-                else:
-                    scope_id = 0
 
                 result[idx][6] = scope_id
 
