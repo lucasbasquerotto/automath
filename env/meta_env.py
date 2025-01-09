@@ -68,8 +68,7 @@ class DetailedType(
 
     @property
     def child(self) -> TypeNode[T]:
-        node_type = self.args[self.idx_node_type]
-        return typing.cast(TypeNode[T], node_type)
+        return self.nested_arg(self.idx_node_type).apply().cast(TypeNode[T])
 
     @classmethod
     def with_child(cls, child: TypeNode[T]) -> typing.Self:
@@ -109,8 +108,8 @@ class SubtypeOuterGroup(InheritableNode, IInstantiable, typing.Generic[T]):
 
     def validate(self):
         super().validate()
-        common_type = self.args[self.idx_common_type]
-        subtypes = self.args[self.idx_subtypes]
+        common_type = self.nested_arg(self.idx_common_type).apply()
+        subtypes = self.nested_arg(self.idx_subtypes).apply()
         if isinstance(common_type, TypeNode) and isinstance(subtypes, GeneralTypeGroup):
             assert all(issubclass(item.type, common_type.type) for item in subtypes.as_tuple)
 

@@ -397,30 +397,3 @@ class CurrentStateDefinitionIndex(FullStateReadonlyGroupBaseIndex[StateDefinitio
             HistoryNode.idx_state,
             State.idx_definition_group,
         ))
-
-class FullStateNode(InheritableNode, ABC):
-
-    idx_state_type = 1
-    idx_state_value = 2
-
-    @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            TypeNode,
-            State,
-        ]))
-
-class FullStateGroup(BaseGroup[FullStateNode], IInstantiable):
-
-    idx_state_nodes = 1
-
-    @classmethod
-    def item_type(cls):
-        return FullStateNode
-
-    @classmethod
-    def from_nodes(cls, nodes: typing.Sequence[FullStateNode]) -> typing.Self:
-        return cls.from_items(nodes)
-
-    def to_state_nodes(self) -> typing.Sequence[FullStateNode]:
-        return typing.cast(typing.Sequence[FullStateNode], self.args[self.idx_state_nodes])

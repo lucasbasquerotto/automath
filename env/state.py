@@ -25,6 +25,7 @@ from env.core import (
     ITypedIndex,
     ITypedIntIndex,
     CountableTypeGroup,
+    DefaultGroup,
     TmpNestedArg,
     TmpNestedArgs,
     IInstantiable,
@@ -56,6 +57,10 @@ class Scratch(OpaqueScope[OptionalContext[INode]], IInstantiable):
             ScopeId,
             OptionalContext[INode],
         ]))
+
+    @classmethod
+    def with_optional(cls, optional: IOptional[INode]) -> typing.Self:
+        return cls.with_content(OptionalContext.from_optional(optional))
 
 class ScratchGroup(BaseGroup[Scratch], IInstantiable):
 
@@ -104,6 +109,9 @@ class PartialArgsGroup(
     @property
     def inner_args(self) -> tuple[INode, ...]:
         return self.scope_child.apply().cast(OptionalValueGroup).as_tuple
+
+    def fill_with_void(self) -> DefaultGroup:
+        return self.scope_child.apply().cast(OptionalValueGroup).fill_with_void()
 
     @classmethod
     def create(cls) -> typing.Self:

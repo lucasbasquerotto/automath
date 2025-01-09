@@ -556,6 +556,8 @@ class UnknownType(InheritableNode, IType, IDefault, IInstantiable):
 
 class OptionalBase(InheritableNode, IOptional[T], typing.Generic[T], ABC):
 
+    idx_value = 1
+
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(OptionalTypeGroup(TypeNode(INode)))
@@ -564,8 +566,14 @@ class OptionalBase(InheritableNode, IOptional[T], typing.Generic[T], ABC):
     def value(self) -> T | None:
         if len(self.args) == 0:
             return None
-        value = self.args[0]
+        value = self.nested_arg(self.idx_value).apply()
         return typing.cast(T, value)
+
+    @classmethod
+    def from_optional(cls, o: IOptional[T]) -> typing.Self:
+        if isinstance(o, cls):
+            return o
+        return cls(o.value) if o.value is not None else cls()
 
 class Optional(OptionalBase[T], IInstantiable, typing.Generic[T]):
     pass
@@ -1189,7 +1197,7 @@ class FunctionExpr(
             assert all_inner_params_scope_ids.issubset(all_functions_scope_ids)
         super().validate()
 
-class FunctionCall(InheritableNode, IInstantiable, typing.Generic[T]):
+class FunctionCall(InheritableNode, IInstantiable):
 
     idx_function = 1
     idx_arg_group = 2
@@ -1309,7 +1317,7 @@ class IsEmpty(SingleOptionalChildWrapper[INode], IBoolean, IInstantiable):
 
     @property
     def as_bool(self) -> bool | None:
-        value = self.args[0]
+        value = self.nested_arg(self.idx_value).apply()
         if not isinstance(value, IOptional):
             return None
         return value.value is None

@@ -123,9 +123,9 @@ class ActionInputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantia
 
     def to_action_data(self) -> ActionData:
         return ActionData.from_args(
-            action=Optional(typing.cast(BaseAction, self.args[self.idx_action])),
+            action=Optional(self.nested_arg(self.idx_action).apply().cast(BaseAction)),
             output=Optional.create(),
-            exception=Optional(typing.cast(IExceptionInfo, self.args[self.idx_exception])),
+            exception=Optional(self.nested_arg(self.idx_exception).apply().cast(IExceptionInfo)),
         )
 
 class ActionOutputExceptionInfo(InheritableNode, IExceptionInfo, IInstantiable):
@@ -144,9 +144,9 @@ class ActionOutputExceptionInfo(InheritableNode, IExceptionInfo, IInstantiable):
 
     def to_action_data(self) -> ActionData:
         return ActionData.from_args(
-            action=Optional(typing.cast(BaseAction, self.args[self.idx_action])),
-            output=Optional(typing.cast(IActionOutput, self.args[self.idx_output])),
-            exception=Optional(typing.cast(IExceptionInfo, self.args[self.idx_exception])),
+            action=Optional(self.nested_arg(self.idx_action).apply().cast(BaseAction)),
+            output=Optional(self.nested_arg(self.idx_output).apply().cast(IActionOutput)),
+            exception=Optional(self.nested_arg(self.idx_exception).apply().cast(IExceptionInfo)),
         )
 
 ###########################################################
