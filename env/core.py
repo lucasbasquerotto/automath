@@ -151,7 +151,10 @@ class IBoolean(INode):
 
     def raise_on_false(self):
         if self.as_bool is False:
-            raise InvalidNodeException(BooleanExceptionInfo(self))
+            raise self.to_exception()
+
+    def to_exception(self):
+        return InvalidNodeException(BooleanExceptionInfo(self))
 
 
 class ITypedIndex(INodeIndex, typing.Generic[O, T], ABC):
@@ -195,7 +198,8 @@ class ITypedIntIndex(IInt, ITypedIndex[O, T], typing.Generic[O, T], ABC):
     def find_arg(self, node: INode) -> IOptional[T]:
         result = NodeArgIndex(self.as_int).find_in_node(node)
         if result.value is not None:
-            assert isinstance(result, self.item_type())
+            assert isinstance(result.value, self.item_type()), \
+                f'{type(result.value)} != {self.item_type()}'
         return typing.cast(IOptional[T], result)
 
     def replace_arg(self, target: K, new_node: T) -> IOptional[K]:
@@ -394,6 +398,8 @@ class BaseNode(INode, ABC):
                 arg.as_node.validate()
 
     def cast(self, t: typing.Type[T]) -> T:
+        origin = typing.get_origin(t)
+        t = origin if origin is not None else t
         assert isinstance(self, t)
         return typing.cast(T, self)
 
@@ -648,21 +654,6 @@ class SingleOptionalChildWrapper(
     @property
     def child(self) -> IOptional[T]:
         return self.raw_child.apply().cast(IOptional[T])
-
-    @property
-    def value_or_raise(self) -> T:
-        value = self.child.value
-        if value is None:
-            raise self.to_exception()
-        return value
-
-    def raise_if_empty(self):
-        value = self.child.value
-        if value is None:
-            raise self.to_exception()
-
-    def to_exception(self):
-        return InvalidNodeException(BooleanExceptionInfo(self))
 
 ###########################################################
 ########################## SCOPE ##########################
@@ -1318,7 +1309,7 @@ class FunctionCall(InheritableNode, IInstantiable):
 class IExceptionInfo(INode, ABC):
 
     def as_exception(self):
-        raise InvalidNodeException(self)
+        return InvalidNodeException(self)
 
 class BooleanExceptionInfo(
     BooleanWrapper,
@@ -1409,12 +1400,102 @@ class Not(BooleanWrapper, IInstantiable):
 
 class IsEmpty(SingleOptionalChildWrapper[INode], IBoolean, IInstantiable):
 
+    def _raise_if_empty(self) -> INode:
+        optional = self.nested_arg(self.idx_value).apply()
+        if not isinstance(optional, IOptional):
+            raise self.to_exception()
+        value = optional.value
+        if value is None:
+            raise self.to_exception()
+        return value
+
+    @property
+    def value_or_raise(self) -> INode:
+        return self._raise_if_empty()
+
+    def raise_if_empty(self):
+        self._raise_if_empty()
+
     @property
     def as_bool(self) -> bool | None:
         value = self.nested_arg(self.idx_value).apply()
         if not isinstance(value, IOptional):
             return None
         return value.value is None
+
+class IsInstance(InheritableNode, IBoolean, typing.Generic[T], IInstantiable):
+
+    idx_instance = 1
+    idx_type = 2
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types((
+            INode,
+            TypeNode[T],
+        )))
+
+    @property
+    def instance(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_instance)
+
+    @property
+    def type(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_type)
+
+    @property
+    def as_bool(self) -> bool | None:
+        instance = self.instance.apply()
+        assert isinstance(instance, INode)
+        t = self.type.apply()
+        assert isinstance(t, TypeNode)
+        valid = t.valid(instance)
+        return valid
+
+    @property
+    def as_type_or_raise(self) -> T:
+        if not self.as_bool:
+            raise self.to_exception()
+        return typing.cast(T, self.type.apply())
+
+    @classmethod
+    def with_args(cls, instance: INode, t: typing.Type[T]) -> IsInstance[T]:
+        return typing.cast(IsInstance[T], cls(instance, TypeNode(t)))
+
+    @classmethod
+    def assert_type(cls, instance: INode, t: typing.Type[T]) -> T:
+        return typing.cast(T, cls(instance, TypeNode(t)).as_type_or_raise)
+
+
+class Eq(InheritableNode, IBoolean, IInstantiable):
+
+    idx_left = 1
+    idx_right = 2
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types((
+            INode,
+            INode,
+        )))
+
+    @property
+    def left(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_left)
+
+    @property
+    def right(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_right)
+
+    @property
+    def as_bool(self) -> bool | None:
+        left = self.left.apply()
+        right = self.right.apply()
+        return left == right
+
+    @classmethod
+    def from_ints(cls, left: int, right: int) -> Eq:
+        return cls(Integer(left), Integer(right))
 
 class IsInsideRange(InheritableNode, IBoolean, IInstantiable):
 

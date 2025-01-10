@@ -100,6 +100,7 @@ class DetailedTypeGroup(BaseGroup[DetailedType[T]], IInstantiable, typing.Generi
         return GeneralTypeGroup.from_items([item.child for item in self.as_tuple])
 
 class SubtypeOuterGroup(InheritableNode, IInstantiable, typing.Generic[T]):
+
     idx_common_type = 1
     idx_subtypes = 2
 
@@ -109,13 +110,6 @@ class SubtypeOuterGroup(InheritableNode, IInstantiable, typing.Generic[T]):
             IntersectionType,
             GeneralTypeGroup,
         ]))
-
-    def validate(self):
-        super().validate()
-        common_type = self.nested_arg(self.idx_common_type).apply()
-        subtypes = self.nested_arg(self.idx_subtypes).apply()
-        if isinstance(common_type, TypeNode) and isinstance(subtypes, GeneralTypeGroup):
-            assert all(issubclass(item.type, common_type.type) for item in subtypes.as_tuple)
 
     @classmethod
     def from_all_types(cls, common_type: TypeNode[T], all_types: GeneralTypeGroup):
@@ -131,6 +125,21 @@ class SubtypeOuterGroup(InheritableNode, IInstantiable, typing.Generic[T]):
         )
         return cls(common_type, subtypes)
 
+    @property
+    def common_type(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_common_type)
+
+    @property
+    def subtypes(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_subtypes)
+
+    def validate(self):
+        super().validate()
+        common_type = self.common_type.apply()
+        subtypes = self.subtypes.apply()
+        if isinstance(common_type, TypeNode) and isinstance(subtypes, GeneralTypeGroup):
+            assert all(issubclass(item.type, common_type.type) for item in subtypes.as_tuple)
+
 class MetaInfoOptions(InheritableNode, IDefault, IInstantiable):
     idx_max_history_state_size = 1
 
@@ -143,6 +152,10 @@ class MetaInfoOptions(InheritableNode, IDefault, IInstantiable):
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             IOptional[IInt],
         ]))
+
+    @property
+    def max_history_state_size(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_max_history_state_size)
 
 ###########################################################
 ################## FULL STATE BASE NODES ##################
@@ -201,20 +214,22 @@ class MetaInfo(InheritableNode, IInstantiable):
     idx_goal = 1
     idx_options = 2
     idx_all_types = 3
-    idx_all_types_details = 4
-    idx_default_group = 5
-    idx_from_int_group = 6
-    idx_int_group = 7
-    idx_node_index_group = 8
-    idx_full_state_index_group = 9
-    idx_full_state_int_index_group = 10
-    idx_single_child_group = 11
-    idx_group_outer_group = 12
-    idx_function_group = 13
-    idx_boolean_group = 14
-    idx_basic_actions = 15
-    idx_instantiable_group = 16
-    idx_allowed_actions = 17
+    idx_allowed_basic_actions = 4
+    idx_allowed_actions = 5
+    idx_all_types_details = 6
+    idx_default_group = 7
+    idx_from_int_group = 8
+    idx_int_group = 9
+    idx_node_index_group = 10
+    idx_full_state_index_group = 11
+    idx_full_state_int_index_group = 12
+    idx_single_child_group = 13
+    idx_group_outer_group = 14
+    idx_function_group = 15
+    idx_boolean_group = 16
+    idx_instantiable_group = 17
+    idx_basic_actions = 18
+    idx_all_actions = 19
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -222,6 +237,8 @@ class MetaInfo(InheritableNode, IInstantiable):
             GoalNode,
             MetaInfoOptions,
             GeneralTypeGroup[INode],
+            GeneralTypeGroup[IBasicAction],
+            GeneralTypeGroup[IAction],
             DetailedTypeGroup,
             SubtypeOuterGroup[IDefault],
             SubtypeOuterGroup[IFromInt],
@@ -234,8 +251,8 @@ class MetaInfo(InheritableNode, IInstantiable):
             SubtypeOuterGroup[IFunction],
             SubtypeOuterGroup[IBoolean],
             SubtypeOuterGroup[IInstantiable],
-            SubtypeOuterGroup[IAction],
             SubtypeOuterGroup[IBasicAction],
+            SubtypeOuterGroup[IAction],
         ]))
 
     @classmethod
@@ -256,13 +273,25 @@ class MetaInfo(InheritableNode, IInstantiable):
         allowed_actions = [
             t
             for t in all_types
-            if issubclass(t.type, IAction) and (allowed_actions is None or t in allowed_actions)
+            if (
+                issubclass(t.type, IAction)
+                and issubclass(t.type, IInstantiable)
+                and (allowed_actions is None or t in allowed_actions)
+            )
         ]
         allowed_actions_group = GeneralTypeGroup.from_items(allowed_actions)
+        allowed_basic_actions_group = GeneralTypeGroup.from_items(
+            [
+                t for t in all_types
+                if issubclass(t.type, IBasicAction) and issubclass(t.type, IInstantiable)
+            ]
+        )
         return cls(
             goal,
             MetaInfoOptions.create(),
             all_types_group,
+            allowed_basic_actions_group,
+            allowed_actions_group,
             DetailedTypeGroup.from_types(all_types),
             SubtypeOuterGroup.from_all_types(TypeNode(IDefault), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IFromInt), all_types_group),
@@ -275,8 +304,8 @@ class MetaInfo(InheritableNode, IInstantiable):
             SubtypeOuterGroup.from_all_types(TypeNode(IFunction), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IBoolean), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IInstantiable), all_types_group),
-            SubtypeOuterGroup.from_all_types(TypeNode(IAction), allowed_actions_group),
-            SubtypeOuterGroup.from_all_types(TypeNode(IBasicAction), allowed_actions_group),
+            SubtypeOuterGroup.from_all_types(TypeNode(IBasicAction), all_types_group),
+            SubtypeOuterGroup.from_all_types(TypeNode(IAction), all_types_group),
         )
 
     @property
@@ -290,3 +319,67 @@ class MetaInfo(InheritableNode, IInstantiable):
     @property
     def all_types(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_all_types)
+
+    @property
+    def allowed_basic_actions(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_allowed_basic_actions)
+
+    @property
+    def allowed_actions(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_allowed_actions)
+
+    @property
+    def all_types_details(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_all_types_details)
+
+    @property
+    def default_group(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_default_group)
+
+    @property
+    def from_int_group(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_from_int_group)
+
+    @property
+    def int_group(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_int_group)
+
+    @property
+    def node_index_group(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_node_index_group)
+
+    @property
+    def full_state_index_group(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_full_state_index_group)
+
+    @property
+    def full_state_int_index_group(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_full_state_int_index_group)
+
+    @property
+    def single_child_group(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_single_child_group)
+
+    @property
+    def group_outer_group(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_group_outer_group)
+
+    @property
+    def function_group(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_function_group)
+
+    @property
+    def boolean_group(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_boolean_group)
+
+    @property
+    def instantiable_group(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_instantiable_group)
+
+    @property
+    def basic_actions(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_basic_actions)
+
+    @property
+    def all_actions(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_all_actions)

@@ -19,6 +19,7 @@ from env.core import (
     IsEmpty,
     CountableTypeGroup,
     IOptional,
+    Eq,
     IInstantiable)
 from env.state import (
     State,
@@ -98,7 +99,7 @@ class CreateScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
 
         state = full_state.current_state.apply().cast(State)
         scratch_group = state.scratch_group.apply().cast(ScratchGroup)
-        assert index.as_int == len(scratch_group.as_tuple) + 1
+        Eq.from_ints(index.as_int, len(scratch_group.as_tuple) + 1).raise_on_false()
         new_node = Scratch.with_optional(node)
         new_args = list(scratch_group.as_tuple) + [new_node]
 
@@ -123,8 +124,8 @@ class CreateScratch(
             Optional.create()
             if arg1 == 0
             else Optional(StateScratchIndex(arg1)))
-        assert arg2 == 0
-        assert arg3 == 0
+        Eq.from_ints(arg2, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
         return cls(clone_index)
 
     @classmethod
@@ -142,12 +143,13 @@ class CreateScratch(
         return self.nested_arg(self.idx_clone_index).apply()
 
     def _run(self, full_state: FullState) -> CreateScratchOutput:
-        clone_index = self.nested_arg(self.idx_clone_index).apply()
-        assert isinstance(clone_index, Optional)
+        clone_index = self.nested_arg(
+            self.idx_clone_index
+        ).apply().cast(Optional[StateScratchIndex])
 
         state = full_state.current_state.apply().cast(State)
         scratch_group = state.scratch_group.apply().cast(ScratchGroup)
-        index = StateScratchIndex(len(scratch_group.as_tuple))
+        index = StateScratchIndex(len(scratch_group.as_tuple) + 1)
         if clone_index.value is None:
             return CreateScratchOutput(index, Optional.create())
         scratch = clone_index.value.find_in_outer_node(state).value_or_raise
@@ -181,7 +183,7 @@ class DefineScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
         state = full_state.current_state.apply().cast(State)
         scratch = Scratch.with_optional(node)
         new_state = index.replace_in_outer_target(state, scratch).value_or_raise
-        assert new_state is not None
+        new_state = Optional.with_child(new_state).value_or_raise
 
         return new_state
 
@@ -192,8 +194,8 @@ class ClearScratch(BasicAction[DefineScratchOutput], IInstantiable):
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
-        assert arg2 == 0
-        assert arg3 == 0
+        Eq.from_ints(arg2, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
         return cls(scratch_index)
 
     @classmethod
@@ -219,7 +221,7 @@ class DefineScratchFromDefault(
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
         type_index = MetaDefaultTypeIndex(arg2)
-        assert arg3 == 0
+        Eq.from_ints(arg3, 0).raise_on_false()
         return cls(scratch_index, type_index)
 
     @classmethod
@@ -579,7 +581,7 @@ class CreateArgsGroupOutput(GeneralAction, IInstantiable):
 
         state = full_state.current_state.apply().cast(State)
         args_outer_group = state.args_outer_group.apply().cast(PartialArgsOuterGroup)
-        assert index.as_int == len(args_outer_group.as_tuple) + 1
+        Eq.from_ints(index.as_int, len(args_outer_group.as_tuple) + 1).raise_on_false()
         scope_child = new_args_group.scope_child.apply().cast(OptionalValueGroup)
         for arg in scope_child.as_tuple:
             arg.as_node.validate()
@@ -624,17 +626,20 @@ class CreateArgsGroup(
         ]))
 
     def _run(self, full_state: FullState) -> CreateArgsGroupOutput:
-        args_amount = self.nested_arg(self.idx_args_amount).apply()
-        param_types_index = self.nested_arg(self.idx_param_types_index).apply()
-        args_group_source_index = self.nested_arg(self.idx_args_group_source_index).apply()
-        assert isinstance(args_amount, Integer)
-        assert isinstance(param_types_index, Optional)
-        assert isinstance(args_group_source_index, Optional)
+        args_amount = self.nested_arg(self.idx_args_amount).apply().cast(Integer)
+        param_types_index = self.nested_arg(
+            self.idx_param_types_index
+        ).apply().cast(Optional[StateScratchIndex])
+        args_group_source_index = self.nested_arg(
+            self.idx_args_group_source_index
+        ).apply().cast(Optional[StateArgsGroupIndex])
 
         state = full_state.current_state.apply().cast(State)
 
         if args_group_source_index.value is not None:
-            args_group_source = args_group_source_index.value.find_in_outer_node(state).value_or_raise
+            args_group_source = (
+                args_group_source_index.value
+                    .find_in_outer_node(state).value_or_raise)
             assert isinstance(args_group_source, PartialArgsGroup)
             args_group_source.validate()
             type_group = args_group_source.param_type_group.apply().cast(ExtendedTypeGroup)
@@ -658,13 +663,14 @@ class CreateArgsGroup(
 
             inner_group = type_group.group
             if isinstance(inner_group, CountableTypeGroup):
-                assert len(inner_group.as_tuple) == args_amount.as_int
+                Eq.from_ints(len(inner_group.as_tuple), args_amount.as_int).raise_on_false()
 
         scope = LaxOpaqueScope.with_content(optional_group)
         new_args_group = PartialArgsGroup(type_group, scope)
 
         index = StateArgsGroupIndex(
-            len(state.args_outer_group.apply().cast(PartialArgsOuterGroup).as_tuple))
+            len(state.args_outer_group.apply().cast(PartialArgsOuterGroup).as_tuple) + 1
+        )
 
         return CreateArgsGroupOutput(index, new_args_group)
 

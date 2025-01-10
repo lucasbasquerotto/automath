@@ -13,6 +13,7 @@ from env.core import (
     ExtendedTypeGroup,
     CountableTypeGroup,
     IInt,
+    TmpNestedArg,
     IInstantiable)
 from env.state import State
 from env.meta_env import (
@@ -21,7 +22,6 @@ from env.meta_env import (
     IActionOutput,
     IAction,
     IBasicAction,
-    SubtypeOuterGroup,
     GeneralTypeGroup,
     MetaInfoOptions)
 from env.full_state import FullState, HistoryNode, HistoryGroupNode
@@ -43,6 +43,14 @@ class FullActionOutput(InheritableNode, IInstantiable):
             IActionOutput,
             State,
         ]))
+
+    @property
+    def output(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_output)
+
+    @property
+    def new_state(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_new_state)
 
 ###########################################################
 ####################### ACTION DATA #######################
@@ -79,6 +87,9 @@ class IActionExceptionInfo(IExceptionInfo, ABC):
 
     def to_action_data(self) -> ActionData:
         raise NotImplementedError
+
+    def as_exception(self):
+        return InvalidActionException(self)
 
 class InvalidActionException(InvalidNodeException):
 
@@ -121,14 +132,22 @@ class ActionInputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantia
             IExceptionInfo,
         ]))
 
+    @property
+    def action(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_action)
+
+    @property
+    def exception(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_exception)
+
     def to_action_data(self) -> ActionData:
         return ActionData.from_args(
-            action=Optional(self.nested_arg(self.idx_action).apply().cast(BaseAction)),
+            action=Optional(self.action.apply().cast(BaseAction)),
             output=Optional.create(),
-            exception=Optional(self.nested_arg(self.idx_exception).apply().cast(IExceptionInfo)),
+            exception=Optional(self.exception.apply().cast(IExceptionInfo)),
         )
 
-class ActionOutputExceptionInfo(InheritableNode, IExceptionInfo, IInstantiable):
+class ActionOutputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiable):
 
     idx_action = 1
     idx_output = 2
@@ -142,11 +161,23 @@ class ActionOutputExceptionInfo(InheritableNode, IExceptionInfo, IInstantiable):
             IExceptionInfo,
         ]))
 
+    @property
+    def action(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_action)
+
+    @property
+    def output(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_output)
+
+    @property
+    def exception(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_exception)
+
     def to_action_data(self) -> ActionData:
         return ActionData.from_args(
-            action=Optional(self.nested_arg(self.idx_action).apply().cast(BaseAction)),
-            output=Optional(self.nested_arg(self.idx_output).apply().cast(IActionOutput)),
-            exception=Optional(self.nested_arg(self.idx_exception).apply().cast(IExceptionInfo)),
+            action=Optional(self.action.apply().cast(BaseAction)),
+            output=Optional(self.output.apply().cast(IActionOutput)),
+            exception=Optional(self.exception.apply().cast(IExceptionInfo)),
         )
 
 ###########################################################
@@ -163,49 +194,43 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
 
     def inner_run(self, full_state: FullState) -> FullActionOutput:
         try:
-            meta = typing.cast(MetaInfo, full_state.args[full_state.idx_meta])
-            allowed_actions = typing.cast(
-                SubtypeOuterGroup[IAction],
-                meta.args[meta.idx_allowed_actions])
+            meta = full_state.meta.apply().cast(MetaInfo)
+            allowed_actions = meta.allowed_actions.apply().cast(GeneralTypeGroup[IAction])
             min_index = 1
-            subtypes = typing.cast(
-                GeneralTypeGroup[IAction],
-                allowed_actions.args[allowed_actions.idx_subtypes])
-            max_index = len(subtypes.as_tuple)
-            action_type = subtypes.as_tuple.index(self.as_type()) + 1
+            max_index = len(allowed_actions.as_tuple)
+            action_type = allowed_actions.as_tuple.index(self.as_type()) + 1
             IsInsideRange.from_raw(
                 value=action_type,
                 min_value=min_index,
                 max_value=max_index,
             ).raise_on_false()
         except InvalidNodeException as e:
-            raise ActionTypeExceptionInfo(self.as_type(), e.info).as_exception()
+            raise ActionTypeExceptionInfo(self.as_type(), e.info).as_exception() from e
 
         try:
             output = self._run(full_state)
             assert isinstance(output, IActionOutput)
         except InvalidNodeException as e:
-            raise ActionInputExceptionInfo(self, e.info).as_exception()
+            raise ActionInputExceptionInfo(self, e.info).as_exception() from e
 
         try:
             new_state = output.apply(full_state)
             return FullActionOutput(output, new_state)
         except InvalidNodeException as e:
-            raise ActionOutputExceptionInfo(self, output, e.info).as_exception()
+            # make a new exception from the above, following the comment bellow
+            raise ActionOutputExceptionInfo(self, output, e.info).as_exception() from e
+
 
     def run_action(self, full_state: FullState) -> FullState:
-        meta = typing.cast(MetaInfo, full_state.args[full_state.idx_meta])
-        options = typing.cast(MetaInfoOptions, meta.args[meta.idx_options])
-        max_history_state_size = typing.cast(
-            IOptional[IInt],
-            options.args[options.idx_max_history_state_size],
-        ).value
-        current = typing.cast(HistoryNode, full_state.args[full_state.idx_current])
+        meta = full_state.meta.apply().cast(MetaInfo)
+        options = meta.options.apply().cast(MetaInfoOptions)
+        max_history_state_size = options.max_history_state_size.apply().cast(IOptional[IInt]).value
+        current = full_state.current.apply().cast(HistoryNode)
 
         try:
             full_output = self.inner_run(full_state)
-            output = typing.cast(IActionOutput, full_output.args[full_output.idx_output])
-            next_state = typing.cast(State, full_output.args[full_output.idx_new_state])
+            output = full_output.output.apply().cast(IActionOutput)
+            next_state = full_output.new_state.apply().cast(State)
             action_data = ActionData.from_args(
                 action=Optional(self),
                 output=Optional(output),
@@ -213,22 +238,19 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             )
         except InvalidActionException as e:
             env_logger.debug(f"Invalid action: {e}")
-            next_state = typing.cast(State, current.args[current.idx_state])
+            next_state = current.state.apply().cast(State)
             action_data = e.to_action_data()
 
         current = HistoryNode(next_state, Optional(action_data))
 
-        history = list(typing.cast(
-            HistoryGroupNode,
-            full_state.args[full_state.idx_history],
-        ).as_tuple)
+        history = list(full_state.history.apply().cast(HistoryGroupNode).as_tuple)
         history.append(current)
 
         if max_history_state_size is not None:
             history = history[-max_history_state_size.as_int:]
 
         return FullState(
-            full_state.args[full_state.idx_meta],
+            full_state.meta.apply(),
             current,
             HistoryGroupNode.from_items(history),
         )

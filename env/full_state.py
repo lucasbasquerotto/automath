@@ -62,6 +62,14 @@ class HistoryNode(InheritableNode, IDefault, IInstantiable):
     def create(cls):
         return cls(State.create(), Optional.create())
 
+    @property
+    def state(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_state)
+
+    @property
+    def meta_data(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_meta_data)
+
 class HistoryGroupNode(BaseGroup[HistoryNode], IInstantiable):
 
     idx_state_nodes = 1
@@ -111,13 +119,13 @@ class FullState(InheritableNode, IFullState, IFromSingleChild[MetaInfo], IInstan
         )
 
     def goal_achieved(self) -> bool:
-        meta = self.nested_arg(self.idx_meta).apply().cast(MetaInfo)
+        meta = self.meta.apply().cast(MetaInfo)
         state = self.current_state.apply().cast(State)
         goal = meta.goal.apply().cast(GoalNode)
         return goal.evaluate(state)
 
     def node_types(self) -> tuple[type[INode], ...]:
-        meta = self.nested_arg(self.idx_meta).apply().cast(MetaInfo)
+        meta = self.meta.apply().cast(MetaInfo)
         all_types_wrappers = meta.all_types.apply().cast(GeneralTypeGroup).as_tuple
         all_types = tuple(wrapper.type for wrapper in all_types_wrappers)
         return all_types

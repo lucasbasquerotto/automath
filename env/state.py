@@ -26,6 +26,7 @@ from env.core import (
     ITypedIntIndex,
     CountableTypeGroup,
     DefaultGroup,
+    Eq,
     TmpNestedArg,
     TmpNestedArgs,
     IInstantiable,
@@ -258,12 +259,15 @@ class StateDefinitionIndex(StateIntIndex[StateDefinition], IInstantiable):
         definitions = list(target.definition_group.apply().cast(StateDefinitionGroup).as_tuple)
         for i, definition in enumerate(definitions):
             if self.as_int == (i+1):
-                assert new_node.definition_key.apply() == definition.definition_key.apply()
+                Eq(
+                    new_node.definition_key.apply(),
+                    definition.definition_key.apply(),
+                ).raise_on_false()
                 definitions[i] = new_node
                 return Optional(State(
                     StateDefinitionGroup.from_items(definitions),
-                    target.nested_arg(target.idx_args_outer_group).apply(),
-                    target.nested_arg(target.idx_scratch_group).apply()))
+                    target.args_outer_group.apply(),
+                    target.scratch_group.apply()))
         return Optional.create()
 
     def remove_in_outer_target(self, target: State):
