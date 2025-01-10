@@ -1083,13 +1083,13 @@ class ExtendedTypeGroup(
 
     @classmethod
     def create(cls) -> typing.Self:
-        return cls.with_child(Optional())
+        return cls.rest()
 
     @classmethod
     def with_child(cls, child: IOptional[INT]) -> typing.Self:
         value = child.value.as_int if child.value is not None else None
         if value is None:
-            return cls(SingleValueTypeGroup(UnknownType()))
+            return cls.rest()
         return cls(
             CountableTypeGroup.from_items([UnknownType()] * value))
 
@@ -1540,3 +1540,88 @@ class IsInsideRange(InheritableNode, IBoolean, IInstantiable):
         if not isinstance(max_value, IInt):
             return None
         return min_value.as_int <= value.as_int <= max_value.as_int
+
+class IntBooleanNode(BaseInt, IBoolean, IInstantiable):
+
+    @property
+    def as_bool(self) -> bool | None:
+        if self.as_int == 0:
+            return False
+        if self.as_int == 1:
+            return True
+        return None
+
+class MultiArgBooleanNode(InheritableNode, IBoolean, ABC):
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup.rest(IBoolean.as_type())
+
+    @property
+    def as_bool(self) -> bool | None:
+        raise NotImplementedError
+
+class DoubleIntBooleanNode(InheritableNode, IBoolean, ABC):
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            IInt,
+            IInt,
+        ]))
+
+    @property
+    def as_bool(self) -> bool | None:
+        raise NotImplementedError
+
+class AndNode(MultiArgBooleanNode, IInstantiable):
+
+    @property
+    def as_bool(self) -> bool | None:
+        args = self.args
+        has_none = False
+        for arg in args:
+            if not isinstance(arg, IBoolean):
+                has_none = True
+            elif arg.as_bool is None:
+                has_none = True
+            elif arg.as_bool is False:
+                return False
+        return None if has_none else True
+
+class OrNode(MultiArgBooleanNode, IInstantiable):
+
+    @property
+    def as_bool(self) -> bool | None:
+        args = self.args
+        has_none = False
+        for arg in args:
+            if not isinstance(arg, IBoolean):
+                has_none = True
+            elif arg.as_bool is None:
+                has_none = True
+            elif arg.as_bool is True:
+                return True
+        return None if has_none else False
+
+class GreaterThan(DoubleIntBooleanNode, IInstantiable):
+
+    @property
+    def as_bool(self) -> bool | None:
+        args = self.args
+        assert len(args) == 2
+        a, b = args
+        if not isinstance(a, IInt) or not isinstance(b, IInt):
+            return None
+        return a.as_int > b.as_int
+
+class LessThan(DoubleIntBooleanNode, IInstantiable):
+
+    @property
+    def as_bool(self) -> bool | None:
+        args = self.args
+        assert len(args) == 2
+        a, b = args
+        if not isinstance(a, IInt) or not isinstance(b, IInt):
+            return None
+        return a.as_int < b.as_int

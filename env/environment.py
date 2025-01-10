@@ -11,6 +11,7 @@ from env import reward as reward_module
 WRAPPERS = (
     core.IGroup,
     state.State,
+    state.IContext,
     meta_env.MetaInfo,
     meta_env.SubtypeOuterGroup,
     action_module.FullActionOutput,

@@ -36,6 +36,7 @@ from env.meta_env import (
     IAction,
     IBasicAction,
     SubtypeOuterGroup,
+    DetailedType,
     GoalNode,
     GeneralTypeGroup,
     IActionOutput)
@@ -71,8 +72,6 @@ class HistoryNode(InheritableNode, IDefault, IInstantiable):
         return self.nested_arg(self.idx_meta_data)
 
 class HistoryGroupNode(BaseGroup[HistoryNode], IInstantiable):
-
-    idx_state_nodes = 1
 
     @classmethod
     def item_type(cls) -> type[HistoryNode]:
@@ -200,6 +199,66 @@ class FullStateGroupTypeBaseIndex(FullStateReadonlyGroupBaseIndex[TypeNode[T]], 
 ###########################################################
 ###################### META INDICES #######################
 ###########################################################
+
+class MetaAllTypesTypeIndex(
+    FullStateGroupTypeBaseIndex[INode],
+    IInstantiable):
+
+    @classmethod
+    def inner_item_type(cls):
+        return INode
+
+    @classmethod
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
+        return full_state.nested_args((
+            FullState.idx_meta,
+            MetaInfo.idx_all_types,
+        ))
+
+class MetaTypesDetailsTypeIndex(
+    FullStateGroupTypeBaseIndex[DetailedType],
+    IInstantiable):
+
+    @classmethod
+    def inner_item_type(cls):
+        return DetailedType
+
+    @classmethod
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
+        return full_state.nested_args((
+            FullState.idx_meta,
+            MetaInfo.idx_all_types_details,
+        ))
+
+class MetaAllowedBasicActionsTypeIndex(
+    FullStateGroupTypeBaseIndex[IBasicAction[FullState]],
+    IInstantiable):
+
+    @classmethod
+    def inner_item_type(cls):
+        return IBasicAction
+
+    @classmethod
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
+        return full_state.nested_args((
+            FullState.idx_meta,
+            MetaInfo.idx_allowed_basic_actions,
+        ))
+
+class MetaAllowedActionsTypeIndex(
+    FullStateGroupTypeBaseIndex[IAction[FullState]],
+    IInstantiable):
+
+    @classmethod
+    def inner_item_type(cls):
+        return IAction
+
+    @classmethod
+    def group(cls, full_state: FullState) -> TmpNestedArgs:
+        return full_state.nested_args((
+            FullState.idx_meta,
+            MetaInfo.idx_allowed_actions,
+        ))
 
 class MetaDefaultTypeIndex(FullStateGroupTypeBaseIndex[IDefault], IInstantiable):
 
@@ -343,7 +402,7 @@ class MetaBooleanTypeIndex(FullStateGroupTypeBaseIndex[IBoolean], IInstantiable)
 
 O = typing.TypeVar('O', bound=IActionOutput)
 
-class MetaAllowedActionsTypeIndex(
+class MetaAllActionsTypeIndex(
     FullStateGroupTypeBaseIndex[IAction[FullState]],
     IInstantiable):
 
@@ -355,7 +414,7 @@ class MetaAllowedActionsTypeIndex(
     def group(cls, full_state: FullState) -> TmpNestedArgs:
         return full_state.nested_args((
             FullState.idx_meta,
-            MetaInfo.idx_allowed_actions,
+            MetaInfo.idx_all_actions,
             SubtypeOuterGroup.idx_subtypes,
         ))
 

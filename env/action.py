@@ -268,4 +268,5 @@ class GeneralAction(
     IActionOutput,
     ABC,
 ):
-    pass
+    def _run(self, full_state: FullState) -> typing.Self:
+        return self
