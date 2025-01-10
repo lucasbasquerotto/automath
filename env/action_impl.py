@@ -316,13 +316,18 @@ class DefineScratchFromSingleArg(
     def _run(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.nested_arg(self.idx_scratch_index).apply()
         type_index = self.nested_arg(self.idx_type_index).apply()
-        arg = self.nested_arg(self.idx_arg).apply()
+        arg_index = self.nested_arg(self.idx_arg).apply()
         assert isinstance(scratch_index, StateScratchIndex)
         assert isinstance(type_index, MetaSingleChildTypeIndex)
-        assert isinstance(arg, StateScratchIndex)
+        assert isinstance(arg_index, StateScratchIndex)
 
         node_type = type_index.find_in_outer_node(full_state).value_or_raise
         assert isinstance(node_type, TypeNode) and issubclass(node_type.type, IFromSingleChild)
+
+        state = full_state.current_state.apply().cast(State)
+        scratch = arg_index.find_in_outer_node(state).value_or_raise
+        arg = scratch.child.apply().cast(IOptional).value_or_raise
+
         content = node_type.type.with_child(arg)
 
         return DefineScratchOutput(scratch_index, Optional(content))
@@ -409,7 +414,7 @@ class DefineScratchFromFunctionWithIntArg(
         content = source_scratch.child.apply().cast(IOptional).value
         assert content is not None
 
-        fn_call = FunctionCall(content, DefaultGroup(int_arg))
+        fn_call = FunctionCall.define(content, DefaultGroup(int_arg))
 
         return DefineScratchOutput(scratch_index, Optional(fn_call))
 
@@ -460,7 +465,7 @@ class DefineScratchFromFunctionWithSingleArg(
         single_arg = single_arg_outer.child.apply().cast(IOptional).value
         assert single_arg is not None
 
-        fn_call = FunctionCall(content, DefaultGroup(single_arg))
+        fn_call = FunctionCall.define(content, DefaultGroup(single_arg))
 
         return DefineScratchOutput(scratch_index, Optional(fn_call))
 
@@ -517,7 +522,7 @@ class DefineScratchFromFunctionWithArgs(
         else:
             args_group = PartialArgsGroup.create()
 
-        fn_call = FunctionCall(content, args_group.fill_with_void())
+        fn_call = FunctionCall.define(content, args_group.fill_with_void())
 
         return DefineScratchOutput(scratch_index, Optional(fn_call))
 

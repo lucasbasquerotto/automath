@@ -1302,6 +1302,12 @@ class FunctionCall(InheritableNode, IInstantiable):
     def arg_group(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_arg_group)
 
+    @classmethod
+    def define(cls, fn: IFunction, args: BaseGroup) -> INode:
+        if isinstance(fn, TypeNode):
+            return fn.type.new(*args.as_tuple)
+        return cls(fn, args)
+
 ###########################################################
 ######################## EXCEPTION ########################
 ###########################################################

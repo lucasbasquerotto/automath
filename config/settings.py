@@ -10,5 +10,6 @@ EXPLORATION_DECAY = 0.995
 MIN_EXPLORATION_RATE = 0.01
 
 # Logging Settings
+LOGGER = "automath"
 LOG_LEVEL = "INFO"
 LOG_FILE = "agent.log"

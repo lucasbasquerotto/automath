@@ -1,8 +1,8 @@
 import logging
-from config.settings import LOG_LEVEL, LOG_FILE
+from config.settings import LOGGER, LOG_LEVEL, LOG_FILE
 
 def setup_logger() -> logging.Logger:
-    log = logging.getLogger('math_agent')
+    log = logging.getLogger(LOGGER)
     log.setLevel(LOG_LEVEL)
 
     fh = logging.FileHandler(LOG_FILE)

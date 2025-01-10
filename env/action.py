@@ -237,7 +237,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
                 exception=Optional.create(),
             )
         except InvalidActionException as e:
-            env_logger.debug(f"Invalid action: {e}")
+            env_logger.error(e, exc_info=True)
             next_state = current.state.apply().cast(State)
             action_data = e.to_action_data()
 
