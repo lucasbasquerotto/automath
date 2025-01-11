@@ -128,11 +128,12 @@ class Environment:
             node_id += 1
             idx = node_id - 1
             node_type_id = node_types.index(type(node)) + 1
-            context_node_id = (
+            next_context_node_id = (
                 (context_parent_node_id + (node_id - parent_id))
                 if context_parent_node_id > 0
                 else (1 if isinstance(node, state.IContext) else 0)
             )
+            context_node_id = (next_context_node_id - 1) if next_context_node_id >= 1 else 0
             assert node_type_id > 0
             result[idx][0] = node_id
             result[idx][1] = parent_id
@@ -177,7 +178,7 @@ class Environment:
                         node_id,
                         inner_arg_id,
                         scope_id,
-                        context_node_id,
+                        next_context_node_id,
                         arg,
                     ))
 
@@ -208,6 +209,20 @@ class Environment:
                 return sympy.Symbol(f'{name_str}[{type_name_str}]')
             else:
                 raise ValueError(f'Invalid value type: {type(value_aux)}')
+
+        if isinstance(node, core.Placeholder):
+            name_str = r"\text{" + name + r"<" + str(node_id) + r">}"
+            scope_id = node.parent_scope.apply()
+            scope_id_str = r"{" + sympy.latex(cls.symbolic(scope_id, node_types)) + r"}"
+            index = node.index.apply()
+            index_str = r"{" + sympy.latex(cls.symbolic(index, node_types)) + r"}"
+            type_node = node.type_node.apply()
+            type_node_str = (
+                r"[" + sympy.latex(cls.symbolic(type_node, node_types)) + r"]"
+                if not isinstance(type_node, core.UnknownType)
+                else ''
+            )
+            return sympy.Symbol(f'{name_str}_{index_str}^{scope_id_str}{type_node_str}')
 
         raw_args = [arg.as_node for arg in node.args if isinstance(arg, core.INode)]
         assert len(raw_args) == len(node.args)

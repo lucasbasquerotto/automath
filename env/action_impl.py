@@ -104,10 +104,8 @@ class CreateScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
         new_node = Scratch.with_optional(node)
         new_args = list(scratch_group.as_tuple) + [new_node]
 
-        return State(
-            state.definition_group.apply(),
-            state.args_outer_group.apply(),
-            scratch_group.func(*new_args),
+        return state.with_new_args(
+            scratch_group=scratch_group.func(*new_args),
         )
 
 class CreateScratch(
@@ -602,10 +600,8 @@ class CreateArgsGroupOutput(GeneralAction, IInstantiable):
         args_outer_group = state.args_outer_group.apply().cast(PartialArgsOuterGroup)
         new_args = list(args_outer_group.as_tuple) + [new_args_group]
 
-        return State(
-            state.definition_group.apply(),
-            args_outer_group.func(*new_args),
-            state.scratch_group.apply(),
+        return state.with_new_args(
+            args_outer_group=args_outer_group.func(*new_args),
         )
 
 class CreateArgsGroup(
