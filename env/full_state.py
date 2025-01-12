@@ -37,7 +37,6 @@ from env.meta_env import (
     IBasicAction,
     SubtypeOuterGroup,
     DetailedType,
-    GoalNode,
     GeneralTypeGroup,
     IActionOutput)
 
@@ -118,10 +117,8 @@ class FullState(InheritableNode, IFullState, IFromSingleChild[MetaInfo], IInstan
         )
 
     def goal_achieved(self) -> bool:
-        meta = self.meta.apply().cast(MetaInfo)
         state = self.current_state.apply().cast(State)
-        goal = meta.goal.apply().cast(GoalNode)
-        return goal.evaluate(state)
+        return state.goal_achieved()
 
     def node_types(self) -> tuple[type[INode], ...]:
         meta = self.meta.apply().cast(MetaInfo)

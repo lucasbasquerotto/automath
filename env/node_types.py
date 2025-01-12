@@ -1,28 +1,30 @@
 from env.core import (
     INode,
     TmpNestedArg,
-    ExtendedTypeGroup,
-    CountableTypeGroup,
+    Eq,
     IInstantiable)
-from env.state import State, StateDefinitionGroup
+from env.state import State, StateScratchIndex
 from env.meta_env import GoalNode
 
-class HaveDefinition(GoalNode, IInstantiable):
+class HaveScratch(GoalNode[INode, StateScratchIndex], IInstantiable):
 
-    idx_definition_expr = 0
+    idx_definition_expr = 1
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            INode,
-        ]))
+    def goal_type(cls):
+        return INode
+
+    @classmethod
+    def eval_param_type(cls):
+        return StateScratchIndex
 
     @property
     def definition_expr(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_definition_expr)
 
-    def evaluate(self, state: State) -> bool:
-        definition = self.args[0]
-        group = state.definition_group.apply().cast(StateDefinitionGroup)
-        definitions = [d.definition_expr.apply() for d in group.as_tuple]
-        return definition in definitions
+    def evaluate(self, state: State, eval_param: StateScratchIndex):
+        goal = self.goal.apply()
+        assert isinstance(eval_param, StateScratchIndex)
+        scratch = eval_param.find_in_node(state).value_or_raise
+        content = scratch.content
+        return Eq(content, goal)

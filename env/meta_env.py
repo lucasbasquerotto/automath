@@ -28,15 +28,42 @@ from env.state import State
 from env.env_utils import load_all_superclasses
 
 T = typing.TypeVar('T', bound=INode)
+K = typing.TypeVar('K', bound=INode)
 
 ###########################################################
 ####################### META ITEMS ########################
 ###########################################################
 
-class GoalNode(InheritableNode, ABC):
+class GoalNode(InheritableNode, typing.Generic[T, K], ABC):
 
-    def evaluate(self, state: State) -> bool:
+    idx_goal = 1
+    idx_eval_param_type = 2
+
+    @classmethod
+    def goal_type(cls) -> type[T]:
         raise NotImplementedError
+
+    @classmethod
+    def eval_param_type(cls) -> type[K]:
+        raise NotImplementedError
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup(
+            cls.goal_type().as_type(),
+            cls.eval_param_type().as_type(),
+        ))
+
+    @property
+    def goal(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_goal)
+
+    def evaluate(self, state: State, eval_param: K) -> IBoolean:
+        raise NotImplementedError
+
+    @classmethod
+    def with_goal(cls, goal: T) -> typing.Self:
+        return cls(goal, cls.eval_param_type().as_type())
 
 class IMetaData(INode, ABC):
     pass

@@ -1547,7 +1547,25 @@ class IsInsideRange(InheritableNode, IBoolean, IInstantiable):
             return None
         return min_value.as_int <= value.as_int <= max_value.as_int
 
-class IntBooleanNode(BaseInt, IBoolean, IInstantiable):
+class BaseIntBooleanNode(BaseInt, IBoolean, IDefault, ABC):
+
+    @classmethod
+    def create(cls) -> typing.Self:
+        return cls(0)
+
+    @property
+    def as_bool(self) -> bool | None:
+        if self.as_int == 0:
+            return False
+        if self.as_int == 1:
+            return True
+        return None
+
+class IntBooleanNode(BaseIntBooleanNode, IInstantiable):
+
+    @classmethod
+    def create(cls) -> typing.Self:
+        return cls(0)
 
     @property
     def as_bool(self) -> bool | None:
@@ -1563,10 +1581,6 @@ class MultiArgBooleanNode(InheritableNode, IBoolean, ABC):
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup.rest(IBoolean.as_type())
 
-    @property
-    def as_bool(self) -> bool | None:
-        raise NotImplementedError
-
 class DoubleIntBooleanNode(InheritableNode, IBoolean, ABC):
 
     @classmethod
@@ -1575,10 +1589,6 @@ class DoubleIntBooleanNode(InheritableNode, IBoolean, ABC):
             IInt,
             IInt,
         ]))
-
-    @property
-    def as_bool(self) -> bool | None:
-        raise NotImplementedError
 
 class AndNode(MultiArgBooleanNode, IInstantiable):
 

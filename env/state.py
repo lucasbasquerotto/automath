@@ -27,6 +27,9 @@ from env.core import (
     CountableTypeGroup,
     DefaultGroup,
     Eq,
+    AndNode,
+    IBoolean,
+    BaseIntBooleanNode,
     TmpNestedArg,
     TmpNestedArgs,
     IInstantiable,
@@ -39,6 +42,39 @@ K = typing.TypeVar('K', bound=INode)
 #################### STATE DEFINITIONS ####################
 ###########################################################
 
+class IGoalAchieved(IBoolean, ABC):
+    pass
+
+class GoalAchieved(BaseIntBooleanNode, IGoalAchieved, IInstantiable):
+    pass
+
+class GroupGoalAchieved(BaseGroup[IGoalAchieved], IGoalAchieved, IInstantiable):
+
+    @classmethod
+    def item_type(cls):
+        return IGoalAchieved
+
+    @property
+    def as_bool(self) -> bool | None:
+        return AndNode(*self.args).as_bool
+
+class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
+
+    idx_goal_achieved = 1
+
+    @classmethod
+    def create(cls) -> typing.Self:
+        return cls(GoalAchieved.create())
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            IGoalAchieved,
+        ]))
+
+    @property
+    def goal_achieved(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_goal_achieved)
 
 class IContext(INode, ABC):
     pass
@@ -62,6 +98,18 @@ class Scratch(OpaqueScope[OptionalContext[INode]], IInstantiable):
     @classmethod
     def with_optional(cls, optional: IOptional[INode]) -> typing.Self:
         return cls.with_content(OptionalContext.from_optional(optional))
+
+    @property
+    def raw_id(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_id)
+
+    @property
+    def child(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_child)
+
+    @property
+    def content(self) -> INode:
+        return self.child.apply().cast(OptionalContext).value_or_raise
 
 class ScratchGroup(BaseGroup[Scratch], IInstantiable):
 
@@ -185,13 +233,15 @@ class StateDefinitionGroup(BaseGroup[StateDefinition], IInstantiable):
 
 class State(InheritableNode, IDefault, IInstantiable):
 
-    idx_scratch_group = 1
-    idx_args_outer_group = 2
-    idx_definition_group = 3
+    idx_meta_info = 1
+    idx_scratch_group = 2
+    idx_args_outer_group = 3
+    idx_definition_group = 4
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            StateMetaInfo,
             ScratchGroup,
             PartialArgsOuterGroup,
             StateDefinitionGroup,
@@ -200,10 +250,15 @@ class State(InheritableNode, IDefault, IInstantiable):
     @classmethod
     def create(cls) -> typing.Self:
         return cls(
+            StateMetaInfo.create(),
             ScratchGroup(),
             PartialArgsOuterGroup(),
             StateDefinitionGroup(),
         )
+
+    @property
+    def meta_info(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_meta_info)
 
     @property
     def scratch_group(self) -> TmpNestedArg:
@@ -217,13 +272,21 @@ class State(InheritableNode, IDefault, IInstantiable):
     def definition_group(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_definition_group)
 
+    def goal_achieved(self) -> bool:
+        meta_info = self.meta_info.apply().cast(StateMetaInfo)
+        goal_achieved = meta_info.goal_achieved.apply().cast(IGoalAchieved)
+        result = goal_achieved.as_bool is True
+        return result
+
     def with_new_args(
         self,
+        meta_info: StateMetaInfo | None = None,
         scratch_group: ScratchGroup | None = None,
         args_outer_group: PartialArgsOuterGroup | None = None,
         definition_group: StateDefinitionGroup | None = None,
     ) -> typing.Self:
         return self.func(
+            meta_info or self.meta_info.apply(),
             scratch_group or self.scratch_group.apply(),
             args_outer_group or self.args_outer_group.apply(),
             definition_group or self.definition_group.apply(),
@@ -232,11 +295,13 @@ class State(InheritableNode, IDefault, IInstantiable):
     @classmethod
     def from_args(
         cls,
+        meta_info: StateMetaInfo | None = None,
         scratch_group: ScratchGroup | None = None,
         args_outer_group: PartialArgsOuterGroup | None = None,
         definition_group: StateDefinitionGroup | None = None,
     ) -> typing.Self:
         return cls(
+            meta_info or StateMetaInfo.create(),
             scratch_group or ScratchGroup(),
             args_outer_group or PartialArgsOuterGroup(),
             definition_group or StateDefinitionGroup())
@@ -244,6 +309,7 @@ class State(InheritableNode, IDefault, IInstantiable):
     @classmethod
     def from_raw(
         cls,
+        meta_info: StateMetaInfo | None = None,
         scratchs: tuple[INode | None, ...] | None = None,
         args_groups: tuple[PartialArgsGroup, ...] | None = None,
         definitions: tuple[StateDefinition, ...] | None = None,
@@ -251,10 +317,11 @@ class State(InheritableNode, IDefault, IInstantiable):
         scratchs = scratchs or tuple()
         args_groups = args_groups or tuple()
         definitions = definitions or tuple()
-        return cls(
-            ScratchGroup.from_raw_items(scratchs),
-            PartialArgsOuterGroup.from_items(args_groups),
-            StateDefinitionGroup.from_items(definitions))
+        return cls.from_args(
+            meta_info=meta_info,
+            scratch_group=ScratchGroup.from_raw_items(scratchs),
+            args_outer_group=PartialArgsOuterGroup.from_items(args_groups),
+            definition_group=StateDefinitionGroup.from_items(definitions))
 
 ###########################################################
 ######################### INDICES #########################
@@ -281,43 +348,6 @@ class IStateIndex(ITypedIndex[State, T], typing.Generic[T], ABC):
 
 class StateIntIndex(BaseInt, IStateIndex[T], ITypedIntIndex[State, T], typing.Generic[T], ABC):
     pass
-
-class StateDefinitionIndex(StateIntIndex[StateDefinition], IInstantiable):
-
-    @classmethod
-    def item_type(cls):
-        return StateDefinition
-
-    def find_in_outer_node(self, node: State) -> IOptional[StateDefinition]:
-        return self.find_arg(node.definition_group.apply())
-
-    def replace_in_outer_target(
-        self,
-        target: State,
-        new_node: StateDefinition,
-    ) -> IOptional[State]:
-        definitions = list(target.definition_group.apply().cast(StateDefinitionGroup).as_tuple)
-        for i, definition in enumerate(definitions):
-            if self.as_int == (i+1):
-                Eq(
-                    new_node.definition_key.apply(),
-                    definition.definition_key.apply(),
-                ).raise_on_false()
-                definitions[i] = new_node
-                return Optional(target.with_new_args(
-                    definition_group=StateDefinitionGroup.from_items(definitions),
-                ))
-        return Optional.create()
-
-    def remove_in_outer_target(self, target: State) -> IOptional[State]:
-        definitions = list(target.definition_group.apply().cast(StateDefinitionGroup).as_tuple)
-        for i, _ in enumerate(definitions):
-            if self.as_int == (i+1):
-                definitions.pop(i)
-                return Optional(target.with_new_args(
-                    definition_group=StateDefinitionGroup.from_items(definitions),
-                ))
-        return Optional.create()
 
 class StateScratchIndex(StateIntIndex[Scratch], IInstantiable):
 
@@ -465,3 +495,40 @@ class StateArgsGroupArgIndex(InheritableNode, IStateIndex[INode], IInstantiable)
         result = group_index.replace_in_outer_target(target, new_group)
 
         return Optional(result)
+
+class StateDefinitionIndex(StateIntIndex[StateDefinition], IInstantiable):
+
+    @classmethod
+    def item_type(cls):
+        return StateDefinition
+
+    def find_in_outer_node(self, node: State) -> IOptional[StateDefinition]:
+        return self.find_arg(node.definition_group.apply())
+
+    def replace_in_outer_target(
+        self,
+        target: State,
+        new_node: StateDefinition,
+    ) -> IOptional[State]:
+        definitions = list(target.definition_group.apply().cast(StateDefinitionGroup).as_tuple)
+        for i, definition in enumerate(definitions):
+            if self.as_int == (i+1):
+                Eq(
+                    new_node.definition_key.apply(),
+                    definition.definition_key.apply(),
+                ).raise_on_false()
+                definitions[i] = new_node
+                return Optional(target.with_new_args(
+                    definition_group=StateDefinitionGroup.from_items(definitions),
+                ))
+        return Optional.create()
+
+    def remove_in_outer_target(self, target: State) -> IOptional[State]:
+        definitions = list(target.definition_group.apply().cast(StateDefinitionGroup).as_tuple)
+        for i, _ in enumerate(definitions):
+            if self.as_int == (i+1):
+                definitions.pop(i)
+                return Optional(target.with_new_args(
+                    definition_group=StateDefinitionGroup.from_items(definitions),
+                ))
+        return Optional.create()
