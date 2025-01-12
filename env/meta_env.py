@@ -34,7 +34,10 @@ K = typing.TypeVar('K', bound=INode)
 ####################### META ITEMS ########################
 ###########################################################
 
-class GoalNode(InheritableNode, typing.Generic[T, K], ABC):
+class IGoal(INode, ABC):
+    pass
+
+class Goal(InheritableNode, typing.Generic[T, K], ABC):
 
     idx_goal = 1
     idx_eval_param_type = 2
@@ -64,6 +67,12 @@ class GoalNode(InheritableNode, typing.Generic[T, K], ABC):
     @classmethod
     def with_goal(cls, goal: T) -> typing.Self:
         return cls(goal, cls.eval_param_type().as_type())
+
+class GoalGroup(InheritableNode, ABC):
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup.rest(TypeNode(IGoal))
 
 class IMetaData(INode, ABC):
     pass
@@ -261,7 +270,7 @@ class MetaInfo(InheritableNode, IInstantiable):
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            GoalNode,
+            Goal,
             MetaInfoOptions,
             GeneralTypeGroup[INode],
             GeneralTypeGroup[IBasicAction],
@@ -285,7 +294,7 @@ class MetaInfo(InheritableNode, IInstantiable):
     @classmethod
     def with_defaults(
         cls,
-        goal: GoalNode,
+        goal: Goal,
         all_types: typing.Sequence[TypeNode],
         allowed_actions: typing.Sequence[TypeNode[IAction]] | None = None,
     ) -> typing.Self:

@@ -4,9 +4,9 @@ from env.core import (
     Eq,
     IInstantiable)
 from env.state import State, StateScratchIndex
-from env.meta_env import GoalNode
+from env.meta_env import Goal
 
-class HaveScratch(GoalNode[INode, StateScratchIndex], IInstantiable):
+class HaveScratch(Goal[INode, StateScratchIndex], IInstantiable):
 
     idx_definition_expr = 1
 

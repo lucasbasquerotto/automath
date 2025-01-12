@@ -950,6 +950,16 @@ class DefaultGroup(BaseGroup[INode], IInstantiable):
     def item_type(cls):
         return INode
 
+class NestedArgIndexGroup(BaseGroup[IInt], IInstantiable):
+
+    @classmethod
+    def item_type(cls):
+        return IInt
+
+    def apply(self, node: BaseNode) -> BaseNode:
+        args_indices = [arg.as_int for arg in self.args]
+        return node.nested_args(tuple(args_indices)).apply()
+
 class IntGroup(BaseGroup[IInt], IInstantiable):
 
     @classmethod

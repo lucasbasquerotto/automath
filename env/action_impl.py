@@ -19,6 +19,7 @@ from env.core import (
     IsEmpty,
     CountableTypeGroup,
     IOptional,
+    NestedArgIndexGroup,
     Eq,
     IInstantiable)
 from env.state import (
@@ -29,7 +30,9 @@ from env.state import (
     ScratchNodeIndex,
     StateArgsGroupIndex,
     PartialArgsOuterGroup,
+    StateMetaInfo,
     PartialArgsGroup)
+from env.meta_env import MetaInfo, IGoal, Goal
 from env.full_state import (
     FullState,
     FullStateIntIndex,
@@ -41,6 +44,47 @@ from env.action import (
     IBasicAction,
     BasicAction,
     GeneralAction)
+
+###########################################################
+####################### GOAL ACTION #######################
+###########################################################
+
+class VerifyGoalOutput(GeneralAction, IInstantiable):
+
+    idx_nested_args_indices = 1
+    idx_node = 2
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            Optional[NestedArgIndexGroup],
+            INode,
+        ]))
+
+    def apply(self, full_state: FullState) -> State:
+        nested_args_wrapper = self.nested_arg(self.idx_nested_args_indices).apply()
+        node = self.nested_arg(self.idx_node).apply()
+        assert isinstance(nested_args_wrapper, Optional)
+
+        goal = full_state.nested_args((FullState.idx_meta, MetaInfo.idx_goal)).apply().cast(IGoal)
+        nested_args_indices = nested_args_wrapper.value
+
+        if nested_args_indices is not None:
+            assert isinstance(nested_args_indices, NestedArgIndexGroup)
+            goal = nested_args_indices.apply(goal).cast(IGoal)
+
+        assert isinstance(goal, Goal)
+
+        state = full_state.current_state.apply().cast(State)
+        assert isinstance(node, goal.eval_param_type())
+        goal.evaluate(state, node).raise_on_false()
+
+        meta_info = state.meta_info.apply().cast(StateMetaInfo)
+        new_meta_info = meta_info.with_goal_achieved(nested_args_wrapper)
+
+        new_state = state.with_new_args(meta_info=new_meta_info)
+
+        return new_state
 
 ###########################################################
 ################## SCRATCH BASE ACTIONS ###################

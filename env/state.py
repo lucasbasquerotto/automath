@@ -26,6 +26,7 @@ from env.core import (
     ITypedIntIndex,
     CountableTypeGroup,
     DefaultGroup,
+    NestedArgIndexGroup,
     Eq,
     AndNode,
     IBoolean,
@@ -46,9 +47,12 @@ class IGoalAchieved(IBoolean, ABC):
     pass
 
 class GoalAchieved(BaseIntBooleanNode, IGoalAchieved, IInstantiable):
-    pass
 
-class GroupGoalAchieved(BaseGroup[IGoalAchieved], IGoalAchieved, IInstantiable):
+    @classmethod
+    def achieved(cls) -> typing.Self:
+        return cls(1)
+
+class GoalAchievedGroup(BaseGroup[IGoalAchieved], IGoalAchieved, IInstantiable):
 
     @classmethod
     def item_type(cls):
@@ -75,6 +79,33 @@ class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
     @property
     def goal_achieved(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_goal_achieved)
+
+    def with_goal_achieved(
+        self,
+        nested_args_wrapper: Optional[NestedArgIndexGroup],
+    ) -> typing.Self:
+        nested_args_indices = nested_args_wrapper.value
+        goal = self.goal_achieved.apply().cast(IGoalAchieved)
+        groups: list[tuple[int, GoalAchievedGroup]] = []
+
+        if nested_args_indices is not None:
+            idxs = [idx.as_int for idx in nested_args_indices.as_tuple]
+            for idx in idxs:
+                assert isinstance(goal, GoalAchievedGroup)
+                groups.append((idx, goal))
+                goal = goal.args[idx-1]
+
+        assert isinstance(goal, GoalAchieved)
+        assert goal.as_bool is False
+        goal = GoalAchieved.achieved()
+
+        for idx, group in groups[::-1]:
+            replaced = NodeArgIndex(idx-1).replace_in_target(group, goal)
+            goal = replaced.value_or_raise
+
+        return self.func(goal)
+
+
 
 class IContext(INode, ABC):
     pass
