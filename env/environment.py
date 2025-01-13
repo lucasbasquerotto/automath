@@ -255,4 +255,3 @@ class Environment:
         current_state = self.full_state.current_state.apply()
         node_types = self.full_state.node_types()
         return self.symbolic(current_state, node_types)
-
