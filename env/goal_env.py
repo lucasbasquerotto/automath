@@ -11,7 +11,7 @@ T = typing.TypeVar("T")
 class GoalEnv(Environment):
     def __init__(
         self,
-        goal: meta_env.Goal,
+        goal: meta_env.IGoal,
         reward_evaluator: reward.IRewardEvaluator | None = None,
         allowed_actions: typing.Sequence[action.IAction] | None = None,
         max_steps: int | None = None,

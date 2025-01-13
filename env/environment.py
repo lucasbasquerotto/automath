@@ -78,7 +78,7 @@ class Environment:
     ):
         self._initial_state = initial_state
         self._full_state = initial_state
-        self._reward_evaluator = reward_evaluator or reward_module.DefaultRewardEvaluator()
+        self._reward_evaluator = reward_evaluator or reward_module.DefaultRewardEvaluator.create()
         self._max_steps = max_steps
         self._current_step = 0
 

@@ -26,6 +26,8 @@ from env.state import (
     State,
     Scratch,
     PartialArgsGroup,
+    GoalAchieved,
+    GoalAchievedGroup,
     StateDefinition)
 from env.meta_env import (
     MetaInfo,
@@ -38,6 +40,9 @@ from env.meta_env import (
     SubtypeOuterGroup,
     DetailedType,
     GeneralTypeGroup,
+    IGoal,
+    Goal,
+    GoalGroup,
     IActionOutput)
 
 T = typing.TypeVar('T', bound=INode)
@@ -61,6 +66,22 @@ class HistoryNode(InheritableNode, IDefault, IInstantiable):
     @classmethod
     def create(cls):
         return cls(State.create(), Optional.create())
+
+    @classmethod
+    def _create_goal_achieved_with_goal(cls, goal: IGoal):
+        if isinstance(goal, Goal):
+            return GoalAchieved.create()
+        if isinstance(goal, GoalGroup):
+            return GoalAchievedGroup(*[
+                cls._create_goal_achieved_with_goal(sub_goal)
+                for sub_goal in goal.as_tuple
+            ])
+        raise NotImplementedError(type(goal))
+
+    @classmethod
+    def create_with_goal(cls, goal: IGoal):
+        goal_achieved = cls._create_goal_achieved_with_goal(goal)
+        return cls(State.create_with_goal(goal_achieved), Optional.create())
 
     @property
     def state(self) -> TmpNestedArg:
@@ -96,7 +117,8 @@ class FullState(InheritableNode, IFullState, IFromSingleChild[MetaInfo], IInstan
 
     @classmethod
     def with_child(cls, child: MetaInfo) -> typing.Self:
-        return cls.new(child, HistoryNode.create(), HistoryGroupNode())
+        goal = child.goal.apply().cast(IGoal)
+        return cls.new(child, HistoryNode.create_with_goal(goal), HistoryGroupNode())
 
     @property
     def meta(self) -> TmpNestedArg:

@@ -17,7 +17,7 @@ class IRewardEvaluator(INode, ABC):
 
 class DefaultRewardEvaluator(InheritableNode, IRewardEvaluator, IDefault, IInstantiable):
 
-    idx_goal_reward = 0
+    idx_goal_reward = 1
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -27,7 +27,7 @@ class DefaultRewardEvaluator(InheritableNode, IRewardEvaluator, IDefault, IInsta
 
     @classmethod
     def create(cls):
-        cls(Integer(10000))
+        return cls(Integer(10000))
 
     @property
     def goal_reward(self) -> TmpNestedArg:

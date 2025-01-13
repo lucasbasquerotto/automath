@@ -71,6 +71,10 @@ class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
         return cls(GoalAchieved.create())
 
     @classmethod
+    def create_with_goal(cls, goal_achieved: IGoalAchieved) -> typing.Self:
+        return cls(goal_achieved)
+
+    @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             IGoalAchieved,
@@ -282,6 +286,15 @@ class State(InheritableNode, IDefault, IInstantiable):
     def create(cls) -> typing.Self:
         return cls(
             StateMetaInfo.create(),
+            ScratchGroup(),
+            PartialArgsOuterGroup(),
+            StateDefinitionGroup(),
+        )
+
+    @classmethod
+    def create_with_goal(cls, goal_achieved: IGoalAchieved) -> typing.Self:
+        return cls(
+            StateMetaInfo.create_with_goal(goal_achieved),
             ScratchGroup(),
             PartialArgsOuterGroup(),
             StateDefinitionGroup(),
