@@ -1,4 +1,4 @@
-from env.core import FunctionExpr, Param, AndNode, OrNode, IntBooleanNode
+from env.core import FunctionExpr, Param, And, Or, IntBoolean
 from env.goal_env import GoalEnv
 from env.node_types import HaveScratch
 
@@ -23,9 +23,9 @@ def test_env():
     p1, p2, p3 = params
     goal = HaveScratch(
         FunctionExpr.with_child(
-            OrNode(
-                AndNode(p1, p2, IntBooleanNode(1)),
-                AndNode(p2, p3),
+            Or(
+                And(p1, p2, IntBoolean(1)),
+                And(p2, p3),
             ),
         )
     )

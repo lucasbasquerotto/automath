@@ -28,9 +28,9 @@ from env.core import (
     DefaultGroup,
     NestedArgIndexGroup,
     Eq,
-    AndNode,
+    And,
     IBoolean,
-    BaseIntBooleanNode,
+    BaseIntBoolean,
     TmpNestedArg,
     TmpNestedArgs,
     IInstantiable,
@@ -46,7 +46,7 @@ K = typing.TypeVar('K', bound=INode)
 class IGoalAchieved(IBoolean, ABC):
     pass
 
-class GoalAchieved(BaseIntBooleanNode, IGoalAchieved, IInstantiable):
+class GoalAchieved(BaseIntBoolean, IGoalAchieved, IInstantiable):
 
     @classmethod
     def achieved(cls) -> typing.Self:
@@ -60,7 +60,7 @@ class GoalAchievedGroup(BaseGroup[IGoalAchieved], IGoalAchieved, IInstantiable):
 
     @property
     def as_bool(self) -> bool | None:
-        return AndNode(*self.args).as_bool
+        return And(*self.args).as_bool
 
 class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
 

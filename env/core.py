@@ -1557,7 +1557,7 @@ class IsInsideRange(InheritableNode, IBoolean, IInstantiable):
             return None
         return min_value.as_int <= value.as_int <= max_value.as_int
 
-class BaseIntBooleanNode(BaseInt, IBoolean, IDefault, ABC):
+class BaseIntBoolean(BaseInt, IBoolean, IDefault, ABC):
 
     @classmethod
     def create(cls) -> typing.Self:
@@ -1571,7 +1571,7 @@ class BaseIntBooleanNode(BaseInt, IBoolean, IDefault, ABC):
             return True
         return None
 
-class IntBooleanNode(BaseIntBooleanNode, IInstantiable):
+class IntBoolean(BaseIntBoolean, IInstantiable):
 
     @classmethod
     def create(cls) -> typing.Self:
@@ -1600,7 +1600,7 @@ class DoubleIntBooleanNode(InheritableNode, IBoolean, ABC):
             IInt,
         ]))
 
-class AndNode(MultiArgBooleanNode, IInstantiable):
+class And(MultiArgBooleanNode, IInstantiable):
 
     @property
     def as_bool(self) -> bool | None:
@@ -1615,7 +1615,7 @@ class AndNode(MultiArgBooleanNode, IInstantiable):
                 return False
         return None if has_none else True
 
-class OrNode(MultiArgBooleanNode, IInstantiable):
+class Or(MultiArgBooleanNode, IInstantiable):
 
     @property
     def as_bool(self) -> bool | None:
