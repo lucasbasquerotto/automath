@@ -1,4 +1,4 @@
-from test_suite import structural_test
+from test_suite import basic_test
 
 def test():
-    structural_test.test()
+    basic_test.test()
