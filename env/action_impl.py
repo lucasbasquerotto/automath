@@ -62,16 +62,17 @@ class VerifyGoalOutput(GeneralAction, IInstantiable):
         ]))
 
     def apply(self, full_state: FullState) -> State:
-        nested_args_wrapper = self.nested_arg(self.idx_nested_args_indices).apply()
+        nested_args_wrapper = self.nested_arg(
+            self.idx_nested_args_indices
+        ).apply().cast(Optional[NestedArgIndexGroup])
         node = self.nested_arg(self.idx_node).apply()
-        assert isinstance(nested_args_wrapper, Optional)
 
         goal = full_state.nested_args((FullState.idx_meta, MetaInfo.idx_goal)).apply().cast(IGoal)
         nested_args_indices = nested_args_wrapper.value
 
         if nested_args_indices is not None:
             assert isinstance(nested_args_indices, NestedArgIndexGroup)
-            goal = nested_args_indices.apply(goal).cast(IGoal)
+            goal = nested_args_indices.apply(goal.as_node).cast(IGoal)
 
         assert isinstance(goal, Goal)
 
@@ -85,6 +86,61 @@ class VerifyGoalOutput(GeneralAction, IInstantiable):
         new_state = state.with_new_args(meta_info=new_meta_info)
 
         return new_state
+
+class VerifyGoal(
+    BasicAction[VerifyGoalOutput],
+    IInstantiable,
+):
+
+    idx_scratch_index_nested_indices = 1
+    idx_type_index = 2
+    idx_index_value = 3
+
+    @classmethod
+    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+        scratch_index_nested_indices: Optional[StateScratchIndex] = (
+            Optional.create()
+            if arg1 == 0
+            else Optional(StateScratchIndex(arg1)))
+        type_index = MetaFromIntTypeIndex(arg2)
+        index_value = Integer(arg3)
+        return cls(scratch_index_nested_indices, type_index, index_value)
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            Optional[StateScratchIndex],
+            MetaFromIntTypeIndex,
+            Integer,
+        ]))
+
+    def _run(self, full_state: FullState) -> VerifyGoalOutput:
+        scratch_index_nested_indices = self.nested_arg(
+            self.idx_scratch_index_nested_indices
+        ).apply().cast(Optional[StateScratchIndex])
+        type_index = self.nested_arg(self.idx_type_index).apply()
+        index_value = self.nested_arg(self.idx_index_value).apply()
+        assert isinstance(scratch_index_nested_indices, Optional)
+        assert isinstance(type_index, MetaFromIntTypeIndex)
+        assert isinstance(index_value, Integer)
+
+        state = full_state.current_state.apply().cast(State)
+        scratch_index = scratch_index_nested_indices.value
+        nested = Optional[NestedArgIndexGroup]()
+        if scratch_index is not None:
+            assert isinstance(scratch_index, StateScratchIndex)
+            scratch = scratch_index.find_in_outer_node(state).value_or_raise
+            assert isinstance(scratch, Scratch)
+            scratch.validate()
+            content = scratch.content
+            assert isinstance(content, NestedArgIndexGroup)
+            nested = Optional(content)
+
+        node_type = type_index.find_in_outer_node(full_state).value_or_raise
+        assert isinstance(node_type, TypeNode) and issubclass(node_type.type, IFromInt)
+        content = node_type.type.from_int(index_value.as_int)
+
+        return VerifyGoalOutput(nested, content)
 
 ###########################################################
 ################## SCRATCH BASE ACTIONS ###################
