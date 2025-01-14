@@ -12,6 +12,16 @@ def get_current_state(env: GoalEnv):
         (full_state.FullState.idx_current, full_state.HistoryNode.idx_state)
     ).apply().cast(state.State)
 
+def get_remaining_steps(env: GoalEnv) -> int | None:
+    value = env.full_state.nested_args(
+        (
+            full_state.FullState.idx_current,
+            full_state.HistoryNode.idx_meta_data,
+            meta_env.MetaData.idx_remaining_steps,
+        )
+    ).apply().cast(core.IOptional[core.IInt]).value
+    return value.as_int if value is not None else None
+
 def get_last_history_action(env: GoalEnv):
     history = env.full_state.history.apply().cast(full_state.HistoryGroupNode)
     last = history.as_tuple[-1]
@@ -67,7 +77,10 @@ def goal_test():
                     meta_info=state_meta,
                     scratchs=scratchs,
                 ),
-                meta_data=meta_env.MetaData.with_args(remaining_steps=len(scratchs)),
+                meta_data=meta_env.MetaData.with_args(
+                    remaining_steps=len(scratchs)
+                    if scratch_goal_1 in scratchs
+                    else None),
             )
         )
 
@@ -92,6 +105,7 @@ def goal_test():
 
         current_state = get_current_state(env)
         initial_state = current_state
+        prev_remaining_steps = get_remaining_steps(env)
 
         assert current_state == state.State.from_raw(
             scratchs=[scratch_goal],
@@ -111,6 +125,10 @@ def goal_test():
         )
         act = output if direct else raw_action
         env.step(act)
+        if prev_remaining_steps is not None:
+            remaining_steps = get_remaining_steps(env)
+            assert remaining_steps == prev_remaining_steps - 1
+            prev_remaining_steps = remaining_steps
         current_state = get_current_state(env)
         last_history_action = get_last_history_action(env)
 
@@ -172,6 +190,7 @@ def goal_test():
         assert has_goal(env=env, goal=goal)
 
         current_state = get_current_state(env)
+        prev_remaining_steps = get_remaining_steps(env)
 
         state_meta = state.StateMetaInfo.with_goal_achieved(state.GoalAchievedGroup(
             state.GoalAchieved.create(),
@@ -200,6 +219,10 @@ def goal_test():
             state.StateScratchIndex(1),
         )
         env.step(raw_action)
+        if prev_remaining_steps is not None:
+            remaining_steps = get_remaining_steps(env)
+            assert remaining_steps == prev_remaining_steps - 1
+            prev_remaining_steps = remaining_steps
         current_state = get_current_state(env)
         last_history_action = get_last_history_action(env)
 
@@ -229,6 +252,10 @@ def goal_test():
             state.StateScratchIndex(2),
         )
         env.step(output)
+        if prev_remaining_steps is not None:
+            remaining_steps = get_remaining_steps(env)
+            assert remaining_steps == prev_remaining_steps - 1
+            prev_remaining_steps = remaining_steps
         current_state = get_current_state(env)
         last_history_action = get_last_history_action(env)
 
@@ -266,6 +293,10 @@ def goal_test():
             state.StateScratchIndex(scratch_idx),
         )
         env.step(raw_action)
+        if prev_remaining_steps is not None:
+            remaining_steps = get_remaining_steps(env)
+            assert remaining_steps == prev_remaining_steps - 1
+            prev_remaining_steps = remaining_steps
         current_state = get_current_state(env)
         last_history_action = get_last_history_action(env)
 
