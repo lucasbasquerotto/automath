@@ -87,7 +87,7 @@ class VerifyGoalOutput(GeneralAction, IInstantiable):
         goal.evaluate(state, node).raise_on_not_true()
 
         meta_info = state.meta_info.apply().cast(StateMetaInfo)
-        new_meta_info = meta_info.with_goal_achieved(nested_args_wrapper)
+        new_meta_info = meta_info.apply_goal_achieved(nested_args_wrapper)
 
         new_state = state.with_new_args(meta_info=new_meta_info)
 

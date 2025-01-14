@@ -59,7 +59,7 @@ def goal_test():
         goal: node_types_module.HaveScratch,
         scratchs: typing.Sequence[core.INode | None],
     ) -> full_state.FullState:
-        state_meta = state.StateMetaInfo.create_with_goal_expr(goal)
+        state_meta = state.StateMetaInfo.with_goal_expr(goal)
         return full_state.FullState.with_args(
             meta=meta,
             current=full_state.HistoryNode.with_args(
@@ -115,7 +115,9 @@ def goal_test():
         last_history_action = get_last_history_action(env)
 
         if not error:
-            state_meta = state.StateMetaInfo.create_with_goal_achieved(state.GoalAchieved.achieved())
+            state_meta = state.StateMetaInfo.with_goal_achieved(
+                state.GoalAchieved.achieved()
+            )
             assert current_state.meta_info.apply() == state_meta
             assert current_state == state.State.from_raw(
                 meta_info=state_meta,
@@ -171,7 +173,7 @@ def goal_test():
 
         current_state = get_current_state(env)
 
-        state_meta = state.StateMetaInfo.create_with_goal_achieved(state.GoalAchievedGroup(
+        state_meta = state.StateMetaInfo.with_goal_achieved(state.GoalAchievedGroup(
             state.GoalAchieved.create(),
             state.GoalAchievedGroup(
                 state.GoalAchieved.create(),
@@ -202,7 +204,7 @@ def goal_test():
         last_history_action = get_last_history_action(env)
 
         # Verify that 1st Goal was achieved
-        state_meta = state.StateMetaInfo.create_with_goal_achieved(state.GoalAchievedGroup(
+        state_meta = state.StateMetaInfo.with_goal_achieved(state.GoalAchievedGroup(
             state.GoalAchieved.achieved(),
             state.GoalAchievedGroup(
                 state.GoalAchieved.create(),
@@ -231,7 +233,7 @@ def goal_test():
         last_history_action = get_last_history_action(env)
 
         # Verify that 2nd Goal was achieved
-        state_meta = state.StateMetaInfo.create_with_goal_achieved(state.GoalAchievedGroup(
+        state_meta = state.StateMetaInfo.with_goal_achieved(state.GoalAchievedGroup(
             state.GoalAchieved.achieved(),
             state.GoalAchievedGroup(
                 state.GoalAchieved.achieved(),
@@ -269,7 +271,7 @@ def goal_test():
 
         if not error:
             # Verify that 3rd Goal was achieved
-            state_meta = state.StateMetaInfo.create_with_goal_achieved(state.GoalAchievedGroup(
+            state_meta = state.StateMetaInfo.with_goal_achieved(state.GoalAchievedGroup(
                 state.GoalAchieved.achieved(),
                 state.GoalAchievedGroup(
                     state.GoalAchieved.achieved(),

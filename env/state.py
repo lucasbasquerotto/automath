@@ -121,12 +121,12 @@ class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
         return cls(GoalAchieved.create())
 
     @classmethod
-    def create_with_goal_achieved(cls, goal_achieved: IGoalAchieved) -> typing.Self:
+    def with_goal_achieved(cls, goal_achieved: IGoalAchieved) -> typing.Self:
         return cls(goal_achieved)
 
     @classmethod
-    def create_with_goal_expr(cls, goal: IGoal) -> typing.Self:
-        return cls.create_with_goal_achieved(IGoalAchieved.from_goal_expr(goal))
+    def with_goal_expr(cls, goal: IGoal) -> typing.Self:
+        return cls.with_goal_achieved(IGoalAchieved.from_goal_expr(goal))
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -138,7 +138,7 @@ class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
     def goal_achieved(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_goal_achieved)
 
-    def with_goal_achieved(
+    def apply_goal_achieved(
         self,
         nested_args_wrapper: Optional[NestedArgIndexGroup],
     ) -> typing.Self:
@@ -348,7 +348,7 @@ class State(InheritableNode, IDefault, IInstantiable):
     @classmethod
     def create_with_goal(cls, goal_achieved: IGoalAchieved) -> typing.Self:
         return cls(
-            StateMetaInfo.create_with_goal_achieved(goal_achieved),
+            StateMetaInfo.with_goal_achieved(goal_achieved),
             ScratchGroup(),
             PartialArgsOuterGroup(),
             StateDefinitionGroup(),
