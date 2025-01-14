@@ -14,6 +14,7 @@ from env.core import (
     CountableTypeGroup,
     IInt,
     Integer,
+    GreaterThan,
     TmpNestedArg,
     IInstantiable)
 from env.state import State
@@ -196,41 +197,38 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
 
 
     def run_action(self, full_state: FullState) -> FullState:
-        try:
-            meta = full_state.meta.apply().cast(MetaInfo)
-            options = meta.options.apply().cast(MetaInfoOptions)
-            max_history_state_size = options.max_history_state_size.apply().cast(
-                IOptional[IInt]
-            ).value
-            current = full_state.current.apply().cast(HistoryNode)
-
-            try:
-                full_output = self.inner_run(full_state)
-                output = full_output.output.apply().cast(IActionOutput)
-                next_state = full_output.new_state.apply().cast(State)
-                action_data = ActionData.from_args(
-                    action=Optional(self),
-                    output=Optional(output),
-                    exception=Optional.create(),
-                )
-            except InvalidActionException as e:
-                env_logger.error(e, exc_info=True)
-                next_state = current.state.apply().cast(State)
-                action_data = e.to_action_data()
-        except InvalidNodeException as e:
-            env_logger.error(e, exc_info=True)
-            next_state = current.state.apply().cast(State)
-            action_data = ActionData.from_args(
-                action=Optional.create(),
-                output=Optional.create(),
-                exception=Optional(e.info),
-            )
-
+        meta = full_state.meta.apply().cast(MetaInfo)
+        options = meta.options.apply().cast(MetaInfoOptions)
+        max_history_state_size = options.max_history_state_size.apply().cast(
+            IOptional[IInt]
+        ).value
+        current = full_state.current.apply().cast(HistoryNode)
         meta_data = current.meta_data.apply().cast(MetaData)
         remaining_steps_opt = meta_data.remaining_steps.apply().cast(Optional[Integer])
         remaining_steps = (
-            (remaining_steps_opt.value.as_int - 1)
+            (remaining_steps_opt.value.as_int)
             if remaining_steps_opt.value is not None
+            else None)
+
+        try:
+            if remaining_steps is not None:
+                GreaterThan.with_args(remaining_steps, 0).raise_on_not_true()
+            full_output = self.inner_run(full_state)
+            output = full_output.output.apply().cast(IActionOutput)
+            next_state = full_output.new_state.apply().cast(State)
+            action_data = ActionData.from_args(
+                action=Optional(self),
+                output=Optional(output),
+                exception=Optional.create(),
+            )
+        except InvalidActionException as e:
+            env_logger.error(e, exc_info=True)
+            next_state = current.state.apply().cast(State)
+            action_data = e.to_action_data()
+
+        remaining_steps = (
+            remaining_steps - 1
+            if remaining_steps is not None
             else None)
         meta_data = meta_data.with_new_args(
             remaining_steps
@@ -247,10 +245,10 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
         if max_history_state_size is not None:
             history = history[-max_history_state_size.as_int:]
 
-        return FullState(
-            full_state.meta.apply(),
-            current,
-            HistoryGroupNode.from_items(history),
+        return FullState.with_args(
+            meta=meta,
+            current=current,
+            history=HistoryGroupNode.from_items(history),
         )
 
 class BasicAction(

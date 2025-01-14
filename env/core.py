@@ -1622,6 +1622,10 @@ class DoubleIntBooleanNode(InheritableNode, IBoolean, ABC):
             IInt,
         ]))
 
+    @classmethod
+    def with_args(cls, value_1: int, value_2: int) -> DoubleIntBooleanNode:
+        return cls(Integer(value_1), Integer(value_2))
+
 class And(MultiArgBooleanNode, IInstantiable):
 
     @property
