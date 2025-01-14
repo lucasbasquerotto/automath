@@ -602,7 +602,14 @@ class OptionalBase(InheritableNode, IOptional[T], typing.Generic[T], ABC):
         return cls(o.value) if o.value is not None else cls()
 
 class Optional(OptionalBase[T], IInstantiable, typing.Generic[T]):
-    pass
+
+    @classmethod
+    def with_value(cls, value: T | None) -> typing.Self:
+        return cls(value) if value is not None else cls()
+
+    @classmethod
+    def with_int(cls, value: int | None) -> Optional[Integer]:
+        return Optional(Integer(value)) if value is not None else Optional()
 
 ###########################################################
 ######################## WRAPPERS #########################

@@ -12,6 +12,7 @@ from env.core import (
     InheritableNode,
     INode,
     BaseGroup,
+    Integer,
     TypeNode,
     Optional,
     BaseInt,
@@ -24,7 +25,7 @@ from env.core import (
     BaseNode,
     TmpNestedArg,
     IInstantiable)
-from env.state import State
+from env.state import State, IGoal
 from env.env_utils import load_all_superclasses
 
 T = typing.TypeVar('T', bound=INode)
@@ -34,48 +35,40 @@ K = typing.TypeVar('K', bound=INode)
 ####################### META ITEMS ########################
 ###########################################################
 
-class IGoal(INode, ABC):
-    pass
+class MetaData(InheritableNode, IInstantiable):
 
-class Goal(InheritableNode, IGoal, typing.Generic[T, K], ABC):
-
-    idx_goal = 1
-    idx_eval_param_type = 2
-
-    @classmethod
-    def goal_type(cls) -> type[T]:
-        raise NotImplementedError
-
-    @classmethod
-    def eval_param_type(cls) -> type[K]:
-        raise NotImplementedError
+    idx_remaining_steps = 1
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup(
-            cls.goal_type().as_type(),
-            cls.eval_param_type().as_type(),
-        ))
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            Optional[Integer],
+        ]))
 
     @property
-    def goal(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_goal)
-
-    def evaluate(self, state: State, eval_param: K) -> IBoolean:
-        raise NotImplementedError
+    def remaining_steps(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_remaining_steps)
 
     @classmethod
-    def with_goal(cls, goal: T) -> typing.Self:
-        return cls(goal, cls.eval_param_type().as_type())
+    def with_args(
+        cls,
+        remaining_steps: int | None = None,
+    ) -> typing.Self:
+        return cls(
+            Optional.with_int(remaining_steps),
+        )
 
-class GoalGroup(BaseGroup[IGoal], IGoal, IInstantiable):
-
-    @classmethod
-    def item_type(cls):
-        return IGoal
-
-class IMetaData(INode, ABC):
-    pass
+    def with_new_args(
+        self,
+        remaining_steps: int | None = None,
+    ) -> typing.Self:
+        return self.func(
+            (
+                Optional.with_int(remaining_steps)
+                if remaining_steps is not None
+                else self.remaining_steps.apply()
+            ),
+        )
 
 class GeneralTypeGroup(BaseGroup[TypeNode[T]], IInstantiable, typing.Generic[T]):
 
@@ -92,6 +85,7 @@ class DetailedType(
     IInstantiable,
     typing.Generic[T],
 ):
+
     idx_node_type = 1
     idx_superclasses = 2
 
@@ -177,21 +171,39 @@ class SubtypeOuterGroup(InheritableNode, IInstantiable, typing.Generic[T]):
             assert all(issubclass(item.type, common_type.type) for item in subtypes.as_tuple)
 
 class MetaInfoOptions(InheritableNode, IDefault, IInstantiable):
+
     idx_max_history_state_size = 1
+    idx_max_steps = 2
 
     @classmethod
     def create(cls) -> typing.Self:
-        return cls(Optional.create())
+        return cls(Optional.create(), Optional.create())
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            IOptional[IInt],
             IOptional[IInt],
         ]))
 
     @property
     def max_history_state_size(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_max_history_state_size)
+
+    @property
+    def max_steps(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_max_steps)
+
+    @classmethod
+    def with_args(
+        cls,
+        max_history_state_size: int | None = None,
+        max_steps: int | None = None,
+    ) -> typing.Self:
+        return cls(
+            Optional.with_int(max_history_state_size),
+            Optional.with_int(max_steps),
+        )
 
 ###########################################################
 ################## FULL STATE BASE NODES ##################
@@ -297,6 +309,8 @@ class MetaInfo(InheritableNode, IInstantiable):
         goal: IGoal,
         all_types: typing.Sequence[TypeNode],
         allowed_actions: typing.Sequence[TypeNode[IAction]] | None = None,
+        max_history_state_size: int | None = None,
+        max_steps: int | None = None,
     ) -> typing.Self:
         for t in all_types:
             if issubclass(t.type, IInstantiable):
@@ -324,7 +338,10 @@ class MetaInfo(InheritableNode, IInstantiable):
         )
         return cls(
             goal,
-            MetaInfoOptions.create(),
+            MetaInfoOptions.with_args(
+                max_history_state_size=max_history_state_size,
+                max_steps=max_steps,
+            ),
             all_types_group,
             allowed_basic_actions_group,
             allowed_actions_group,

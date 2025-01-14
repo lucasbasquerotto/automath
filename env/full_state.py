@@ -19,20 +19,22 @@ from env.core import (
     Optional,
     ExtendedTypeGroup,
     CountableTypeGroup,
+    IExceptionInfo,
     TmpNestedArg,
     TmpNestedArgs,
-    IInstantiable)
+    IInstantiable,
+)
 from env.state import (
     State,
     Scratch,
     PartialArgsGroup,
     IGoalAchieved,
-    GoalAchieved,
-    GoalAchievedGroup,
-    StateDefinition)
+    IGoal,
+    StateDefinition,
+)
 from env.meta_env import (
     MetaInfo,
-    IMetaData,
+    MetaData,
     IFullState,
     IFullStateIndex,
     IFullStateIntIndex,
@@ -41,12 +43,50 @@ from env.meta_env import (
     SubtypeOuterGroup,
     DetailedType,
     GeneralTypeGroup,
-    IGoal,
-    Goal,
-    GoalGroup,
-    IActionOutput)
+    IActionOutput,
+    MetaInfoOptions,
+)
 
 T = typing.TypeVar('T', bound=INode)
+
+###########################################################
+####################### ACTION DATA #######################
+###########################################################
+
+class ActionData(InheritableNode, IInstantiable):
+
+    idx_action = 1
+    idx_output = 2
+    idx_exception = 3
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            IOptional[IAction],
+            IOptional[IActionOutput],
+            IOptional[IExceptionInfo],
+        ]))
+
+    @property
+    def action(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_action)
+
+    @property
+    def output(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_output)
+
+    @property
+    def exception(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_exception)
+
+    @classmethod
+    def from_args(
+        cls,
+        action: IOptional[IAction],
+        output: IOptional[IActionOutput],
+        exception: IOptional[IExceptionInfo],
+    ) -> typing.Self:
+        return cls(action, output, exception)
 
 ###########################################################
 ################# FULL STATE DEFINITIONS ##################
@@ -56,38 +96,42 @@ class HistoryNode(InheritableNode, IDefault, IInstantiable):
 
     idx_state = 1
     idx_meta_data = 2
+    idx_action_data = 3
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             State,
-            IOptional[IMetaData],
+            MetaData,
+            IOptional[ActionData],
         ]))
 
     @classmethod
     def create(cls):
-        return cls(State.create(), Optional.create())
+        return cls(State.create(), Optional.create(), Optional.create())
 
     @classmethod
-    def create_goal_achieved_with_goal(cls, goal: IGoal) -> IGoalAchieved:
-        if isinstance(goal, Goal):
-            return GoalAchieved.create()
-        if isinstance(goal, GoalGroup):
-            return GoalAchievedGroup(*[
-                cls.create_goal_achieved_with_goal(sub_goal)
-                for sub_goal in goal.as_tuple
-            ])
-        raise NotImplementedError(type(goal))
+    def create_with_goal_and_options(
+        cls,
+        goal: IGoal,
+        remaining_steps: int | None = None,
+    ) -> typing.Self:
+        goal_achieved = IGoalAchieved.from_goal_expr(goal)
+        return cls(
+            State.create_with_goal(goal_achieved),
+            MetaData.with_args(remaining_steps=remaining_steps),
+            Optional.create(),
+        )
 
     @classmethod
-    def create_with_goal(cls, goal: IGoal):
-        goal_achieved = cls.create_goal_achieved_with_goal(goal)
-        return cls(State.create_with_goal(goal_achieved), Optional.create())
-
-    @classmethod
-    def with_args(cls, state: State, metadata: IOptional[IMetaData] | None = None):
-        metadata = metadata if metadata is not None else Optional.create()
-        return cls(state, metadata)
+    def with_args(
+        cls,
+        state: State,
+        meta_data: MetaData,
+        action_data: IOptional[ActionData] | None = None,
+    ):
+        action_data = action_data if action_data is not None else Optional.create()
+        return cls(state, meta_data, action_data)
 
     @property
     def state(self) -> TmpNestedArg:
@@ -96,6 +140,10 @@ class HistoryNode(InheritableNode, IDefault, IInstantiable):
     @property
     def meta_data(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_meta_data)
+
+    @property
+    def action_data(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_action_data)
 
 class HistoryGroupNode(BaseGroup[HistoryNode], IInstantiable):
 
@@ -123,7 +171,7 @@ class FullState(InheritableNode, IFullState, IFromSingleChild[MetaInfo], IInstan
 
     @classmethod
     def with_child(cls, child: MetaInfo) -> typing.Self:
-        return cls.with_args(child)
+        return cls.with_args(meta=child)
 
     @classmethod
     def with_args(
@@ -133,7 +181,13 @@ class FullState(InheritableNode, IFullState, IFromSingleChild[MetaInfo], IInstan
         history: HistoryGroupNode | None = None,
     ) -> typing.Self:
         goal = meta.goal.apply().cast(IGoal)
-        current = current if current is not None else HistoryNode.create_with_goal(goal)
+        options = meta.options.apply().cast(MetaInfoOptions)
+        max_steps_opt = options.max_steps.apply().cast(Optional[IInt])
+        max_steps = max_steps_opt.value.as_int if max_steps_opt.value is not None else None
+        current = current if current is not None else HistoryNode.create_with_goal_and_options(
+            goal=goal,
+            remaining_steps=max_steps,
+        )
         history = history if history is not None else HistoryGroupNode()
         return cls.new(meta, current, history)
 

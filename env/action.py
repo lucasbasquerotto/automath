@@ -13,18 +13,19 @@ from env.core import (
     ExtendedTypeGroup,
     CountableTypeGroup,
     IInt,
+    Integer,
     TmpNestedArg,
     IInstantiable)
 from env.state import State
 from env.meta_env import (
-    IMetaData,
+    MetaData,
     MetaInfo,
     IActionOutput,
     IAction,
     IBasicAction,
     GeneralTypeGroup,
     MetaInfoOptions)
-from env.full_state import FullState, HistoryNode, HistoryGroupNode
+from env.full_state import FullState, HistoryNode, HistoryGroupNode, ActionData
 
 ###########################################################
 ########################## MAIN ###########################
@@ -51,45 +52,6 @@ class FullActionOutput(InheritableNode, IInstantiable):
     @property
     def new_state(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_new_state)
-
-###########################################################
-####################### ACTION DATA #######################
-###########################################################
-
-class ActionData(InheritableNode, IMetaData, IInstantiable):
-
-    idx_action = 1
-    idx_output = 2
-    idx_exception = 3
-
-    @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            IOptional[IAction],
-            IOptional[IActionOutput],
-            IOptional[IExceptionInfo],
-        ]))
-
-    @property
-    def action(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_action)
-
-    @property
-    def output(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_output)
-
-    @property
-    def exception(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_exception)
-
-    @classmethod
-    def from_args(
-        cls,
-        action: IOptional[IAction],
-        output: IOptional[IActionOutput],
-        exception: IOptional[IExceptionInfo],
-    ) -> typing.Self:
-        return cls(action, output, exception)
 
 ###########################################################
 #################### ACTION EXCEPTION #####################
@@ -234,26 +196,50 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
 
 
     def run_action(self, full_state: FullState) -> FullState:
-        meta = full_state.meta.apply().cast(MetaInfo)
-        options = meta.options.apply().cast(MetaInfoOptions)
-        max_history_state_size = options.max_history_state_size.apply().cast(IOptional[IInt]).value
-        current = full_state.current.apply().cast(HistoryNode)
-
         try:
-            full_output = self.inner_run(full_state)
-            output = full_output.output.apply().cast(IActionOutput)
-            next_state = full_output.new_state.apply().cast(State)
-            action_data = ActionData.from_args(
-                action=Optional(self),
-                output=Optional(output),
-                exception=Optional.create(),
-            )
-        except InvalidActionException as e:
+            meta = full_state.meta.apply().cast(MetaInfo)
+            options = meta.options.apply().cast(MetaInfoOptions)
+            max_history_state_size = options.max_history_state_size.apply().cast(
+                IOptional[IInt]
+            ).value
+            current = full_state.current.apply().cast(HistoryNode)
+
+            try:
+                full_output = self.inner_run(full_state)
+                output = full_output.output.apply().cast(IActionOutput)
+                next_state = full_output.new_state.apply().cast(State)
+                action_data = ActionData.from_args(
+                    action=Optional(self),
+                    output=Optional(output),
+                    exception=Optional.create(),
+                )
+            except InvalidActionException as e:
+                env_logger.error(e, exc_info=True)
+                next_state = current.state.apply().cast(State)
+                action_data = e.to_action_data()
+        except InvalidNodeException as e:
             env_logger.error(e, exc_info=True)
             next_state = current.state.apply().cast(State)
-            action_data = e.to_action_data()
+            action_data = ActionData.from_args(
+                action=Optional.create(),
+                output=Optional.create(),
+                exception=Optional(e.info),
+            )
 
-        current = HistoryNode(next_state, Optional(action_data))
+        meta_data = current.meta_data.apply().cast(MetaData)
+        remaining_steps_opt = meta_data.remaining_steps.apply().cast(Optional[Integer])
+        remaining_steps = (
+            (remaining_steps_opt.value.as_int - 1)
+            if remaining_steps_opt.value is not None
+            else None)
+        meta_data = meta_data.with_new_args(
+            remaining_steps
+        )
+
+        current = HistoryNode.with_args(
+            state=next_state,
+            meta_data=meta_data,
+            action_data=Optional(action_data))
 
         history = list(full_state.history.apply().cast(HistoryGroupNode).as_tuple)
         history.append(current)

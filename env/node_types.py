@@ -1,10 +1,9 @@
 from env.core import (
     INode,
-    TmpNestedArg,
     Eq,
+    TmpNestedArg,
     IInstantiable)
-from env.state import State, StateScratchIndex
-from env.meta_env import Goal
+from env.state import State, StateScratchIndex, Goal
 
 class HaveScratch(Goal[INode, StateScratchIndex], IInstantiable):
 

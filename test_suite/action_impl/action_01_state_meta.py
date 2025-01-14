@@ -2,7 +2,6 @@ import typing
 from env import core
 from env import action_impl
 from env import state
-from env import action
 from env import meta_env
 from env import full_state
 from env import node_types as node_types_module
@@ -13,12 +12,12 @@ def get_current_state(env: GoalEnv):
         (full_state.FullState.idx_current, full_state.HistoryNode.idx_state)
     ).apply().cast(state.State)
 
-def get_last_history_meta(env: GoalEnv):
+def get_last_history_action(env: GoalEnv):
     history = env.full_state.history.apply().cast(full_state.HistoryGroupNode)
     last = history.as_tuple[-1]
-    return last.meta_data.apply().nested_arg(
+    return last.action_data.apply().nested_arg(
         core.Optional.idx_value
-    ).apply().cast(action.ActionData)
+    ).apply().cast(full_state.ActionData)
 
 def get_from_int_type_index(node_type: type[core.INode], env: GoalEnv):
     selected_types = env.full_state.meta.apply().nested_args((
@@ -60,16 +59,15 @@ def goal_test():
         goal: node_types_module.HaveScratch,
         scratchs: typing.Sequence[core.INode | None],
     ) -> full_state.FullState:
-        state_meta = state.StateMetaInfo.create_with_goal(
-            full_state.HistoryNode.create_goal_achieved_with_goal(goal)
-        )
+        state_meta = state.StateMetaInfo.create_with_goal_expr(goal)
         return full_state.FullState.with_args(
             meta=meta,
             current=full_state.HistoryNode.with_args(
-                state.State.from_raw(
+                state=state.State.from_raw(
                     meta_info=state_meta,
                     scratchs=scratchs,
-                )
+                ),
+                meta_data=meta_env.MetaData.with_args(remaining_steps=len(scratchs)),
             )
         )
 
@@ -114,16 +112,16 @@ def goal_test():
         act = output if direct else raw_action
         env.step(act)
         current_state = get_current_state(env)
-        last_history_meta = get_last_history_meta(env)
+        last_history_action = get_last_history_action(env)
 
         if not error:
-            state_meta = state.StateMetaInfo.create_with_goal(state.GoalAchieved.achieved())
+            state_meta = state.StateMetaInfo.create_with_goal_achieved(state.GoalAchieved.achieved())
             assert current_state.meta_info.apply() == state_meta
             assert current_state == state.State.from_raw(
                 meta_info=state_meta,
                 scratchs=[scratch_goal],
             )
-            assert last_history_meta == action.ActionData.from_args(
+            assert last_history_action == full_state.ActionData.from_args(
                 action=core.Optional(output if direct else full_action),
                 output=core.Optional(output),
                 exception=core.Optional(),
@@ -134,19 +132,19 @@ def goal_test():
             expected_action: core.Optional[core.INode] = core.Optional(
                 output if direct else full_action
             )
-            actual_action = last_history_meta.action.apply().cast(core.IOptional)
+            actual_action = last_history_action.action.apply().cast(core.IOptional)
             assert expected_action == actual_action
-            actual_output_opt = last_history_meta.output.apply().cast(core.IOptional)
+            actual_output_opt = last_history_action.output.apply().cast(core.IOptional)
             assert actual_output_opt == core.Optional(output)
             core.Not(
-                last_history_meta.exception.apply().cast(core.IOptional).is_empty()
+                last_history_action.exception.apply().cast(core.IOptional).is_empty()
             ).raise_on_not_true()
             assert env.full_state.goal_achieved() is False
 
     def test_goal_specified_with_group(error=False):
-        goal = meta_env.GoalGroup(
+        goal = state.GoalGroup(
             goal_1,
-            meta_env.GoalGroup(
+            state.GoalGroup(
                 goal_2,
                 goal_3,
             ),
@@ -173,7 +171,7 @@ def goal_test():
 
         current_state = get_current_state(env)
 
-        state_meta = state.StateMetaInfo.create_with_goal(state.GoalAchievedGroup(
+        state_meta = state.StateMetaInfo.create_with_goal_achieved(state.GoalAchievedGroup(
             state.GoalAchieved.create(),
             state.GoalAchievedGroup(
                 state.GoalAchieved.create(),
@@ -201,10 +199,10 @@ def goal_test():
         )
         env.step(raw_action)
         current_state = get_current_state(env)
-        last_history_meta = get_last_history_meta(env)
+        last_history_action = get_last_history_action(env)
 
         # Verify that 1st Goal was achieved
-        state_meta = state.StateMetaInfo.create_with_goal(state.GoalAchievedGroup(
+        state_meta = state.StateMetaInfo.create_with_goal_achieved(state.GoalAchievedGroup(
             state.GoalAchieved.achieved(),
             state.GoalAchievedGroup(
                 state.GoalAchieved.create(),
@@ -216,7 +214,7 @@ def goal_test():
             meta_info=state_meta,
             scratchs=scratchs,
         )
-        assert last_history_meta == action.ActionData.from_args(
+        assert last_history_action == full_state.ActionData.from_args(
             action=core.Optional(full_action),
             output=core.Optional(output),
             exception=core.Optional(),
@@ -230,10 +228,10 @@ def goal_test():
         )
         env.step(output)
         current_state = get_current_state(env)
-        last_history_meta = get_last_history_meta(env)
+        last_history_action = get_last_history_action(env)
 
         # Verify that 2nd Goal was achieved
-        state_meta = state.StateMetaInfo.create_with_goal(state.GoalAchievedGroup(
+        state_meta = state.StateMetaInfo.create_with_goal_achieved(state.GoalAchievedGroup(
             state.GoalAchieved.achieved(),
             state.GoalAchievedGroup(
                 state.GoalAchieved.achieved(),
@@ -245,7 +243,7 @@ def goal_test():
             meta_info=state_meta,
             scratchs=scratchs,
         )
-        assert last_history_meta == action.ActionData.from_args(
+        assert last_history_action == full_state.ActionData.from_args(
             action=core.Optional(output),
             output=core.Optional(output),
             exception=core.Optional(),
@@ -267,11 +265,11 @@ def goal_test():
         )
         env.step(raw_action)
         current_state = get_current_state(env)
-        last_history_meta = get_last_history_meta(env)
+        last_history_action = get_last_history_action(env)
 
         if not error:
             # Verify that 3rd Goal was achieved
-            state_meta = state.StateMetaInfo.create_with_goal(state.GoalAchievedGroup(
+            state_meta = state.StateMetaInfo.create_with_goal_achieved(state.GoalAchievedGroup(
                 state.GoalAchieved.achieved(),
                 state.GoalAchievedGroup(
                     state.GoalAchieved.achieved(),
@@ -283,7 +281,7 @@ def goal_test():
                 meta_info=state_meta,
                 scratchs=scratchs,
             )
-            assert last_history_meta == action.ActionData.from_args(
+            assert last_history_action == full_state.ActionData.from_args(
                 action=core.Optional(full_action),
                 output=core.Optional(output),
                 exception=core.Optional(),
@@ -293,12 +291,12 @@ def goal_test():
             # Verify that 3rd Goal not achieved
             assert current_state == previous_state
             expected_action = core.Optional(full_action)
-            actual_action = last_history_meta.action.apply().cast(core.IOptional)
+            actual_action = last_history_action.action.apply().cast(core.IOptional)
             assert expected_action == actual_action
-            actual_output_opt = last_history_meta.output.apply().cast(core.IOptional)
+            actual_output_opt = last_history_action.output.apply().cast(core.IOptional)
             assert actual_output_opt == core.Optional(output)
             core.Not(
-                last_history_meta.exception.apply().cast(core.IOptional).is_empty()
+                last_history_action.exception.apply().cast(core.IOptional).is_empty()
             ).raise_on_not_true()
             assert env.full_state.goal_achieved() is False
 

@@ -33,8 +33,10 @@ from env.state import (
     PartialArgsOuterGroup,
     StateMetaInfo,
     PartialArgsGroup,
+    IGoal,
+    Goal,
 )
-from env.meta_env import MetaInfo, IGoal, Goal
+from env.meta_env import MetaInfo
 from env.full_state import (
     FullState,
     FullStateIntIndex,

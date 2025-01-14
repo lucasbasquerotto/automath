@@ -43,8 +43,58 @@ K = typing.TypeVar('K', bound=INode)
 #################### STATE DEFINITIONS ####################
 ###########################################################
 
-class IGoalAchieved(IBoolean, ABC):
+class IGoal(INode, ABC):
     pass
+
+class Goal(InheritableNode, IGoal, typing.Generic[T, K], ABC):
+
+    idx_goal = 1
+    idx_eval_param_type = 2
+
+    @classmethod
+    def goal_type(cls) -> type[T]:
+        raise NotImplementedError
+
+    @classmethod
+    def eval_param_type(cls) -> type[K]:
+        raise NotImplementedError
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup(
+            cls.goal_type().as_type(),
+            cls.eval_param_type().as_type(),
+        ))
+
+    @property
+    def goal(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_goal)
+
+    def evaluate(self, state: 'State', eval_param: K) -> IBoolean:
+        raise NotImplementedError
+
+    @classmethod
+    def with_goal(cls, goal: T) -> typing.Self:
+        return cls(goal, cls.eval_param_type().as_type())
+
+class GoalGroup(BaseGroup[IGoal], IGoal, IInstantiable):
+
+    @classmethod
+    def item_type(cls):
+        return IGoal
+
+class IGoalAchieved(IBoolean, ABC):
+
+    @classmethod
+    def from_goal_expr(cls, goal: IGoal) -> 'IGoalAchieved':
+        if isinstance(goal, Goal):
+            return GoalAchieved.create()
+        if isinstance(goal, GoalGroup):
+            return GoalAchievedGroup(*[
+                cls.from_goal_expr(sub_goal)
+                for sub_goal in goal.as_tuple
+            ])
+        raise NotImplementedError(type(goal))
 
 class GoalAchieved(BaseIntBoolean, IGoalAchieved, IInstantiable):
 
@@ -71,8 +121,12 @@ class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
         return cls(GoalAchieved.create())
 
     @classmethod
-    def create_with_goal(cls, goal_achieved: IGoalAchieved) -> typing.Self:
+    def create_with_goal_achieved(cls, goal_achieved: IGoalAchieved) -> typing.Self:
         return cls(goal_achieved)
+
+    @classmethod
+    def create_with_goal_expr(cls, goal: IGoal) -> typing.Self:
+        return cls.create_with_goal_achieved(IGoalAchieved.from_goal_expr(goal))
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -294,7 +348,7 @@ class State(InheritableNode, IDefault, IInstantiable):
     @classmethod
     def create_with_goal(cls, goal_achieved: IGoalAchieved) -> typing.Self:
         return cls(
-            StateMetaInfo.create_with_goal(goal_achieved),
+            StateMetaInfo.create_with_goal_achieved(goal_achieved),
             ScratchGroup(),
             PartialArgsOuterGroup(),
             StateDefinitionGroup(),
