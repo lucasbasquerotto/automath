@@ -184,6 +184,24 @@ class Environment:
 
         return result
 
+    def self_symbolic_str(self, node: core.BaseNode) -> str:
+        node_types = self.full_state.node_types()
+        return self.symbolic_str(node, node_types)
+
+    @classmethod
+    def symbolic_str(
+        cls,
+        node: core.BaseNode,
+        node_types: tuple[type[core.INode], ...],
+    ) -> str:
+        return str(
+            sympy.latex(cls.symbolic(node, node_types))
+        ).replace(r"\\", "\n").replace(r"\quad", "    ").replace(r"\text{}", "")
+
+    def self_symbolic(self, node: core.BaseNode) -> sympy.Basic:
+        node_types = self.full_state.node_types()
+        return self.symbolic(node, node_types)
+
     @classmethod
     def symbolic(
         cls,

@@ -106,13 +106,16 @@ class IOptional(IDefault, IFromSingleChild[T], typing.Generic[T], ABC):
             value = default_value
         return value
 
+    def is_empty(self) -> IsEmpty:
+        return IsEmpty(self)
+
     @property
     def value_or_raise(self) -> T:
         value = IsEmpty(self).value_or_raise
         return typing.cast(T, value)
 
     def raise_if_empty(self):
-        IsEmpty(self).raise_if_empty()
+        self.is_empty().raise_if_empty()
 
 class ISingleOptionalChild(ISingleChild[IOptional[T]], typing.Generic[T], ABC):
 
@@ -151,6 +154,10 @@ class IBoolean(INode):
 
     def raise_on_false(self):
         if self.as_bool is False:
+            raise self.to_exception()
+
+    def raise_on_not_true(self):
+        if self.as_bool is not True:
             raise self.to_exception()
 
     def to_exception(self):
@@ -1576,6 +1583,10 @@ class IntBoolean(BaseIntBoolean, IInstantiable):
     @classmethod
     def create(cls) -> typing.Self:
         return cls(0)
+
+    @classmethod
+    def create_true(cls) -> typing.Self:
+        return cls(1)
 
     @property
     def as_bool(self) -> bool | None:

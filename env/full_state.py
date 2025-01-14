@@ -26,6 +26,7 @@ from env.state import (
     State,
     Scratch,
     PartialArgsGroup,
+    IGoalAchieved,
     GoalAchieved,
     GoalAchievedGroup,
     StateDefinition)
@@ -68,20 +69,25 @@ class HistoryNode(InheritableNode, IDefault, IInstantiable):
         return cls(State.create(), Optional.create())
 
     @classmethod
-    def _create_goal_achieved_with_goal(cls, goal: IGoal):
+    def create_goal_achieved_with_goal(cls, goal: IGoal) -> IGoalAchieved:
         if isinstance(goal, Goal):
             return GoalAchieved.create()
         if isinstance(goal, GoalGroup):
             return GoalAchievedGroup(*[
-                cls._create_goal_achieved_with_goal(sub_goal)
+                cls.create_goal_achieved_with_goal(sub_goal)
                 for sub_goal in goal.as_tuple
             ])
         raise NotImplementedError(type(goal))
 
     @classmethod
     def create_with_goal(cls, goal: IGoal):
-        goal_achieved = cls._create_goal_achieved_with_goal(goal)
+        goal_achieved = cls.create_goal_achieved_with_goal(goal)
         return cls(State.create_with_goal(goal_achieved), Optional.create())
+
+    @classmethod
+    def with_args(cls, state: State, metadata: IOptional[IMetaData] | None = None):
+        metadata = metadata if metadata is not None else Optional.create()
+        return cls(state, metadata)
 
     @property
     def state(self) -> TmpNestedArg:
@@ -117,8 +123,19 @@ class FullState(InheritableNode, IFullState, IFromSingleChild[MetaInfo], IInstan
 
     @classmethod
     def with_child(cls, child: MetaInfo) -> typing.Self:
-        goal = child.goal.apply().cast(IGoal)
-        return cls.new(child, HistoryNode.create_with_goal(goal), HistoryGroupNode())
+        return cls.with_args(child)
+
+    @classmethod
+    def with_args(
+        cls,
+        meta: MetaInfo,
+        current: HistoryNode | None = None,
+        history: HistoryGroupNode | None = None,
+    ) -> typing.Self:
+        goal = meta.goal.apply().cast(IGoal)
+        current = current if current is not None else HistoryNode.create_with_goal(goal)
+        history = history if history is not None else HistoryGroupNode()
+        return cls.new(meta, current, history)
 
     @property
     def meta(self) -> TmpNestedArg:

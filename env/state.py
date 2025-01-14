@@ -153,7 +153,7 @@ class ScratchGroup(BaseGroup[Scratch], IInstantiable):
         return OpaqueScope[Scratch]
 
     @classmethod
-    def from_raw_items(cls, items: tuple[INode | None, ...]) -> typing.Self:
+    def from_raw_items(cls, items: typing.Sequence[INode | None]) -> typing.Self:
         return cls.from_items([
             Scratch.with_content(OptionalContext(s) if s is not None else OptionalContext())
             for s in items
@@ -337,7 +337,7 @@ class State(InheritableNode, IDefault, IInstantiable):
         )
 
     @classmethod
-    def from_args(
+    def with_args(
         cls,
         meta_info: StateMetaInfo | None = None,
         scratch_group: ScratchGroup | None = None,
@@ -354,14 +354,14 @@ class State(InheritableNode, IDefault, IInstantiable):
     def from_raw(
         cls,
         meta_info: StateMetaInfo | None = None,
-        scratchs: tuple[INode | None, ...] | None = None,
-        args_groups: tuple[PartialArgsGroup, ...] | None = None,
-        definitions: tuple[StateDefinition, ...] | None = None,
+        scratchs: typing.Sequence[INode | None] | None = None,
+        args_groups: typing.Sequence[PartialArgsGroup] | None = None,
+        definitions: typing.Sequence[StateDefinition] | None = None,
     ) -> typing.Self:
         scratchs = scratchs or tuple()
         args_groups = args_groups or tuple()
         definitions = definitions or tuple()
-        return cls.from_args(
+        return cls.with_args(
             meta_info=meta_info,
             scratch_group=ScratchGroup.from_raw_items(scratchs),
             args_outer_group=PartialArgsOuterGroup.from_items(args_groups),

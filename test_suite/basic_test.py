@@ -902,7 +902,7 @@ def basic_test():
         )),
         exception=Optional(),
     )
-    assert env.full_state.goal_achieved() is False
+    assert env.full_state.goal_achieved() is True
 
 def test():
     basic_test()

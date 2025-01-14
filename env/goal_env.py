@@ -12,6 +12,10 @@ class GoalEnv(Environment):
     def __init__(
         self,
         goal: meta_env.IGoal,
+        fn_initial_state: typing.Callable[
+            [meta_env.MetaInfo],
+            full_state.FullState,
+        ] | None = None,
         reward_evaluator: reward.IRewardEvaluator | None = None,
         allowed_actions: typing.Sequence[action.IAction] | None = None,
         max_steps: int | None = None,
@@ -26,9 +30,13 @@ class GoalEnv(Environment):
             all_types=all_types,
             allowed_actions=allowed_actions_typed,
         )
+        initial_state = (
+            fn_initial_state(meta)
+            if fn_initial_state
+            else full_state.FullState.with_child(meta))
 
         super().__init__(
-            initial_state=full_state.FullState.with_child(meta),
+            initial_state=initial_state,
             reward_evaluator=reward_evaluator,
             max_steps=max_steps,
         )

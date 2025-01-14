@@ -70,6 +70,18 @@ class ActionData(InheritableNode, IMetaData, IInstantiable):
             IOptional[IExceptionInfo],
         ]))
 
+    @property
+    def action(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_action)
+
+    @property
+    def output(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_output)
+
+    @property
+    def exception(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_exception)
+
     @classmethod
     def from_args(
         cls,

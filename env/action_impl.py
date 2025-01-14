@@ -78,7 +78,7 @@ class VerifyGoalOutput(GeneralAction, IInstantiable):
 
         state = full_state.current_state.apply().cast(State)
         assert isinstance(node, goal.eval_param_type())
-        goal.evaluate(state, node).raise_on_false()
+        goal.evaluate(state, node).raise_on_not_true()
 
         meta_info = state.meta_info.apply().cast(StateMetaInfo)
         new_meta_info = meta_info.with_goal_achieved(nested_args_wrapper)
