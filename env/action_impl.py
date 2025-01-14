@@ -21,7 +21,8 @@ from env.core import (
     IOptional,
     NestedArgIndexGroup,
     Eq,
-    IInstantiable)
+    IInstantiable,
+)
 from env.state import (
     State,
     Scratch,
@@ -31,7 +32,8 @@ from env.state import (
     StateArgsGroupIndex,
     PartialArgsOuterGroup,
     StateMetaInfo,
-    PartialArgsGroup)
+    PartialArgsGroup,
+)
 from env.meta_env import MetaInfo, IGoal, Goal
 from env.full_state import (
     FullState,
@@ -39,14 +41,16 @@ from env.full_state import (
     MetaDefaultTypeIndex,
     MetaFromIntTypeIndex,
     MetaSingleChildTypeIndex,
-    MetaFullStateIntIndexTypeIndex)
+    MetaFullStateIntIndexTypeIndex,
+)
 from env.action import (
     IBasicAction,
     BasicAction,
-    GeneralAction)
+    GeneralAction,
+)
 
 ###########################################################
-####################### GOAL ACTION #######################
+################### STATE META ACTIONS ####################
 ###########################################################
 
 class VerifyGoalOutput(GeneralAction, IInstantiable):
