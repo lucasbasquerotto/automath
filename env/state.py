@@ -104,7 +104,7 @@ class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
         goal = GoalAchieved.achieved()
 
         for idx, group in groups[::-1]:
-            replaced = NodeArgIndex(idx-1).replace_in_target(group, goal)
+            replaced = NodeArgIndex(idx).replace_in_target(group, goal)
             goal = replaced.value_or_raise
 
         return self.func(goal)

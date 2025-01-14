@@ -967,6 +967,10 @@ class NestedArgIndexGroup(BaseGroup[IInt], IInstantiable):
         args_indices = [arg.as_int for arg in self.args]
         return node.nested_args(tuple(args_indices)).apply()
 
+    @classmethod
+    def from_indices(cls, indices: typing.Sequence[int]) -> typing.Self:
+        return cls(*[Integer(i) for i in indices])
+
 class IntGroup(BaseGroup[IInt], IInstantiable):
 
     @classmethod

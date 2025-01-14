@@ -68,7 +68,7 @@ class Goal(InheritableNode, IGoal, typing.Generic[T, K], ABC):
     def with_goal(cls, goal: T) -> typing.Self:
         return cls(goal, cls.eval_param_type().as_type())
 
-class GoalGroup(BaseGroup[IGoal], IGoal, ABC):
+class GoalGroup(BaseGroup[IGoal], IGoal, IInstantiable):
 
     @classmethod
     def item_type(cls):

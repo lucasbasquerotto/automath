@@ -187,7 +187,7 @@ class ScratchWithNodeBaseActionOutput(GeneralAction, ABC):
         raise NotImplementedError
 
 ###########################################################
-##################### CREATE SCRATCH ######################
+##################### MANAGE SCRATCH ######################
 ###########################################################
 
 class CreateScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
@@ -624,6 +624,10 @@ class DefineScratchFromFunctionWithArgs(
 
         return DefineScratchOutput(scratch_index, Optional(fn_call))
 
+###########################################################
+##################### UPDATE SCRATCH ######################
+###########################################################
+
 class UpdateScratchFromAnother(
     BasicAction[DefineScratchOutput],
     IInstantiable,
@@ -669,7 +673,7 @@ class UpdateScratchFromAnother(
         return DefineScratchOutput(scratch_index, Optional(new_content))
 
 ###########################################################
-#################### CREATE ARGS GROUP ####################
+#################### MANAGE ARGS GROUP ####################
 ###########################################################
 
 class CreateArgsGroupOutput(GeneralAction, IInstantiable):
@@ -783,6 +787,30 @@ class CreateArgsGroup(
 
         return CreateArgsGroupOutput(index, new_args_group)
 
+class DeleteArgsGroupOutput(GeneralAction, IBasicAction[FullState], IInstantiable):
+
+    idx_args_group_index = 1
+
+    @classmethod
+    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+        args_group_index = StateArgsGroupIndex(arg1)
+        Eq.from_ints(arg2, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
+        return cls(args_group_index)
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            StateArgsGroupIndex,
+        ]))
+
+    def apply(self, full_state: FullState) -> State:
+        args_group_index = self.nested_arg(self.idx_args_group_index).apply()
+        assert isinstance(args_group_index, StateArgsGroupIndex)
+        state = full_state.current_state.apply().cast(State)
+        new_state = args_group_index.remove_in_outer_target(state).value_or_raise
+        return new_state
+
 ###########################################################
 ################## DEFINE ARGS GROUP ARG ##################
 ###########################################################
@@ -871,31 +899,3 @@ class DefineArgsGroup(
         assert isinstance(new_arg, IOptional)
 
         return DefineArgsGroupArgOutput(args_group_index, arg_index, new_arg)
-
-###########################################################
-#################### DELETE ARGS GROUP ####################
-###########################################################
-
-class DeleteArgsGroupOutput(GeneralAction, IBasicAction[FullState], IInstantiable):
-
-    idx_args_group_index = 1
-
-    @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
-        args_group_index = StateArgsGroupIndex(arg1)
-        Eq.from_ints(arg2, 0).raise_on_false()
-        Eq.from_ints(arg3, 0).raise_on_false()
-        return cls(args_group_index)
-
-    @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            StateArgsGroupIndex,
-        ]))
-
-    def apply(self, full_state: FullState) -> State:
-        args_group_index = self.nested_arg(self.idx_args_group_index).apply()
-        assert isinstance(args_group_index, StateArgsGroupIndex)
-        state = full_state.current_state.apply().cast(State)
-        new_state = args_group_index.remove_in_outer_target(state).value_or_raise
-        return new_state
