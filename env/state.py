@@ -3,6 +3,7 @@ from abc import ABC
 from env.core import (
     INode,
     IDefault,
+    BaseNode,
     IFunction,
     IOptional,
     OptionalBase,
@@ -96,6 +97,32 @@ class IGoalAchieved(IBoolean, ABC):
             ])
         raise NotImplementedError(type(goal))
 
+    def define_achieved(
+        self,
+        nested_args_wrapper: Optional[NestedArgIndexGroup],
+    ) -> typing.Self:
+        nested_args_indices = nested_args_wrapper.value
+        groups: list[tuple[int, GoalAchievedGroup]] = []
+        goal_achieved: IGoalAchieved = self
+
+        if nested_args_indices is not None:
+            idxs = [idx.as_int for idx in nested_args_indices.as_tuple]
+            for idx in idxs:
+                assert isinstance(goal_achieved, GoalAchievedGroup)
+                groups.append((idx, goal_achieved))
+                goal_achieved = goal_achieved.as_node.nested_arg(idx).apply().cast(IGoalAchieved)
+
+        assert isinstance(goal_achieved, GoalAchieved)
+        assert goal_achieved.as_bool is False
+        goal_achieved = GoalAchieved.achieved()
+
+        for idx, group in groups[::-1]:
+            replaced = NodeArgIndex(idx).replace_in_target(group, goal_achieved)
+            goal_achieved = replaced.value_or_raise
+
+        assert isinstance(goal_achieved, type(self))
+        return typing.cast(typing.Self, goal_achieved)
+
 class GoalAchieved(BaseIntBoolean, IGoalAchieved, IInstantiable):
 
     @classmethod
@@ -112,9 +139,49 @@ class GoalAchievedGroup(BaseGroup[IGoalAchieved], IGoalAchieved, IInstantiable):
     def as_bool(self) -> bool | None:
         return And(*self.args).as_bool
 
+class DynamicGoal(InheritableNode, IDefault, IInstantiable):
+
+    idx_goal = 1
+    idx_goal_achieved = 2
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            IGoal,
+            IGoalAchieved,
+        ]))
+
+    @classmethod
+    def from_goal_expr(cls, goal: IGoal) -> typing.Self:
+        return cls(goal, IGoalAchieved.from_goal_expr(goal))
+
+    @property
+    def goal(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_goal)
+
+    @property
+    def goal_achieved(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_goal_achieved)
+
+    def apply_goal_achieved(
+        self,
+        nested_args_wrapper: Optional[NestedArgIndexGroup],
+    ) -> typing.Self:
+        goal_achieved = self.goal_achieved.apply().cast(IGoalAchieved)
+        goal_achieved = goal_achieved.define_achieved(nested_args_wrapper)
+        result = NodeArgIndex(self.idx_goal_achieved).replace_in_target(self, goal_achieved)
+        return result.value_or_raise
+
+class DynamicGoalGroup(BaseGroup[DynamicGoal], IInstantiable):
+
+    @classmethod
+    def item_type(cls):
+        return DynamicGoal
+
 class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
 
     idx_goal_achieved = 1
+    idx_dynamic_goal_group = 2
 
     @classmethod
     def create(cls) -> typing.Self:
@@ -132,38 +199,46 @@ class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             IGoalAchieved,
+            DynamicGoalGroup,
         ]))
 
     @property
     def goal_achieved(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_goal_achieved)
 
+    @property
+    def dynamic_goal_group(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_dynamic_goal_group)
+
+    @classmethod
+    def with_args(
+        cls,
+        goal_achieved: IGoalAchieved | None = None,
+        dynamic_goal_group: DynamicGoalGroup | None = None,
+    ) -> typing.Self:
+        return cls(
+            goal_achieved or GoalAchieved.create(),
+            dynamic_goal_group or DynamicGoalGroup(),
+        )
+
+    def with_new_args(
+        self,
+        goal_achieved: IGoalAchieved | None = None,
+        dynamic_goal_group: DynamicGoalGroup | None = None,
+    ) -> typing.Self:
+        return self.with_args(
+            goal_achieved=goal_achieved,
+            dynamic_goal_group=dynamic_goal_group,
+        )
+
     def apply_goal_achieved(
         self,
         nested_args_wrapper: Optional[NestedArgIndexGroup],
     ) -> typing.Self:
-        nested_args_indices = nested_args_wrapper.value
-        goal = self.goal_achieved.apply().cast(IGoalAchieved)
-        groups: list[tuple[int, GoalAchievedGroup]] = []
-
-        if nested_args_indices is not None:
-            idxs = [idx.as_int for idx in nested_args_indices.as_tuple]
-            for idx in idxs:
-                assert isinstance(goal, GoalAchievedGroup)
-                groups.append((idx, goal))
-                goal = goal.args[idx-1]
-
-        assert isinstance(goal, GoalAchieved)
-        assert goal.as_bool is False
-        goal = GoalAchieved.achieved()
-
-        for idx, group in groups[::-1]:
-            replaced = NodeArgIndex(idx).replace_in_target(group, goal)
-            goal = replaced.value_or_raise
-
-        return self.func(goal)
-
-
+        goal_achieved = self.goal_achieved.apply().cast(IGoalAchieved)
+        goal_achieved = goal_achieved.define_achieved(nested_args_wrapper)
+        result = NodeArgIndex(self.idx_goal_achieved).replace_in_target(self, goal_achieved)
+        return result.value_or_raise
 
 class IContext(INode, ABC):
     pass
@@ -447,32 +522,71 @@ class IStateIndex(ITypedIndex[State, T], typing.Generic[T], ABC):
 class StateIntIndex(BaseInt, IStateIndex[T], ITypedIntIndex[State, T], typing.Generic[T], ABC):
     pass
 
+class StateDynamicGoalIndex(StateIntIndex[DynamicGoal], IInstantiable):
+
+    @classmethod
+    def item_type(cls):
+        return DynamicGoal
+
+    @classmethod
+    def _state_dynamic_goal_group(cls, state: State) -> DynamicGoalGroup:
+        return state.meta_info.apply().cast(
+            StateMetaInfo
+        ).dynamic_goal_group.apply().cast(DynamicGoalGroup)
+
+    @classmethod
+    def _update_state(
+        cls,
+        target: State,
+        group_opt: IOptional[DynamicGoalGroup],
+    ) -> IOptional[State]:
+        group = group_opt.value
+        if group is None:
+            return Optional.create()
+        assert isinstance(group, DynamicGoalGroup)
+        return Optional(target.with_new_args(
+            meta_info=target.meta_info.apply().cast(StateMetaInfo).with_new_args(
+                dynamic_goal_group=group,
+            ),
+        ))
+
+    def find_in_outer_node(self, node: State) -> IOptional[DynamicGoal]:
+        return self.find_arg(self._state_dynamic_goal_group(node))
+
+    def replace_in_outer_target(self, target: State, new_node: DynamicGoal) -> IOptional[State]:
+        group_opt = self.replace_arg(self._state_dynamic_goal_group(target), new_node)
+        return self._update_state(target, group_opt)
+
+    def remove_in_outer_target(self, target: State) -> IOptional[State]:
+        group_opt = self.remove_arg(self._state_dynamic_goal_group(target))
+        return self._update_state(target, group_opt)
+
 class StateScratchIndex(StateIntIndex[Scratch], IInstantiable):
 
     @classmethod
     def item_type(cls):
         return Scratch
 
+    @classmethod
+    def _update_state(cls, target: State, group_opt: IOptional[BaseNode]) -> IOptional[State]:
+        group = group_opt.value
+        if group is None:
+            return Optional.create()
+        assert isinstance(group, ScratchGroup)
+        return Optional(target.with_new_args(
+            scratch_group=group,
+        ))
+
     def find_in_outer_node(self, node: State) -> IOptional[Scratch]:
         return self.find_arg(node.scratch_group.apply())
 
     def replace_in_outer_target(self, target: State, new_node: Scratch) -> IOptional[State]:
-        group = self.replace_arg(target.scratch_group.apply(), new_node).value
-        if group is None:
-            return Optional.create()
-        assert isinstance(group, ScratchGroup)
-        return Optional(target.with_new_args(
-            scratch_group=group,
-        ))
+        group_opt = self.replace_arg(target.scratch_group.apply(), new_node)
+        return self._update_state(target, group_opt)
 
     def remove_in_outer_target(self, target: State) -> IOptional[State]:
-        group = self.remove_arg(target.scratch_group.apply()).value
-        if group is None:
-            return Optional.create()
-        assert isinstance(group, ScratchGroup)
-        return Optional(target.with_new_args(
-            scratch_group=group,
-        ))
+        group_opt = self.remove_arg(target.scratch_group.apply())
+        return self._update_state(target, group_opt)
 
 class ScratchNodeIndex(NodeIntBaseIndex, IInstantiable):
 
@@ -506,6 +620,14 @@ class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup], IInstantiable):
     def item_type(cls):
         return PartialArgsGroup
 
+    @classmethod
+    def _update_state(cls, target: State, group_opt: IOptional[BaseNode]) -> IOptional[State]:
+        args_outer_group = group_opt.value
+        if args_outer_group is None:
+            return Optional.create()
+        assert isinstance(args_outer_group, PartialArgsOuterGroup)
+        return Optional(target.with_new_args(args_outer_group=args_outer_group))
+
     def find_in_outer_node(self, node: State) -> IOptional[PartialArgsGroup]:
         return self.find_arg(node.args_outer_group.apply())
 
@@ -514,20 +636,12 @@ class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup], IInstantiable):
         target: State,
         new_node: PartialArgsGroup,
     ) -> IOptional[State]:
-        group = self.replace_arg(target.args_outer_group.apply(), new_node)
-        args_outer_group = group.value
-        if args_outer_group is None:
-            return Optional.create()
-        assert isinstance(args_outer_group, PartialArgsOuterGroup)
-        return Optional(target.with_new_args(args_outer_group=args_outer_group))
+        group_opt = self.replace_arg(target.args_outer_group.apply(), new_node)
+        return self._update_state(target, group_opt)
 
     def remove_in_outer_target(self, target: State) -> IOptional[State]:
-        group = self.remove_arg(target.args_outer_group.apply())
-        args_outer_group = group.value
-        if args_outer_group is None:
-            return Optional.create()
-        assert isinstance(args_outer_group, PartialArgsOuterGroup)
-        return Optional(target.with_new_args(args_outer_group=args_outer_group))
+        group_opt = self.remove_arg(target.args_outer_group.apply())
+        return self._update_state(target, group_opt)
 
 class StateArgsGroupArgIndex(InheritableNode, IStateIndex[INode], IInstantiable):
 
