@@ -27,19 +27,30 @@ class SympyWrapper(SympyShared):
 
         if len(args) == 0:
             return node_name
-        args_latex = r" \\ ".join(
+        filler_token = r"\text{}\text{}"
+        token = r"\text{}\text{}\text{}"
+        full_token = token + ' ' + filler_token
+        newline = r" \\ " + token + ' '
+        args_latex = newline.join(
             r"\{" + str(i+1) + r"\}\text{ }" + printer.doprint(arg)
             for i, arg in enumerate(args))
         begin = r"\begin{cases}"
         end = r"\end{cases}"
+        args_latex = args_latex.replace(
+            ' ' + token + ' ',
+            ' ' + full_token + ' ')
+        begin_changed = begin if len(args) > 1 else (begin + r"\text{}")
+        arg_token = full_token if len(args) > 1 else ''
 
-        return f"{node_name} {begin} {args_latex} {end}"
+        return f"{node_name} {begin_changed} {arg_token} {args_latex} {end}"
 
 class SympyFunction(SympyShared):
 
     def _latex(self, printer: LatexPrinter) -> str:
         node_name, args = self._data()
 
+        token = r"\text{}\text{}\text{}"
+        filler_token = r"\text{}\text{}"
         newline = r" \\ \text{} "
         args_latex = newline.join(printer.doprint(arg) for arg in args)
         if len(args) == 0:
@@ -47,8 +58,11 @@ class SympyFunction(SympyShared):
         if len(args) <= 1:
             return f"{node_name}({args_latex})"
         args_latex = args_latex.replace(newline, newline + r" \quad ")
+        args_latex = args_latex.replace(
+            ' ' + token + ' ',
+            ' ' + token + ' ' + filler_token + ' ')
 
-        return f"{node_name}( {newline} \\quad {args_latex} {newline} )"
+        return f"{node_name}({newline} \\quad {args_latex} {newline})"
 
 class Symbol:
 
@@ -72,11 +86,41 @@ class Symbol:
         return self.latex().replace(
             r"\\", "\n"
         ).replace(
-            r"\quad", "    "
+            r"\quad", "  "
+        ).replace(
+            r"\begin{cases}\text{}", ""
+        ).replace(
+            r" \text{}\text{}\text{} ", ""
+        ).replace(
+            r"\text{}\text{}", "  "
         ).replace(
             r"\text{}", ""
         ).replace(
             r"\text{ }", " "
+        ).replace(
+            r"\begin{cases}", "\n"
+        ).replace(
+            r" \end{cases} ", " "
+        ).replace(
+            r"\end{cases}", ""
+        ).replace(
+            r"\text{", ""
+        ).replace(
+            r"}\{", r"{"
+        ).replace(
+            r"}_{", r""
+        ).replace(
+            r"}^{", r""
+        ).replace(
+            r"]}", r"]"
+        ).replace(
+            r"}[", r"["
+        ).replace(
+            r"}]", r"]"
+        ).replace(
+            r"\{", r"{"
+        ).replace(
+            r"\}", r"}"
         )
 
     @classmethod

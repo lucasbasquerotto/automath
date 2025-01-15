@@ -594,6 +594,7 @@ def dynamic_goal_test():
             state.GoalAchieved.achieved(),
         ),
     )
+    print(env.symbol(last_history_action).to_str())
     print(env.symbol(current_state.meta_info.apply()).to_str())
     assert current_state.meta_info.apply() == state_meta
     assert current_state == state.State.from_raw(
