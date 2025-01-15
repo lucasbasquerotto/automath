@@ -15,6 +15,7 @@ from env.core import (
     IInt,
     Integer,
     GreaterThan,
+    IWrapper,
     TmpNestedArg,
     IInstantiable)
 from env.state import State
@@ -27,6 +28,7 @@ from env.meta_env import (
     GeneralTypeGroup,
     MetaInfoOptions)
 from env.full_state import FullState, HistoryNode, HistoryGroupNode, ActionData
+from env.symbol import Symbol
 
 ###########################################################
 ########################## MAIN ###########################
@@ -34,7 +36,7 @@ from env.full_state import FullState, HistoryNode, HistoryGroupNode, ActionData
 
 O = typing.TypeVar('O', bound=IActionOutput)
 
-class FullActionOutput(InheritableNode, IInstantiable):
+class FullActionOutput(InheritableNode, IWrapper, IInstantiable):
 
     idx_output = 1
     idx_new_state = 2
@@ -222,7 +224,11 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
                 exception=Optional.create(),
             )
         except InvalidActionException as e:
-            env_logger.debug(e)
+            symbol = Symbol(
+                node=e.info.as_node,
+                node_types=full_state.node_types(),
+            )
+            env_logger.debug(symbol.to_str(), exc_info=e)
             next_state = current.state.apply().cast(State)
             action_data = e.to_action_data()
 

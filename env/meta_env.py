@@ -23,6 +23,7 @@ from env.core import (
     CountableTypeGroup,
     IntersectionType,
     BaseNode,
+    IWrapper,
     TmpNestedArg,
     IInstantiable)
 from env.state import State, IGoal
@@ -129,7 +130,7 @@ class DetailedTypeGroup(BaseGroup[DetailedType[T]], IInstantiable, typing.Generi
     def to_type_group(self) -> GeneralTypeGroup[T]:
         return GeneralTypeGroup.from_items([item.child for item in self.as_tuple])
 
-class SubtypeOuterGroup(InheritableNode, IInstantiable, typing.Generic[T]):
+class SubtypeOuterGroup(InheritableNode, IWrapper, IInstantiable, typing.Generic[T]):
 
     idx_common_type = 1
     idx_subtypes = 2
@@ -258,7 +259,7 @@ class IBasicAction(IAction[S], typing.Generic[S], ABC):
 ######################## META INFO ########################
 ###########################################################
 
-class MetaInfo(InheritableNode, IInstantiable):
+class MetaInfo(InheritableNode, IWrapper, IInstantiable):
     idx_goal = 1
     idx_options = 2
     idx_all_types = 3

@@ -32,6 +32,7 @@ from env.core import (
     And,
     IBoolean,
     BaseIntBoolean,
+    IWrapper,
     TmpNestedArg,
     TmpNestedArgs,
     IInstantiable,
@@ -244,7 +245,7 @@ class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
         result = NodeArgIndex(self.idx_goal_achieved).replace_in_target(self, goal_achieved)
         return result.value_or_raise
 
-class IContext(INode, ABC):
+class IContext(IWrapper, ABC):
     pass
 
 class OptionalContext(OptionalBase[T], IContext, IInstantiable, typing.Generic[T]):
@@ -395,7 +396,7 @@ class StateDefinitionGroup(BaseGroup[StateDefinition], IInstantiable):
 ########################## STATE ##########################
 ###########################################################
 
-class State(InheritableNode, IDefault, IInstantiable):
+class State(InheritableNode, IDefault, IWrapper, IInstantiable):
 
     idx_meta_info = 1
     idx_scratch_group = 2

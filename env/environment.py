@@ -1,73 +1,10 @@
 import numpy as np
-import sympy
-from sympy.printing.latex import LatexPrinter
 from env import core
 from env import state
-from env import meta_env
 from env import action as action_module
 from env import full_state as full_state_module
 from env import reward as reward_module
-
-WRAPPERS = (
-    core.IGroup,
-    state.State,
-    state.IContext,
-    meta_env.MetaInfo,
-    meta_env.SubtypeOuterGroup,
-    action_module.FullActionOutput,
-    full_state_module.FullState,
-    full_state_module.HistoryNode,
-    full_state_module.HistoryGroupNode,
-)
-
-class SympyShared(sympy.Basic):
-
-    def __init__(self, node_id: sympy.Integer, name: sympy.Symbol, *args: sympy.Basic):
-        super().__init__()
-        self._args = (node_id, name, *args)
-
-    def _data(self) -> tuple[str, tuple[sympy.Basic, ...]]:
-        node_id = self.args[0]
-        assert isinstance(node_id, sympy.Integer)
-        name = self.args[1]
-        assert isinstance(name, sympy.Symbol)
-        args = self.args[2:]
-        amount = len(args)
-        name_str = r"\text{" + name.name + r"<" + str(node_id) + r">}"
-        amount_str = r"\{" + str(amount) + r"\}"
-        node_name = f"{name_str}{amount_str}"
-        return node_name, args
-
-class SympyWrapper(SympyShared):
-
-    def _latex(self, printer: LatexPrinter) -> str:
-        node_name, args = self._data()
-
-        if len(args) == 0:
-            return node_name
-        args_latex = r" \\ ".join(
-            r"\{" + str(i+1) + r"\}\text{ }" + printer.doprint(arg)
-            for i, arg in enumerate(args))
-        begin = r"\begin{cases}"
-        end = r"\end{cases}"
-
-        return f"{node_name} {begin} {args_latex} {end}"
-
-class SympyFunction(SympyShared):
-
-    def _latex(self, printer: LatexPrinter) -> str:
-        node_name, args = self._data()
-
-        newline = r" \\ \text{} "
-        args_latex = newline.join(printer.doprint(arg) for arg in args)
-        if len(args) == 0:
-            return node_name
-        if len(args) <= 1:
-            return f"{node_name}({args_latex})"
-        args_latex = args_latex.replace(newline, newline + r" \quad ")
-
-        return f"{node_name}( {newline} \\quad {args_latex} {newline} )"
-
+from env import symbol
 
 class Environment:
     def __init__(
@@ -184,77 +121,18 @@ class Environment:
 
         return result
 
-    def self_symbolic_str(self, node: core.BaseNode) -> str:
+    @property
+    def as_symbol(self) -> symbol.Symbol:
+        return self.symbol(self.full_state)
+
+    @property
+    def current_state_symbol(self) -> symbol.Symbol:
+        current_state = self.full_state.current_state.apply()
+        return self.symbol(current_state)
+
+    def symbol(self, node: core.BaseNode) -> symbol.Symbol:
         node_types = self.full_state.node_types()
-        return self.symbolic_str(node, node_types)
-
-    @classmethod
-    def symbolic_str(
-        cls,
-        node: core.BaseNode,
-        node_types: tuple[type[core.INode], ...],
-    ) -> str:
-        return str(
-            sympy.latex(cls.symbolic(node, node_types))
-        ).replace(r"\\", "\n").replace(r"\quad", "    ").replace(r"\text{}", "")
-
-    def self_symbolic(self, node: core.BaseNode) -> sympy.Basic:
-        node_types = self.full_state.node_types()
-        return self.symbolic(node, node_types)
-
-    @classmethod
-    def symbolic(
-        cls,
-        node: core.BaseNode,
-        node_types: tuple[type[core.INode], ...],
-    ) -> sympy.Basic:
-        assert isinstance(node, core.BaseNode)
-        node_id = node_types.index(node.func) + 1
-        name = node.func.__name__
-
-        if isinstance(node, core.ISpecialValue):
-            value_aux = node.node_value
-
-            if isinstance(value_aux, core.IInt):
-                value = value_aux.as_int
-                name_str = r"\text{" + name + r"<" + str(node_id) + r">}"
-                return sympy.Symbol(f'{name_str}[{value}]')
-            elif isinstance(value_aux, core.TypeNode):
-                name_str = r"\text{" + name + r"<" + str(node_id) + r">}"
-                type_id = node_types.index(value_aux.type) + 1
-                type_name = value_aux.type.__name__
-                type_name_str = r"\text{" + type_name + r"<" + str(type_id) + r">}"
-                return sympy.Symbol(f'{name_str}[{type_name_str}]')
-            else:
-                raise ValueError(f'Invalid value type: {type(value_aux)}')
-
-        if isinstance(node, core.Placeholder):
-            name_str = r"\text{" + name + r"<" + str(node_id) + r">}"
-            scope_id = node.parent_scope.apply()
-            scope_id_str = r"{" + sympy.latex(cls.symbolic(scope_id, node_types)) + r"}"
-            index = node.index.apply()
-            index_str = r"{" + sympy.latex(cls.symbolic(index, node_types)) + r"}"
-            type_node = node.type_node.apply()
-            type_node_str = (
-                r"[" + sympy.latex(cls.symbolic(type_node, node_types)) + r"]"
-                if not isinstance(type_node, core.UnknownType)
-                else ''
-            )
-            return sympy.Symbol(f'{name_str}_{index_str}^{scope_id_str}{type_node_str}')
-
-        raw_args = [arg.as_node for arg in node.args if isinstance(arg, core.INode)]
-        assert len(raw_args) == len(node.args)
-
-        args: tuple[sympy.Basic, ...] = tuple([
-            cls.symbolic(arg, node_types) for arg in raw_args
-        ])
-
-        outer_args = (sympy.Integer(node_id), sympy.Symbol(name), *args)
-
-        if any(isinstance(node, w) for w in WRAPPERS):
-            return SympyWrapper(*outer_args)
-
-        return SympyFunction(*outer_args)
+        return symbol.Symbol(node, node_types)
 
     def to_data_array(self) -> np.ndarray[np.int_, np.dtype]:
         node_types = self.full_state.node_types()
@@ -264,12 +142,3 @@ class Environment:
         current_state = self.full_state.current_state.apply()
         node_types = self.full_state.node_types()
         return self.data_array(current_state, node_types)
-
-    def to_symbolic(self) -> sympy.Basic:
-        node_types = self.full_state.node_types()
-        return self.symbolic(self.full_state, node_types)
-
-    def to_symbolic_current_state(self) -> sympy.Basic:
-        current_state = self.full_state.current_state.apply()
-        node_types = self.full_state.node_types()
-        return self.symbolic(current_state, node_types)

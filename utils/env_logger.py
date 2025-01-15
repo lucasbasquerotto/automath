@@ -3,10 +3,10 @@ from config.settings import LOGGER, LOG_LEVEL, LOG_FILE
 
 def setup_logger() -> logging.Logger:
     log = logging.getLogger(LOGGER)
-    log.setLevel(LOG_LEVEL)
+    log.setLevel('DEBUG')
 
     fh = logging.FileHandler(LOG_FILE)
-    fh.setLevel(LOG_LEVEL)
+    fh.setLevel('DEBUG')
 
     ch = logging.StreamHandler()
     ch.setLevel(LOG_LEVEL)
@@ -17,6 +17,7 @@ def setup_logger() -> logging.Logger:
 
     log.addHandler(fh)
     log.addHandler(ch)
+    log.propagate = False
 
     return log
 

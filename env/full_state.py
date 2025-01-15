@@ -20,6 +20,7 @@ from env.core import (
     ExtendedTypeGroup,
     CountableTypeGroup,
     IExceptionInfo,
+    IWrapper,
     TmpNestedArg,
     TmpNestedArgs,
     IInstantiable,
@@ -92,7 +93,7 @@ class ActionData(InheritableNode, IInstantiable):
 ################# FULL STATE DEFINITIONS ##################
 ###########################################################
 
-class HistoryNode(InheritableNode, IDefault, IInstantiable):
+class HistoryNode(InheritableNode, IDefault, IWrapper, IInstantiable):
 
     idx_state = 1
     idx_meta_data = 2
@@ -155,7 +156,7 @@ class HistoryGroupNode(BaseGroup[HistoryNode], IInstantiable):
 ####################### FULL STATE ########################
 ###########################################################
 
-class FullState(InheritableNode, IFullState, IFromSingleChild[MetaInfo], IInstantiable):
+class FullState(InheritableNode, IFullState, IFromSingleChild[MetaInfo], IWrapper, IInstantiable):
 
     idx_meta = 1
     idx_current = 2

@@ -127,7 +127,10 @@ class ISingleOptionalChild(ISingleChild[IOptional[T]], typing.Generic[T], ABC):
     def child(self) -> IOptional[T]:
         raise NotImplementedError(self.__class__)
 
-class IGroup(INode, typing.Generic[T], ABC):
+class IWrapper(INode, ABC):
+    pass
+
+class IGroup(IWrapper, typing.Generic[T], ABC):
 
     @classmethod
     def item_type(cls) -> type[T]:
