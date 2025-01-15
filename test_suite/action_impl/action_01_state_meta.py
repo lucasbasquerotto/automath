@@ -80,7 +80,8 @@ def goal_test():
                 meta_data=meta_env.MetaData.with_args(
                     remaining_steps=len(scratchs)
                     if scratch_goal_1 in scratchs
-                    else None),
+                    else None
+                ),
             )
         )
 
@@ -98,7 +99,7 @@ def goal_test():
                 scratchs=[
                     scratch_goal
                     if scratch_goal is not None
-                    else goal.definition_expr.apply()
+                    else goal.goal_inner_expr.apply()
                 ]
             ))
         assert has_goal(env=env, goal=goal)
@@ -344,5 +345,268 @@ def goal_test():
 
     main()
 
+def dynamic_goal_test():
+    params = (core.Param.from_int(1), core.Param.from_int(2), core.Param.from_int(3))
+    p1, p2, p3 = params
+    scratch_dynamic_goal = core.FunctionCall.define(
+        state.FunctionId(1),
+        core.DefaultGroup(
+            core.DefaultGroup(core.Integer(3), core.Integer(4)),
+            core.Eq(p1, core.Integer(27)),
+        )
+    )
+    dynamic_goal_expr = node_types_module.HaveScratch.with_goal(scratch_dynamic_goal)
+    goal_1 = node_types_module.HaveDynamicGoal.with_goal(dynamic_goal_expr)
+    goal_2 = node_types_module.HaveDynamicGoalAchieved.create()
+
+    def has_goal(env: GoalEnv, goal: meta_env.IGoal):
+        selected_goal = env.full_state.nested_args(
+            (full_state.FullState.idx_meta, meta_env.MetaInfo.idx_goal)
+        ).apply()
+        return selected_goal == goal
+
+    def fn_before_final_state(
+        meta: meta_env.MetaInfo,
+        goal: node_types_module.HaveScratch,
+        scratchs: typing.Sequence[core.INode | None],
+    ) -> full_state.FullState:
+        state_meta = state.StateMetaInfo.with_goal_expr(goal)
+        return full_state.FullState.with_args(
+            meta=meta,
+            current=full_state.HistoryNode.with_args(
+                state=state.State.from_raw(
+                    meta_info=state_meta,
+                    scratchs=scratchs,
+                ),
+                meta_data=meta_env.MetaData.with_args(
+                    remaining_steps=5
+                ),
+            )
+        )
+
+    goal = state.GoalGroup(
+        goal_1,
+        goal_2,
+    )
+    scratch_nest_1 = core.NestedArgIndexGroup.from_indices([1])
+    scratch_nest_2 = core.NestedArgIndexGroup.from_indices([2])
+    scratchs = [
+        scratch_dynamic_goal,
+        dynamic_goal_expr,
+        scratch_nest_1,
+        scratch_nest_2,
+    ]
+    env = GoalEnv(
+        goal=goal,
+        fn_initial_state=lambda meta: fn_before_final_state(
+            meta=meta,
+            goal=goal,
+            scratchs=scratchs,
+        ))
+    assert has_goal(env=env, goal=goal)
+
+    current_state = get_current_state(env)
+    prev_remaining_steps = get_remaining_steps(env)
+
+    state_meta = state.StateMetaInfo.with_goal_achieved(state.GoalAchievedGroup(
+        state.GoalAchieved.create(),
+        state.GoalAchieved.create(),
+    ))
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratchs=scratchs,
+    )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    raw_action = action_impl.CreateDynamicGoal.from_raw(2, 0, 0)
+    full_action = action_impl.CreateDynamicGoal(
+        state.StateScratchIndex(2),
+    )
+    output = action_impl.CreateDynamicGoalOutput(
+        state.StateDynamicGoalIndex(1),
+        dynamic_goal_expr,
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    dynamic_goal_group = state.DynamicGoalGroup(
+        state.DynamicGoal.from_goal_expr(dynamic_goal_expr)
+    )
+    state_meta = state_meta.with_new_args(
+        dynamic_goal_group=dynamic_goal_group,
+    )
+    assert current_state.meta_info.apply() == state_meta
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratchs=scratchs,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    meta_idx = get_from_int_type_index(state.StateDynamicGoalIndex, env)
+    raw_action = action_impl.VerifyGoal.from_raw(3, meta_idx, 1)
+    full_action = action_impl.VerifyGoal(
+        core.Optional(state.StateScratchIndex(3)),
+        full_state.MetaFromIntTypeIndex(meta_idx),
+        core.Integer(1),
+    )
+    output = action_impl.VerifyGoalOutput(
+        core.Optional(core.NestedArgIndexGroup.from_indices([1])),
+        state.StateDynamicGoalIndex(1),
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    state_meta = state_meta.with_new_args(
+        goal_achieved=state.GoalAchievedGroup(
+            state.GoalAchieved.achieved(),
+            state.GoalAchieved.create(),
+        ),
+    )
+    assert current_state.meta_info.apply() == state_meta
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratchs=scratchs,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    meta_idx = get_from_int_type_index(state.StateScratchIndex, env)
+    raw_action = action_impl.DefineScratchFromInt.from_raw(2, meta_idx, 1)
+    full_action = action_impl.DefineScratchFromInt(
+        state.StateScratchIndex(2),
+        full_state.MetaFromIntTypeIndex(meta_idx),
+        core.Integer(1),
+    )
+    output = action_impl.DefineScratchOutput(
+        state.StateScratchIndex(2),
+        core.Optional(state.StateScratchIndex(1)),
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    scratchs[1] = state.StateScratchIndex(1)
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratchs=scratchs,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    raw_action = action_impl.VerifyDynamicGoal.from_raw(1, 0, 2)
+    full_action = action_impl.VerifyDynamicGoal(
+        state.StateDynamicGoalIndex(1),
+        core.Optional.create(),
+        state.StateScratchIndex(2),
+    )
+    output = action_impl.VerifyDynamicGoalOutput(
+        state.StateDynamicGoalIndex(1),
+        core.Optional.create(),
+        state.StateScratchIndex(1),
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    dynamic_goal_group = state.DynamicGoalGroup(
+        state.DynamicGoal.from_goal_expr(
+            dynamic_goal_expr
+        ).apply_goal_achieved(state.Optional())
+    )
+    state_meta = state_meta.with_new_args(
+        dynamic_goal_group=dynamic_goal_group,
+    )
+    assert current_state.meta_info.apply() == state_meta
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratchs=scratchs,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    meta_idx = get_from_int_type_index(state.StateDynamicGoalIndex, env)
+    raw_action = action_impl.VerifyGoal.from_raw(3, meta_idx, 1)
+    full_action = action_impl.VerifyGoal(
+        core.Optional(state.StateScratchIndex(4)),
+        full_state.MetaFromIntTypeIndex(meta_idx),
+        core.Integer(1),
+    )
+    output = action_impl.VerifyGoalOutput(
+        core.Optional(core.NestedArgIndexGroup.from_indices([2])),
+        state.StateDynamicGoalIndex(1),
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    state_meta = state_meta.with_new_args(
+        goal_achieved=state.GoalAchievedGroup(
+            state.GoalAchieved.achieved(),
+            state.GoalAchieved.achieved(),
+        ),
+    )
+    print(env.self_symbolic_str(current_state.meta_info.apply()))
+    assert current_state.meta_info.apply() == state_meta
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratchs=scratchs,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
 def test():
     goal_test()
+    dynamic_goal_test()

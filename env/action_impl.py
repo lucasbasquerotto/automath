@@ -22,6 +22,7 @@ from env.core import (
     IOptional,
     NestedArgIndexGroup,
     Eq,
+    Not,
     IInstantiable,
 )
 from env.state import (
@@ -35,8 +36,11 @@ from env.state import (
     StateMetaInfo,
     PartialArgsGroup,
     IGoal,
+    IGoalAchieved,
     Goal,
     StateDynamicGoalIndex,
+    DynamicGoalGroup,
+    DynamicGoal,
 )
 from env.meta_env import MetaInfo
 from env.full_state import (
@@ -86,11 +90,17 @@ class VerifyGoalOutput(GeneralAction, IInstantiable):
 
         state = full_state.current_state.apply().cast(State)
         assert isinstance(node, goal.eval_param_type())
-        goal.evaluate(state, node).raise_on_not_true()
 
         meta_info = state.meta_info.apply().cast(StateMetaInfo)
-        new_meta_info = meta_info.apply_goal_achieved(nested_args_wrapper)
+        goal_achieved = meta_info.goal_achieved.apply().cast(IGoalAchieved)
+        if nested_args_indices is not None:
+            assert isinstance(nested_args_indices, NestedArgIndexGroup)
+            goal_achieved = nested_args_indices.apply(goal_achieved.as_node).cast(IGoalAchieved)
+        Not(goal_achieved).raise_on_not_true()
 
+        goal.evaluate(state, node).raise_on_not_true()
+
+        new_meta_info = meta_info.apply_goal_achieved(nested_args_wrapper)
         new_state = state.with_new_args(meta_info=new_meta_info)
 
         return new_state
@@ -150,6 +160,78 @@ class VerifyGoal(
 
         return VerifyGoalOutput(nested, content)
 
+class CreateDynamicGoalOutput(GeneralAction, IInstantiable):
+
+    idx_dynamic_goal_index = 1
+    idx_goal_expr = 2
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            StateDynamicGoalIndex,
+            IGoal,
+        ]))
+
+    def apply(self, full_state: FullState) -> State:
+        index = self.nested_arg(self.idx_dynamic_goal_index).apply().cast(StateDynamicGoalIndex)
+        goal_expr = self.nested_arg(self.idx_goal_expr).apply().cast(IGoal)
+
+        state = full_state.current_state.apply().cast(State)
+        state_meta = state.meta_info.apply().cast(StateMetaInfo)
+        dynamic_goal_group = state_meta.dynamic_goal_group.apply().cast(DynamicGoalGroup)
+
+        items = [item for item in dynamic_goal_group.as_tuple]
+        Eq.from_ints(index.as_int, len(items) + 1).raise_on_false()
+        items.append(DynamicGoal.from_goal_expr(goal_expr))
+
+        new_dynamic_goal_group = DynamicGoalGroup.from_items(items)
+        new_meta_info = state_meta.with_new_args(
+            dynamic_goal_group=new_dynamic_goal_group,
+        )
+        new_state = state.with_new_args(meta_info=new_meta_info)
+
+        return new_state
+
+class CreateDynamicGoal(
+    BasicAction[CreateDynamicGoalOutput],
+    IInstantiable,
+):
+
+    idx_scratch_index_goal = 1
+
+    @classmethod
+    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+        scratch_index_goal = StateScratchIndex(arg1)
+        Eq.from_ints(arg2, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
+        return cls(scratch_index_goal)
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            StateScratchIndex,
+        ]))
+
+    def _run(self, full_state: FullState) -> CreateDynamicGoalOutput:
+        scratch_index_goal = self.nested_arg(
+            self.idx_scratch_index_goal
+        ).apply().cast(StateScratchIndex)
+
+        state = full_state.current_state.apply().cast(State)
+        scratch = scratch_index_goal.find_in_outer_node(state).value_or_raise
+        assert isinstance(scratch, Scratch)
+        scratch.validate()
+
+        goal_expr = scratch.child.apply().cast(IOptional).value_or_raise
+        assert isinstance(goal_expr, IGoal)
+
+        dynamic_goal_group = state.meta_info.apply().cast(
+            StateMetaInfo
+        ).dynamic_goal_group.apply().cast(DynamicGoalGroup)
+        dynamic_goal_index = StateDynamicGoalIndex(len(dynamic_goal_group.as_tuple) + 1)
+
+        return CreateDynamicGoalOutput(dynamic_goal_index, goal_expr)
+
 class VerifyDynamicGoalOutput(GeneralAction, IInstantiable):
 
     idx_dynamic_goal = 1
@@ -176,7 +258,7 @@ class VerifyDynamicGoalOutput(GeneralAction, IInstantiable):
         state = full_state.current_state.apply().cast(State)
         dynamic_goal = dynamic_goal_index.find_in_outer_node(state).value_or_raise
 
-        goal = dynamic_goal.goal.apply().cast(IGoal)
+        goal = dynamic_goal.goal_expr.apply().cast(IGoal)
         nested_args_indices = nested_args_wrapper.value
 
         if nested_args_indices is not None:
@@ -185,6 +267,13 @@ class VerifyDynamicGoalOutput(GeneralAction, IInstantiable):
 
         assert isinstance(goal, Goal)
         assert isinstance(node, goal.eval_param_type())
+
+        goal_achieved = dynamic_goal.goal_achieved.apply().cast(IGoalAchieved)
+        if nested_args_indices is not None:
+            assert isinstance(nested_args_indices, NestedArgIndexGroup)
+            goal_achieved = nested_args_indices.apply(goal_achieved.as_node).cast(IGoalAchieved)
+        Not(goal_achieved).raise_on_not_true()
+
         goal.evaluate(state, node).raise_on_not_true()
 
         dynamic_goal = dynamic_goal.apply_goal_achieved(nested_args_wrapper)
@@ -202,7 +291,7 @@ class VerifyDynamicGoal(
 
     idx_dynamic_node_index = 1
     idx_scratch_index_nested_indices = 2
-    idx_scratch_content_index = 3
+    idx_scratch_index_content = 3
 
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
@@ -211,7 +300,7 @@ class VerifyDynamicGoal(
             Optional.create()
             if arg2 == 0
             else Optional(StateScratchIndex(arg2)))
-        scratch_content_index = Integer(arg3)
+        scratch_content_index = StateScratchIndex(arg3)
         return cls(dynamic_node_index, scratch_index_nested_indices, scratch_content_index)
 
     @classmethod
@@ -230,7 +319,7 @@ class VerifyDynamicGoal(
             self.idx_scratch_index_nested_indices
         ).apply().cast(Optional[StateScratchIndex])
         scratch_content_index = self.nested_arg(
-            self.idx_scratch_content_index
+            self.idx_scratch_index_content
         ).apply().cast(StateScratchIndex)
 
         state = full_state.current_state.apply().cast(State)
@@ -249,6 +338,30 @@ class VerifyDynamicGoal(
         content = scratch.child.apply().cast(IOptional).value_or_raise
 
         return VerifyDynamicGoalOutput(dynamic_node_index, nested, content)
+
+class DeleteDynamicGoalOutput(GeneralAction, IBasicAction[FullState], IInstantiable):
+
+    idx_dynamic_goal_index = 1
+
+    @classmethod
+    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+        dynamic_goal_index = StateDynamicGoalIndex(arg1)
+        Eq.from_ints(arg2, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
+        return cls(dynamic_goal_index)
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            StateDynamicGoalIndex,
+        ]))
+
+    def apply(self, full_state: FullState) -> State:
+        dynamic_goal_index = self.nested_arg(self.idx_dynamic_goal_index).apply()
+        assert isinstance(dynamic_goal_index, StateDynamicGoalIndex)
+        state = full_state.current_state.apply().cast(State)
+        new_state = dynamic_goal_index.remove_in_outer_target(state).value_or_raise
+        return new_state
 
 ###########################################################
 ################## SCRATCH BASE ACTIONS ###################

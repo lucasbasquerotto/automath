@@ -49,7 +49,7 @@ class IGoal(INode, ABC):
 
 class Goal(InheritableNode, IGoal, typing.Generic[T, K], ABC):
 
-    idx_goal = 1
+    idx_goal_inner_expr = 1
     idx_eval_param_type = 2
 
     @classmethod
@@ -68,15 +68,15 @@ class Goal(InheritableNode, IGoal, typing.Generic[T, K], ABC):
         ))
 
     @property
-    def goal(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_goal)
+    def goal_inner_expr(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_goal_inner_expr)
 
     def evaluate(self, state: 'State', eval_param: K) -> IBoolean:
         raise NotImplementedError
 
     @classmethod
-    def with_goal(cls, goal: T) -> typing.Self:
-        return cls(goal, cls.eval_param_type().as_type())
+    def with_goal(cls, goal_expr: T) -> typing.Self:
+        return cls(goal_expr, cls.eval_param_type().as_type())
 
 class GoalGroup(BaseGroup[IGoal], IGoal, IInstantiable):
 
@@ -108,7 +108,7 @@ class IGoalAchieved(IBoolean, ABC):
         if nested_args_indices is not None:
             idxs = [idx.as_int for idx in nested_args_indices.as_tuple]
             for idx in idxs:
-                assert isinstance(goal_achieved, GoalAchievedGroup)
+                assert isinstance(goal_achieved, GoalAchievedGroup), f'{idx} in {idxs}'
                 groups.append((idx, goal_achieved))
                 goal_achieved = goal_achieved.as_node.nested_arg(idx).apply().cast(IGoalAchieved)
 
@@ -141,7 +141,7 @@ class GoalAchievedGroup(BaseGroup[IGoalAchieved], IGoalAchieved, IInstantiable):
 
 class DynamicGoal(InheritableNode, IDefault, IInstantiable):
 
-    idx_goal = 1
+    idx_goal_expr = 1
     idx_goal_achieved = 2
 
     @classmethod
@@ -156,8 +156,8 @@ class DynamicGoal(InheritableNode, IDefault, IInstantiable):
         return cls(goal, IGoalAchieved.from_goal_expr(goal))
 
     @property
-    def goal(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_goal)
+    def goal_expr(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_goal_expr)
 
     @property
     def goal_achieved(self) -> TmpNestedArg:
@@ -185,11 +185,11 @@ class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
 
     @classmethod
     def create(cls) -> typing.Self:
-        return cls(GoalAchieved.create())
+        return cls.with_args()
 
     @classmethod
     def with_goal_achieved(cls, goal_achieved: IGoalAchieved) -> typing.Self:
-        return cls(goal_achieved)
+        return cls.with_args(goal_achieved=goal_achieved)
 
     @classmethod
     def with_goal_expr(cls, goal: IGoal) -> typing.Self:
@@ -226,6 +226,10 @@ class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
         goal_achieved: IGoalAchieved | None = None,
         dynamic_goal_group: DynamicGoalGroup | None = None,
     ) -> typing.Self:
+        goal_achieved = goal_achieved or self.goal_achieved.apply().cast(IGoalAchieved)
+        dynamic_goal_group = (
+            dynamic_goal_group
+            or self.dynamic_goal_group.apply().cast(DynamicGoalGroup))
         return self.with_args(
             goal_achieved=goal_achieved,
             dynamic_goal_group=dynamic_goal_group,

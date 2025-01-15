@@ -859,7 +859,7 @@ def basic_test():
         Scratch.idx_child,
         Optional.idx_value,
     )).apply()
-    assert content == goal.definition_expr.apply()
+    assert content == goal.goal_inner_expr.apply()
     verification = goal.evaluate(current_state, StateScratchIndex(1))
     verification.raise_on_false()
 
