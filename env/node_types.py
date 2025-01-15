@@ -1,13 +1,19 @@
 from env.core import (
     INode,
+    IOptional,
     Eq,
-    TmpNestedArg,
-    IInstantiable)
-from env.state import State, StateScratchIndex, Goal
+    IInstantiable,
+)
+from env.state import (
+    State,
+    StateScratchIndex,
+    IGoal,
+    Goal,
+    StateDynamicGoalIndex,
+    IGoalAchieved,
+)
 
 class HaveScratch(Goal[INode, StateScratchIndex], IInstantiable):
-
-    idx_definition_expr = 1
 
     @classmethod
     def goal_type(cls):
@@ -17,13 +23,43 @@ class HaveScratch(Goal[INode, StateScratchIndex], IInstantiable):
     def eval_param_type(cls):
         return StateScratchIndex
 
-    @property
-    def definition_expr(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_definition_expr)
-
     def evaluate(self, state: State, eval_param: StateScratchIndex):
         goal = self.goal.apply()
         assert isinstance(eval_param, StateScratchIndex)
         scratch = eval_param.find_in_node(state).value_or_raise
-        content = scratch.content
+        content = scratch.child.apply().cast(IOptional).value_or_raise
         return Eq(content, goal)
+
+class HaveDynamicGoal(Goal[IGoal, StateDynamicGoalIndex], IInstantiable):
+
+    @classmethod
+    def goal_type(cls):
+        return IGoal
+
+    @classmethod
+    def eval_param_type(cls):
+        return StateDynamicGoalIndex
+
+    def evaluate(self, state: State, eval_param: StateDynamicGoalIndex):
+        goal = self.goal.apply()
+        assert isinstance(eval_param, StateDynamicGoalIndex)
+        dynamic_goal = eval_param.find_in_node(state).value_or_raise
+        content = dynamic_goal.goal.apply()
+        return Eq(content, goal)
+
+class HaveDynamicGoalAchieved(Goal[IGoalAchieved, StateDynamicGoalIndex], IInstantiable):
+
+    @classmethod
+    def goal_type(cls):
+        return IGoalAchieved
+
+    @classmethod
+    def eval_param_type(cls):
+        return StateDynamicGoalIndex
+
+    def evaluate(self, state: State, eval_param: StateDynamicGoalIndex):
+        goal_achieved = self.goal.apply()
+        assert isinstance(eval_param, StateDynamicGoalIndex)
+        dynamic_goal = eval_param.find_in_node(state).value_or_raise
+        content = dynamic_goal.goal_achieved.apply()
+        return Eq(content, goal_achieved)

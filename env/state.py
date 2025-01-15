@@ -271,10 +271,6 @@ class Scratch(OpaqueScope[OptionalContext[INode]], IInstantiable):
     def child(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_child)
 
-    @property
-    def content(self) -> INode:
-        return self.child.apply().cast(OptionalContext).value_or_raise
-
 class ScratchGroup(BaseGroup[Scratch], IInstantiable):
 
     @classmethod

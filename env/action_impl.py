@@ -1,3 +1,4 @@
+#pylint: disable=too-many-lines
 import typing
 from abc import ABC
 from env.core import (
@@ -35,6 +36,7 @@ from env.state import (
     PartialArgsGroup,
     IGoal,
     Goal,
+    StateDynamicGoalIndex,
 )
 from env.meta_env import MetaInfo
 from env.full_state import (
@@ -138,7 +140,7 @@ class VerifyGoal(
             scratch = scratch_index.find_in_outer_node(state).value_or_raise
             assert isinstance(scratch, Scratch)
             scratch.validate()
-            content = scratch.content
+            content = scratch.child.apply().cast(IOptional).value_or_raise
             assert isinstance(content, NestedArgIndexGroup)
             nested = Optional(content)
 
@@ -147,6 +149,106 @@ class VerifyGoal(
         content = node_type.type.from_int(index_value.as_int)
 
         return VerifyGoalOutput(nested, content)
+
+class VerifyDynamicGoalOutput(GeneralAction, IInstantiable):
+
+    idx_dynamic_goal = 1
+    idx_nested_args_indices = 2
+    idx_node = 3
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            StateDynamicGoalIndex,
+            Optional[NestedArgIndexGroup],
+            INode,
+        ]))
+
+    def apply(self, full_state: FullState) -> State:
+        dynamic_goal_index = self.nested_arg(
+            self.idx_dynamic_goal
+        ).apply().cast(StateDynamicGoalIndex)
+        nested_args_wrapper = self.nested_arg(
+            self.idx_nested_args_indices
+        ).apply().cast(Optional[NestedArgIndexGroup])
+        node = self.nested_arg(self.idx_node).apply()
+
+        state = full_state.current_state.apply().cast(State)
+        dynamic_goal = dynamic_goal_index.find_in_outer_node(state).value_or_raise
+
+        goal = dynamic_goal.goal.apply().cast(IGoal)
+        nested_args_indices = nested_args_wrapper.value
+
+        if nested_args_indices is not None:
+            assert isinstance(nested_args_indices, NestedArgIndexGroup)
+            goal = nested_args_indices.apply(goal.as_node).cast(IGoal)
+
+        assert isinstance(goal, Goal)
+        assert isinstance(node, goal.eval_param_type())
+        goal.evaluate(state, node).raise_on_not_true()
+
+        dynamic_goal = dynamic_goal.apply_goal_achieved(nested_args_wrapper)
+        new_state = dynamic_goal_index.replace_in_outer_target(
+            state,
+            dynamic_goal,
+        ).value_or_raise
+
+        return new_state
+
+class VerifyDynamicGoal(
+    BasicAction[VerifyDynamicGoalOutput],
+    IInstantiable,
+):
+
+    idx_dynamic_node_index = 1
+    idx_scratch_index_nested_indices = 2
+    idx_scratch_content_index = 3
+
+    @classmethod
+    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+        dynamic_node_index = StateDynamicGoalIndex(arg1)
+        scratch_index_nested_indices: Optional[StateScratchIndex] = (
+            Optional.create()
+            if arg2 == 0
+            else Optional(StateScratchIndex(arg2)))
+        scratch_content_index = Integer(arg3)
+        return cls(dynamic_node_index, scratch_index_nested_indices, scratch_content_index)
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            StateDynamicGoalIndex,
+            Optional[StateScratchIndex],
+            StateScratchIndex,
+        ]))
+
+    def _run(self, full_state: FullState) -> VerifyDynamicGoalOutput:
+        dynamic_node_index = self.nested_arg(
+            self.idx_dynamic_node_index
+        ).apply().cast(StateDynamicGoalIndex)
+        scratch_index_nested_indices = self.nested_arg(
+            self.idx_scratch_index_nested_indices
+        ).apply().cast(Optional[StateScratchIndex])
+        scratch_content_index = self.nested_arg(
+            self.idx_scratch_content_index
+        ).apply().cast(StateScratchIndex)
+
+        state = full_state.current_state.apply().cast(State)
+        nest_scratch_index = scratch_index_nested_indices.value
+        nested = Optional[NestedArgIndexGroup]()
+        if nest_scratch_index is not None:
+            assert isinstance(nest_scratch_index, StateScratchIndex)
+            scratch = nest_scratch_index.find_in_outer_node(state).value_or_raise
+            assert isinstance(scratch, Scratch)
+            scratch.validate()
+            content = scratch.child.apply().cast(IOptional).value_or_raise
+            assert isinstance(content, NestedArgIndexGroup)
+            nested = Optional(content)
+
+        scratch = scratch_content_index.find_in_outer_node(state).value_or_raise
+        content = scratch.child.apply().cast(IOptional).value_or_raise
+
+        return VerifyDynamicGoalOutput(dynamic_node_index, nested, content)
 
 ###########################################################
 ################## SCRATCH BASE ACTIONS ###################
