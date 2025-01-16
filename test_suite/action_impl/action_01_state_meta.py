@@ -162,6 +162,8 @@ def goal_test():
             ).raise_on_not_true()
             assert env.full_state.goal_achieved() is False
 
+        return env.full_state
+
     def test_goal_specified_with_group(error=False):
         goal = state.GoalGroup(
             goal_1,
@@ -334,16 +336,20 @@ def goal_test():
             ).raise_on_not_true()
             assert env.full_state.goal_achieved() is False
 
-    def main():
-        test_goal_specified(goal_1, scratch_goal_1, direct=True)
-        test_goal_specified(goal_2, scratch_goal_2, direct=False)
-        test_goal_specified(goal_3, scratch_goal_3, direct=True)
-        test_goal_specified(goal_1, scratch_goal_2, direct=True, error=True)
-        test_goal_specified(goal_2, scratch_goal_3, direct=False, error=True)
-        test_goal_specified_with_group()
-        test_goal_specified_with_group(error=True)
+        return env.full_state
 
-    main()
+    def main() -> list[full_state.FullState]:
+        final_states: list[full_state.FullState] = []
+        final_states.append(test_goal_specified(goal_1, scratch_goal_1, direct=True))
+        final_states.append(test_goal_specified(goal_2, scratch_goal_2, direct=False))
+        final_states.append(test_goal_specified(goal_3, scratch_goal_3, direct=True))
+        final_states.append(test_goal_specified(goal_1, scratch_goal_2, direct=True, error=True))
+        final_states.append(test_goal_specified(goal_2, scratch_goal_3, direct=False, error=True))
+        final_states.append(test_goal_specified_with_group())
+        final_states.append(test_goal_specified_with_group(error=True))
+        return final_states
+
+    return main()
 
 def dynamic_goal_test():
     # Change scratch_dynamic_goal to a more complex expression
@@ -622,9 +628,10 @@ def dynamic_goal_test():
     )
     assert env.full_state.goal_achieved() is True
 
-    print()
-    print(env.symbol(env.full_state).to_str())
+    return [env.full_state]
 
-def test():
-    goal_test()
-    dynamic_goal_test()
+def test() -> list[full_state.FullState]:
+    final_states: list[full_state.FullState] = []
+    final_states += goal_test()
+    final_states += dynamic_goal_test()
+    return final_states

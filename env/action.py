@@ -240,13 +240,17 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             remaining_steps
         )
 
-        current = HistoryNode.with_args(
-            state=next_state,
-            meta_data=meta_data,
-            action_data=Optional(action_data))
+        current = current.with_new_args(
+            action_data=Optional(action_data),
+        )
 
         history = list(full_state.history.apply().cast(HistoryGroupNode).as_tuple)
         history.append(current)
+
+        current = HistoryNode.with_args(
+            state=next_state,
+            meta_data=meta_data,
+        )
 
         if max_history_state_size is not None:
             history = history[-max_history_state_size.as_int:]

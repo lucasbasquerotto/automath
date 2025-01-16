@@ -134,6 +134,29 @@ class HistoryNode(InheritableNode, IDefault, IWrapper, IInstantiable):
         action_data = action_data if action_data is not None else Optional.create()
         return cls(state, meta_data, action_data)
 
+    def with_new_args(
+        self,
+        state: State | None = None,
+        meta_data: MetaData | None = None,
+        action_data: IOptional[ActionData] | None = None,
+    ) -> typing.Self:
+        state = (
+            state
+            if state is not None
+            else self.state.apply().cast(State))
+        meta_data = (
+            meta_data
+            if meta_data is not None
+            else self.meta_data.apply().cast(MetaData))
+        action_data = (
+            action_data
+            if action_data is not None
+            else self.action_data.apply().cast(IOptional[ActionData]))
+        return self.with_args(
+            state=state,
+            meta_data=meta_data,
+            action_data=action_data)
+
     @property
     def state(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_state)
@@ -210,6 +233,17 @@ class FullState(InheritableNode, IFullState, IFromSingleChild[MetaInfo], IWrappe
             (self.idx_current, HistoryNode.idx_state)
         )
 
+    @property
+    def last_action_data(self) -> IOptional[ActionData]:
+        history_group = self.history.apply().cast(HistoryGroupNode)
+        history = history_group.as_tuple
+        if len(history) == 0:
+            return Optional.create()
+        last_item = history_group.as_tuple[-1]
+        assert isinstance(last_item, HistoryNode)
+        action_data_opt = last_item.action_data.apply().cast(IOptional[ActionData])
+        return action_data_opt
+
     def goal_achieved(self) -> bool:
         state = self.current_state.apply().cast(State)
         return state.goal_achieved()
@@ -219,6 +253,30 @@ class FullState(InheritableNode, IFullState, IFromSingleChild[MetaInfo], IWrappe
         all_types_wrappers = meta.all_types.apply().cast(GeneralTypeGroup).as_tuple
         all_types = tuple(wrapper.type for wrapper in all_types_wrappers)
         return all_types
+
+    def history_amount(self) -> int:
+        return len(self.history.apply().cast(HistoryGroupNode).as_tuple)
+
+    def at_history(self, index: int) -> tuple[typing.Self, IOptional[ActionData]]:
+        history = self.history.apply().cast(HistoryGroupNode).as_tuple
+        assert index > 0
+        assert index <= len(history)
+        item = history[index-1]
+        current = HistoryNode.with_args(
+            state=item.state.apply().cast(State),
+            meta_data=item.meta_data.apply().cast(MetaData),
+        )
+        action_data_opt = item.action_data.apply().cast(IOptional[ActionData])
+        new_history_group = HistoryGroupNode.from_items(
+            history[:index-1]
+        )
+        new_full_state = self.with_args(
+            meta=self.meta.apply().cast(MetaInfo),
+            current=current,
+            history=new_history_group,
+        )
+        return new_full_state, action_data_opt
+
 
 ###########################################################
 ###################### MAIN INDICES #######################

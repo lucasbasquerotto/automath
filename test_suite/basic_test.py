@@ -905,5 +905,8 @@ def basic_test():
     )
     assert env.full_state.goal_achieved() is True
 
-def test():
-    basic_test()
+    return [env.full_state]
+
+
+def test() -> list[FullState]:
+    return basic_test()
