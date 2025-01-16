@@ -34,15 +34,24 @@ class SympyWrapper(SympyShared):
         args_latex = newline.join(
             r"\{" + str(i+1) + r"\}\text{ }" + printer.doprint(arg)
             for i, arg in enumerate(args))
-        begin = r"\begin{cases}"
-        end = r"\end{cases}"
-        args_latex = args_latex.replace(
-            ' ' + token + ' ',
-            ' ' + full_token + ' ')
-        begin_changed = begin if len(args) > 1 else (begin + r"\text{}")
-        arg_token = full_token if len(args) > 1 else ''
+        if len(args) > 1:
+            begin = r"\begin{cases}"
+            end = r"\end{cases}"
+            fn_newline = r" \\ \text{} "
+            args_latex = args_latex.replace(fn_newline, fn_newline + token + ' ')
+            args_latex = args_latex.replace(
+                fn_newline + token + ' ' + token + ' ',
+                fn_newline + token + ' ')
+            args_latex = args_latex.replace(
+                ' ' + token + ' ',
+                ' ' + full_token + ' ')
+            arg_token = ' ' + full_token
+        else:
+            begin = r"\begin{cases}\text{}"
+            end = r"\end{cases}"
+            arg_token = ''
 
-        return f"{node_name} {begin_changed} {arg_token} {args_latex} {end}"
+        return f"{node_name} {begin}{arg_token} {args_latex} {end}"
 
 class SympyFunction(SympyShared):
 
