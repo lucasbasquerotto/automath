@@ -569,7 +569,7 @@ def dynamic_goal_test():
 
     # Run Action
     meta_idx = get_from_int_type_index(state.StateDynamicGoalIndex, env)
-    raw_action = action_impl.VerifyGoal.from_raw(3, meta_idx, 1)
+    raw_action = action_impl.VerifyGoal.from_raw(4, meta_idx, 1)
     full_action = action_impl.VerifyGoal(
         core.Optional(state.StateScratchIndex(4)),
         full_state.MetaFromIntTypeIndex(meta_idx),
@@ -594,8 +594,6 @@ def dynamic_goal_test():
             state.GoalAchieved.achieved(),
         ),
     )
-    print(env.symbol(last_history_action).to_str())
-    print(env.symbol(current_state.meta_info.apply()).to_str())
     assert current_state.meta_info.apply() == state_meta
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
@@ -606,7 +604,7 @@ def dynamic_goal_test():
         output=core.Optional(output),
         exception=core.Optional(),
     )
-    assert env.full_state.goal_achieved() is False
+    assert env.full_state.goal_achieved() is True
 
 def test():
     goal_test()
