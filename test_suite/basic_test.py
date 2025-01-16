@@ -128,7 +128,7 @@ def basic_test():
     env.step(action)
     current_state = get_current_state(env)
     assert current_state == State.from_raw(
-        scratchs=tuple([None]),
+        scratches=tuple([None]),
         args_groups=tuple(),
     )
     assert env.full_state.goal_achieved() is False
@@ -148,7 +148,7 @@ def basic_test():
     env.step(action)
     current_state = get_current_state(env)
     assert current_state == State.from_raw(
-        scratchs=tuple([None]),
+        scratches=tuple([None]),
         args_groups=tuple(),
     )
     assert env.full_state.goal_achieved() is False
@@ -160,7 +160,7 @@ def basic_test():
     env.step(action)
     current_state = get_current_state(env)
     assert current_state == State.from_raw(
-        scratchs=tuple([And.as_type()]),
+        scratches=tuple([And.as_type()]),
         args_groups=tuple(),
     )
     assert env.full_state.goal_achieved() is False
@@ -184,7 +184,7 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     assert current_state == State.from_raw(
-        scratchs=tuple([And.as_type(), None]),
+        scratches=tuple([And.as_type(), None]),
         args_groups=tuple(),
     )
     assert last_history_action == ActionData.from_args(
@@ -204,7 +204,7 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     assert current_state == State.from_raw(
-        scratchs=tuple([And.as_type(), Or.as_type()]),
+        scratches=tuple([And.as_type(), Or.as_type()]),
         args_groups=tuple(),
     )
     assert last_history_action == ActionData.from_args(
@@ -227,7 +227,7 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     assert current_state == State.from_raw(
-        scratchs=tuple([And.as_type(), Or.as_type(), None]),
+        scratches=tuple([And.as_type(), Or.as_type(), None]),
         args_groups=tuple(),
     )
     assert last_history_action == ActionData.from_args(
@@ -257,7 +257,7 @@ def basic_test():
         )
     )
     assert current_state == State.from_raw(
-        scratchs=tuple([And.as_type(), Or.as_type(), None]),
+        scratches=tuple([And.as_type(), Or.as_type(), None]),
         args_groups=tuple([arg_group]),
     )
     assert last_history_action == ActionData.from_args(
@@ -281,7 +281,7 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     assert current_state == State.from_raw(
-        scratchs=tuple([And.as_type(), Or.as_type(), Param.from_int(1)]),
+        scratches=tuple([And.as_type(), Or.as_type(), Param.from_int(1)]),
         args_groups=tuple([arg_group]),
     )
     assert last_history_action == ActionData.from_args(
@@ -315,7 +315,7 @@ def basic_test():
         )
     )
     assert current_state == State.from_raw(
-        scratchs=tuple([And.as_type(), Or.as_type(), Param.from_int(1)]),
+        scratches=tuple([And.as_type(), Or.as_type(), Param.from_int(1)]),
         args_groups=tuple([arg_group]),
     )
     assert last_history_action == ActionData.from_args(
@@ -340,7 +340,7 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     assert current_state == State.from_raw(
-        scratchs=tuple([And.as_type(), Or.as_type(), Param.from_int(2)]),
+        scratches=tuple([And.as_type(), Or.as_type(), Param.from_int(2)]),
         args_groups=tuple([arg_group]),
     )
     assert last_history_action == ActionData.from_args(
@@ -374,7 +374,7 @@ def basic_test():
         )
     )
     assert current_state == State.from_raw(
-        scratchs=tuple([And.as_type(), Or.as_type(), Param.from_int(2)]),
+        scratches=tuple([And.as_type(), Or.as_type(), Param.from_int(2)]),
         args_groups=tuple([arg_group]),
     )
     assert last_history_action == ActionData.from_args(
@@ -399,7 +399,7 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     assert current_state == State.from_raw(
-        scratchs=tuple([And.as_type(), Or.as_type(), IntBoolean.from_int(1)]),
+        scratches=tuple([And.as_type(), Or.as_type(), IntBoolean.from_int(1)]),
         args_groups=tuple([arg_group]),
     )
     assert last_history_action == ActionData.from_args(
@@ -432,10 +432,10 @@ def basic_test():
             ),
         )
     )
-    scratchs = tuple([And.as_type(), Or.as_type(), IntBoolean.from_int(1)])
+    scratches = tuple([And.as_type(), Or.as_type(), IntBoolean.from_int(1)])
     args_groups = tuple([arg_group])
     assert current_state == State.from_raw(
-        scratchs=scratchs,
+        scratches=scratches,
         args_groups=args_groups,
     )
     assert last_history_action == ActionData.from_args(
@@ -470,7 +470,7 @@ def basic_test():
     )
     args_groups = tuple([arg_group, arg_group_2])
     assert current_state == State.from_raw(
-        scratchs=scratchs,
+        scratches=scratches,
         args_groups=args_groups,
     )
     assert last_history_action == ActionData.from_args(
@@ -493,9 +493,9 @@ def basic_test():
     env.step(action)
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
-    scratchs = tuple([And.as_type(), Or.as_type(), Param.from_int(2)])
+    scratches = tuple([And.as_type(), Or.as_type(), Param.from_int(2)])
     assert current_state == State.from_raw(
-        scratchs=scratchs,
+        scratches=scratches,
         args_groups=args_groups,
     )
     assert last_history_action == ActionData.from_args(
@@ -529,7 +529,7 @@ def basic_test():
     )
     args_groups = tuple([arg_group, arg_group_2])
     assert current_state == State.from_raw(
-        scratchs=scratchs,
+        scratches=scratches,
         args_groups=args_groups,
     )
     assert last_history_action == ActionData.from_args(
@@ -553,9 +553,9 @@ def basic_test():
     env.step(action)
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
-    scratchs = tuple([And.as_type(), Or.as_type(), Param.from_int(3)])
+    scratches = tuple([And.as_type(), Or.as_type(), Param.from_int(3)])
     assert current_state == State.from_raw(
-        scratchs=scratchs,
+        scratches=scratches,
         args_groups=args_groups,
     )
     assert last_history_action == ActionData.from_args(
@@ -589,7 +589,7 @@ def basic_test():
     )
     args_groups = tuple([arg_group, arg_group_2])
     assert current_state == State.from_raw(
-        scratchs=scratchs,
+        scratches=scratches,
         args_groups=args_groups,
     )
     assert last_history_action == ActionData.from_args(
@@ -617,9 +617,9 @@ def basic_test():
         Param.from_int(2),
         IntBoolean.from_int(1),
     )
-    scratchs = tuple([And.as_type(), Or.as_type(), call_1])
+    scratches = tuple([And.as_type(), Or.as_type(), call_1])
     assert current_state == State.from_raw(
-        scratchs=scratchs,
+        scratches=scratches,
         args_groups=args_groups,
     )
     assert last_history_action == ActionData.from_args(
@@ -645,9 +645,9 @@ def basic_test():
         Param.from_int(2),
         Param.from_int(3),
     )
-    scratchs = tuple([call_2, Or.as_type(), call_1])
+    scratches = tuple([call_2, Or.as_type(), call_1])
     assert current_state == State.from_raw(
-        scratchs=scratchs,
+        scratches=scratches,
         args_groups=args_groups,
     )
     assert last_history_action == ActionData.from_args(
@@ -681,7 +681,7 @@ def basic_test():
     )
     args_groups = tuple([arg_group, arg_group_2])
     assert current_state == State.from_raw(
-        scratchs=scratchs,
+        scratches=scratches,
         args_groups=args_groups
     )
     assert last_history_action == ActionData.from_args(
@@ -716,7 +716,7 @@ def basic_test():
     )
     args_groups = tuple([arg_group, arg_group_2])
     assert current_state == State.from_raw(
-        scratchs=scratchs,
+        scratches=scratches,
         args_groups=args_groups,
     )
     assert last_history_action == ActionData.from_args(
@@ -743,10 +743,10 @@ def basic_test():
         call_1,
         call_2,
     )
-    scratchs = tuple([call_3, Or.as_type(), call_1])
+    scratches = tuple([call_3, Or.as_type(), call_1])
 
     assert current_state == State.from_raw(
-        scratchs=scratchs,
+        scratches=scratches,
         args_groups=args_groups,
     )
     assert last_history_action == ActionData.from_args(
@@ -770,7 +770,7 @@ def basic_test():
     last_history_action = get_last_history_action(env)
     args_groups = tuple([arg_group_2])
     assert current_state == State.from_raw(
-        scratchs=scratchs,
+        scratches=scratches,
         args_groups=args_groups,
     )
     assert last_history_action == ActionData.from_args(
@@ -791,7 +791,7 @@ def basic_test():
     last_history_action = get_last_history_action(env)
     args_groups = tuple()
     assert current_state == State.from_raw(
-        scratchs=scratchs,
+        scratches=scratches,
         args_groups=args_groups
     )
     assert last_history_action == ActionData.from_args(
@@ -810,9 +810,9 @@ def basic_test():
     env.step(action)
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
-    scratchs = tuple([call_3, Or.as_type()])
+    scratches = tuple([call_3, Or.as_type()])
     assert current_state == State.from_raw(
-        scratchs=scratchs,
+        scratches=scratches,
         args_groups=args_groups,
     )
     assert last_history_action == ActionData.from_args(
@@ -831,9 +831,9 @@ def basic_test():
     env.step(action)
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
-    scratchs = tuple([call_3])
+    scratches = tuple([call_3])
     assert current_state == State.from_raw(
-        scratchs=scratchs,
+        scratches=scratches,
         args_groups=args_groups,
     )
     assert last_history_action == ActionData.from_args(
@@ -887,7 +887,7 @@ def basic_test():
     scratch_goal = FunctionExpr(ExtendedTypeGroup.rest(), call_3)
     assert current_state == State.from_raw(
         meta_info=StateMetaInfo.with_goal_achieved(GoalAchieved.achieved()),
-        scratchs=[scratch_goal],
+        scratches=[scratch_goal],
         args_groups=args_groups,
     )
     assert last_history_action == ActionData.from_args(

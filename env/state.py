@@ -484,16 +484,16 @@ class State(InheritableNode, IDefault, IWrapper, IInstantiable):
     def from_raw(
         cls,
         meta_info: StateMetaInfo | None = None,
-        scratchs: typing.Sequence[INode | None] | None = None,
+        scratches: typing.Sequence[INode | None] | None = None,
         args_groups: typing.Sequence[PartialArgsGroup] | None = None,
         definitions: typing.Sequence[StateDefinition] | None = None,
     ) -> typing.Self:
-        scratchs = scratchs or tuple()
+        scratches = scratches or tuple()
         args_groups = args_groups or tuple()
         definitions = definitions or tuple()
         return cls.with_args(
             meta_info=meta_info,
-            scratch_group=ScratchGroup.from_raw_items(scratchs),
+            scratch_group=ScratchGroup.from_raw_items(scratches),
             args_outer_group=PartialArgsOuterGroup.from_items(args_groups),
             definition_group=StateDefinitionGroup.from_items(definitions))
 

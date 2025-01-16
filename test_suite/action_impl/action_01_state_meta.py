@@ -67,7 +67,7 @@ def goal_test():
     def fn_before_final_state(
         meta: meta_env.MetaInfo,
         goal: node_types_module.HaveScratch,
-        scratchs: typing.Sequence[core.INode | None],
+        scratches: typing.Sequence[core.INode | None],
     ) -> full_state.FullState:
         state_meta = state.StateMetaInfo.with_goal_expr(goal)
         return full_state.FullState.with_args(
@@ -75,11 +75,11 @@ def goal_test():
             current=full_state.HistoryNode.with_args(
                 state=state.State.from_raw(
                     meta_info=state_meta,
-                    scratchs=scratchs,
+                    scratches=scratches,
                 ),
                 meta_data=meta_env.MetaData.with_args(
-                    remaining_steps=len(scratchs)
-                    if scratch_goal_1 in scratchs
+                    remaining_steps=len(scratches)
+                    if scratch_goal_1 in scratches
                     else None
                 ),
             )
@@ -96,7 +96,7 @@ def goal_test():
             fn_initial_state=lambda meta: fn_before_final_state(
                 meta=meta,
                 goal=goal,
-                scratchs=[
+                scratches=[
                     scratch_goal
                     if scratch_goal is not None
                     else goal.goal_inner_expr.apply()
@@ -109,7 +109,7 @@ def goal_test():
         prev_remaining_steps = get_remaining_steps(env)
 
         assert current_state == state.State.from_raw(
-            scratchs=[scratch_goal],
+            scratches=[scratch_goal],
         )
         assert env.full_state.goal_achieved() is False
 
@@ -140,7 +140,7 @@ def goal_test():
             assert current_state.meta_info.apply() == state_meta
             assert current_state == state.State.from_raw(
                 meta_info=state_meta,
-                scratchs=[scratch_goal],
+                scratches=[scratch_goal],
             )
             assert last_history_action == full_state.ActionData.from_args(
                 action=core.Optional(output if direct else full_action),
@@ -175,7 +175,7 @@ def goal_test():
         scratch_nest_1 = core.NestedArgIndexGroup.from_ints([1])
         scratch_nest_2 = core.NestedArgIndexGroup.from_ints([2, 1])
         scratch_nest_3 = core.NestedArgIndexGroup.from_ints([2, 2])
-        scratchs = [
+        scratches = [
             scratch_goal_1,
             scratch_goal_2,
             scratch_goal_3,
@@ -188,7 +188,7 @@ def goal_test():
             fn_initial_state=lambda meta: fn_before_final_state(
                 meta=meta,
                 goal=goal,
-                scratchs=scratchs,
+                scratches=scratches,
             ))
         assert has_goal(env=env, goal=goal)
 
@@ -204,7 +204,7 @@ def goal_test():
         ))
         assert current_state == state.State.from_raw(
             meta_info=state_meta,
-            scratchs=scratchs,
+            scratches=scratches,
         )
         assert env.full_state.goal_achieved() is False
 
@@ -240,7 +240,7 @@ def goal_test():
         assert current_state.meta_info.apply() == state_meta
         assert current_state == state.State.from_raw(
             meta_info=state_meta,
-            scratchs=scratchs,
+            scratches=scratches,
         )
         assert last_history_action == full_state.ActionData.from_args(
             action=core.Optional(full_action),
@@ -273,7 +273,7 @@ def goal_test():
         assert current_state.meta_info.apply() == state_meta
         assert current_state == state.State.from_raw(
             meta_info=state_meta,
-            scratchs=scratchs,
+            scratches=scratches,
         )
         assert last_history_action == full_state.ActionData.from_args(
             action=core.Optional(output),
@@ -315,7 +315,7 @@ def goal_test():
             assert current_state.meta_info.apply() == state_meta
             assert current_state == state.State.from_raw(
                 meta_info=state_meta,
-                scratchs=scratchs,
+                scratches=scratches,
             )
             assert last_history_action == full_state.ActionData.from_args(
                 action=core.Optional(full_action),
@@ -389,7 +389,7 @@ def dynamic_goal_test():
     def fn_before_final_state(
         meta: meta_env.MetaInfo,
         goal: node_types_module.HaveScratch,
-        scratchs: typing.Sequence[core.INode | None],
+        scratches: typing.Sequence[core.INode | None],
     ) -> full_state.FullState:
         state_meta = state.StateMetaInfo.with_goal_expr(goal)
         return full_state.FullState.with_args(
@@ -397,7 +397,7 @@ def dynamic_goal_test():
             current=full_state.HistoryNode.with_args(
                 state=state.State.from_raw(
                     meta_info=state_meta,
-                    scratchs=scratchs,
+                    scratches=scratches,
                 ),
                 meta_data=meta_env.MetaData.with_args(
                     remaining_steps=5
@@ -411,7 +411,7 @@ def dynamic_goal_test():
     )
     scratch_nest_1 = core.NestedArgIndexGroup.from_ints([1])
     scratch_nest_2 = core.NestedArgIndexGroup.from_ints([2])
-    scratchs = [
+    scratches = [
         scratch_dynamic_goal,
         dynamic_goal_expr,
         scratch_nest_1,
@@ -422,7 +422,7 @@ def dynamic_goal_test():
         fn_initial_state=lambda meta: fn_before_final_state(
             meta=meta,
             goal=goal,
-            scratchs=scratchs,
+            scratches=scratches,
         ))
     assert has_goal(env=env, goal=goal)
 
@@ -435,7 +435,7 @@ def dynamic_goal_test():
     ))
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
-        scratchs=scratchs,
+        scratches=scratches,
     )
     assert env.full_state.goal_achieved() is False
 
@@ -466,7 +466,7 @@ def dynamic_goal_test():
     assert current_state.meta_info.apply() == state_meta
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
-        scratchs=scratchs,
+        scratches=scratches,
     )
     assert last_history_action == full_state.ActionData.from_args(
         action=core.Optional(full_action),
@@ -505,7 +505,7 @@ def dynamic_goal_test():
     assert current_state.meta_info.apply() == state_meta
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
-        scratchs=scratchs,
+        scratches=scratches,
     )
     assert last_history_action == full_state.ActionData.from_args(
         action=core.Optional(full_action),
@@ -535,10 +535,10 @@ def dynamic_goal_test():
     last_history_action = get_last_history_action(env)
 
     # Verify
-    scratchs[1] = state.StateScratchIndex(1)
+    scratches[1] = state.StateScratchIndex(1)
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
-        scratchs=scratchs,
+        scratches=scratches,
     )
     assert last_history_action == full_state.ActionData.from_args(
         action=core.Optional(full_action),
@@ -579,7 +579,7 @@ def dynamic_goal_test():
     assert current_state.meta_info.apply() == state_meta
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
-        scratchs=scratchs,
+        scratches=scratches,
     )
     assert last_history_action == full_state.ActionData.from_args(
         action=core.Optional(full_action),
@@ -618,7 +618,7 @@ def dynamic_goal_test():
     assert current_state.meta_info.apply() == state_meta
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
-        scratchs=scratchs,
+        scratches=scratches,
     )
     assert last_history_action == full_state.ActionData.from_args(
         action=core.Optional(full_action),
