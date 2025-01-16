@@ -346,13 +346,29 @@ def goal_test():
     main()
 
 def dynamic_goal_test():
-    params = (core.Param.from_int(1), core.Param.from_int(2), core.Param.from_int(3))
-    p1, p2, p3 = params
-    scratch_dynamic_goal = core.FunctionCall.define(
-        state.FunctionId(1),
-        core.DefaultGroup(
-            core.DefaultGroup(core.Integer(3), core.Integer(4)),
-            core.Eq(p1, core.Integer(27)),
+    # Change scratch_dynamic_goal to a more complex expression
+    p1_args = (
+        core.ScopeId.create(),
+        core.Integer(1),
+        core.TypeNode(core.IBoolean),
+    )
+    scratch_dynamic_goal = core.FunctionExpr.with_child(
+        core.And(
+            core.Or(
+                core.Param(*p1_args),
+                core.Param.from_int(2),
+                core.IntBoolean.from_int(1),
+            ),
+            core.Or(
+                core.FunctionCall.define(
+                    core.TypeNode(core.Param),
+                    core.DefaultGroup(*p1_args)
+                ),
+                core.GreaterThan(
+                    core.Param.from_int(3),
+                    core.Param.from_int(4)
+                ),
+            ),
         )
     )
     dynamic_goal_expr = node_types_module.HaveScratch.with_goal(scratch_dynamic_goal)
@@ -605,6 +621,9 @@ def dynamic_goal_test():
         exception=core.Optional(),
     )
     assert env.full_state.goal_achieved() is True
+
+    print()
+    print(env.symbol(env.full_state).to_str())
 
 def test():
     goal_test()

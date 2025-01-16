@@ -453,6 +453,14 @@ class TypeNode(BaseNode, IType, IFunction, ISpecialValue, typing.Generic[T], IIn
     def node_value(self) -> INode:
         return self
 
+    def __hash__(self) -> int:
+        if self._cached_hash is not None:
+            return self._cached_hash
+        full_type_name = self.type.__module__ + '.' + self.type.__name__
+        hash_value = hash((self.func, full_type_name))
+        self._cached_hash = hash_value
+        return hash_value
+
     def with_arg_group(self, group: BaseGroup) -> INode:
         return self.type.new(*group.as_tuple)
 
