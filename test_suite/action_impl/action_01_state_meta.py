@@ -172,9 +172,9 @@ def goal_test():
                 goal_3,
             ),
         )
-        scratch_nest_1 = core.NestedArgIndexGroup.from_indices([1])
-        scratch_nest_2 = core.NestedArgIndexGroup.from_indices([2, 1])
-        scratch_nest_3 = core.NestedArgIndexGroup.from_indices([2, 2])
+        scratch_nest_1 = core.NestedArgIndexGroup.from_ints([1])
+        scratch_nest_2 = core.NestedArgIndexGroup.from_ints([2, 1])
+        scratch_nest_3 = core.NestedArgIndexGroup.from_ints([2, 2])
         scratchs = [
             scratch_goal_1,
             scratch_goal_2,
@@ -409,8 +409,8 @@ def dynamic_goal_test():
         goal_1,
         goal_2,
     )
-    scratch_nest_1 = core.NestedArgIndexGroup.from_indices([1])
-    scratch_nest_2 = core.NestedArgIndexGroup.from_indices([2])
+    scratch_nest_1 = core.NestedArgIndexGroup.from_ints([1])
+    scratch_nest_2 = core.NestedArgIndexGroup.from_ints([2])
     scratchs = [
         scratch_dynamic_goal,
         dynamic_goal_expr,
@@ -484,7 +484,7 @@ def dynamic_goal_test():
         core.Integer(1),
     )
     output = action_impl.VerifyGoalOutput(
-        core.Optional(core.NestedArgIndexGroup.from_indices([1])),
+        core.Optional(core.NestedArgIndexGroup.from_ints([1])),
         state.StateDynamicGoalIndex(1),
     )
     env.step(raw_action)
@@ -597,7 +597,7 @@ def dynamic_goal_test():
         core.Integer(1),
     )
     output = action_impl.VerifyGoalOutput(
-        core.Optional(core.NestedArgIndexGroup.from_indices([2])),
+        core.Optional(core.NestedArgIndexGroup.from_ints([2])),
         state.StateDynamicGoalIndex(1),
     )
     env.step(raw_action)

@@ -975,25 +975,24 @@ class DefaultGroup(BaseGroup[INode], IInstantiable):
     def item_type(cls):
         return INode
 
-class NestedArgIndexGroup(BaseGroup[IInt], IInstantiable):
+class BaseIntGroup(BaseGroup[IInt], ABC):
 
     @classmethod
     def item_type(cls):
         return IInt
+
+    @classmethod
+    def from_ints(cls, indices: typing.Sequence[int]) -> typing.Self:
+        return cls(*[Integer(i) for i in indices])
+
+class IntGroup(BaseIntGroup, IInstantiable):
+    pass
+
+class NestedArgIndexGroup(BaseIntGroup, IInstantiable):
 
     def apply(self, node: BaseNode) -> BaseNode:
         args_indices = [arg.as_int for arg in self.args]
         return node.nested_args(tuple(args_indices)).apply()
-
-    @classmethod
-    def from_indices(cls, indices: typing.Sequence[int]) -> typing.Self:
-        return cls(*[Integer(i) for i in indices])
-
-class IntGroup(BaseGroup[IInt], IInstantiable):
-
-    @classmethod
-    def item_type(cls):
-        return IInt
 
 class OptionalValueGroup(BaseGroup[IOptional[T]], IFromInt, IInstantiable, typing.Generic[T]):
 

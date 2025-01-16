@@ -24,6 +24,7 @@ from env.core import (
     IntersectionType,
     BaseNode,
     IWrapper,
+    IntGroup,
     TmpNestedArg,
     IInstantiable)
 from env.state import State, IGoal
@@ -250,8 +251,61 @@ class IAction(INode, typing.Generic[S], ABC):
 
 class IBasicAction(IAction[S], typing.Generic[S], ABC):
 
+    def to_raw_args(self) -> IntGroup:
+        args = self.as_node.args
+        raw_args: list[int] = []
+        for arg in args:
+            if isinstance(arg, IOptional):
+                if arg.is_empty().as_bool:
+                    raw_args.append(0)
+                else:
+                    value: INode = arg.value_or_raise
+                    assert isinstance(value, IInt)
+                    raw_args.append(value.as_int)
+            else:
+                assert isinstance(arg, IInt)
+                raw_args.append(arg.as_int)
+        for _ in range(len(args), 3):
+            raw_args.append(0)
+        return IntGroup.from_ints(raw_args)
+
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+        raw_args = [arg1, arg2, arg3]
+        group = cls.arg_type_group().group.apply()
+        assert isinstance(group, CountableTypeGroup), type(group)
+        types = group.as_tuple
+        assert len(types) <= 3
+
+        result = cls._from_raw(arg1, arg2, arg3)
+        assert result.to_raw_args() == IntGroup.from_ints(raw_args)
+
+        node = result.as_node
+        assert len(node.args) == len(types)
+        for i, raw_arg in enumerate(raw_args):
+            if i >= len(types):
+                assert raw_arg == 0
+            else:
+                type_node = types[i]
+                arg = node.args[i]
+                assert isinstance(type_node, TypeNode)
+                t = type_node.type
+                if issubclass(t, IOptional):
+                    assert isinstance(arg, IOptional)
+                    if raw_arg == 0:
+                        assert arg.is_empty().as_bool
+                    else:
+                        value: INode = arg.value_or_raise
+                        assert isinstance(value, IInt)
+                        assert value == value.from_int(raw_arg)
+                else:
+                    assert issubclass(t, IInt)
+                    assert isinstance(arg, IInt)
+                    assert arg == t.from_int(raw_arg)
+        return result
+
+    @classmethod
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         raise NotImplementedError
 
 

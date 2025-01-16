@@ -115,7 +115,7 @@ class VerifyGoal(
     idx_index_value = 3
 
     @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index_nested_indices: Optional[StateScratchIndex] = (
             Optional.create()
             if arg1 == 0
@@ -200,7 +200,7 @@ class CreateDynamicGoal(
     idx_scratch_index_goal = 1
 
     @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index_goal = StateScratchIndex(arg1)
         Eq.from_ints(arg2, 0).raise_on_false()
         Eq.from_ints(arg3, 0).raise_on_false()
@@ -294,7 +294,7 @@ class VerifyDynamicGoal(
     idx_scratch_index_content = 3
 
     @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         dynamic_node_index = StateDynamicGoalIndex(arg1)
         scratch_index_nested_indices: Optional[StateScratchIndex] = (
             Optional.create()
@@ -344,7 +344,7 @@ class DeleteDynamicGoalOutput(GeneralAction, IBasicAction[FullState], IInstantia
     idx_dynamic_goal_index = 1
 
     @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         dynamic_goal_index = StateDynamicGoalIndex(arg1)
         Eq.from_ints(arg2, 0).raise_on_false()
         Eq.from_ints(arg3, 0).raise_on_false()
@@ -439,7 +439,7 @@ class CreateScratch(
     idx_clone_index = 1
 
     @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         clone_index: Optional[StateScratchIndex] = (
             Optional.create()
             if arg1 == 0
@@ -482,7 +482,7 @@ class CreateScratch(
 class DeleteScratchOutput(ScratchBaseActionOutput, IBasicAction[FullState], IInstantiable):
 
     @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         index = StateScratchIndex(arg1)
         Eq.from_ints(arg2, 0).raise_on_false()
         Eq.from_ints(arg3, 0).raise_on_false()
@@ -519,7 +519,7 @@ class ClearScratch(BasicAction[DefineScratchOutput], IInstantiable):
     idx_scratch_index = 1
 
     @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
         Eq.from_ints(arg2, 0).raise_on_false()
         Eq.from_ints(arg3, 0).raise_on_false()
@@ -545,7 +545,7 @@ class DefineScratchFromDefault(
     idx_type_index = 2
 
     @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
         type_index = MetaDefaultTypeIndex(arg2)
         Eq.from_ints(arg3, 0).raise_on_false()
@@ -580,7 +580,7 @@ class DefineScratchFromInt(
     idx_index_value = 3
 
     @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
         type_index = MetaFromIntTypeIndex(arg2)
         index_value = Integer(arg3)
@@ -618,7 +618,7 @@ class DefineScratchFromSingleArg(
     idx_arg = 3
 
     @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
         type_index = MetaSingleChildTypeIndex(arg2)
         arg = StateScratchIndex(arg3)
@@ -661,7 +661,7 @@ class DefineScratchFromIntIndex(
     idx_index_value = 3
 
     @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
         type_index = MetaFullStateIntIndexTypeIndex(arg2)
         index_value = Integer(arg3)
@@ -703,7 +703,7 @@ class DefineScratchFromFunctionWithIntArg(
     idx_int_arg = 3
 
     @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
         source_index = StateScratchIndex(arg2)
         int_arg = Integer(arg3)
@@ -747,7 +747,7 @@ class DefineScratchFromFunctionWithSingleArg(
     idx_single_arg_index = 3
 
     @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
         source_index = StateScratchIndex(arg2)
         single_arg = StateScratchIndex(arg3)
@@ -798,7 +798,7 @@ class DefineScratchFromFunctionWithArgs(
     idx_args_group_index = 3
 
     @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
         source_index = StateScratchIndex(arg2)
         args_group_index: Optional[StateArgsGroupIndex] = (
@@ -859,7 +859,7 @@ class UpdateScratchFromAnother(
     idx_source_index = 3
 
     @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
         scratch_inner_index = ScratchNodeIndex(arg2)
         source_index = StateScratchIndex(arg3)
@@ -939,7 +939,7 @@ class CreateArgsGroup(
     idx_args_group_source_index = 3
 
     @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         args_amount = Integer(arg1)
         param_types_index: Optional[StateScratchIndex] = (
             Optional.create()
@@ -1013,7 +1013,7 @@ class DeleteArgsGroupOutput(GeneralAction, IBasicAction[FullState], IInstantiabl
     idx_args_group_index = 1
 
     @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         args_group_index = StateArgsGroupIndex(arg1)
         Eq.from_ints(arg2, 0).raise_on_false()
         Eq.from_ints(arg3, 0).raise_on_false()
@@ -1091,7 +1091,7 @@ class DefineArgsGroup(
     idx_scratch_index = 3
 
     @classmethod
-    def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         args_group_index = StateArgsGroupIndex(arg1)
         arg_index = NodeArgIndex(arg2)
         scratch_index = StateScratchIndex(arg3)
