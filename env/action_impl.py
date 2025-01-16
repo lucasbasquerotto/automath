@@ -397,7 +397,7 @@ class ScratchWithNodeBaseActionOutput(GeneralAction, ABC):
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             StateScratchIndex,
-            IOptional[INode],
+            Optional[INode],
         ]))
 
     @property
@@ -477,7 +477,7 @@ class CreateScratch(
         scratch.validate()
         node = scratch.child.apply().cast(IOptional)
 
-        return CreateScratchOutput(index, node)
+        return CreateScratchOutput(index, Optional.with_value(node.value))
 
 class DeleteScratchOutput(ScratchBaseActionOutput, IBasicAction[FullState], IInstantiable):
 
