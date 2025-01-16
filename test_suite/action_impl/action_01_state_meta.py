@@ -352,7 +352,6 @@ def goal_test():
     return main()
 
 def dynamic_goal_test():
-    # Change scratch_dynamic_goal to a more complex expression
     p1_args = (
         core.ScopeId.create(),
         core.Integer(1),
