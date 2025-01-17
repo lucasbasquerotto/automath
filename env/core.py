@@ -1083,6 +1083,7 @@ class OptionalTypeGroup(SingleValueTypeGroup, IInstantiable):
 class ExtendedTypeGroup(
     InheritableNode,
     IDefault,
+    IFromInt,
     IFromSingleChild[IOptional[IInt]],
     IInstantiable,
 ):
@@ -1120,6 +1121,10 @@ class ExtendedTypeGroup(
     @classmethod
     def create(cls) -> typing.Self:
         return cls.rest()
+
+    @classmethod
+    def from_int(cls, value: int) -> typing.Self:
+        return cls.with_child(Optional(Integer(value)))
 
     @classmethod
     def with_child(cls, child: IOptional[INT]) -> typing.Self:

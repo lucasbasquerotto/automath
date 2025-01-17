@@ -871,13 +871,20 @@ class DefineScratchFromFunctionWithArgs(
 
         filled_args_group = args_group.fill_with_void()
 
+        fn_call: INode | None = None
+
         if isinstance(content, TypeNode):
-            t = content.type
-            assert issubclass(t, IInheritableNode)
-            t.arg_type_group().validate_values(filled_args_group)
-            fn_call = t.new(*filled_args_group.as_tuple)
+            if args_group_index.value is None and issubclass(content.type, IDefault):
+                fn_call = content.type.create()
+            else:
+                t = content.type
+                assert issubclass(t, IInheritableNode)
+                t.arg_type_group().validate_values(filled_args_group)
+                fn_call = t.new(*filled_args_group.as_tuple)
         else:
             fn_call = FunctionCall(content, filled_args_group)
+
+        assert isinstance(fn_call, INode)
 
         return DefineScratchOutput(scratch_index, Optional(fn_call))
 
@@ -1019,8 +1026,9 @@ class CreateArgsGroup(
                 type_group = type_group.new_amount(args_amount.as_int)
                 optional_group = optional_group.new_amount(args_amount.as_int)
         else:
-            type_group = ExtendedTypeGroup.create()
-            optional_group = OptionalValueGroup.from_int(args_amount.as_int)
+            group = PartialArgsGroup.from_int(args_amount.as_int)
+            type_group = group.param_type_group.apply().cast(ExtendedTypeGroup)
+            optional_group = group.scope_child.apply().cast(OptionalValueGroup)
 
         if param_types_index.value is not None:
             param_types = param_types_index.value.find_in_outer_node(state).value_or_raise

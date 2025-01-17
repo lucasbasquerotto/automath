@@ -5,6 +5,7 @@ from env.core import (
     IDefault,
     BaseNode,
     IFunction,
+    IFromInt,
     IOptional,
     OptionalBase,
     Optional,
@@ -20,8 +21,6 @@ from env.core import (
     ScopeId,
     OptionalValueGroup,
     ExtendedTypeGroup,
-    SingleValueTypeGroup,
-    UnknownType,
     FunctionExprBase,
     ITypedIndex,
     ITypedIntIndex,
@@ -295,6 +294,7 @@ class ScratchGroup(BaseGroup[Scratch], IInstantiable):
 class PartialArgsGroup(
     FunctionExprBase[OptionalValueGroup],
     IDefault,
+    IFromInt,
     IInstantiable,
 ):
 
@@ -338,8 +338,14 @@ class PartialArgsGroup(
     @classmethod
     def create(cls) -> typing.Self:
         return cls(
-            ExtendedTypeGroup(SingleValueTypeGroup(UnknownType())),
+            ExtendedTypeGroup(CountableTypeGroup()),
             LaxOpaqueScope.with_content(OptionalValueGroup()))
+
+    @classmethod
+    def from_int(cls, value: int) -> typing.Self:
+        return cls(
+            ExtendedTypeGroup.from_int(value),
+            LaxOpaqueScope.with_content(OptionalValueGroup.from_int(value)))
 
 class PartialArgsOuterGroup(BaseGroup[PartialArgsGroup], IInstantiable):
     @classmethod
