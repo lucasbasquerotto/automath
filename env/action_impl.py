@@ -3,6 +3,7 @@ import typing
 from abc import ABC
 from env.core import (
     INode,
+    IInheritableNode,
     NodeArgIndex,
     DefaultGroup,
     Integer,
@@ -21,6 +22,7 @@ from env.core import (
     CountableTypeGroup,
     IOptional,
     NestedArgIndexGroup,
+    IntGroup,
     Eq,
     Not,
     IInstantiable,
@@ -733,7 +735,20 @@ class DefineScratchFromFunctionWithIntArg(
         content = source_scratch.child.apply().cast(IOptional).value
         assert content is not None
 
-        fn_call = FunctionCall.define(content, DefaultGroup(int_arg))
+        fn_call: INode | None = None
+
+        if isinstance(content, TypeNode):
+            t = content.type
+            if issubclass(t, IFromInt):
+                fn_call = t.from_int(int_arg.as_int)
+            else:
+                assert issubclass(t, IInheritableNode)
+                t.arg_type_group().validate_values(IntGroup(int_arg))
+                fn_call = t.new(int_arg)
+        else:
+            fn_call = FunctionCall(content, IntGroup(int_arg))
+
+        assert isinstance(fn_call, INode)
 
         return DefineScratchOutput(scratch_index, Optional(fn_call))
 
@@ -784,7 +799,20 @@ class DefineScratchFromFunctionWithSingleArg(
         single_arg = single_arg_outer.child.apply().cast(IOptional).value
         assert single_arg is not None
 
-        fn_call = FunctionCall.define(content, DefaultGroup(single_arg))
+        fn_call: INode | None = None
+
+        if isinstance(content, TypeNode):
+            t = content.type
+            if issubclass(t, ISingleChild):
+                fn_call = t.with_child(single_arg)
+            else:
+                assert issubclass(t, IInheritableNode)
+                t.arg_type_group().validate_values(DefaultGroup(single_arg))
+                fn_call = t.new(single_arg)
+        else:
+            fn_call = FunctionCall(content, DefaultGroup(single_arg))
+
+        assert isinstance(fn_call, INode)
 
         return DefineScratchOutput(scratch_index, Optional(fn_call))
 
@@ -841,7 +869,15 @@ class DefineScratchFromFunctionWithArgs(
         else:
             args_group = PartialArgsGroup.create()
 
-        fn_call = FunctionCall.define(content, args_group.fill_with_void())
+        filled_args_group = args_group.fill_with_void()
+
+        if isinstance(content, TypeNode):
+            t = content.type
+            assert issubclass(t, IInheritableNode)
+            t.arg_type_group().validate_values(filled_args_group)
+            fn_call = t.new(*filled_args_group.as_tuple)
+        else:
+            fn_call = FunctionCall(content, filled_args_group)
 
         return DefineScratchOutput(scratch_index, Optional(fn_call))
 

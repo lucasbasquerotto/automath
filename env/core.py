@@ -15,10 +15,6 @@ class INode(ABC):
         return TypeNode(cls)
 
     @classmethod
-    def new(cls, *args: int | INode | typing.Type[INode]) -> typing.Self:
-        raise NotImplementedError(cls)
-
-    @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         raise NotImplementedError(cls)
 
@@ -34,7 +30,13 @@ class INode(ABC):
     def func(self) -> typing.Type[typing.Self]:
         return type(self)
 
-class ISpecialValue(ABC):
+class IInheritableNode(INode, ABC):
+
+    @classmethod
+    def new(cls, *args: INode) -> typing.Self:
+        raise NotImplementedError(cls)
+
+class ISpecialValue(INode, ABC):
 
     @property
     def node_value(self) -> INode:
@@ -44,7 +46,7 @@ class IDefault(INode, ABC):
 
     @classmethod
     def create(cls) -> typing.Self:
-        return cls.new()
+        return cls()
 
     @property
     def as_node(self) -> BaseNode:
@@ -82,7 +84,7 @@ O = typing.TypeVar('O', bound=INode)
 K = typing.TypeVar('K', bound=INode)
 INT = typing.TypeVar('INT', bound=IInt)
 
-class IFromSingleChild(INode, typing.Generic[T], ABC):
+class IFromSingleChild(IInheritableNode, typing.Generic[T], ABC):
 
     @classmethod
     def with_child(cls, child: T) -> typing.Self:
@@ -219,10 +221,6 @@ class ITypedIntIndex(IInt, ITypedIndex[O, T], typing.Generic[O, T], ABC):
         return NodeArgIndex(self.as_int).remove_in_target(target)
 
 class IInstantiable(INode, ABC):
-
-    @classmethod
-    def new(cls, *args: int | INode | typing.Type[INode]) -> typing.Self:
-        return cls(*args)
 
     @property
     def as_instance(self) -> typing.Self:
@@ -462,7 +460,9 @@ class TypeNode(BaseNode, IType, IFunction, ISpecialValue, typing.Generic[T], IIn
         return hash_value
 
     def with_arg_group(self, group: BaseGroup) -> INode:
-        return self.type.new(*group.as_tuple)
+        t = self.type
+        assert issubclass(t, IInheritableNode)
+        return t.new(*group.as_tuple)
 
     def accepted_by(self, outer_type: IType) -> bool | None:
         if isinstance(outer_type, TypeNode):
@@ -521,7 +521,11 @@ class Integer(BaseInt, IInstantiable):
 ######################## MAIN NODE ########################
 ###########################################################
 
-class InheritableNode(BaseNode, ABC):
+class InheritableNode(BaseNode, IInheritableNode, ABC):
+
+    @classmethod
+    def new(cls, *args: INode) -> typing.Self:
+        return cls(*args)
 
     def __init__(self, *args: INode):
         assert all(isinstance(arg, INode) for arg in args)
@@ -556,15 +560,17 @@ class InheritableNode(BaseNode, ABC):
     def validate(self):
         super().validate()
         args = self.args
-        type_group = self.as_instance.__class__.arg_type_group().group
+        type_group = self.arg_type_group().group.apply()
         if isinstance(type_group, OptionalTypeGroup):
-            assert len(args) <= 1
+            assert len(args) <= 1, \
+                f'{type(self)}: {len(args)} > 1'
         elif isinstance(type_group, CountableTypeGroup):
-            assert len(args) == len(type_group.args)
+            assert len(args) == len(type_group.args), \
+                f'{type(self)}: {len(args)} != {len(type_group.args)}'
 
     def run(self):
         args = self.args
-        self.as_instance.arg_type_group().validate_values(DefaultGroup(*args))
+        self.arg_type_group().validate_values(DefaultGroup(*args))
 
 ###########################################################
 ###################### SPECIAL NODES ######################
@@ -1342,8 +1348,6 @@ class FunctionCall(InheritableNode, IInstantiable):
 
     @classmethod
     def define(cls, fn: IFunction, args: BaseGroup) -> INode:
-        if isinstance(fn, TypeNode):
-            return fn.type.new(*args.as_tuple)
         return cls(fn, args)
 
 ###########################################################

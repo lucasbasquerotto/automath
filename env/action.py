@@ -218,11 +218,13 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             full_output = self.inner_run(full_state)
             output = full_output.output.apply().cast(IActionOutput)
             next_state = full_output.new_state.apply().cast(State)
+            next_state.validate()
             action_data = ActionData.from_args(
                 action=Optional(self),
                 output=Optional(output),
                 exception=Optional.create(),
             )
+            action_data.validate()
         except InvalidActionException as e:
             symbol = Symbol(
                 node=e.info.as_node,
