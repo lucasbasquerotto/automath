@@ -894,8 +894,8 @@ class DefineScratchFromScratchNode(
 ):
 
     idx_scratch_index = 1
-    idx_source_index = 3
-    idx_source_inner_index = 2
+    idx_source_index = 2
+    idx_source_inner_index = 3
 
     @classmethod
     def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
@@ -924,9 +924,8 @@ class DefineScratchFromScratchNode(
         source_scratch = source_index.find_in_outer_node(state).value_or_raise
         assert isinstance(source_scratch, Scratch)
         source_scratch.validate()
-        inner_content = source_scratch.child.apply().cast(IOptional).value_or_raise
 
-        new_content = source_inner_index.find_in_node(inner_content).value_or_raise
+        new_content = source_inner_index.find_in_node(source_scratch).value_or_raise
 
         return DefineScratchOutput(scratch_index, Optional(new_content))
 
