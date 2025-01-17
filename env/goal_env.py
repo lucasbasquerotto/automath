@@ -18,6 +18,7 @@ class GoalEnv(Environment):
         ] | None = None,
         reward_evaluator: reward.IRewardEvaluator | None = None,
         allowed_actions: typing.Sequence[action.IAction] | None = None,
+        max_history_state_size: int | None = None,
         max_steps: int | None = None,
     ):
         all_types = [t.as_type() for t in load_all_subclasses_sorted()]
@@ -29,6 +30,8 @@ class GoalEnv(Environment):
             goal=goal,
             all_types=all_types,
             allowed_actions=allowed_actions_typed,
+            max_history_state_size=max_history_state_size,
+            max_steps=max_steps,
         )
         initial_state = (
             fn_initial_state(meta)

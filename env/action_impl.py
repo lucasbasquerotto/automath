@@ -512,7 +512,6 @@ class DefineScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
         state = full_state.current_state.apply().cast(State)
         scratch = Scratch.with_optional(node)
         new_state = index.replace_in_outer_target(state, scratch).value_or_raise
-        new_state = Optional.with_child(new_state).value_or_raise
 
         return new_state
 

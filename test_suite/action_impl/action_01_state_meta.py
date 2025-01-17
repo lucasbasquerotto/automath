@@ -78,9 +78,11 @@ def goal_test():
                     scratches=scratches,
                 ),
                 meta_data=meta_env.MetaData.with_args(
-                    remaining_steps=len(scratches)
-                    if scratch_goal_1 in scratches
-                    else None
+                    remaining_steps=(
+                        len(scratches)
+                        if scratch_goal_1 in scratches
+                        else None
+                    )
                 ),
             )
         )
@@ -101,7 +103,13 @@ def goal_test():
                     if scratch_goal is not None
                     else goal.goal_inner_expr.apply()
                 ]
-            ))
+            ),
+            max_steps=(
+                500
+                if scratch_goal == scratch_goal_1
+                else None
+            )
+        )
         assert has_goal(env=env, goal=goal)
 
         current_state = get_current_state(env)
@@ -189,7 +197,9 @@ def goal_test():
                 meta=meta,
                 goal=goal,
                 scratches=scratches,
-            ))
+            ),
+            max_steps=10000
+        )
         assert has_goal(env=env, goal=goal)
 
         current_state = get_current_state(env)
@@ -423,7 +433,9 @@ def dynamic_goal_test():
             meta=meta,
             goal=goal,
             scratches=scratches,
-        ))
+        ),
+        max_steps=1000,
+    )
     assert has_goal(env=env, goal=goal)
 
     current_state = get_current_state(env)
