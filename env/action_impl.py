@@ -888,6 +888,48 @@ class DefineScratchFromFunctionWithArgs(
 
         return DefineScratchOutput(scratch_index, Optional(fn_call))
 
+class DefineScratchFromScratchNode(
+    BasicAction[DefineScratchOutput],
+    IInstantiable,
+):
+
+    idx_scratch_index = 1
+    idx_source_index = 3
+    idx_source_inner_index = 2
+
+    @classmethod
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+        scratch_index = StateScratchIndex(arg1)
+        source_index = StateScratchIndex(arg2)
+        source_inner_index = ScratchNodeIndex(arg3)
+        return cls(scratch_index, source_index, source_inner_index)
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            StateScratchIndex,
+            StateScratchIndex,
+            ScratchNodeIndex,
+        ]))
+
+    def _run(self, full_state: FullState) -> DefineScratchOutput:
+        scratch_index = self.nested_arg(self.idx_scratch_index).apply()
+        source_index = self.nested_arg(self.idx_source_index).apply()
+        source_inner_index = self.nested_arg(self.idx_source_inner_index).apply()
+        assert isinstance(scratch_index, StateScratchIndex)
+        assert isinstance(source_index, StateScratchIndex)
+        assert isinstance(source_inner_index, ScratchNodeIndex)
+
+        state = full_state.current_state.apply().cast(State)
+        source_scratch = source_index.find_in_outer_node(state).value_or_raise
+        assert isinstance(source_scratch, Scratch)
+        source_scratch.validate()
+        inner_content = source_scratch.child.apply().cast(IOptional).value_or_raise
+
+        new_content = source_inner_index.find_in_node(inner_content).value_or_raise
+
+        return DefineScratchOutput(scratch_index, Optional(new_content))
+
 ###########################################################
 ##################### UPDATE SCRATCH ######################
 ###########################################################

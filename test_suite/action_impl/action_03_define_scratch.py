@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 from env import core, state, full_state, action_impl, meta_env, node_types, action
 from env.goal_env import GoalEnv
 
@@ -1031,9 +1032,6 @@ def test_define_scratch() -> list[full_state.FullState]:
         exception=core.Optional(),
     )
     assert env.full_state.goal_achieved() is False
-
-    # Run Action
-    # DefineScratchFromScratchNode
 
     # Run Action
     raw_action = action_impl.ClearScratch.from_raw(1, 0, 0)
