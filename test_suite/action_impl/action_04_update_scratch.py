@@ -23,14 +23,6 @@ def get_last_history_action(env: GoalEnv):
         core.Optional.idx_value
     ).apply().cast(full_state.ActionData)
 
-def get_default_type_index(node_type: type[core.INode], env: GoalEnv):
-    selected_types = env.full_state.meta.apply().nested_args((
-        meta_env.MetaInfo.idx_default_group,
-        meta_env.SubtypeOuterGroup.idx_subtypes,
-    )).apply().cast(meta_env.GeneralTypeGroup)
-    meta_idx = selected_types.as_tuple.index(node_type.as_type()) + 1
-    return meta_idx
-
 def get_from_int_type_index(node_type: type[core.INode], env: GoalEnv):
     selected_types = env.full_state.meta.apply().nested_args((
         meta_env.MetaInfo.idx_from_int_group,
@@ -39,23 +31,7 @@ def get_from_int_type_index(node_type: type[core.INode], env: GoalEnv):
     meta_idx = selected_types.as_tuple.index(node_type.as_type()) + 1
     return meta_idx
 
-def get_from_single_child_type_index(node_type: type[core.INode], env: GoalEnv):
-    selected_types = env.full_state.meta.apply().nested_args((
-        meta_env.MetaInfo.idx_single_child_group,
-        meta_env.SubtypeOuterGroup.idx_subtypes,
-    )).apply().cast(meta_env.GeneralTypeGroup)
-    meta_idx = selected_types.as_tuple.index(node_type.as_type()) + 1
-    return meta_idx
-
-def get_from_full_state_int_index_type_index(node_type: type[core.INode], env: GoalEnv):
-    selected_types = env.full_state.meta.apply().nested_args((
-        meta_env.MetaInfo.idx_full_state_int_index_group,
-        meta_env.SubtypeOuterGroup.idx_subtypes,
-    )).apply().cast(meta_env.GeneralTypeGroup)
-    meta_idx = selected_types.as_tuple.index(node_type.as_type()) + 1
-    return meta_idx
-
-def test_define_scratch() -> list[full_state.FullState]:
+def test_update_scratch() -> list[full_state.FullState]:
     def has_goal(env: GoalEnv, goal: meta_env.IGoal):
         selected_goal = env.full_state.nested_args(
             (full_state.FullState.idx_meta, meta_env.MetaInfo.idx_goal)
@@ -318,9 +294,11 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     assert env.full_state.goal_achieved() is True
 
+    assert remaining_steps == 0, remaining_steps
+
     return [env.full_state]
 
 def test() -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
-    final_states += test_define_scratch()
+    final_states += test_update_scratch()
     return final_states

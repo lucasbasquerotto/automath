@@ -1116,10 +1116,6 @@ class DeleteArgsGroupOutput(GeneralAction, IBasicAction[FullState], IInstantiabl
         new_state = args_group_index.remove_in_outer_target(state).value_or_raise
         return new_state
 
-###########################################################
-################## DEFINE ARGS GROUP ARG ##################
-###########################################################
-
 class DefineArgsGroupArgOutput(GeneralAction, IInstantiable):
 
     idx_group_index = 1

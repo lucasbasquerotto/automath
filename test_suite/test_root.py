@@ -9,6 +9,7 @@ from test_suite.action_impl import (
     action_02_manage_scratch,
     action_03_define_scratch,
     action_04_update_scratch,
+    action_05_manage_args_group,
 )
 
 def test() -> list[full_state.FullState]:
@@ -18,6 +19,7 @@ def test() -> list[full_state.FullState]:
     final_states += action_02_manage_scratch.test()
     final_states += action_03_define_scratch.test()
     final_states += action_04_update_scratch.test()
+    final_states += action_05_manage_args_group.test()
 
     for i_case, full_state_case in enumerate(final_states):
         history_amount = full_state_case.history_amount()

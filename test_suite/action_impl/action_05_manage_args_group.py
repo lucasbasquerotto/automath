@@ -1,4 +1,3 @@
-# pylint: disable=too-many-lines
 from env import core, state, full_state, action_impl, meta_env, node_types, action
 from env.goal_env import GoalEnv
 
@@ -56,18 +55,23 @@ def get_from_full_state_int_index_type_index(node_type: type[core.INode], env: G
     meta_idx = selected_types.as_tuple.index(node_type.as_type()) + 1
     return meta_idx
 
-def test_define_scratch() -> list[full_state.FullState]:
+def test_manage_args_group() -> list[full_state.FullState]:
     def has_goal(env: GoalEnv, goal: meta_env.IGoal):
         selected_goal = env.full_state.nested_args(
             (full_state.FullState.idx_meta, meta_env.MetaInfo.idx_goal)
         ).apply()
         return selected_goal == goal
 
-    goal = node_types.HaveScratch(core.Void())
-    env = GoalEnv(
-        goal=node_types.HaveScratch(core.Void()),
-        max_steps=5000,
-    )
+    goal = node_types.HaveScratch(core.And(
+        core.LessThan(core.Var.from_int(2), core.Var.from_int(1)),
+        core.GreaterThan(core.Var.from_int(3), core.Var.from_int(1)),
+        core.Or(
+            core.Param.from_int(1),
+            core.GreaterThan(core.Var.from_int(2), core.Var.from_int(1)),
+            core.LessThan(core.Var.from_int(3), core.Var.from_int(1)),
+        )
+    ))
+    env = GoalEnv(goal=goal)
     assert has_goal(env=env, goal=goal)
 
     current_state = get_current_state(env)
@@ -110,16 +114,50 @@ def test_define_scratch() -> list[full_state.FullState]:
     assert env.full_state.goal_achieved() is False
 
     # Run Action
+    raw_action = action_impl.CreateArgsGroup.from_raw(2, 0, 0)
+    full_action = action_impl.CreateArgsGroup(
+        core.Integer(2),
+        core.Optional(),
+        core.Optional(),
+    )
+    output = action_impl.CreateArgsGroupOutput(
+        state.StateArgsGroupIndex(1),
+        state.PartialArgsGroup.from_int(2),
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    args_group = state.PartialArgsGroup.from_int(2)
+    args_groups = [args_group]
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
     meta_idx = get_from_int_type_index(core.Var, env)
-    raw_action = action_impl.DefineScratchFromInt.from_raw(1, meta_idx, 5)
+    raw_action = action_impl.DefineScratchFromInt.from_raw(1, meta_idx, 1)
     full_action = action_impl.DefineScratchFromInt(
         state.StateScratchIndex(1),
         full_state.MetaFromIntTypeIndex(meta_idx),
-        core.Integer(5),
+        core.Integer(1),
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.Var.from_int(5)),
+        core.Optional(core.Var.from_int(1)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -130,10 +168,11 @@ def test_define_scratch() -> list[full_state.FullState]:
     last_history_action = get_last_history_action(env)
 
     # Verify
-    scratches[0] = core.Var.from_int(5)
+    scratches[0] = core.Var.from_int(1)
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
         scratches=scratches,
+        args_groups=args_groups,
     )
     assert last_history_action == full_state.ActionData.from_args(
         action=core.Optional(full_action),
@@ -143,16 +182,16 @@ def test_define_scratch() -> list[full_state.FullState]:
     assert env.full_state.goal_achieved() is False
 
     # Run Action
-    meta_idx = get_from_single_child_type_index(core.Optional, env)
-    raw_action = action_impl.DefineScratchFromSingleArg.from_raw(1, meta_idx, 1)
-    full_action = action_impl.DefineScratchFromSingleArg(
-        state.StateScratchIndex(1),
-        full_state.MetaSingleChildTypeIndex(meta_idx),
+    raw_action = action_impl.DefineArgsGroup.from_raw(1, 2, 1)
+    full_action = action_impl.DefineArgsGroup(
+        state.StateArgsGroupIndex(1),
+        core.NodeArgIndex(2),
         state.StateScratchIndex(1),
     )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(1),
-        core.Optional(core.Optional(core.Var.from_int(5))),
+    output = action_impl.DefineArgsGroupArgOutput(
+        state.StateArgsGroupIndex(1),
+        core.NodeArgIndex(2),
+        state.OptionalContext(core.Var.from_int(1)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -163,10 +202,21 @@ def test_define_scratch() -> list[full_state.FullState]:
     last_history_action = get_last_history_action(env)
 
     # Verify
-    scratches[0] = core.Optional(core.Var.from_int(5))
+    args_group = state.PartialArgsGroup(
+        core.ExtendedTypeGroup.from_int(2),
+        core.LaxOpaqueScope(
+            core.ScopeId(1),
+            core.OptionalValueGroup(
+                core.Optional(),
+                core.Optional(core.Var.from_int(1)),
+            ),
+        )
+    )
+    args_groups = [args_group]
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
         scratches=scratches,
+        args_groups=args_groups,
     )
     assert last_history_action == full_state.ActionData.from_args(
         action=core.Optional(full_action),
@@ -176,17 +226,15 @@ def test_define_scratch() -> list[full_state.FullState]:
     assert env.full_state.goal_achieved() is False
 
     # Run Action
-    meta_idx = get_from_full_state_int_index_type_index(full_state.MetaAllTypesTypeIndex, env)
-    idx_node = env.full_state.node_types().index(core.Param) + 1
-    raw_action = action_impl.DefineScratchFromIntIndex.from_raw(1, meta_idx, idx_node)
-    full_action = action_impl.DefineScratchFromIntIndex(
-        state.StateScratchIndex(1),
-        full_state.MetaFullStateIntIndexTypeIndex(meta_idx),
-        core.Integer(idx_node),
+    raw_action = action_impl.CreateArgsGroup.from_raw(2, 0, 1)
+    full_action = action_impl.CreateArgsGroup(
+        core.Integer(2),
+        core.Optional(),
+        core.Optional(state.StateArgsGroupIndex(1)),
     )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(1),
-        core.Optional(core.TypeNode(core.Param)),
+    output = action_impl.CreateArgsGroupOutput(
+        state.StateArgsGroupIndex(2),
+        args_group,
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -197,10 +245,11 @@ def test_define_scratch() -> list[full_state.FullState]:
     last_history_action = get_last_history_action(env)
 
     # Verify
-    scratches[0] = core.TypeNode(core.Param)
+    args_groups.append(args_group)
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
         scratches=scratches,
+        args_groups=args_groups,
     )
     assert last_history_action == full_state.ActionData.from_args(
         action=core.Optional(full_action),
@@ -210,17 +259,94 @@ def test_define_scratch() -> list[full_state.FullState]:
     assert env.full_state.goal_achieved() is False
 
     # Run Action
-    meta_idx = get_from_full_state_int_index_type_index(full_state.MetaAllTypesTypeIndex, env)
-    idx_node = env.full_state.node_types().index(core.Param) + 1
-    raw_action = action_impl.DefineScratchFromFunctionWithIntArg.from_raw(1, 1, 3)
-    full_action = action_impl.DefineScratchFromFunctionWithIntArg(
+    meta_idx = get_from_int_type_index(core.Var, env)
+    raw_action = action_impl.DefineScratchFromInt.from_raw(1, meta_idx, 2)
+    full_action = action_impl.DefineScratchFromInt(
         state.StateScratchIndex(1),
+        full_state.MetaFromIntTypeIndex(meta_idx),
+        core.Integer(2),
+    )
+    output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
+        core.Optional(core.Var.from_int(2)),
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    scratches[0] = core.Var.from_int(2)
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    raw_action = action_impl.DefineArgsGroup.from_raw(1, 1, 1)
+    full_action = action_impl.DefineArgsGroup(
+        state.StateArgsGroupIndex(1),
+        core.NodeArgIndex(1),
+        state.StateScratchIndex(1),
+    )
+    output = action_impl.DefineArgsGroupArgOutput(
+        state.StateArgsGroupIndex(1),
+        core.NodeArgIndex(1),
+        state.OptionalContext(core.Var.from_int(2)),
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    args_group = state.PartialArgsGroup(
+        core.ExtendedTypeGroup.from_int(2),
+        core.LaxOpaqueScope(
+            core.ScopeId(1),
+            core.OptionalValueGroup(
+                core.Optional(core.Var.from_int(2)),
+                core.Optional(core.Var.from_int(1)),
+            ),
+        )
+    )
+    args_groups[0] = args_group
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    meta_idx = get_from_int_type_index(core.Var, env)
+    raw_action = action_impl.DefineScratchFromInt.from_raw(1, meta_idx, 3)
+    full_action = action_impl.DefineScratchFromInt(
+        state.StateScratchIndex(1),
+        full_state.MetaFromIntTypeIndex(meta_idx),
         core.Integer(3),
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.Param.from_int(3)),
+        core.Optional(core.Var.from_int(3)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -231,10 +357,11 @@ def test_define_scratch() -> list[full_state.FullState]:
     last_history_action = get_last_history_action(env)
 
     # Verify
-    scratches[0] = core.Param.from_int(3)
+    scratches[0] = core.Var.from_int(3)
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
         scratches=scratches,
+        args_groups=args_groups,
     )
     assert last_history_action == full_state.ActionData.from_args(
         action=core.Optional(full_action),
@@ -244,19 +371,16 @@ def test_define_scratch() -> list[full_state.FullState]:
     assert env.full_state.goal_achieved() is False
 
     # Run Action
-    raw_action = action_impl.DefineScratchFromFunctionWithIntArg.from_raw(1, 1, 7)
-    full_action = action_impl.DefineScratchFromFunctionWithIntArg(
+    raw_action = action_impl.DefineArgsGroup.from_raw(2, 1, 1)
+    full_action = action_impl.DefineArgsGroup(
+        state.StateArgsGroupIndex(2),
+        core.NodeArgIndex(1),
         state.StateScratchIndex(1),
-        state.StateScratchIndex(1),
-        core.Integer(7),
     )
-    fn_call: core.INode = core.FunctionCall(
-        core.Param.from_int(3),
-        core.IntGroup.from_ints([7]),
-    )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(1),
-        core.Optional(fn_call),
+    output = action_impl.DefineArgsGroupArgOutput(
+        state.StateArgsGroupIndex(2),
+        core.NodeArgIndex(1),
+        state.OptionalContext(core.Var.from_int(3)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -267,20 +391,156 @@ def test_define_scratch() -> list[full_state.FullState]:
     last_history_action = get_last_history_action(env)
 
     # Verify
-    scratches[0] = fn_call
+    args_group = state.PartialArgsGroup(
+        core.ExtendedTypeGroup.from_int(2),
+        core.LaxOpaqueScope(
+            core.ScopeId(1),
+            core.OptionalValueGroup(
+                core.Optional(core.Var.from_int(3)),
+                core.Optional(core.Var.from_int(1)),
+            ),
+        )
+    )
+    args_groups[1] = args_group
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
         scratches=scratches,
+        args_groups=args_groups,
     )
     assert last_history_action == full_state.ActionData.from_args(
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),
     )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    raw_action = action_impl.CreateArgsGroup.from_raw(3, 0, 1)
+    full_action = action_impl.CreateArgsGroup(
+        core.Integer(3),
+        core.Optional(),
+        core.Optional(state.StateArgsGroupIndex(1)),
+    )
+    args_group = state.PartialArgsGroup(
+        core.ExtendedTypeGroup.from_int(3),
+        core.LaxOpaqueScope(
+            core.ScopeId(1),
+            core.OptionalValueGroup(
+                core.Optional(core.Var.from_int(2)),
+                core.Optional(core.Var.from_int(1)),
+                core.Optional(),
+            ),
+        )
+    )
+    output = action_impl.CreateArgsGroupOutput(
+        state.StateArgsGroupIndex(3),
+        args_group,
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    args_groups.append(args_group)
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    meta_idx = get_from_int_type_index(core.Param, env)
+    raw_action = action_impl.DefineScratchFromInt.from_raw(1, meta_idx, 1)
+    full_action = action_impl.DefineScratchFromInt(
+        state.StateScratchIndex(1),
+        full_state.MetaFromIntTypeIndex(meta_idx),
+        core.Integer(1),
+    )
+    output = action_impl.DefineScratchOutput(
+        state.StateScratchIndex(1),
+        core.Optional(core.Param.from_int(1)),
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    scratches[0] = core.Param.from_int(1)
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    raw_action = action_impl.DefineArgsGroup.from_raw(3, 1, 1)
+    full_action = action_impl.DefineArgsGroup(
+        state.StateArgsGroupIndex(3),
+        core.NodeArgIndex(1),
+        state.StateScratchIndex(1),
+    )
+    output = action_impl.DefineArgsGroupArgOutput(
+        state.StateArgsGroupIndex(3),
+        core.NodeArgIndex(1),
+        state.OptionalContext(core.Param.from_int(1)),
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    or_params: list[core.Optional] = [
+        core.Optional(core.Param.from_int(1)),
+        core.Optional(core.Var.from_int(1)),
+        core.Optional(),
+    ]
+    args_group = state.PartialArgsGroup(
+        core.ExtendedTypeGroup.from_int(3),
+        core.LaxOpaqueScope(
+            core.ScopeId(1),
+            core.OptionalValueGroup(*or_params),
+        )
+    )
+    args_groups[2] = args_group
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
 
     # Run Action
     meta_idx = get_from_full_state_int_index_type_index(full_state.MetaAllTypesTypeIndex, env)
-    idx_node = env.full_state.node_types().index(core.NestedArgIndexGroup) + 1
+    idx_node = env.full_state.node_types().index(core.LessThan) + 1
     raw_action = action_impl.DefineScratchFromIntIndex.from_raw(1, meta_idx, idx_node)
     full_action = action_impl.DefineScratchFromIntIndex(
         state.StateScratchIndex(1),
@@ -289,7 +549,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.TypeNode(core.NestedArgIndexGroup)),
+        core.Optional(core.TypeNode(core.LessThan)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -300,43 +560,11 @@ def test_define_scratch() -> list[full_state.FullState]:
     last_history_action = get_last_history_action(env)
 
     # Verify
-    scratches[0] = core.TypeNode(core.NestedArgIndexGroup)
+    scratches[0] = core.TypeNode(core.LessThan)
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
         scratches=scratches,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
-
-    # Run Action
-    raw_action = action_impl.DefineScratchFromFunctionWithIntArg.from_raw(1, 1, 7)
-    full_action = action_impl.DefineScratchFromFunctionWithIntArg(
-        state.StateScratchIndex(1),
-        state.StateScratchIndex(1),
-        core.Integer(7),
-    )
-    fn_call = core.NestedArgIndexGroup(core.Integer(7))
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(1),
-        core.Optional(fn_call),
-    )
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
-    scratches[0] = fn_call
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
+        args_groups=args_groups,
     )
     assert last_history_action == full_state.ActionData.from_args(
         action=core.Optional(full_action),
@@ -365,6 +593,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
         scratches=scratches,
+        args_groups=args_groups,
     )
     assert last_history_action == full_state.ActionData.from_args(
         action=core.Optional(full_action),
@@ -375,7 +604,7 @@ def test_define_scratch() -> list[full_state.FullState]:
 
     # Run Action
     meta_idx = get_from_full_state_int_index_type_index(full_state.MetaAllTypesTypeIndex, env)
-    idx_node = env.full_state.node_types().index(core.Optional) + 1
+    idx_node = env.full_state.node_types().index(core.GreaterThan) + 1
     raw_action = action_impl.DefineScratchFromIntIndex.from_raw(2, meta_idx, idx_node)
     full_action = action_impl.DefineScratchFromIntIndex(
         state.StateScratchIndex(2),
@@ -384,7 +613,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(2),
-        core.Optional(core.TypeNode(core.Optional)),
+        core.Optional(core.TypeNode(core.GreaterThan)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -395,409 +624,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     last_history_action = get_last_history_action(env)
 
     # Verify
-    scratches[1] = core.TypeNode(core.Optional)
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
-
-    # Run Action
-    raw_action = action_impl.DefineScratchFromFunctionWithSingleArg.from_raw(2, 2, 1)
-    full_action = action_impl.DefineScratchFromFunctionWithSingleArg(
-        state.StateScratchIndex(2),
-        state.StateScratchIndex(2),
-        state.StateScratchIndex(1),
-    )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(2),
-        core.Optional(core.Optional(fn_call)),
-    )
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
-    scratches[1] = core.Optional(fn_call)
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
-
-    # Run Action
-    meta_idx = get_from_full_state_int_index_type_index(full_state.MetaAllTypesTypeIndex, env)
-    idx_node = env.full_state.node_types().index(core.DefaultGroup) + 1
-    raw_action = action_impl.DefineScratchFromIntIndex.from_raw(1, meta_idx, idx_node)
-    full_action = action_impl.DefineScratchFromIntIndex(
-        state.StateScratchIndex(1),
-        full_state.MetaFullStateIntIndexTypeIndex(meta_idx),
-        core.Integer(idx_node),
-    )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(1),
-        core.Optional(core.TypeNode(core.DefaultGroup)),
-    )
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
-    scratches[0] = core.TypeNode(core.DefaultGroup)
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
-
-    # Run Action
-    raw_action = action_impl.DefineScratchFromFunctionWithSingleArg.from_raw(2, 1, 2)
-    full_action = action_impl.DefineScratchFromFunctionWithSingleArg(
-        state.StateScratchIndex(2),
-        state.StateScratchIndex(1),
-        state.StateScratchIndex(2),
-    )
-    fn_call = core.DefaultGroup(core.Optional(fn_call))
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(2),
-        core.Optional(fn_call),
-    )
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
-    scratches[1] = fn_call
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
-
-    # Run Action
-    meta_idx = get_from_int_type_index(state.FunctionId, env)
-    raw_action = action_impl.DefineScratchFromInt.from_raw(1, meta_idx, 10)
-    full_action = action_impl.DefineScratchFromInt(
-        state.StateScratchIndex(1),
-        full_state.MetaFromIntTypeIndex(meta_idx),
-        core.Integer(10),
-    )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(1),
-        core.Optional(state.FunctionId.from_int(10)),
-    )
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
-    scratches[0] = state.FunctionId.from_int(10)
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
-
-    # Run Action
-    raw_action = action_impl.DefineScratchFromFunctionWithSingleArg.from_raw(1, 1, 2)
-    full_action = action_impl.DefineScratchFromFunctionWithSingleArg(
-        state.StateScratchIndex(1),
-        state.StateScratchIndex(1),
-        state.StateScratchIndex(2),
-    )
-    fn_call = core.FunctionCall(
-        state.FunctionId.from_int(10),
-        core.DefaultGroup(fn_call),
-    )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(1),
-        core.Optional(fn_call),
-    )
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
-    scratches[0] = fn_call
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
-
-    # Run Action
-    meta_idx = get_from_full_state_int_index_type_index(full_state.MetaAllTypesTypeIndex, env)
-    idx_node = env.full_state.node_types().index(core.ExtendedTypeGroup) + 1
-    raw_action = action_impl.DefineScratchFromIntIndex.from_raw(1, meta_idx, idx_node)
-    full_action = action_impl.DefineScratchFromIntIndex(
-        state.StateScratchIndex(1),
-        full_state.MetaFullStateIntIndexTypeIndex(meta_idx),
-        core.Integer(idx_node),
-    )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(1),
-        core.Optional(core.TypeNode(core.ExtendedTypeGroup)),
-    )
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
-    scratches[0] = core.TypeNode(core.ExtendedTypeGroup)
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
-
-    # Run Action
-    raw_action = action_impl.DefineScratchFromFunctionWithArgs.from_raw(1, 1, 0)
-    full_action = action_impl.DefineScratchFromFunctionWithArgs(
-        state.StateScratchIndex(1),
-        state.StateScratchIndex(1),
-        core.Optional(),
-    )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(1),
-        core.Optional(core.ExtendedTypeGroup.create()),
-    )
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
-    scratches[0] = core.ExtendedTypeGroup.create()
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
-
-    # Run Action
-    meta_idx = get_from_full_state_int_index_type_index(full_state.MetaAllTypesTypeIndex, env)
-    idx_node = env.full_state.node_types().index(core.And) + 1
-    raw_action = action_impl.DefineScratchFromIntIndex.from_raw(1, meta_idx, idx_node)
-    full_action = action_impl.DefineScratchFromIntIndex(
-        state.StateScratchIndex(1),
-        full_state.MetaFullStateIntIndexTypeIndex(meta_idx),
-        core.Integer(idx_node),
-    )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(1),
-        core.Optional(core.TypeNode(core.And)),
-    )
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
-    scratches[0] = core.TypeNode(core.And)
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
-
-    # Run Action
-    raw_action = action_impl.DefineScratchFromFunctionWithArgs.from_raw(1, 1, 0)
-    full_action = action_impl.DefineScratchFromFunctionWithArgs(
-        state.StateScratchIndex(1),
-        state.StateScratchIndex(1),
-        core.Optional(),
-    )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(1),
-        core.Optional(core.And()),
-    )
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
-    scratches[0] = core.And()
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
-
-    # Run Action
-    meta_idx = get_from_int_type_index(state.FunctionId, env)
-    raw_action = action_impl.DefineScratchFromInt.from_raw(1, meta_idx, 2)
-    full_action = action_impl.DefineScratchFromInt(
-        state.StateScratchIndex(1),
-        full_state.MetaFromIntTypeIndex(meta_idx),
-        core.Integer(2),
-    )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(1),
-        core.Optional(state.FunctionId.from_int(2)),
-    )
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
-    scratches[0] = state.FunctionId.from_int(2)
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
-
-    # Run Action
-    raw_action = action_impl.DefineScratchFromFunctionWithArgs.from_raw(2, 1, 0)
-    full_action = action_impl.DefineScratchFromFunctionWithArgs(
-        state.StateScratchIndex(2),
-        state.StateScratchIndex(1),
-        core.Optional(),
-    )
-    fn_call = core.FunctionCall(
-        state.FunctionId.from_int(2),
-        core.DefaultGroup(),
-    )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(2),
-        core.Optional(fn_call),
-    )
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
-    scratches[1] = fn_call
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
-
-    # Run Action
-    raw_action = action_impl.CreateArgsGroup.from_raw(2, 0, 0)
-    full_action = action_impl.CreateArgsGroup(
-        core.Integer(2),
-        core.Optional(),
-        core.Optional(),
-    )
-    output = action_impl.CreateArgsGroupOutput(
-        state.StateArgsGroupIndex(1),
-        state.PartialArgsGroup.from_int(2),
-    )
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
-    args_group = state.PartialArgsGroup.from_int(2)
-    args_groups = tuple([args_group])
+    scratches[1] = core.TypeNode(core.GreaterThan)
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
         scratches=scratches,
@@ -811,16 +638,79 @@ def test_define_scratch() -> list[full_state.FullState]:
     assert env.full_state.goal_achieved() is False
 
     # Run Action
-    raw_action = action_impl.DefineArgsGroup.from_raw(1, 1, 1)
+    raw_action = action_impl.CreateScratch.from_raw(0, 0, 0)
+    full_action = action_impl.CreateScratch.create()
+    output = action_impl.CreateScratchOutput(
+        state.StateScratchIndex(3),
+        core.Optional.create(),
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    scratches.append(None)
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    raw_action = action_impl.DefineScratchFromFunctionWithArgs.from_raw(3, 2, 1)
+    full_action = action_impl.DefineScratchFromFunctionWithArgs(
+        state.StateScratchIndex(3),
+        state.StateScratchIndex(2),
+        core.Optional(state.StateArgsGroupIndex(1)),
+    )
+    fn_call: core.INode = core.GreaterThan(core.Var.from_int(2), core.Var.from_int(1))
+    output = action_impl.DefineScratchOutput(
+        state.StateScratchIndex(3),
+        core.Optional(fn_call),
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    scratches[2] = fn_call
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    raw_action = action_impl.DefineArgsGroup.from_raw(3, 2, 3)
     full_action = action_impl.DefineArgsGroup(
-        state.StateArgsGroupIndex(1),
-        core.NodeArgIndex(1),
-        state.StateScratchIndex(1),
+        state.StateArgsGroupIndex(3),
+        core.NodeArgIndex(2),
+        state.StateScratchIndex(3),
     )
     output = action_impl.DefineArgsGroupArgOutput(
-        state.StateArgsGroupIndex(1),
-        core.NodeArgIndex(1),
-        state.OptionalContext(state.FunctionId.from_int(2)),
+        state.StateArgsGroupIndex(3),
+        core.NodeArgIndex(2),
+        state.OptionalContext(fn_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -831,17 +721,15 @@ def test_define_scratch() -> list[full_state.FullState]:
     last_history_action = get_last_history_action(env)
 
     # Verify
+    or_params[1] = core.Optional(fn_call)
     args_group = state.PartialArgsGroup(
-        core.ExtendedTypeGroup.from_int(2),
+        core.ExtendedTypeGroup.from_int(3),
         core.LaxOpaqueScope(
             core.ScopeId(1),
-            core.OptionalValueGroup(
-                core.Optional(state.FunctionId.from_int(2)),
-                core.Optional(),
-            ),
+            core.OptionalValueGroup(*or_params),
         )
     )
-    args_groups = tuple([args_group])
+    args_groups[2] = args_group
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
         scratches=scratches,
@@ -855,16 +743,50 @@ def test_define_scratch() -> list[full_state.FullState]:
     assert env.full_state.goal_achieved() is False
 
     # Run Action
-    raw_action = action_impl.DefineArgsGroup.from_raw(1, 2, 1)
-    full_action = action_impl.DefineArgsGroup(
-        state.StateArgsGroupIndex(1),
-        core.NodeArgIndex(2),
+    raw_action = action_impl.DefineScratchFromFunctionWithArgs.from_raw(3, 1, 2)
+    full_action = action_impl.DefineScratchFromFunctionWithArgs(
+        state.StateScratchIndex(3),
         state.StateScratchIndex(1),
+        core.Optional(state.StateArgsGroupIndex(2)),
+    )
+    fn_call = core.LessThan(core.Var.from_int(3), core.Var.from_int(1))
+    output = action_impl.DefineScratchOutput(
+        state.StateScratchIndex(3),
+        core.Optional(fn_call),
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    scratches[2] = fn_call
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    raw_action = action_impl.DefineArgsGroup.from_raw(3, 3, 3)
+    full_action = action_impl.DefineArgsGroup(
+        state.StateArgsGroupIndex(3),
+        core.NodeArgIndex(3),
+        state.StateScratchIndex(3),
     )
     output = action_impl.DefineArgsGroupArgOutput(
-        state.StateArgsGroupIndex(1),
-        core.NodeArgIndex(2),
-        state.OptionalContext(state.FunctionId.from_int(2)),
+        state.StateArgsGroupIndex(3),
+        core.NodeArgIndex(3),
+        state.OptionalContext(fn_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -875,17 +797,15 @@ def test_define_scratch() -> list[full_state.FullState]:
     last_history_action = get_last_history_action(env)
 
     # Verify
+    or_params[2] = core.Optional(fn_call)
     args_group = state.PartialArgsGroup(
-        core.ExtendedTypeGroup.from_int(2),
+        core.ExtendedTypeGroup.from_int(3),
         core.LaxOpaqueScope(
             core.ScopeId(1),
-            core.OptionalValueGroup(
-                core.Optional(state.FunctionId.from_int(2)),
-                core.Optional(state.FunctionId.from_int(2)),
-            ),
+            core.OptionalValueGroup(*or_params),
         )
     )
-    args_groups = tuple([args_group])
+    args_groups[2] = args_group
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
         scratches=scratches,
@@ -899,22 +819,131 @@ def test_define_scratch() -> list[full_state.FullState]:
     assert env.full_state.goal_achieved() is False
 
     # Run Action
-    raw_action = action_impl.DefineScratchFromFunctionWithArgs.from_raw(2, 1, 1)
+    meta_idx = get_from_full_state_int_index_type_index(full_state.MetaAllTypesTypeIndex, env)
+    idx_node = env.full_state.node_types().index(core.Or) + 1
+    raw_action = action_impl.DefineScratchFromIntIndex.from_raw(3, meta_idx, idx_node)
+    full_action = action_impl.DefineScratchFromIntIndex(
+        state.StateScratchIndex(3),
+        full_state.MetaFullStateIntIndexTypeIndex(meta_idx),
+        core.Integer(idx_node),
+    )
+    output = action_impl.DefineScratchOutput(
+        state.StateScratchIndex(3),
+        core.Optional(core.TypeNode(core.Or)),
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    scratches[2] = core.TypeNode(core.Or)
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    raw_action = action_impl.DefineScratchFromFunctionWithArgs.from_raw(3, 3, 3)
     full_action = action_impl.DefineScratchFromFunctionWithArgs(
-        state.StateScratchIndex(2),
+        state.StateScratchIndex(3),
+        state.StateScratchIndex(3),
+        core.Optional(state.StateArgsGroupIndex(3)),
+    )
+    or_call = core.Or(*[p.value_or_raise for p in or_params])
+    output = action_impl.DefineScratchOutput(
+        state.StateScratchIndex(3),
+        core.Optional(or_call),
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    scratches[2] = or_call
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    raw_action = action_impl.DefineArgsGroup.from_raw(3, 3, 3)
+    full_action = action_impl.DefineArgsGroup(
+        state.StateArgsGroupIndex(3),
+        core.NodeArgIndex(3),
+        state.StateScratchIndex(3),
+    )
+    output = action_impl.DefineArgsGroupArgOutput(
+        state.StateArgsGroupIndex(3),
+        core.NodeArgIndex(3),
+        state.OptionalContext(or_call),
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    and_params = [p for p in or_params]
+    and_params[2] = core.Optional(or_call)
+    args_group = state.PartialArgsGroup(
+        core.ExtendedTypeGroup.from_int(3),
+        core.LaxOpaqueScope(
+            core.ScopeId(1),
+            core.OptionalValueGroup(*and_params),
+        )
+    )
+    args_groups[2] = args_group
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
+    ####
+    #TODO
+
+    # Run Action
+    raw_action = action_impl.DefineScratchFromFunctionWithArgs.from_raw(3, 1, 1)
+    full_action = action_impl.DefineScratchFromFunctionWithArgs(
+        state.StateScratchIndex(3),
         state.StateScratchIndex(1),
         core.Optional(state.StateArgsGroupIndex(1)),
     )
-    fn_call = core.FunctionCall(
-        state.FunctionId.from_int(2),
-        core.DefaultGroup(
-            state.FunctionId.from_int(2),
-            state.FunctionId.from_int(2),
-        ),
-    )
+    p1_call = core.LessThan(core.Var.from_int(2), core.Var.from_int(1))
     output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(2),
-        core.Optional(fn_call),
+        state.StateScratchIndex(3),
+        core.Optional(p1_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -925,7 +954,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     last_history_action = get_last_history_action(env)
 
     # Verify
-    scratches[1] = fn_call
+    scratches[2] = p1_call
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
         scratches=scratches,
@@ -939,19 +968,16 @@ def test_define_scratch() -> list[full_state.FullState]:
     assert env.full_state.goal_achieved() is False
 
     # Run Action
-    raw_action = action_impl.DefineScratchFromScratchNode.from_raw(1, 2, 3)
-    full_action = action_impl.DefineScratchFromScratchNode(
-        state.StateScratchIndex(1),
-        state.StateScratchIndex(2),
-        state.ScratchNodeIndex(3),
+    raw_action = action_impl.DefineArgsGroup.from_raw(3, 1, 3)
+    full_action = action_impl.DefineArgsGroup(
+        state.StateArgsGroupIndex(3),
+        core.NodeArgIndex(1),
+        state.StateScratchIndex(3),
     )
-    fn_call = core.DefaultGroup(
-        state.FunctionId.from_int(2),
-        state.FunctionId.from_int(2),
-    )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(1),
-        core.Optional(fn_call),
+    output = action_impl.DefineArgsGroupArgOutput(
+        state.StateArgsGroupIndex(3),
+        core.NodeArgIndex(1),
+        state.OptionalContext(p1_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -962,7 +988,15 @@ def test_define_scratch() -> list[full_state.FullState]:
     last_history_action = get_last_history_action(env)
 
     # Verify
-    scratches[0] = fn_call
+    and_params[0] = core.Optional(p1_call)
+    args_group = state.PartialArgsGroup(
+        core.ExtendedTypeGroup.from_int(3),
+        core.LaxOpaqueScope(
+            core.ScopeId(1),
+            core.OptionalValueGroup(*and_params),
+        )
+    )
+    args_groups[2] = args_group
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
         scratches=scratches,
@@ -975,197 +1009,8 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     assert env.full_state.goal_achieved() is False
 
-    # Run Action
-    meta_idx = get_from_full_state_int_index_type_index(full_state.MetaAllTypesTypeIndex, env)
-    idx_node = env.full_state.node_types().index(core.Eq) + 1
-    raw_action = action_impl.DefineScratchFromIntIndex.from_raw(1, meta_idx, idx_node)
-    full_action = action_impl.DefineScratchFromIntIndex(
-        state.StateScratchIndex(1),
-        full_state.MetaFullStateIntIndexTypeIndex(meta_idx),
-        core.Integer(idx_node),
-    )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(1),
-        core.Optional(core.TypeNode(core.Eq)),
-    )
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
 
-    # Verify
-    scratches[0] = core.TypeNode(core.Eq)
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-        args_groups=args_groups,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
 
-    # Run Action
-    raw_action = action_impl.DefineScratchFromFunctionWithArgs.from_raw(2, 1, 1)
-    full_action = action_impl.DefineScratchFromFunctionWithArgs(
-        state.StateScratchIndex(2),
-        state.StateScratchIndex(1),
-        core.Optional(state.StateArgsGroupIndex(1)),
-    )
-    fn_call = core.Eq(
-        state.FunctionId.from_int(2),
-        state.FunctionId.from_int(2),
-    )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(2),
-        core.Optional(fn_call),
-    )
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
-    scratches[1] = fn_call
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-        args_groups=args_groups,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
-
-    # Run Action
-    raw_action = action_impl.DeleteArgsGroupOutput.from_raw(1, 0, 0)
-    full_action = action_impl.DeleteArgsGroupOutput(
-        state.StateArgsGroupIndex(1),
-    )
-    output = full_action
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
-
-    # Run Action
-    raw_action = action_impl.DefineScratchFromScratchNode.from_raw(2, 2, 2)
-    full_action = action_impl.DefineScratchFromScratchNode(
-        state.StateScratchIndex(2),
-        state.StateScratchIndex(2),
-        state.ScratchNodeIndex(2),
-    )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(2),
-        core.Optional(state.FunctionId.from_int(2)),
-    )
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
-    scratches[1] = state.FunctionId.from_int(2)
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
-
-    # Run Action
-    raw_action = action_impl.ClearScratch.from_raw(1, 0, 0)
-    full_action = action_impl.ClearScratch(
-        state.StateScratchIndex(1),
-    )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(1),
-        core.Optional(),
-    )
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
-    scratches[0] = None
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
-
-    # Run Action
-    meta_idx = get_default_type_index(core.Void, env)
-    raw_action = action_impl.DefineScratchFromDefault.from_raw(1, meta_idx, 0)
-    full_action = action_impl.DefineScratchFromDefault(
-        state.StateScratchIndex(1),
-        full_state.MetaDefaultTypeIndex(meta_idx),
-    )
-    output = action_impl.DefineScratchOutput(
-        state.StateScratchIndex(1),
-        core.Optional(core.Void()),
-    )
-    env.step(raw_action)
-    if prev_remaining_steps is not None:
-        remaining_steps = get_remaining_steps(env)
-        assert remaining_steps == prev_remaining_steps - 1
-        prev_remaining_steps = remaining_steps
-    current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
-    scratches[0] = core.Void()
-    assert current_state == state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-    )
-    assert last_history_action == full_state.ActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
-    assert env.full_state.goal_achieved() is False
 
     # Run Action
     meta_idx = get_from_int_type_index(state.StateScratchIndex, env)
@@ -1195,6 +1040,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
         scratches=scratches,
+        args_groups=args_groups,
     )
     assert last_history_action == full_state.ActionData.from_args(
         action=core.Optional(full_action),
@@ -1207,5 +1053,5 @@ def test_define_scratch() -> list[full_state.FullState]:
 
 def test() -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
-    final_states += test_define_scratch()
+    final_states += test_manage_args_group()
     return final_states

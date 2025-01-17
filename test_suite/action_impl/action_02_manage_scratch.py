@@ -318,7 +318,6 @@ def test_manage_scratch() -> list[full_state.FullState]:
     )
     assert env.full_state.goal_achieved() is True
 
-
     return [env.full_state]
 
 def test() -> list[full_state.FullState]:
