@@ -647,10 +647,6 @@ class BooleanWrapper(
             IBoolean,
         ]))
 
-    @classmethod
-    def with_child(cls, child: IBoolean) -> typing.Self:
-        return cls(child)
-
     @property
     def raw_child(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_value)
@@ -1069,10 +1065,6 @@ class SingleValueTypeGroup(
             IType,
         ]))
 
-    @classmethod
-    def with_child(cls, child: IType):
-        return cls(child)
-
     @property
     def type_node(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_type_node)
@@ -1418,10 +1410,6 @@ class ExceptionInfoWrapper(
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             IExceptionInfo,
         ]))
-
-    @classmethod
-    def with_child(cls, child: IExceptionInfo) -> typing.Self:
-        return cls(child)
 
     @property
     def info(self):
