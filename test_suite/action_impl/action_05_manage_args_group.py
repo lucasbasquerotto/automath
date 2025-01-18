@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 from env import core, state, full_state, action_impl, meta_env, node_types, action
 from env.goal_env import GoalEnv
 
@@ -23,25 +24,9 @@ def get_last_history_action(env: GoalEnv):
         core.Optional.idx_value
     ).apply().cast(full_state.ActionData)
 
-def get_default_type_index(node_type: type[core.INode], env: GoalEnv):
-    selected_types = env.full_state.meta.apply().nested_args((
-        meta_env.MetaInfo.idx_default_group,
-        meta_env.SubtypeOuterGroup.idx_subtypes,
-    )).apply().cast(meta_env.GeneralTypeGroup)
-    meta_idx = selected_types.as_tuple.index(node_type.as_type()) + 1
-    return meta_idx
-
 def get_from_int_type_index(node_type: type[core.INode], env: GoalEnv):
     selected_types = env.full_state.meta.apply().nested_args((
         meta_env.MetaInfo.idx_from_int_group,
-        meta_env.SubtypeOuterGroup.idx_subtypes,
-    )).apply().cast(meta_env.GeneralTypeGroup)
-    meta_idx = selected_types.as_tuple.index(node_type.as_type()) + 1
-    return meta_idx
-
-def get_from_single_child_type_index(node_type: type[core.INode], env: GoalEnv):
-    selected_types = env.full_state.meta.apply().nested_args((
-        meta_env.MetaInfo.idx_single_child_group,
         meta_env.SubtypeOuterGroup.idx_subtypes,
     )).apply().cast(meta_env.GeneralTypeGroup)
     meta_idx = selected_types.as_tuple.index(node_type.as_type()) + 1
@@ -1327,6 +1312,8 @@ def test_manage_args_group() -> list[full_state.FullState]:
         exception=core.Optional(),
     )
     assert env.full_state.goal_achieved() is True
+
+    assert get_remaining_steps(env) is None
 
     return [env.full_state]
 
