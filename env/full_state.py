@@ -2,6 +2,7 @@ import typing
 from abc import ABC
 from env.core import (
     INode,
+    IOpaqueScope,
     InheritableNode,
     IDefault,
     BaseGroup,
@@ -179,7 +180,14 @@ class HistoryGroupNode(BaseGroup[HistoryNode], IInstantiable):
 ####################### FULL STATE ########################
 ###########################################################
 
-class FullState(InheritableNode, IFullState, IFromSingleChild[MetaInfo], IWrapper, IInstantiable):
+class FullState(
+    InheritableNode,
+    IFullState,
+    IOpaqueScope,
+    IFromSingleChild[MetaInfo],
+    IWrapper,
+    IInstantiable,
+):
 
     idx_meta = 1
     idx_current = 2

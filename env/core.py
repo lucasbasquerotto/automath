@@ -1168,9 +1168,12 @@ class FunctionCall(InheritableNode, IInstantiable):
     def define(cls, fn: IFunction, args: BaseGroup) -> INode:
         return cls(fn, args)
 
+class IScopedFunction(IFunction, IScope, ABC):
+    pass
+
 class FunctionExpr(
     InheritableNode,
-    IFunction,
+    IScopedFunction,
     IFromSingleChild[T],
     IOpaqueScope,
     IInstantiable,
@@ -1201,7 +1204,7 @@ class FunctionExpr(
 
 class FunctionWrapper(
     InheritableNode,
-    IFunction,
+    IScopedFunction,
     IFromSingleChild[T],
     IInnerScope,
     IInstantiable,

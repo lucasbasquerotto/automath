@@ -310,7 +310,7 @@ class StateDefinitionGroup(BaseGroup[StateDefinition], IInstantiable):
 ########################## STATE ##########################
 ###########################################################
 
-class State(InheritableNode, IDefault, IWrapper, IInstantiable):
+class State(InheritableNode, IOpaqueScope, IDefault, IWrapper, IInstantiable):
 
     idx_meta_info = 1
     idx_scratch_group = 2
