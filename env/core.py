@@ -924,15 +924,15 @@ class BaseOptionalValueGroup(BaseGroup[IOptional[T]], IFromInt, typing.Generic[T
 
     @classmethod
     def from_int(cls, value: int) -> typing.Self:
-        return cls(*[Optional() for _ in range(value)])
+        return cls(*([Optional()]*value))
 
     @classmethod
     def item_type(cls):
-        return IOptional[T]
+        return Optional[T]
 
     @classmethod
     def from_optional_items(cls, items: typing.Sequence[T | None]) -> typing.Self:
-        return cls(*[Optional(item) if item is not None else Optional() for item in items])
+        return cls(*[Optional.with_value(item) for item in items])
 
     def strict(self) -> DefaultGroup:
         values = [item.value for item in self.args if item.value is not None]
