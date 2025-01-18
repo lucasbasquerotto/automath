@@ -363,7 +363,7 @@ def goal_test():
 
 def dynamic_goal_test():
     p1_args = (
-        core.ScopeId.create(),
+        core.NearParentScope.create(),
         core.Integer(1),
         core.TypeNode(core.IBoolean),
     )
@@ -536,7 +536,7 @@ def dynamic_goal_test():
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(2),
-        core.Optional(state.StateScratchIndex(1)),
+        state.Scratch(state.StateScratchIndex(1)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:

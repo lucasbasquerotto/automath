@@ -66,7 +66,7 @@ def test_manage_scratch() -> list[full_state.FullState]:
     full_action: action.BaseAction = action_impl.CreateScratch.create()
     output: action.GeneralAction = action_impl.CreateScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional.create(),
+        state.Scratch.create(),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -94,7 +94,7 @@ def test_manage_scratch() -> list[full_state.FullState]:
     full_action = action_impl.CreateScratch.create()
     output = action_impl.CreateScratchOutput(
         state.StateScratchIndex(2),
-        core.Optional.create(),
+        state.Scratch.create(),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -126,7 +126,7 @@ def test_manage_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(2),
-        core.Optional(core.Void()),
+        state.Scratch(core.Void()),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -179,7 +179,7 @@ def test_manage_scratch() -> list[full_state.FullState]:
     full_action = action_impl.CreateScratch.create()
     output = action_impl.CreateScratchOutput(
         state.StateScratchIndex(2),
-        core.Optional.create(),
+        state.Scratch.create(),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -209,7 +209,7 @@ def test_manage_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.CreateScratchOutput(
         state.StateScratchIndex(3),
-        core.Optional(core.Void()),
+        state.Scratch(core.Void()),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:

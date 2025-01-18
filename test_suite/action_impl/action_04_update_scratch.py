@@ -39,12 +39,12 @@ def test_update_scratch() -> list[full_state.FullState]:
         return selected_goal == goal
 
     p1_args = (
-        core.ScopeId.create(),
+        core.NearParentScope.create(),
         core.Integer(3),
         core.TypeNode(core.IBoolean),
     )
     p2_args = (
-        core.ScopeId.create(),
+        core.FarParentScope.create(),
         core.Integer(2),
         core.TypeNode(core.IBoolean),
     )
@@ -103,7 +103,7 @@ def test_update_scratch() -> list[full_state.FullState]:
     full_action: action.BaseAction = action_impl.CreateScratch.create()
     output: action.GeneralAction = action_impl.CreateScratchOutput(
         state.StateScratchIndex(3),
-        core.Optional.create(),
+        state.Scratch.create(),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -136,7 +136,7 @@ def test_update_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(3),
-        core.Optional(goal_2),
+        state.Scratch(goal_2),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -169,7 +169,7 @@ def test_update_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.And(core.Void(), goal_2)),
+        state.Scratch(core.And(core.Void(), goal_2)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -202,7 +202,7 @@ def test_update_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(3),
-        core.Optional(goal_1),
+        state.Scratch(goal_1),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -235,7 +235,7 @@ def test_update_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.And(goal_1, goal_2)),
+        state.Scratch(core.And(goal_1, goal_2)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:

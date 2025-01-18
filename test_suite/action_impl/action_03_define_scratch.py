@@ -86,7 +86,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     full_action: action.BaseAction = action_impl.CreateScratch.create()
     output: action.GeneralAction = action_impl.CreateScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional.create(),
+        state.Scratch.create(),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -119,7 +119,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.Var.from_int(5)),
+        state.Scratch(core.Var.from_int(5)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -152,7 +152,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.Optional(core.Var.from_int(5))),
+        state.Scratch(core.Optional(core.Var.from_int(5))),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -186,7 +186,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.TypeNode(core.Param)),
+        state.Scratch(core.TypeNode(core.Param)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -220,7 +220,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.Param.from_int(3)),
+        state.Scratch(core.Param.from_int(3)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -256,7 +256,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(fn_call),
+        state.Scratch(fn_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -289,7 +289,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.TypeNode(core.NestedArgIndexGroup)),
+        state.Scratch(core.TypeNode(core.NestedArgIndexGroup)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -322,7 +322,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     fn_call = core.NestedArgIndexGroup(core.Integer(7))
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(fn_call),
+        state.Scratch(fn_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -350,7 +350,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     full_action = action_impl.CreateScratch.create()
     output = action_impl.CreateScratchOutput(
         state.StateScratchIndex(2),
-        core.Optional.create(),
+        state.Scratch.create(),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -384,7 +384,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(2),
-        core.Optional(core.TypeNode(core.Optional)),
+        state.Scratch(core.TypeNode(core.Optional)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -416,7 +416,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(2),
-        core.Optional(core.Optional(fn_call)),
+        state.Scratch(core.Optional(fn_call)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -450,7 +450,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.TypeNode(core.DefaultGroup)),
+        state.Scratch(core.TypeNode(core.DefaultGroup)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -483,7 +483,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     fn_call = core.DefaultGroup(core.Optional(fn_call))
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(2),
-        core.Optional(fn_call),
+        state.Scratch(fn_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -516,7 +516,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(state.FunctionId.from_int(10)),
+        state.Scratch(state.FunctionId.from_int(10)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -552,7 +552,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(fn_call),
+        state.Scratch(fn_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -586,7 +586,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.TypeNode(core.ExtendedTypeGroup)),
+        state.Scratch(core.TypeNode(core.ExtendedTypeGroup)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -618,7 +618,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.ExtendedTypeGroup.create()),
+        state.Scratch(core.ExtendedTypeGroup.create()),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -652,7 +652,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.TypeNode(core.And)),
+        state.Scratch(core.TypeNode(core.And)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -684,7 +684,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.And()),
+        state.Scratch(core.And()),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -717,7 +717,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(state.FunctionId.from_int(2)),
+        state.Scratch(state.FunctionId.from_int(2)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -753,7 +753,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(2),
-        core.Optional(fn_call),
+        state.Scratch(fn_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -819,7 +819,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     output = action_impl.DefineArgsGroupArgOutput(
         state.StateArgsGroupIndex(1),
         core.NodeArgIndex(1),
-        state.OptionalContext(state.FunctionId.from_int(2)),
+        state.Scratch(state.FunctionId.from_int(2)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -831,11 +831,8 @@ def test_define_scratch() -> list[full_state.FullState]:
 
     # Verify
     args_group = state.PartialArgsGroup(
-        core.ScopeId(1),
-        core.OptionalValueGroup(
-            core.Optional(state.FunctionId.from_int(2)),
-            core.Optional(),
-        ),
+        core.Optional(state.FunctionId.from_int(2)),
+        core.Optional(),
     )
     args_groups = tuple([args_group])
     assert current_state == state.State.from_raw(
@@ -860,7 +857,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     output = action_impl.DefineArgsGroupArgOutput(
         state.StateArgsGroupIndex(1),
         core.NodeArgIndex(2),
-        state.OptionalContext(state.FunctionId.from_int(2)),
+        state.Scratch(state.FunctionId.from_int(2)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -872,11 +869,8 @@ def test_define_scratch() -> list[full_state.FullState]:
 
     # Verify
     args_group = state.PartialArgsGroup(
-        core.ScopeId(1),
-        core.OptionalValueGroup(
-            core.Optional(state.FunctionId.from_int(2)),
-            core.Optional(state.FunctionId.from_int(2)),
-        ),
+        core.Optional(state.FunctionId.from_int(2)),
+        core.Optional(state.FunctionId.from_int(2)),
     )
     args_groups = tuple([args_group])
     assert current_state == state.State.from_raw(
@@ -907,7 +901,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(2),
-        core.Optional(fn_call),
+        state.Scratch(fn_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -944,7 +938,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(fn_call),
+        state.Scratch(fn_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -979,7 +973,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.TypeNode(core.Eq)),
+        state.Scratch(core.TypeNode(core.Eq)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -1016,7 +1010,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(2),
-        core.Optional(fn_call),
+        state.Scratch(fn_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -1075,7 +1069,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(2),
-        core.Optional(state.FunctionId.from_int(2)),
+        state.Scratch(state.FunctionId.from_int(2)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -1105,7 +1099,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(),
+        state.Scratch(),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -1137,7 +1131,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.Void()),
+        state.Scratch(core.Void()),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:

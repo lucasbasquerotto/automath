@@ -6,8 +6,6 @@ from env.core import (
     IntBoolean,
     Integer,
     ExtendedTypeGroup,
-    ScopeId,
-    OptionalValueGroup,
     BooleanExceptionInfo,
     IsEmpty,
     NodeArgIndex,
@@ -32,7 +30,6 @@ from env.state import (
     PartialArgsGroup,
     StateArgsGroupIndex,
     StateScratchIndex,
-    OptionalContext,
 )
 from env.action_impl import (
     VerifyGoalOutput,
@@ -134,7 +131,7 @@ def basic_test():
         action=Optional(CreateScratch(Optional())),
         output=Optional(CreateScratchOutput(
             StateScratchIndex(1),
-            Optional(),
+            Scratch(),
         )),
         exception=Optional(),
     )
@@ -170,7 +167,7 @@ def basic_test():
         )),
         output=Optional(DefineScratchOutput(
             StateScratchIndex(1),
-            Optional(And.as_type()),
+            Scratch(And.as_type()),
         )),
         exception=Optional(),
     )
@@ -188,7 +185,7 @@ def basic_test():
         action=Optional(CreateScratch(Optional())),
         output=Optional(CreateScratchOutput(
             StateScratchIndex(2),
-            Optional(),
+            Scratch(),
         )),
         exception=Optional(),
     )
@@ -212,7 +209,7 @@ def basic_test():
         )),
         output=Optional(DefineScratchOutput(
             StateScratchIndex(2),
-            Optional(Or.as_type()),
+            Scratch(Or.as_type()),
         )),
         exception=Optional(),
     )
@@ -231,7 +228,7 @@ def basic_test():
         action=Optional(CreateScratch(Optional())),
         output=Optional(CreateScratchOutput(
             StateScratchIndex(3),
-            Optional(),
+            Scratch(),
         )),
         exception=Optional(),
     )
@@ -278,7 +275,7 @@ def basic_test():
         )),
         output=Optional(DefineScratchOutput(
             StateScratchIndex(3),
-            Optional(Param.from_int(1)),
+            Scratch(Param.from_int(1)),
         )),
         exception=Optional(),
     )
@@ -290,12 +287,9 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     args_group = PartialArgsGroup(
-        ScopeId(1),
-        OptionalValueGroup(
-            Optional(Param.from_int(1)),
-            Optional(),
-            Optional(),
-        ),
+        Optional(Param.from_int(1)),
+        Optional(),
+        Optional(),
     )
     assert current_state == State.from_raw(
         scratches=tuple([And.as_type(), Or.as_type(), Param.from_int(1)]),
@@ -310,7 +304,7 @@ def basic_test():
         output=Optional(DefineArgsGroupArgOutput(
             StateArgsGroupIndex(1),
             NodeArgIndex(1),
-            OptionalContext(Param.from_int(1)),
+            Scratch(Param.from_int(1)),
         )),
         exception=Optional(),
     )
@@ -334,7 +328,7 @@ def basic_test():
         )),
         output=Optional(DefineScratchOutput(
             StateScratchIndex(3),
-            Optional(Param.from_int(2)),
+            Scratch(Param.from_int(2)),
         )),
         exception=Optional(),
     )
@@ -346,12 +340,9 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     args_group = PartialArgsGroup(
-        ScopeId(1),
-        OptionalValueGroup(
-            Optional(Param.from_int(1)),
-            Optional(Param.from_int(2)),
-            Optional(),
-        ),
+        Optional(Param.from_int(1)),
+        Optional(Param.from_int(2)),
+        Optional(),
     )
     assert current_state == State.from_raw(
         scratches=tuple([And.as_type(), Or.as_type(), Param.from_int(2)]),
@@ -366,7 +357,7 @@ def basic_test():
         output=Optional(DefineArgsGroupArgOutput(
             StateArgsGroupIndex(1),
             NodeArgIndex(2),
-            OptionalContext(Param.from_int(2)),
+            Scratch(Param.from_int(2)),
         )),
         exception=Optional(),
     )
@@ -390,7 +381,7 @@ def basic_test():
         )),
         output=Optional(DefineScratchOutput(
             StateScratchIndex(3),
-            Optional(IntBoolean.from_int(1)),
+            Scratch(IntBoolean.from_int(1)),
         )),
         exception=Optional(),
     )
@@ -402,12 +393,9 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     args_group = PartialArgsGroup(
-        ScopeId(1),
-        OptionalValueGroup(
-            Optional(Param.from_int(1)),
-            Optional(Param.from_int(2)),
-            Optional(IntBoolean.from_int(1)),
-        ),
+        Optional(Param.from_int(1)),
+        Optional(Param.from_int(2)),
+        Optional(IntBoolean.from_int(1)),
     )
     scratches = tuple([And.as_type(), Or.as_type(), IntBoolean.from_int(1)])
     args_groups = tuple([args_group])
@@ -424,7 +412,7 @@ def basic_test():
         output=Optional(DefineArgsGroupArgOutput(
             StateArgsGroupIndex(1),
             NodeArgIndex(3),
-            OptionalContext(IntBoolean.from_int(1)),
+            Scratch(IntBoolean.from_int(1)),
         )),
         exception=Optional(),
     )
@@ -436,11 +424,8 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     arg_group_2 = PartialArgsGroup(
-        ScopeId(1),
-        OptionalValueGroup(
-            Optional(),
-            Optional(),
-        ),
+        Optional(),
+        Optional(),
     )
     args_groups = tuple([args_group, arg_group_2])
     assert current_state == State.from_raw(
@@ -479,7 +464,7 @@ def basic_test():
         )),
         output=Optional(DefineScratchOutput(
             StateScratchIndex(3),
-            Optional(Param.from_int(2)),
+            Scratch(Param.from_int(2)),
         )),
         exception=Optional(),
     )
@@ -491,11 +476,8 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     arg_group_2 = PartialArgsGroup(
-        ScopeId(1),
-        OptionalValueGroup(
-            Optional(Param.from_int(2)),
-            Optional(),
-        ),
+        Optional(Param.from_int(2)),
+        Optional(),
     )
     args_groups = tuple([args_group, arg_group_2])
     assert current_state == State.from_raw(
@@ -511,7 +493,7 @@ def basic_test():
         output=Optional(DefineArgsGroupArgOutput(
             StateArgsGroupIndex(2),
             NodeArgIndex(1),
-            OptionalContext(Param.from_int(2)),
+            Scratch(Param.from_int(2)),
         )),
         exception=Optional(),
     )
@@ -536,7 +518,7 @@ def basic_test():
         )),
         output=Optional(DefineScratchOutput(
             StateScratchIndex(3),
-            Optional(Param.from_int(3)),
+            Scratch(Param.from_int(3)),
         )),
         exception=Optional(),
     )
@@ -548,11 +530,8 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     arg_group_2 = PartialArgsGroup(
-        ScopeId(1),
-        OptionalValueGroup(
-            Optional(Param.from_int(2)),
-            Optional(Param.from_int(3)),
-        ),
+        Optional(Param.from_int(2)),
+        Optional(Param.from_int(3)),
     )
     args_groups = tuple([args_group, arg_group_2])
     assert current_state == State.from_raw(
@@ -568,7 +547,7 @@ def basic_test():
         output=Optional(DefineArgsGroupArgOutput(
             StateArgsGroupIndex(2),
             NodeArgIndex(2),
-            OptionalContext(Param.from_int(3)),
+            Scratch(Param.from_int(3)),
         )),
         exception=Optional(),
     )
@@ -597,7 +576,7 @@ def basic_test():
         )),
         output=Optional(DefineScratchOutput(
             StateScratchIndex(3),
-            Optional(call_1),
+            Scratch(call_1),
         )),
         exception=Optional(),
     )
@@ -625,7 +604,7 @@ def basic_test():
         )),
         output=Optional(DefineScratchOutput(
             StateScratchIndex(1),
-            Optional(call_2),
+            Scratch(call_2),
         )),
         exception=Optional(),
     )
@@ -637,11 +616,8 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     arg_group_2 = PartialArgsGroup(
-        ScopeId(1),
-        OptionalValueGroup(
-            Optional(call_1),
-            Optional(Param.from_int(3)),
-        ),
+        Optional(call_1),
+        Optional(Param.from_int(3)),
     )
     args_groups = tuple([args_group, arg_group_2])
     assert current_state == State.from_raw(
@@ -657,7 +633,7 @@ def basic_test():
         output=Optional(DefineArgsGroupArgOutput(
             StateArgsGroupIndex(2),
             NodeArgIndex(1),
-            OptionalContext(call_1),
+            Scratch(call_1),
         )),
         exception=Optional(),
     )
@@ -669,11 +645,8 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     arg_group_2 = PartialArgsGroup(
-        ScopeId(1),
-        OptionalValueGroup(
-            Optional(call_1),
-            Optional(call_2),
-        ),
+        Optional(call_1),
+        Optional(call_2),
     )
     args_groups = tuple([args_group, arg_group_2])
     assert current_state == State.from_raw(
@@ -689,7 +662,7 @@ def basic_test():
         output=Optional(DefineArgsGroupArgOutput(
             StateArgsGroupIndex(2),
             NodeArgIndex(2),
-            OptionalContext(call_2),
+            Scratch(call_2),
         )),
         exception=Optional(),
     )
@@ -718,7 +691,7 @@ def basic_test():
         )),
         output=Optional(DefineScratchOutput(
             StateScratchIndex(1),
-            Optional(call_3),
+            Scratch(call_3),
         )),
         exception=Optional(),
     )
@@ -817,8 +790,7 @@ def basic_test():
     content = current_state.nested_args((
         State.idx_scratch_group,
         1,
-        Scratch.idx_child,
-        Optional.idx_value,
+        Scratch.idx_value,
     )).apply()
     assert content == goal.goal_inner_expr.apply()
     verification = goal.evaluate(current_state, StateScratchIndex(1))

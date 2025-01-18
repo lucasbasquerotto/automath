@@ -81,13 +81,13 @@ class Environment:
 
             scope_id = parent_scope_id
 
-            if isinstance(node, core.Scope):
+            if isinstance(node, core.IScope):
                 scope_id_wrapper = node.id
                 scope_id = 0
 
                 if isinstance(scope_id_wrapper, core.ScopeId):
                     scope_id_aux = scope_id_wrapper.as_int
-                    if isinstance(node, core.OpaqueScope) or (0 < parent_scope_id < scope_id_aux):
+                    if isinstance(node, core.IOpaqueScope) or (0 < parent_scope_id < scope_id_aux):
                         scope_id = scope_id_aux
 
                 result[idx][6] = scope_id

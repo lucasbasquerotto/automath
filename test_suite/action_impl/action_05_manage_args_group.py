@@ -75,7 +75,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     full_action: action.BaseAction = action_impl.CreateScratch.create()
     output: action.GeneralAction = action_impl.CreateScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional.create(),
+        state.Scratch.create(),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -141,7 +141,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.Var.from_int(1)),
+        state.Scratch(core.Var.from_int(1)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -175,7 +175,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     output = action_impl.DefineArgsGroupArgOutput(
         state.StateArgsGroupIndex(1),
         core.NodeArgIndex(2),
-        state.OptionalContext(core.Var.from_int(1)),
+        state.Scratch(core.Var.from_int(1)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -187,11 +187,8 @@ def test_manage_args_group() -> list[full_state.FullState]:
 
     # Verify
     args_group = state.PartialArgsGroup(
-        core.ScopeId(1),
-        core.OptionalValueGroup(
-            core.Optional(),
-            core.Optional(core.Var.from_int(1)),
-        ),
+        core.Optional(),
+        core.Optional(core.Var.from_int(1)),
     )
     args_groups = [args_group]
     assert current_state == state.State.from_raw(
@@ -248,7 +245,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.Var.from_int(2)),
+        state.Scratch(core.Var.from_int(2)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -282,7 +279,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     output = action_impl.DefineArgsGroupArgOutput(
         state.StateArgsGroupIndex(1),
         core.NodeArgIndex(1),
-        state.OptionalContext(core.Var.from_int(2)),
+        state.Scratch(core.Var.from_int(2)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -294,11 +291,8 @@ def test_manage_args_group() -> list[full_state.FullState]:
 
     # Verify
     args_group = state.PartialArgsGroup(
-        core.ScopeId(1),
-        core.OptionalValueGroup(
-            core.Optional(core.Var.from_int(2)),
-            core.Optional(core.Var.from_int(1)),
-        ),
+        core.Optional(core.Var.from_int(2)),
+        core.Optional(core.Var.from_int(1)),
     )
     args_groups[0] = args_group
     assert current_state == state.State.from_raw(
@@ -323,7 +317,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.Var.from_int(3)),
+        state.Scratch(core.Var.from_int(3)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -357,7 +351,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     output = action_impl.DefineArgsGroupArgOutput(
         state.StateArgsGroupIndex(2),
         core.NodeArgIndex(1),
-        state.OptionalContext(core.Var.from_int(3)),
+        state.Scratch(core.Var.from_int(3)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -369,11 +363,8 @@ def test_manage_args_group() -> list[full_state.FullState]:
 
     # Verify
     args_group = state.PartialArgsGroup(
-        core.ScopeId(1),
-        core.OptionalValueGroup(
-            core.Optional(core.Var.from_int(3)),
-            core.Optional(core.Var.from_int(1)),
-        ),
+        core.Optional(core.Var.from_int(3)),
+        core.Optional(core.Var.from_int(1)),
     )
     args_groups[1] = args_group
     assert current_state == state.State.from_raw(
@@ -395,12 +386,9 @@ def test_manage_args_group() -> list[full_state.FullState]:
         core.Optional(state.StateArgsGroupIndex(1)),
     )
     args_group = state.PartialArgsGroup(
-        core.ScopeId(1),
-        core.OptionalValueGroup(
-            core.Optional(core.Var.from_int(2)),
-            core.Optional(core.Var.from_int(1)),
-            core.Optional(),
-        ),
+        core.Optional(core.Var.from_int(2)),
+        core.Optional(core.Var.from_int(1)),
+        core.Optional(),
     )
     output = action_impl.CreateArgsGroupOutput(
         state.StateArgsGroupIndex(3),
@@ -438,7 +426,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.Param.from_int(1)),
+        state.Scratch(core.Param.from_int(1)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -472,7 +460,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     output = action_impl.DefineArgsGroupArgOutput(
         state.StateArgsGroupIndex(3),
         core.NodeArgIndex(1),
-        state.OptionalContext(core.Param.from_int(1)),
+        state.Scratch(core.Param.from_int(1)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -488,10 +476,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
         core.Optional(core.Var.from_int(1)),
         core.Optional(),
     ]
-    args_group = state.PartialArgsGroup(
-        core.ScopeId(1),
-        core.OptionalValueGroup(*or_params),
-    )
+    args_group = state.PartialArgsGroup(*or_params)
     args_groups[2] = args_group
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
@@ -516,7 +501,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.TypeNode(core.LessThan)),
+        state.Scratch(core.TypeNode(core.LessThan)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -545,7 +530,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     full_action = action_impl.CreateScratch.create()
     output = action_impl.CreateScratchOutput(
         state.StateScratchIndex(2),
-        core.Optional.create(),
+        state.Scratch.create(),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -580,7 +565,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(2),
-        core.Optional(core.TypeNode(core.GreaterThan)),
+        state.Scratch(core.TypeNode(core.GreaterThan)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -609,7 +594,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     full_action = action_impl.CreateScratch.create()
     output = action_impl.CreateScratchOutput(
         state.StateScratchIndex(3),
-        core.Optional.create(),
+        state.Scratch.create(),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -643,7 +628,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     fn_call: core.INode = core.GreaterThan(core.Var.from_int(2), core.Var.from_int(1))
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(3),
-        core.Optional(fn_call),
+        state.Scratch(fn_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -677,7 +662,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     output = action_impl.DefineArgsGroupArgOutput(
         state.StateArgsGroupIndex(3),
         core.NodeArgIndex(2),
-        state.OptionalContext(fn_call),
+        state.Scratch(fn_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -689,10 +674,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
 
     # Verify
     or_params[1] = core.Optional(fn_call)
-    args_group = state.PartialArgsGroup(
-        core.ScopeId(1),
-        core.OptionalValueGroup(*or_params),
-    )
+    args_group = state.PartialArgsGroup(*or_params)
     args_groups[2] = args_group
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
@@ -716,7 +698,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     fn_call = core.LessThan(core.Var.from_int(3), core.Var.from_int(1))
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(3),
-        core.Optional(fn_call),
+        state.Scratch(fn_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -750,7 +732,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     output = action_impl.DefineArgsGroupArgOutput(
         state.StateArgsGroupIndex(3),
         core.NodeArgIndex(3),
-        state.OptionalContext(fn_call),
+        state.Scratch(fn_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -762,10 +744,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
 
     # Verify
     or_params[2] = core.Optional(fn_call)
-    args_group = state.PartialArgsGroup(
-        core.ScopeId(1),
-        core.OptionalValueGroup(*or_params),
-    )
+    args_group = state.PartialArgsGroup(*or_params)
     args_groups[2] = args_group
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
@@ -790,7 +769,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(3),
-        core.Optional(core.TypeNode(core.Or)),
+        state.Scratch(core.TypeNode(core.Or)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -824,7 +803,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     or_call = core.Or(*[p.value_or_raise for p in or_params])
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(3),
-        core.Optional(or_call),
+        state.Scratch(or_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -858,7 +837,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     output = action_impl.DefineArgsGroupArgOutput(
         state.StateArgsGroupIndex(3),
         core.NodeArgIndex(3),
-        state.OptionalContext(or_call),
+        state.Scratch(or_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -871,10 +850,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     # Verify
     and_params = [p for p in or_params]
     and_params[2] = core.Optional(or_call)
-    args_group = state.PartialArgsGroup(
-        core.ScopeId(1),
-        core.OptionalValueGroup(*and_params),
-    )
+    args_group = state.PartialArgsGroup(*and_params)
     args_groups[2] = args_group
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
@@ -898,7 +874,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     p1_call = core.LessThan(core.Var.from_int(2), core.Var.from_int(1))
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(3),
-        core.Optional(p1_call),
+        state.Scratch(p1_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -932,7 +908,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     output = action_impl.DefineArgsGroupArgOutput(
         state.StateArgsGroupIndex(3),
         core.NodeArgIndex(1),
-        state.OptionalContext(p1_call),
+        state.Scratch(p1_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -944,10 +920,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
 
     # Verify
     and_params[0] = core.Optional(p1_call)
-    args_group = state.PartialArgsGroup(
-        core.ScopeId(1),
-        core.OptionalValueGroup(*and_params),
-    )
+    args_group = state.PartialArgsGroup(*and_params)
     args_groups[2] = args_group
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
@@ -971,7 +944,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     p2_call = core.GreaterThan(core.Var.from_int(3), core.Var.from_int(1))
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(3),
-        core.Optional(p2_call),
+        state.Scratch(p2_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -1005,7 +978,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     output = action_impl.DefineArgsGroupArgOutput(
         state.StateArgsGroupIndex(3),
         core.NodeArgIndex(2),
-        state.OptionalContext(p2_call),
+        state.Scratch(p2_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -1017,10 +990,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
 
     # Verify
     and_params[1] = core.Optional(p2_call)
-    args_group = state.PartialArgsGroup(
-        core.ScopeId(1),
-        core.OptionalValueGroup(*and_params),
-    )
+    args_group = state.PartialArgsGroup(*and_params)
     args_groups[2] = args_group
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
@@ -1045,7 +1015,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        core.Optional(core.TypeNode(core.And)),
+        state.Scratch(core.TypeNode(core.And)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -1079,7 +1049,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     and_call = core.And(*[p.value_or_raise for p in and_params])
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(2),
-        core.Optional(and_call),
+        state.Scratch(and_call),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -1110,11 +1080,8 @@ def test_manage_args_group() -> list[full_state.FullState]:
         core.Optional(state.StateArgsGroupIndex(3)),
     )
     args_group = state.PartialArgsGroup(
-        core.ScopeId(1),
-        core.OptionalValueGroup(
-            core.Optional(
-                core.LessThan(core.Var.from_int(2), core.Var.from_int(1))
-            ),
+        core.Optional(
+            core.LessThan(core.Var.from_int(2), core.Var.from_int(1))
         ),
     )
     output = action_impl.CreateArgsGroupOutput(
@@ -1149,10 +1116,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
         core.Integer(0),
         core.Optional(state.StateArgsGroupIndex(3)),
     )
-    args_group = state.PartialArgsGroup(
-        core.ScopeId(1),
-        core.OptionalValueGroup(),
-    )
+    args_group = state.PartialArgsGroup()
     output = action_impl.CreateArgsGroupOutput(
         state.StateArgsGroupIndex(5),
         args_group,

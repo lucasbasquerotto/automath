@@ -5,7 +5,6 @@ from env.core import (
     IDefault,
     BaseNode,
     IFunction,
-    IFromInt,
     IOptional,
     OptionalBase,
     Optional,
@@ -14,17 +13,14 @@ from env.core import (
     NodeIntBaseIndex,
     NodeMainIndex,
     NodeArgIndex,
-    OpaqueScope,
+    IOpaqueScope,
     BaseInt,
-    ScopeId,
-    OptionalValueGroup,
     ExtendedTypeGroup,
-    FunctionExprBase,
+    BaseOptionalValueGroup,
     ITypedIndex,
     ITypedIntIndex,
     CountableTypeGroup,
-    DefaultGroup,
-    ScopeBaseId,
+    FunctionExpr,
     NestedArgIndexGroup,
     Eq,
     And,
@@ -32,7 +28,6 @@ from env.core import (
     BaseIntBoolean,
     IWrapper,
     TmpNestedArg,
-    TmpNestedArgs,
     IInstantiable,
 )
 
@@ -246,33 +241,8 @@ class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
 class IContext(IWrapper, ABC):
     pass
 
-class OptionalContext(OptionalBase[T], IContext, IInstantiable, typing.Generic[T]):
+class Scratch(OptionalBase[INode], IContext, IOpaqueScope, IInstantiable):
     pass
-
-
-class Scratch(OpaqueScope[OptionalContext[INode]], IInstantiable):
-
-    idx_id = 1
-    idx_child = 2
-
-    @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            ScopeId,
-            OptionalContext[INode],
-        ]))
-
-    @classmethod
-    def with_optional(cls, optional: IOptional[INode]) -> typing.Self:
-        return cls.with_child(OptionalContext.from_optional(optional))
-
-    @property
-    def raw_id(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_id)
-
-    @property
-    def content(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_child)
 
 class ScratchGroup(BaseGroup[Scratch], IInstantiable):
 
@@ -282,48 +252,16 @@ class ScratchGroup(BaseGroup[Scratch], IInstantiable):
 
     @classmethod
     def from_raw_items(cls, items: typing.Sequence[INode | None]) -> typing.Self:
-        return cls.from_items([
-            Scratch.with_child(OptionalContext(s) if s is not None else OptionalContext())
-            for s in items
-        ])
+        return cls.from_items([Scratch.with_value(s) for s in items])
 
-    def to_raw_items(self) -> tuple[INode, ...]:
-        return tuple(s.content.apply() for s in self.as_tuple)
+    def to_raw_items(self) -> tuple[INode | None, ...]:
+        return tuple(s.value for s in self.as_tuple)
 
-class PartialArgsGroup(
-    OpaqueScope[OptionalValueGroup],
-    IDefault,
-    IFromInt,
-    IInstantiable,
-):
-
-    @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            ScopeBaseId,
-            OptionalValueGroup,
-        ]))
-
-    def fill_with_void(self) -> DefaultGroup:
-        return self.content.apply().cast(OptionalValueGroup).fill_with_void()
-
-    @classmethod
-    def create(cls) -> typing.Self:
-        return cls.with_child(OptionalValueGroup())
-
-    @classmethod
-    def from_int(cls, value: int) -> typing.Self:
-        return cls.with_child(OptionalValueGroup.from_int(value))
-
-    def new_amount(self, amount: int) -> typing.Self:
-        return self.with_child(
-            self.content.apply().cast(OptionalValueGroup).new_amount(amount)
-        )
-
-    def amount(self) -> int:
-        return self.content.apply().cast(OptionalValueGroup).amount()
+class PartialArgsGroup(BaseOptionalValueGroup[INode], IOpaqueScope, IInstantiable):
+    pass
 
 class PartialArgsOuterGroup(BaseGroup[PartialArgsGroup], IInstantiable):
+
     @classmethod
     def item_type(cls):
         return PartialArgsGroup
@@ -350,7 +288,7 @@ class StateDefinition(InheritableNode, typing.Generic[D, T], ABC):
         return self.nested_arg(self.idx_definition_expr)
 
 class FunctionDefinition(
-    StateDefinition[FunctionId, FunctionExprBase[T]],
+    StateDefinition[FunctionId, FunctionExpr[T]],
     IInstantiable,
     typing.Generic[T],
 ):
@@ -359,14 +297,8 @@ class FunctionDefinition(
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             FunctionId,
-            FunctionExprBase[T],
+            FunctionExpr[T],
         ]))
-
-    @property
-    def scope(self) -> TmpNestedArgs:
-        return self.nested_args(
-            (self.idx_definition_expr, FunctionExprBase.idx_scope)
-        )
 
 class StateDefinitionGroup(BaseGroup[StateDefinition], IInstantiable):
 
@@ -575,7 +507,7 @@ class ScratchNodeIndex(NodeIntBaseIndex, IInstantiable):
 
     def find_in_node(self, node: INode):
         assert isinstance(node, Scratch)
-        content = node.content.apply().cast(IOptional).value
+        content = node.value
         if content is None:
             return Optional.create()
         return NodeMainIndex(self.as_int).find_in_node(content)
@@ -585,7 +517,7 @@ class ScratchNodeIndex(NodeIntBaseIndex, IInstantiable):
         assert isinstance(new_node, INode)
         if self.as_int == 1:
             return Optional(new_node)
-        old_content = target_node.content.apply().cast(IOptional).value_or_raise
+        old_content = target_node.value_or_raise
         content = NodeMainIndex(self.as_int).replace_in_target(old_content, new_node)
         return content
 
@@ -593,7 +525,7 @@ class ScratchNodeIndex(NodeIntBaseIndex, IInstantiable):
         assert isinstance(target_node, Scratch)
         if self.as_int == 1:
             return Optional.create()
-        old_content = target_node.content.apply().cast(IOptional).value_or_raise
+        old_content = target_node.value_or_raise
         content = NodeMainIndex(self.as_int).remove_in_target(old_content)
         return content
 
