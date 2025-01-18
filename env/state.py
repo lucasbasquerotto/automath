@@ -15,8 +15,6 @@ from env.core import (
     NodeMainIndex,
     NodeArgIndex,
     OpaqueScope,
-    LaxOpaqueScope,
-    SimpleBaseScope,
     BaseInt,
     ScopeId,
     OptionalValueGroup,
@@ -26,6 +24,7 @@ from env.core import (
     ITypedIntIndex,
     CountableTypeGroup,
     DefaultGroup,
+    ScopeBaseId,
     NestedArgIndexGroup,
     Eq,
     And,
@@ -265,87 +264,64 @@ class Scratch(OpaqueScope[OptionalContext[INode]], IInstantiable):
 
     @classmethod
     def with_optional(cls, optional: IOptional[INode]) -> typing.Self:
-        return cls.with_content(OptionalContext.from_optional(optional))
+        return cls.with_child(OptionalContext.from_optional(optional))
 
     @property
     def raw_id(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_id)
 
     @property
-    def child(self) -> TmpNestedArg:
+    def content(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_child)
 
 class ScratchGroup(BaseGroup[Scratch], IInstantiable):
 
     @classmethod
     def item_type(cls):
-        return OpaqueScope[Scratch]
+        return Scratch
 
     @classmethod
     def from_raw_items(cls, items: typing.Sequence[INode | None]) -> typing.Self:
         return cls.from_items([
-            Scratch.with_content(OptionalContext(s) if s is not None else OptionalContext())
+            Scratch.with_child(OptionalContext(s) if s is not None else OptionalContext())
             for s in items
         ])
 
     def to_raw_items(self) -> tuple[INode, ...]:
-        return tuple(s.child.apply() for s in self.as_tuple)
+        return tuple(s.content.apply() for s in self.as_tuple)
 
 class PartialArgsGroup(
-    FunctionExprBase[OptionalValueGroup],
+    OpaqueScope[OptionalValueGroup],
     IDefault,
     IFromInt,
     IInstantiable,
 ):
 
-    idx_param_type_group = 1
-    idx_scope = 2
-
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            ExtendedTypeGroup,
-            LaxOpaqueScope[OptionalValueGroup],
+            ScopeBaseId,
+            OptionalValueGroup,
         ]))
 
-    @classmethod
-    def from_args(
-        cls,
-        param_type_group: ExtendedTypeGroup,
-        scope: LaxOpaqueScope[OptionalValueGroup],
-    ) -> typing.Self:
-        return cls(param_type_group, scope)
-
-    @property
-    def param_type_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_param_type_group)
-
-    @property
-    def scope(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_scope)
-
-    @property
-    def scope_child(self) -> TmpNestedArgs:
-        return self.nested_args((self.idx_scope, SimpleBaseScope.idx_child))
-
-    @property
-    def inner_args(self) -> tuple[INode, ...]:
-        return self.scope_child.apply().cast(OptionalValueGroup).as_tuple
-
     def fill_with_void(self) -> DefaultGroup:
-        return self.scope_child.apply().cast(OptionalValueGroup).fill_with_void()
+        return self.content.apply().cast(OptionalValueGroup).fill_with_void()
 
     @classmethod
     def create(cls) -> typing.Self:
-        return cls(
-            ExtendedTypeGroup(CountableTypeGroup()),
-            LaxOpaqueScope.with_content(OptionalValueGroup()))
+        return cls.with_child(OptionalValueGroup())
 
     @classmethod
     def from_int(cls, value: int) -> typing.Self:
-        return cls(
-            ExtendedTypeGroup.from_int(value),
-            LaxOpaqueScope.with_content(OptionalValueGroup.from_int(value)))
+        return cls.with_child(OptionalValueGroup.from_int(value))
+
+    def new_amount(self, amount: int) -> typing.Self:
+        return self.with_child(
+            self.content.apply().cast(OptionalValueGroup).new_amount(amount)
+        )
+
+    def amount(self) -> int:
+        return self.content.apply().cast(OptionalValueGroup).amount()
 
 class PartialArgsOuterGroup(BaseGroup[PartialArgsGroup], IInstantiable):
     @classmethod
@@ -599,7 +575,7 @@ class ScratchNodeIndex(NodeIntBaseIndex, IInstantiable):
 
     def find_in_node(self, node: INode):
         assert isinstance(node, Scratch)
-        content = node.child.apply().cast(IOptional).value
+        content = node.content.apply().cast(IOptional).value
         if content is None:
             return Optional.create()
         return NodeMainIndex(self.as_int).find_in_node(content)
@@ -609,7 +585,7 @@ class ScratchNodeIndex(NodeIntBaseIndex, IInstantiable):
         assert isinstance(new_node, INode)
         if self.as_int == 1:
             return Optional(new_node)
-        old_content = target_node.child.apply().cast(IOptional).value_or_raise
+        old_content = target_node.content.apply().cast(IOptional).value_or_raise
         content = NodeMainIndex(self.as_int).replace_in_target(old_content, new_node)
         return content
 
@@ -617,7 +593,7 @@ class ScratchNodeIndex(NodeIntBaseIndex, IInstantiable):
         assert isinstance(target_node, Scratch)
         if self.as_int == 1:
             return Optional.create()
-        old_content = target_node.child.apply().cast(IOptional).value_or_raise
+        old_content = target_node.content.apply().cast(IOptional).value_or_raise
         content = NodeMainIndex(self.as_int).remove_in_target(old_content)
         return content
 

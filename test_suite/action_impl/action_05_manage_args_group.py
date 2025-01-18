@@ -103,7 +103,6 @@ def test_manage_args_group() -> list[full_state.FullState]:
     full_action = action_impl.CreateArgsGroup(
         core.Integer(2),
         core.Optional(),
-        core.Optional(),
     )
     output = action_impl.CreateArgsGroupOutput(
         state.StateArgsGroupIndex(1),
@@ -188,14 +187,11 @@ def test_manage_args_group() -> list[full_state.FullState]:
 
     # Verify
     args_group = state.PartialArgsGroup(
-        core.ExtendedTypeGroup.from_int(2),
-        core.LaxOpaqueScope(
-            core.ScopeId(1),
-            core.OptionalValueGroup(
-                core.Optional(),
-                core.Optional(core.Var.from_int(1)),
-            ),
-        )
+        core.ScopeId(1),
+        core.OptionalValueGroup(
+            core.Optional(),
+            core.Optional(core.Var.from_int(1)),
+        ),
     )
     args_groups = [args_group]
     assert current_state == state.State.from_raw(
@@ -211,10 +207,9 @@ def test_manage_args_group() -> list[full_state.FullState]:
     assert env.full_state.goal_achieved() is False
 
     # Run Action
-    raw_action = action_impl.CreateArgsGroup.from_raw(2, 0, 1)
+    raw_action = action_impl.CreateArgsGroup.from_raw(2, 1, 0)
     full_action = action_impl.CreateArgsGroup(
         core.Integer(2),
-        core.Optional(),
         core.Optional(state.StateArgsGroupIndex(1)),
     )
     output = action_impl.CreateArgsGroupOutput(
@@ -299,14 +294,11 @@ def test_manage_args_group() -> list[full_state.FullState]:
 
     # Verify
     args_group = state.PartialArgsGroup(
-        core.ExtendedTypeGroup.from_int(2),
-        core.LaxOpaqueScope(
-            core.ScopeId(1),
-            core.OptionalValueGroup(
-                core.Optional(core.Var.from_int(2)),
-                core.Optional(core.Var.from_int(1)),
-            ),
-        )
+        core.ScopeId(1),
+        core.OptionalValueGroup(
+            core.Optional(core.Var.from_int(2)),
+            core.Optional(core.Var.from_int(1)),
+        ),
     )
     args_groups[0] = args_group
     assert current_state == state.State.from_raw(
@@ -377,14 +369,11 @@ def test_manage_args_group() -> list[full_state.FullState]:
 
     # Verify
     args_group = state.PartialArgsGroup(
-        core.ExtendedTypeGroup.from_int(2),
-        core.LaxOpaqueScope(
-            core.ScopeId(1),
-            core.OptionalValueGroup(
-                core.Optional(core.Var.from_int(3)),
-                core.Optional(core.Var.from_int(1)),
-            ),
-        )
+        core.ScopeId(1),
+        core.OptionalValueGroup(
+            core.Optional(core.Var.from_int(3)),
+            core.Optional(core.Var.from_int(1)),
+        ),
     )
     args_groups[1] = args_group
     assert current_state == state.State.from_raw(
@@ -400,22 +389,18 @@ def test_manage_args_group() -> list[full_state.FullState]:
     assert env.full_state.goal_achieved() is False
 
     # Run Action
-    raw_action = action_impl.CreateArgsGroup.from_raw(3, 0, 1)
+    raw_action = action_impl.CreateArgsGroup.from_raw(3, 1, 0)
     full_action = action_impl.CreateArgsGroup(
         core.Integer(3),
-        core.Optional(),
         core.Optional(state.StateArgsGroupIndex(1)),
     )
     args_group = state.PartialArgsGroup(
-        core.ExtendedTypeGroup.from_int(3),
-        core.LaxOpaqueScope(
-            core.ScopeId(1),
-            core.OptionalValueGroup(
-                core.Optional(core.Var.from_int(2)),
-                core.Optional(core.Var.from_int(1)),
-                core.Optional(),
-            ),
-        )
+        core.ScopeId(1),
+        core.OptionalValueGroup(
+            core.Optional(core.Var.from_int(2)),
+            core.Optional(core.Var.from_int(1)),
+            core.Optional(),
+        ),
     )
     output = action_impl.CreateArgsGroupOutput(
         state.StateArgsGroupIndex(3),
@@ -504,11 +489,8 @@ def test_manage_args_group() -> list[full_state.FullState]:
         core.Optional(),
     ]
     args_group = state.PartialArgsGroup(
-        core.ExtendedTypeGroup.from_int(3),
-        core.LaxOpaqueScope(
-            core.ScopeId(1),
-            core.OptionalValueGroup(*or_params),
-        )
+        core.ScopeId(1),
+        core.OptionalValueGroup(*or_params),
     )
     args_groups[2] = args_group
     assert current_state == state.State.from_raw(
@@ -708,11 +690,8 @@ def test_manage_args_group() -> list[full_state.FullState]:
     # Verify
     or_params[1] = core.Optional(fn_call)
     args_group = state.PartialArgsGroup(
-        core.ExtendedTypeGroup.from_int(3),
-        core.LaxOpaqueScope(
-            core.ScopeId(1),
-            core.OptionalValueGroup(*or_params),
-        )
+        core.ScopeId(1),
+        core.OptionalValueGroup(*or_params),
     )
     args_groups[2] = args_group
     assert current_state == state.State.from_raw(
@@ -784,11 +763,8 @@ def test_manage_args_group() -> list[full_state.FullState]:
     # Verify
     or_params[2] = core.Optional(fn_call)
     args_group = state.PartialArgsGroup(
-        core.ExtendedTypeGroup.from_int(3),
-        core.LaxOpaqueScope(
-            core.ScopeId(1),
-            core.OptionalValueGroup(*or_params),
-        )
+        core.ScopeId(1),
+        core.OptionalValueGroup(*or_params),
     )
     args_groups[2] = args_group
     assert current_state == state.State.from_raw(
@@ -896,11 +872,8 @@ def test_manage_args_group() -> list[full_state.FullState]:
     and_params = [p for p in or_params]
     and_params[2] = core.Optional(or_call)
     args_group = state.PartialArgsGroup(
-        core.ExtendedTypeGroup.from_int(3),
-        core.LaxOpaqueScope(
-            core.ScopeId(1),
-            core.OptionalValueGroup(*and_params),
-        )
+        core.ScopeId(1),
+        core.OptionalValueGroup(*and_params),
     )
     args_groups[2] = args_group
     assert current_state == state.State.from_raw(
@@ -972,11 +945,8 @@ def test_manage_args_group() -> list[full_state.FullState]:
     # Verify
     and_params[0] = core.Optional(p1_call)
     args_group = state.PartialArgsGroup(
-        core.ExtendedTypeGroup.from_int(3),
-        core.LaxOpaqueScope(
-            core.ScopeId(1),
-            core.OptionalValueGroup(*and_params),
-        )
+        core.ScopeId(1),
+        core.OptionalValueGroup(*and_params),
     )
     args_groups[2] = args_group
     assert current_state == state.State.from_raw(
@@ -1048,11 +1018,8 @@ def test_manage_args_group() -> list[full_state.FullState]:
     # Verify
     and_params[1] = core.Optional(p2_call)
     args_group = state.PartialArgsGroup(
-        core.ExtendedTypeGroup.from_int(3),
-        core.LaxOpaqueScope(
-            core.ScopeId(1),
-            core.OptionalValueGroup(*and_params),
-        )
+        core.ScopeId(1),
+        core.OptionalValueGroup(*and_params),
     )
     args_groups[2] = args_group
     assert current_state == state.State.from_raw(
@@ -1137,22 +1104,18 @@ def test_manage_args_group() -> list[full_state.FullState]:
     assert env.full_state.goal_achieved() is False
 
     # Run Action
-    raw_action = action_impl.CreateArgsGroup.from_raw(1, 0, 3)
+    raw_action = action_impl.CreateArgsGroup.from_raw(1, 3, 0)
     full_action = action_impl.CreateArgsGroup(
         core.Integer(1),
-        core.Optional(),
         core.Optional(state.StateArgsGroupIndex(3)),
     )
     args_group = state.PartialArgsGroup(
-        core.ExtendedTypeGroup.from_int(1),
-        core.LaxOpaqueScope(
-            core.ScopeId(1),
-            core.OptionalValueGroup(
-                core.Optional(
-                    core.LessThan(core.Var.from_int(2), core.Var.from_int(1))
-                ),
+        core.ScopeId(1),
+        core.OptionalValueGroup(
+            core.Optional(
+                core.LessThan(core.Var.from_int(2), core.Var.from_int(1))
             ),
-        )
+        ),
     )
     output = action_impl.CreateArgsGroupOutput(
         state.StateArgsGroupIndex(4),
@@ -1181,18 +1144,14 @@ def test_manage_args_group() -> list[full_state.FullState]:
     assert env.full_state.goal_achieved() is False
 
     # Run Action
-    raw_action = action_impl.CreateArgsGroup.from_raw(0, 0, 3)
+    raw_action = action_impl.CreateArgsGroup.from_raw(0, 3, 0)
     full_action = action_impl.CreateArgsGroup(
         core.Integer(0),
-        core.Optional(),
         core.Optional(state.StateArgsGroupIndex(3)),
     )
     args_group = state.PartialArgsGroup(
-        core.ExtendedTypeGroup.from_int(0),
-        core.LaxOpaqueScope(
-            core.ScopeId(1),
-            core.OptionalValueGroup(),
-        )
+        core.ScopeId(1),
+        core.OptionalValueGroup(),
     )
     output = action_impl.CreateArgsGroupOutput(
         state.StateArgsGroupIndex(5),

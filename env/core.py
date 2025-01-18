@@ -715,7 +715,7 @@ class Scope(InheritableNode, ABC):
 class SimpleBaseScope(Scope, typing.Generic[T], ABC):
 
     idx_id = 1
-    idx_child = 2
+    idx_content = 2
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -733,20 +733,25 @@ class SimpleBaseScope(Scope, typing.Generic[T], ABC):
         return self.raw_id.apply().cast(ScopeBaseId)
 
     @property
-    def child(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_child)
+    def content(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_content)
 
     def has_dependency(self) -> bool:
-        return self.child.apply().has_until(self.id, OpaqueScope)
+        return self.content.apply().has_until(self.id, OpaqueScope)
 
 class SimpleScope(SimpleBaseScope[T], IInstantiable, typing.Generic[T]):
     pass
 
-class OpaqueScope(SimpleBaseScope[T], typing.Generic[T], ABC):
+class OpaqueScope(SimpleBaseScope[T], ISingleChild[T], typing.Generic[T], ABC):
 
     @classmethod
-    def with_content(cls, child: T) -> typing.Self:
+    def with_child(cls, child: T) -> typing.Self:
         return cls(ScopeId(1), child)
+
+    @property
+    def child(self) -> T:
+        content = self.content.apply()
+        return typing.cast(T, content)
 
     @classmethod
     def normalize_from(cls, node: INode, next_id: int) -> INode:
@@ -770,9 +775,9 @@ class OpaqueScope(SimpleBaseScope[T], typing.Generic[T], ABC):
             self.normalize_from(child, next_id+1)
             if isinstance(child, INode)
             else child
-            for child in self.child.apply().args
+            for child in self.content.apply().args
         ]
-        child = self.child.apply().func(*child_args)
+        child = self.content.apply().func(*child_args)
         node = self.func(TemporaryScopeId(next_id), child)
         tmp_ids = node.find_until(TemporaryScopeId, OpaqueScope)
         for tmp_id in tmp_ids:
@@ -970,6 +975,9 @@ class BaseGroup(InheritableNode, IGroup[T], typing.Generic[T], ABC):
     @classmethod
     def from_items(cls, items: typing.Sequence[T]) -> typing.Self:
         return cls(*items)
+
+    def amount(self) -> int:
+        return len(self.args)
 
 class DefaultGroup(BaseGroup[INode], IInstantiable):
 
@@ -1253,7 +1261,7 @@ class FunctionExprBase(
 
     @property
     def expr(self) -> TmpNestedArgs:
-        return self.nested_args((self.idx_scope, SimpleBaseScope.idx_child))
+        return self.nested_args((self.idx_scope, SimpleBaseScope.idx_content))
 
     def owned_params(self) -> typing.Sequence[Param]:
         params = [
@@ -1284,7 +1292,7 @@ class FunctionExprBase(
             assert isinstance(scope_aux, SimpleBaseScope)
             scope = scope_aux
         assert not scope.has_dependency()
-        return scope.child.apply()
+        return scope.content.apply()
 
     def validate(self):
         params = self.owned_params()
@@ -1307,7 +1315,7 @@ class FunctionExprBase(
         if isinstance(scope, OpaqueScope):
             all_inner_functions = scope.find_until(FunctionExpr, OpaqueScope)
             all_functions = all_inner_functions.union(self)
-            all_functions_scope_ids = {f.scope.id for f in all_functions}
+            all_functions_scope_ids = {f.scope.apply().cast(Scope).id for f in all_functions}
             all_inner_params = scope.find_until(Param, OpaqueScope)
             all_inner_params_scope_ids = {
                 p.parent_scope.apply().cast(IInt).as_int

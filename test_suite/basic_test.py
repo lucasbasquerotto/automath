@@ -6,7 +6,6 @@ from env.core import (
     IntBoolean,
     Integer,
     ExtendedTypeGroup,
-    LaxOpaqueScope,
     ScopeId,
     OptionalValueGroup,
     BooleanExceptionInfo,
@@ -252,7 +251,6 @@ def basic_test():
         action=Optional(CreateArgsGroup(
             Integer(3),
             Optional(),
-            Optional(),
         )),
         output=Optional(CreateArgsGroupOutput(
             StateArgsGroupIndex(1),
@@ -292,15 +290,12 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     args_group = PartialArgsGroup(
-        ExtendedTypeGroup.from_int(3),
-        LaxOpaqueScope(
-            ScopeId(1),
-            OptionalValueGroup(
-                Optional(Param.from_int(1)),
-                Optional(),
-                Optional(),
-            ),
-        )
+        ScopeId(1),
+        OptionalValueGroup(
+            Optional(Param.from_int(1)),
+            Optional(),
+            Optional(),
+        ),
     )
     assert current_state == State.from_raw(
         scratches=tuple([And.as_type(), Or.as_type(), Param.from_int(1)]),
@@ -351,15 +346,12 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     args_group = PartialArgsGroup(
-        ExtendedTypeGroup.from_int(3),
-        LaxOpaqueScope(
-            ScopeId(1),
-            OptionalValueGroup(
-                Optional(Param.from_int(1)),
-                Optional(Param.from_int(2)),
-                Optional(),
-            ),
-        )
+        ScopeId(1),
+        OptionalValueGroup(
+            Optional(Param.from_int(1)),
+            Optional(Param.from_int(2)),
+            Optional(),
+        ),
     )
     assert current_state == State.from_raw(
         scratches=tuple([And.as_type(), Or.as_type(), Param.from_int(2)]),
@@ -410,15 +402,12 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     args_group = PartialArgsGroup(
-        ExtendedTypeGroup.from_int(3),
-        LaxOpaqueScope(
-            ScopeId(1),
-            OptionalValueGroup(
-                Optional(Param.from_int(1)),
-                Optional(Param.from_int(2)),
-                Optional(IntBoolean.from_int(1)),
-            ),
-        )
+        ScopeId(1),
+        OptionalValueGroup(
+            Optional(Param.from_int(1)),
+            Optional(Param.from_int(2)),
+            Optional(IntBoolean.from_int(1)),
+        ),
     )
     scratches = tuple([And.as_type(), Or.as_type(), IntBoolean.from_int(1)])
     args_groups = tuple([args_group])
@@ -447,14 +436,11 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     arg_group_2 = PartialArgsGroup(
-        ExtendedTypeGroup.from_int(2),
-        LaxOpaqueScope(
-            ScopeId(1),
-            OptionalValueGroup(
-                Optional(),
-                Optional(),
-            ),
-        )
+        ScopeId(1),
+        OptionalValueGroup(
+            Optional(),
+            Optional(),
+        ),
     )
     args_groups = tuple([args_group, arg_group_2])
     assert current_state == State.from_raw(
@@ -464,7 +450,6 @@ def basic_test():
     assert last_history_action == ActionData.from_args(
         action=Optional(CreateArgsGroup(
             Integer(2),
-            Optional(),
             Optional(),
         )),
         output=Optional(CreateArgsGroupOutput(
@@ -506,14 +491,11 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     arg_group_2 = PartialArgsGroup(
-        ExtendedTypeGroup.from_int(2),
-        LaxOpaqueScope(
-            ScopeId(1),
-            OptionalValueGroup(
-                Optional(Param.from_int(2)),
-                Optional(),
-            ),
-        )
+        ScopeId(1),
+        OptionalValueGroup(
+            Optional(Param.from_int(2)),
+            Optional(),
+        ),
     )
     args_groups = tuple([args_group, arg_group_2])
     assert current_state == State.from_raw(
@@ -566,14 +548,11 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     arg_group_2 = PartialArgsGroup(
-        ExtendedTypeGroup.from_int(2),
-        LaxOpaqueScope(
-            ScopeId(1),
-            OptionalValueGroup(
-                Optional(Param.from_int(2)),
-                Optional(Param.from_int(3)),
-            ),
-        )
+        ScopeId(1),
+        OptionalValueGroup(
+            Optional(Param.from_int(2)),
+            Optional(Param.from_int(3)),
+        ),
     )
     args_groups = tuple([args_group, arg_group_2])
     assert current_state == State.from_raw(
@@ -658,14 +637,11 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     arg_group_2 = PartialArgsGroup(
-        ExtendedTypeGroup.from_int(2),
-        LaxOpaqueScope(
-            ScopeId(1),
-            OptionalValueGroup(
-                Optional(call_1),
-                Optional(Param.from_int(3)),
-            ),
-        )
+        ScopeId(1),
+        OptionalValueGroup(
+            Optional(call_1),
+            Optional(Param.from_int(3)),
+        ),
     )
     args_groups = tuple([args_group, arg_group_2])
     assert current_state == State.from_raw(
@@ -693,14 +669,11 @@ def basic_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
     arg_group_2 = PartialArgsGroup(
-        ExtendedTypeGroup.from_int(2),
-        LaxOpaqueScope(
-            ScopeId(1),
-            OptionalValueGroup(
-                Optional(call_1),
-                Optional(call_2),
-            ),
-        )
+        ScopeId(1),
+        OptionalValueGroup(
+            Optional(call_1),
+            Optional(call_2),
+        ),
     )
     args_groups = tuple([args_group, arg_group_2])
     assert current_state == State.from_raw(

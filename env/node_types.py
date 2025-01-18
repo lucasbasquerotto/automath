@@ -29,7 +29,7 @@ class HaveScratch(Goal[INode, StateScratchIndex], IInstantiable):
         goal_inner_expr = self.goal_inner_expr.apply()
         assert isinstance(eval_param, StateScratchIndex)
         scratch = eval_param.find_in_node(state).value_or_raise
-        content = scratch.child.apply().cast(IOptional).value_or_raise
+        content = scratch.content.apply().cast(IOptional).value_or_raise
         return Eq(content, goal_inner_expr)
 
 class HaveDynamicGoal(Goal[IGoal, StateDynamicGoalIndex], IInstantiable):

@@ -781,7 +781,6 @@ def test_define_scratch() -> list[full_state.FullState]:
     full_action = action_impl.CreateArgsGroup(
         core.Integer(2),
         core.Optional(),
-        core.Optional(),
     )
     output = action_impl.CreateArgsGroupOutput(
         state.StateArgsGroupIndex(1),
@@ -832,14 +831,11 @@ def test_define_scratch() -> list[full_state.FullState]:
 
     # Verify
     args_group = state.PartialArgsGroup(
-        core.ExtendedTypeGroup.from_int(2),
-        core.LaxOpaqueScope(
-            core.ScopeId(1),
-            core.OptionalValueGroup(
-                core.Optional(state.FunctionId.from_int(2)),
-                core.Optional(),
-            ),
-        )
+        core.ScopeId(1),
+        core.OptionalValueGroup(
+            core.Optional(state.FunctionId.from_int(2)),
+            core.Optional(),
+        ),
     )
     args_groups = tuple([args_group])
     assert current_state == state.State.from_raw(
@@ -876,14 +872,11 @@ def test_define_scratch() -> list[full_state.FullState]:
 
     # Verify
     args_group = state.PartialArgsGroup(
-        core.ExtendedTypeGroup.from_int(2),
-        core.LaxOpaqueScope(
-            core.ScopeId(1),
-            core.OptionalValueGroup(
-                core.Optional(state.FunctionId.from_int(2)),
-                core.Optional(state.FunctionId.from_int(2)),
-            ),
-        )
+        core.ScopeId(1),
+        core.OptionalValueGroup(
+            core.Optional(state.FunctionId.from_int(2)),
+            core.Optional(state.FunctionId.from_int(2)),
+        ),
     )
     args_groups = tuple([args_group])
     assert current_state == state.State.from_raw(
