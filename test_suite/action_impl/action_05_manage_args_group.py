@@ -1152,6 +1152,147 @@ def test_manage_args_group() -> list[full_state.FullState]:
     assert env.full_state.goal_achieved() is False
 
     # Run Action
+    raw_action = action_impl.CreateArgsGroup.from_raw(1, 0, 3)
+    full_action = action_impl.CreateArgsGroup(
+        core.Integer(1),
+        core.Optional(),
+        core.Optional(state.StateArgsGroupIndex(3)),
+    )
+    args_group = state.PartialArgsGroup(
+        core.ExtendedTypeGroup.from_int(1),
+        core.LaxOpaqueScope(
+            core.ScopeId(1),
+            core.OptionalValueGroup(
+                core.Optional(
+                    core.LessThan(core.Var.from_int(2), core.Var.from_int(1))
+                ),
+            ),
+        )
+    )
+    output = action_impl.CreateArgsGroupOutput(
+        state.StateArgsGroupIndex(4),
+        args_group,
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    args_groups.append(args_group)
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    raw_action = action_impl.CreateArgsGroup.from_raw(0, 0, 3)
+    full_action = action_impl.CreateArgsGroup(
+        core.Integer(0),
+        core.Optional(),
+        core.Optional(state.StateArgsGroupIndex(3)),
+    )
+    args_group = state.PartialArgsGroup(
+        core.ExtendedTypeGroup.from_int(0),
+        core.LaxOpaqueScope(
+            core.ScopeId(1),
+            core.OptionalValueGroup(),
+        )
+    )
+    output = action_impl.CreateArgsGroupOutput(
+        state.StateArgsGroupIndex(5),
+        args_group,
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    args_groups.append(args_group)
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    raw_action = action_impl.DeleteArgsGroupOutput.from_raw(5, 0, 0)
+    full_action = action_impl.DeleteArgsGroupOutput(
+        state.StateArgsGroupIndex(5),
+    )
+    output = full_action
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    args_groups = args_groups[:-1]
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+    )
+    assert last_history_action == full_state.ActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    assert env.full_state.goal_achieved() is False
+
+    for _ in range(4):
+        # Run Action
+        raw_action = action_impl.DeleteArgsGroupOutput.from_raw(1, 0, 0)
+        full_action = action_impl.DeleteArgsGroupOutput(
+            state.StateArgsGroupIndex(1),
+        )
+        output = full_action
+        env.step(raw_action)
+        if prev_remaining_steps is not None:
+            remaining_steps = get_remaining_steps(env)
+            assert remaining_steps == prev_remaining_steps - 1
+            prev_remaining_steps = remaining_steps
+        current_state = get_current_state(env)
+        last_history_action = get_last_history_action(env)
+
+        # Verify
+        args_groups = args_groups[1:]
+        assert current_state == state.State.from_raw(
+            meta_info=state_meta,
+            scratches=scratches,
+            args_groups=args_groups,
+        )
+        assert last_history_action == full_state.ActionData.from_args(
+            action=core.Optional(full_action),
+            output=core.Optional(output),
+            exception=core.Optional(),
+        )
+        assert env.full_state.goal_achieved() is False
+
+    # Run Action
     meta_idx = get_from_int_type_index(state.StateScratchIndex, env)
     raw_action = action_impl.VerifyGoal.from_raw(0, meta_idx, 2)
     full_action = action_impl.VerifyGoal(
@@ -1179,7 +1320,6 @@ def test_manage_args_group() -> list[full_state.FullState]:
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
         scratches=scratches,
-        args_groups=args_groups,
     )
     assert last_history_action == full_state.ActionData.from_args(
         action=core.Optional(full_action),
