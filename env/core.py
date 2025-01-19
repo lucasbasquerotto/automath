@@ -147,7 +147,14 @@ class IGroup(IWrapper, typing.Generic[T], ABC):
         return cls(*items)
 
 class IFunction(INode, ABC):
-    pass
+
+    def with_arg_group(self, group: BaseGroup) -> INode:
+        raise NotImplementedError(self.__class__)
+
+class IRunnable(INode, ABC):
+
+    def run(self) -> INode:
+        raise NotImplementedError(self.__class__)
 
 class IBoolean(INode):
 
@@ -161,6 +168,10 @@ class IBoolean(INode):
 
     def raise_on_not_true(self):
         if self.as_bool is not True:
+            raise self.to_exception()
+
+    def raise_on_undefined(self):
+        if self.as_bool is None:
             raise self.to_exception()
 
     def to_exception(self):
@@ -265,7 +276,7 @@ class TmpNestedArgs:
 ######################## BASE NODE ########################
 ###########################################################
 
-class BaseNode(INode, ABC):
+class BaseNode(IRunnable, ABC):
 
     def __init__(self, *args: int | INode | typing.Type[INode]):
         if not isinstance(self, IInstantiable):
@@ -479,6 +490,10 @@ class TypeNode(BaseNode, IType, IFunction, ISpecialValue, typing.Generic[T], IIn
                 return p_type.accepted_by(self)
         return isinstance(instance, self.type)
 
+    def run(self):
+        self.validate()
+        return self
+
     def __eq__(self, other) -> bool:
         if not isinstance(other, TypeNode):
             return False
@@ -510,6 +525,10 @@ class BaseInt(BaseNode, IInt, ISpecialValue, ABC):
 
     @property
     def node_value(self) -> INode:
+        return self
+
+    def run(self):
+        self.validate()
         return self
 
 class Integer(BaseInt, IInstantiable):
@@ -567,8 +586,10 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
                 f'{type(self)}: {len(args)} != {len(type_group.args)}'
 
     def run(self):
-        args = self.args
+        self.validate()
+        args = [arg.as_node.run() for arg in self.args]
         self.arg_type_group().validate_values(DefaultGroup(*args))
+        return self.func(*args)
 
 ###########################################################
 ###################### SPECIAL NODES ######################
@@ -1153,30 +1174,6 @@ class IntersectionType(InheritableNode, IType, IInstantiable):
 ###################### FUNCTION NODE ######################
 ###########################################################
 
-class FunctionCall(InheritableNode, IInstantiable):
-
-    idx_function = 1
-    idx_arg_group = 2
-
-    @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            IFunction,
-            BaseGroup,
-        ]))
-
-    @property
-    def function(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_function)
-
-    @property
-    def arg_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_arg_group)
-
-    @classmethod
-    def define(cls, fn: IFunction, args: BaseGroup) -> INode:
-        return cls(fn, args)
-
 class IScopedFunction(IFunction, IScope, ABC):
     pass
 
@@ -1211,6 +1208,9 @@ class FunctionExpr(
     def expr(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_expr)
 
+    def with_arg_group(self, group: BaseGroup) -> INode:
+        return self.func(*group.as_tuple)
+
 class FunctionWrapper(
     InheritableNode,
     IScopedFunction,
@@ -1241,6 +1241,9 @@ class FunctionWrapper(
     @property
     def fn_call(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_fn_call)
+
+    def with_arg_group(self, group: BaseGroup) -> INode:
+        return self.func(*group.as_tuple)
 
 ###########################################################
 ######################## EXCEPTION ########################
@@ -1579,3 +1582,129 @@ class LessThan(DoubleIntBooleanNode, IInstantiable):
         if not isinstance(a, IInt) or not isinstance(b, IInt):
             return None
         return a.as_int < b.as_int
+
+###########################################################
+################### CONTROL FLOW NODES ####################
+###########################################################
+
+class ControlFlowBaseNode(InheritableNode, ABC):
+
+    def run(self):
+        self.validate()
+        return self._run()
+
+    def _run(self):
+        raise NotImplementedError(self.__class__)
+
+class FunctionCall(ControlFlowBaseNode, IInstantiable):
+
+    idx_function = 1
+    idx_arg_group = 2
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            IFunction,
+            BaseGroup,
+        ]))
+
+    @property
+    def function(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_function)
+
+    @property
+    def arg_group(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_arg_group)
+
+    @classmethod
+    def define(cls, fn: IFunction, args: BaseGroup) -> INode:
+        return cls(fn, args)
+
+    def _run(self):
+        fn = self.function.apply().run()
+        assert isinstance(fn, IFunction)
+        args = self.arg_group.apply()
+        assert isinstance(args, BaseGroup)
+        return fn.with_arg_group(args).as_node.run()
+
+class If(ControlFlowBaseNode, IInstantiable):
+
+    idx_condition = 1
+    idx_true_expr = 2
+    idx_false_expr = 3
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            IBoolean,
+            INode,
+            INode,
+        ]))
+
+    @property
+    def condition(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_condition)
+
+    @property
+    def true_expr(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_true_expr)
+
+    @property
+    def false_expr(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_false_expr)
+
+    def _run(self):
+        condition = self.condition.apply().run()
+        assert isinstance(condition, IBoolean)
+        condition.raise_on_undefined()
+        if condition.as_bool:
+            return self.true_expr.apply().run()
+        return self.false_expr.apply().run()
+
+class LoopGuard(InheritableNode, IInstantiable):
+
+    idx_condition = 1
+    idx_result = 2
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            IBoolean,
+            INode,
+        ]))
+    @property
+    def condition(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_condition)
+
+    @property
+    def result(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_result)
+
+class Loop(ControlFlowBaseNode, IInstantiable):
+
+    idx_callback = 1
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            IFunction,
+        ]))
+
+    @property
+    def callback(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_callback)
+
+    def _run(self):
+        condition = True
+        data = Optional()
+        while condition:
+            fn = self.callback.apply()
+            result = FunctionCall.define(fn, DefaultGroup(data)).as_node.run()
+            assert isinstance(result, LoopGuard)
+            cond_node = result.condition.apply().run()
+            assert isinstance(cond_node, IBoolean)
+            cond_node.raise_on_undefined()
+            new_data = result.result.apply().run()
+            data = Optional(new_data)
+            condition = cond_node.as_bool
+        return data
