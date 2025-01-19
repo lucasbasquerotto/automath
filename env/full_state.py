@@ -39,7 +39,7 @@ from env.meta_env import (
     MetaData,
     IFullState,
     IFullStateIndex,
-    IFullStateIntIndex,
+    FullStateIntBaseIndex,
     IAction,
     IBasicAction,
     SubtypeOuterGroup,
@@ -296,7 +296,7 @@ class FullStateIndex(IFullStateIndex[FullState, T], typing.Generic[T], ABC):
     def outer_type(cls):
         return FullState
 
-class FullStateIntIndex(IFullStateIntIndex[FullState, T], typing.Generic[T], ABC):
+class FullStateIntIndex(FullStateIntBaseIndex[FullState, T], typing.Generic[T], ABC):
 
     @classmethod
     def outer_type(cls):
@@ -372,12 +372,10 @@ class MetaAllTypesTypeIndex(
             MetaInfo.idx_all_types,
         ))
 
-class MetaTypesDetailsTypeIndex(
-    FullStateGroupTypeBaseIndex[DetailedType],
-    IInstantiable):
+class MetaTypesDetailsTypeIndex(FullStateReadonlyGroupBaseIndex[DetailedType], IInstantiable):
 
     @classmethod
-    def inner_item_type(cls):
+    def item_type(cls):
         return DetailedType
 
     @classmethod
@@ -598,7 +596,7 @@ class MetaBasicActionsTypeIndex(
 class CurrentStateScratchIndex(FullStateReadonlyGroupBaseIndex[Scratch], IInstantiable):
 
     @classmethod
-    def inner_item_type(cls):
+    def item_type(cls):
         return Scratch
 
     @classmethod

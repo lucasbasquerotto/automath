@@ -47,7 +47,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
         ).apply()
         return selected_goal == goal
 
-    goal = node_types.HaveScratch(core.And(
+    goal = node_types.HaveScratch.with_goal(core.And(
         core.LessThan(core.Var.from_int(2), core.Var.from_int(1)),
         core.GreaterThan(core.Var.from_int(3), core.Var.from_int(1)),
         core.Or(
@@ -58,6 +58,7 @@ def test_manage_args_group() -> list[full_state.FullState]:
     ))
     env = GoalEnv(goal=goal)
     assert has_goal(env=env, goal=goal)
+    env.full_state.validate()
 
     current_state = get_current_state(env)
     prev_remaining_steps = get_remaining_steps(env)

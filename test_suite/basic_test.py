@@ -109,6 +109,7 @@ def basic_test():
     )
 
     env = GoalEnv(goal)
+    env.full_state.validate()
     node_types = env.full_state.node_types()
 
     selected_goal = env.full_state.nested_args((FullState.idx_meta, MetaInfo.idx_goal)).apply()

@@ -3,7 +3,7 @@ from env import state
 from env import action
 from env import meta_env
 from env import full_state
-from test_suite import basic_test
+from test_suite import basic_test, indices_test
 from test_suite.action_impl import (
     action_01_state_meta,
     action_02_manage_scratch,
@@ -15,6 +15,7 @@ from test_suite.action_impl import (
 def test() -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
     final_states += basic_test.test()
+    final_states += indices_test.test()
     final_states += action_01_state_meta.test()
     final_states += action_02_manage_scratch.test()
     final_states += action_03_define_scratch.test()

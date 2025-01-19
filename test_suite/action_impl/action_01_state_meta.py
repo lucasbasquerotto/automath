@@ -111,6 +111,7 @@ def goal_test():
             )
         )
         assert has_goal(env=env, goal=goal)
+        env.full_state.validate()
 
         current_state = get_current_state(env)
         initial_state = current_state
@@ -201,6 +202,7 @@ def goal_test():
             max_steps=10000
         )
         assert has_goal(env=env, goal=goal)
+        env.full_state.validate()
 
         current_state = get_current_state(env)
         prev_remaining_steps = get_remaining_steps(env)
@@ -437,6 +439,7 @@ def dynamic_goal_test():
         max_steps=1000,
     )
     assert has_goal(env=env, goal=goal)
+    env.full_state.validate()
 
     current_state = get_current_state(env)
     prev_remaining_steps = get_remaining_steps(env)

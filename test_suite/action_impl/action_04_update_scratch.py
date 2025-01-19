@@ -87,6 +87,7 @@ def test_update_scratch() -> list[full_state.FullState]:
         max_steps=5000,
     )
     assert has_goal(env=env, goal=goal)
+    env.full_state.validate()
 
     current_state = get_current_state(env)
     prev_remaining_steps = get_remaining_steps(env)

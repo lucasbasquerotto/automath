@@ -406,7 +406,7 @@ class BaseNode(INode, ABC):
     def cast(self, t: typing.Type[T]) -> T:
         origin = typing.get_origin(t)
         t = origin if origin is not None else t
-        assert isinstance(self, t)
+        assert isinstance(self, t), f'{type(self)} != {t}'
         return typing.cast(T, self)
 
 ###########################################################
@@ -967,7 +967,13 @@ class OptionalValueGroup(BaseOptionalValueGroup[T], IInstantiable, typing.Generi
 class IBaseTypeGroup(INode, ABC):
     pass
 
-class CountableTypeGroup(BaseGroup[IType], IBaseTypeGroup, IInstantiable, typing.Generic[T]):
+class CountableTypeGroup(
+    BaseGroup[IType],
+    IBaseTypeGroup,
+    IFromInt,
+    IInstantiable,
+    typing.Generic[T],
+):
 
     @classmethod
     def item_type(cls) -> type[IType]:
@@ -976,6 +982,10 @@ class CountableTypeGroup(BaseGroup[IType], IBaseTypeGroup, IInstantiable, typing
     @classmethod
     def from_types(cls, types: typing.Sequence[type[INode]]) -> typing.Self:
         return cls(*[TypeNode(t) for t in types])
+
+    @classmethod
+    def from_int(cls, value: int) -> typing.Self:
+        return cls(*[UnknownType()] * value)
 
 class SingleValueTypeGroup(
     InheritableNode,
@@ -1051,15 +1061,14 @@ class ExtendedTypeGroup(
 
     @classmethod
     def from_int(cls, value: int) -> typing.Self:
-        return cls.with_child(Optional(Integer(value)))
+        return cls(CountableTypeGroup.from_int(value))
 
     @classmethod
     def with_child(cls, child: IOptional[INT]) -> typing.Self:
         value = child.value.as_int if child.value is not None else None
         if value is None:
             return cls.rest()
-        return cls(
-            CountableTypeGroup.from_items([UnknownType()] * value))
+        return cls.from_int(value)
 
     @classmethod
     def rest(cls, type_node: IType = UnknownType()) -> typing.Self:

@@ -37,9 +37,13 @@ K = typing.TypeVar('K', bound=INode)
 ####################### META ITEMS ########################
 ###########################################################
 
-class MetaData(InheritableNode, IInstantiable):
+class MetaData(InheritableNode, IDefault, IInstantiable):
 
     idx_remaining_steps = 1
+
+    @classmethod
+    def create(cls) -> typing.Self:
+        return cls.with_args()
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -226,7 +230,7 @@ class IFullStateIndex(ITypedIndex[S, T], typing.Generic[S, T], ABC):
     def item_type(cls) -> type[T]:
         raise NotImplementedError
 
-class IFullStateIntIndex(
+class FullStateIntBaseIndex(
     BaseInt,
     IFullStateIndex[S, T],
     ITypedIntIndex[IFullState, T],
@@ -348,7 +352,7 @@ class MetaInfo(InheritableNode, IWrapper, IInstantiable):
             SubtypeOuterGroup[IInt],
             SubtypeOuterGroup[INodeIndex],
             SubtypeOuterGroup[IFullStateIndex],
-            SubtypeOuterGroup[IFullStateIntIndex],
+            SubtypeOuterGroup[FullStateIntBaseIndex],
             SubtypeOuterGroup[IFromSingleChild],
             SubtypeOuterGroup[IGroup],
             SubtypeOuterGroup[IFunction],
@@ -406,7 +410,7 @@ class MetaInfo(InheritableNode, IWrapper, IInstantiable):
             SubtypeOuterGroup.from_all_types(TypeNode(IInt), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(INodeIndex), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IFullStateIndex), all_types_group),
-            SubtypeOuterGroup.from_all_types(TypeNode(IFullStateIntIndex), all_types_group),
+            SubtypeOuterGroup.from_all_types(TypeNode(FullStateIntBaseIndex), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IFromSingleChild), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IGroup), all_types_group),
             SubtypeOuterGroup.from_all_types(TypeNode(IFunction), all_types_group),

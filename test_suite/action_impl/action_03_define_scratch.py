@@ -63,12 +63,13 @@ def test_define_scratch() -> list[full_state.FullState]:
         ).apply()
         return selected_goal == goal
 
-    goal = node_types.HaveScratch(core.Void())
+    goal = node_types.HaveScratch.with_goal(core.Void())
     env = GoalEnv(
-        goal=node_types.HaveScratch(core.Void()),
+        goal=goal,
         max_steps=5000,
     )
     assert has_goal(env=env, goal=goal)
+    env.full_state.validate()
 
     current_state = get_current_state(env)
     prev_remaining_steps = get_remaining_steps(env)
