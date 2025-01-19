@@ -1209,7 +1209,10 @@ class FunctionExpr(
         return self.nested_arg(self.idx_expr)
 
     def with_arg_group(self, group: BaseGroup) -> INode:
-        return self.func(*group.as_tuple)
+        expr = self.expr.apply()
+        for i, arg in enumerate(group.as_tuple):
+            expr = expr.replace_until(Param.from_int(i + 1), arg, IOpaqueScope).as_node
+        return expr
 
 class FunctionWrapper(
     InheritableNode,
@@ -1243,7 +1246,10 @@ class FunctionWrapper(
         return self.nested_arg(self.idx_fn_call)
 
     def with_arg_group(self, group: BaseGroup) -> INode:
-        return self.func(*group.as_tuple)
+        expr = self.fn_call.apply()
+        for i, arg in enumerate(group.as_tuple):
+            expr = expr.replace_until(Param.from_int(i + 1), arg, IOpaqueScope).as_node
+        return expr
 
 ###########################################################
 ######################## EXCEPTION ########################
@@ -1621,9 +1627,9 @@ class FunctionCall(ControlFlowBaseNode, IInstantiable):
         return cls(fn, args)
 
     def _run(self):
-        fn = self.function.apply().run()
+        fn = self.function.apply()
         assert isinstance(fn, IFunction)
-        args = self.arg_group.apply()
+        args = self.arg_group.apply().run()
         assert isinstance(args, BaseGroup)
         return fn.with_arg_group(args).as_node.run()
 
@@ -1679,6 +1685,10 @@ class LoopGuard(InheritableNode, IInstantiable):
     @property
     def result(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_result)
+
+    @classmethod
+    def with_args(cls, condition: IBoolean, result: INode) -> LoopGuard:
+        return cls(condition, result)
 
 class Loop(ControlFlowBaseNode, IInstantiable):
 
