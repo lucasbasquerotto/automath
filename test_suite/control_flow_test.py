@@ -115,43 +115,65 @@ def test_control_flow() -> list[full_state.FullState]:
     fn_scratches: list[core.INode | None] = [
         core.FunctionCall(
             core.FunctionExpr.with_node(
-                core.DefaultGroup(
-                    core.DefaultGroup(
+                core.FunctionCall(
+                    core.FunctionWrapper.with_node(
                         core.FunctionCall(
-                            core.TypeNode(core.LessThan),
-                            core.Param.from_int(1),
-                        ),
-                        core.FunctionCall(
-                            core.TypeNode(core.LessThan),
-                            core.Param.from_int(2),
-                        ),
-                        core.FunctionCall(
-                            core.TypeNode(core.LessThan),
-                            core.Param.from_int(3),
+                            core.FunctionExpr.with_node(
+                                core.DefaultGroup(
+                                    core.DefaultGroup(
+                                        core.FunctionCall(
+                                            core.TypeNode(core.LessThan),
+                                            core.Param.from_int(1),
+                                        ),
+                                        core.FunctionCall(
+                                            core.TypeNode(core.LessThan),
+                                            core.Param.from_int(2),
+                                        ),
+                                        core.FunctionCall(
+                                            core.TypeNode(core.LessThan),
+                                            core.Param.from_int(3),
+                                        ),
+                                    ),
+                                    core.DefaultGroup(
+                                        core.FunctionCall(
+                                            core.TypeNode(core.GreaterThan),
+                                            core.Param.from_int(1),
+                                        ),
+                                        core.FunctionCall(
+                                            core.TypeNode(core.GreaterThan),
+                                            core.Param.from_int(2),
+                                        ),
+                                        core.FunctionCall(
+                                            core.TypeNode(core.GreaterThan),
+                                            core.Param.from_int(3),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                            core.DefaultGroup(
+                                core.IntGroup.from_ints([1, 2]),
+                                core.Param(
+                                    core.FarParentScope.create(),
+                                    core.Integer(1),
+                                    core.UnknownType(),
+                                ),
+                                core.Param(
+                                    core.NearParentScope.create(),
+                                    core.Integer(1),
+                                    core.UnknownType(),
+                                ),
+                            )
                         ),
                     ),
                     core.DefaultGroup(
-                        core.FunctionCall(
-                            core.TypeNode(core.GreaterThan),
-                            core.Param.from_int(1),
-                        ),
-                        core.FunctionCall(
-                            core.TypeNode(core.GreaterThan),
-                            core.Param.from_int(2),
-                        ),
-                        core.FunctionCall(
-                            core.TypeNode(core.GreaterThan),
-                            core.Param.from_int(3),
-                        ),
-                    ),
+                        core.IntGroup.from_ints([2, 1]),
+                    )
                 ),
             ),
             core.DefaultGroup(
-                core.IntGroup.from_ints([1, 2]),
                 core.IntGroup.from_ints([2, 2]),
-                core.IntGroup.from_ints([2, 1]),
-            )
-        )
+            ),
+        ),
     ]
     scratches = if_scratches + loop_scratches + fn_scratches
 
