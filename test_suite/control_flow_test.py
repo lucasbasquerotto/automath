@@ -6,17 +6,19 @@ def test_control_flow() -> list[full_state.FullState]:
     # goal = node_types.HaveScratch.with_goal(core.Void())
     # env = GoalEnv(goal=goal)
 
+    run_info = core.RunInfo.create()
+
     assert core.If(
         core.IntBoolean.create_true(),
         core.Integer(1),
         core.Integer(2),
-    ).run() == core.Integer(1)
+    ).run(run_info) == core.Integer(1)
 
     assert core.If(
         core.IntBoolean.create(),
         core.Integer(1),
         core.Integer(2),
-    ).run() == core.Integer(2)
+    ).run(run_info) == core.Integer(2)
 
     assert core.Loop(
         core.FunctionExpr.with_child(
@@ -32,7 +34,9 @@ def test_control_flow() -> list[full_state.FullState]:
                 ),
             )
         ),
-    ).run() == core.Optional(core.DefaultGroup(core.Integer(0), core.Optional(core.Integer(9))))
+    ).run(run_info) == core.Optional(
+        core.DefaultGroup(core.Integer(0), core.Optional(core.Integer(9)))
+    )
 
     return []
 
