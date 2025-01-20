@@ -715,7 +715,7 @@ class IOpaqueScope(IScope, ABC):
 class IInnerScope(IScope, ABC):
     pass
 
-class Placeholder(InheritableNode, IFromInt, typing.Generic[T], ABC):
+class Placeholder(InheritableNode, IFunction, IFromInt, typing.Generic[T], ABC):
 
     idx_parent_scope = 1
     idx_index = 2
@@ -735,7 +735,19 @@ class Placeholder(InheritableNode, IFromInt, typing.Generic[T], ABC):
     def index(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_index)
 
-    def run(self, info: RunInfo):
+    def with_arg_group(self, group: BaseGroup, info: RunInfo) -> INode:
+        new_group = group.run(info)
+        args = [arg.as_node.run(info) for arg in self.args]
+        param_type_group = self.arg_type_group()
+        param_type_group.validate_values(new_group)
+        expanded = self.func(*args).expand(info)
+        assert isinstance(expanded, IFunction)
+        return FunctionCall.define(
+            fn=expanded,
+            args=new_group,
+        ).as_node.run(info)
+
+    def expand(self, info: RunInfo):
         node = super().run(info).cast(Placeholder[T])
         parent_scope = node.parent_scope.apply().cast(ParentScopeBase).run(info)
         scope_index = parent_scope.as_int
@@ -747,7 +759,10 @@ class Placeholder(InheritableNode, IFromInt, typing.Generic[T], ABC):
         assert isinstance(scope, ScopeDataPlaceholderItem)
         assert isinstance(self, scope.item_inner_type())
         item = NodeArgIndex(index.as_int).find_in_node(scope).value_or_raise
-        return item.as_node.run(info)
+        return item
+
+    def run(self, info: RunInfo):
+        return self.expand(info).as_node.run(info)
 
 class Param(Placeholder[T], IInstantiable, typing.Generic[T]):
 
@@ -1800,7 +1815,7 @@ class FunctionCall(ControlFlowBaseNode, IInstantiable):
         return cls(fn, args)
 
     def _run(self, info: RunInfo):
-        fn = self.function.apply()
+        fn = self.function.apply() #TODO verify if run should be called
         assert isinstance(fn, IFunction)
         arg_group = self.arg_group.apply().run(info)
         assert isinstance(arg_group, BaseGroup)
