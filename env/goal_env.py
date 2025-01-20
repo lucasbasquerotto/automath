@@ -36,7 +36,7 @@ class GoalEnv(Environment):
         initial_state = (
             fn_initial_state(meta)
             if fn_initial_state
-            else full_state.FullState.with_child(meta))
+            else full_state.FullState.with_node(meta))
 
         super().__init__(
             initial_state=initial_state,

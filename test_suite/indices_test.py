@@ -85,13 +85,13 @@ def run(
 
     return scratches
 
-def test_indices() -> list[full_state.FullState]:
-    def has_goal(env: GoalEnv, goal: meta_env.IGoal):
-        selected_goal = env.full_state.nested_args(
-            (full_state.FullState.idx_meta, meta_env.MetaInfo.idx_goal)
-        ).apply()
-        return selected_goal == goal
+def has_goal(env: GoalEnv, goal: meta_env.IGoal):
+    selected_goal = env.full_state.nested_args(
+        (full_state.FullState.idx_meta, meta_env.MetaInfo.idx_goal)
+    ).apply()
+    return selected_goal == goal
 
+def test_indices() -> list[full_state.FullState]:
     goal = node_types.HaveScratch.with_goal(core.Void())
     state_meta = state.StateMetaInfo.with_goal_expr(goal)
     scratches: list[core.INode | None] = [

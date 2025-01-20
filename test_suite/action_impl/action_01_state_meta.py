@@ -40,14 +40,14 @@ def get_from_int_type_index(node_type: type[core.INode], env: GoalEnv):
 def goal_test():
     params = (core.Param.from_int(1), core.Param.from_int(2), core.Param.from_int(3))
     p1, p2, p3 = params
-    scratch_goal_1 = core.FunctionExpr.with_child(
+    scratch_goal_1 = core.FunctionExpr.with_node(
         core.Or(
             core.And(p1, p2, core.IntBoolean(1)),
             core.And(p2, p3),
         ),
     )
     goal_1 = node_types_module.HaveScratch.with_goal(scratch_goal_1)
-    scratch_goal_2 = core.Not(core.Eq(core.IntBoolean.create_true(), core.IntBoolean.create()))
+    scratch_goal_2 = core.Not(core.Eq(core.IBoolean.true(), core.IBoolean.false()))
     goal_2 = node_types_module.HaveScratch.with_goal(scratch_goal_2)
     scratch_goal_3 = core.FunctionCall.define(
         state.FunctionId(1),
@@ -369,7 +369,7 @@ def dynamic_goal_test():
         core.Integer(1),
         core.TypeNode(core.IBoolean),
     )
-    scratch_dynamic_goal = core.FunctionExpr.with_child(
+    scratch_dynamic_goal = core.FunctionExpr.with_node(
         core.And(
             core.Or(
                 core.Param(*p1_args),

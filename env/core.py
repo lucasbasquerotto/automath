@@ -84,19 +84,19 @@ O = typing.TypeVar('O', bound=INode)
 K = typing.TypeVar('K', bound=INode)
 INT = typing.TypeVar('INT', bound=IInt)
 
-class IFromSingleChild(IInheritableNode, typing.Generic[T], ABC):
+class IFromSingleNode(IInheritableNode, typing.Generic[T], ABC):
 
     @classmethod
-    def with_child(cls, child: T) -> typing.Self:
-        return cls.new(child)
+    def with_node(cls, node: T) -> typing.Self:
+        return cls.new(node)
 
-class ISingleChild(IFromSingleChild, typing.Generic[T], ABC):
+class ISingleChild(IFromSingleNode, typing.Generic[T], ABC):
 
     @property
     def child(self) -> T:
         raise NotImplementedError(self.__class__)
 
-class IOptional(IDefault, IFromSingleChild[T], typing.Generic[T], ABC):
+class IOptional(IDefault, IFromSingleNode[T], typing.Generic[T], ABC):
 
     @property
     def value(self) -> T | None:
@@ -123,7 +123,7 @@ class ISingleOptionalChild(ISingleChild[IOptional[T]], typing.Generic[T], ABC):
 
     @classmethod
     def with_optional(cls, child: T | None) -> typing.Self:
-        return cls.with_child(Optional(child) if child is not None else Optional())
+        return cls.with_node(Optional(child) if child is not None else Optional())
 
     @property
     def child(self) -> IOptional[T]:
@@ -158,6 +158,9 @@ class IRunnable(INode, ABC):
 
 class IBoolean(INode):
 
+    _true: IBoolean | None = None
+    _false: IBoolean | None = None
+
     @property
     def as_bool(self) -> bool | None:
         raise NotImplementedError(self.__class__)
@@ -186,12 +189,28 @@ class IBoolean(INode):
 
     @classmethod
     def true(cls) -> IBoolean:
-        return IntBoolean.create_true()
+        t = cls._true
+        if t is None:
+            t = IntBoolean.create_true()
+            cls._true = t
+        return t
 
     @classmethod
     def false(cls) -> IBoolean:
-        return IntBoolean.create()
+        f = cls._false
+        if f is None:
+            f = IntBoolean.create()
+            cls._false = f
+        return f
 
+class IRunnableBoolean(IBoolean, IRunnable, ABC):
+
+    def run(self, info: RunInfo) -> INode:
+        node = self
+        assert isinstance(node, InheritableNode)
+        args = [arg.as_node.run(info) for arg in node.args]
+        value = self.func(*args).strict_bool
+        return IntBoolean.from_bool(value)
 
 class ITypedIndex(INodeIndex, typing.Generic[O, T], ABC):
 
@@ -547,7 +566,26 @@ class BaseInt(BaseNode, IInt, ISpecialValue, ABC):
         return self
 
 class Integer(BaseInt, IInstantiable):
-    pass
+
+    _zero: Integer | None = None
+    _one: Integer | None = None
+
+    @classmethod
+    def from_int(cls, value: int) -> Integer:
+        if value == 0:
+            z = cls._zero
+            if z is None:
+                z = cls(value)
+                cls._zero = z
+            return z
+        if value == 1:
+            o = cls._one
+            if o is None:
+                o = cls(value)
+                cls._one = o
+            return o
+        return cls(value)
+
 
 ###########################################################
 ######################## MAIN NODE ########################
@@ -669,7 +707,7 @@ class Optional(OptionalBase[T], IInstantiable, typing.Generic[T]):
 class BooleanWrapper(
     InheritableNode,
     ISingleChild[IBoolean],
-    IBoolean,
+    IRunnableBoolean,
     ABC,
 ):
 
@@ -1074,7 +1112,7 @@ class ExtendedTypeGroup(
     InheritableNode,
     IDefault,
     IFromInt,
-    IFromSingleChild[IOptional[IInt]],
+    IFromSingleNode[IOptional[IInt]],
     IInstantiable,
 ):
 
@@ -1117,8 +1155,8 @@ class ExtendedTypeGroup(
         return cls(CountableTypeGroup.from_int(value))
 
     @classmethod
-    def with_child(cls, child: IOptional[INT]) -> typing.Self:
-        value = child.value.as_int if child.value is not None else None
+    def with_node(cls, node: IOptional[INT]) -> typing.Self:
+        value = node.value.as_int if node.value is not None else None
         if value is None:
             return cls.rest()
         return cls.from_int(value)
@@ -1130,7 +1168,7 @@ class ExtendedTypeGroup(
     def new_amount(self, amount: int) -> typing.Self:
         group = self.group.apply().cast(IBaseTypeGroup)
         if not isinstance(group, CountableTypeGroup):
-            return self.with_child(Optional(Integer(amount)))
+            return self.with_node(Optional(Integer(amount)))
         items = group.as_tuple
         if amount == len(items):
             return self
@@ -1241,19 +1279,19 @@ class ScopedFunctionBase(InheritableNode, IFunction, IScope, ABC):
 
 class FunctionExpr(
     ScopedFunctionBase,
-    IFromSingleChild[T],
+    IFromSingleNode[T],
     IOpaqueScope,
     IInstantiable,
     typing.Generic[T],
 ):
 
     @classmethod
-    def with_child(cls, child: T) -> typing.Self:
-        return cls.new(ExtendedTypeGroup.rest(), child)
+    def with_node(cls, node: T) -> typing.Self:
+        return cls.new(ExtendedTypeGroup.rest(), node)
 
 class FunctionWrapper(
     ScopedFunctionBase,
-    IFromSingleChild[T],
+    IFromSingleNode[T],
     IInnerScope,
     IInstantiable,
     typing.Generic[T],
@@ -1267,8 +1305,8 @@ class FunctionWrapper(
         ]))
 
     @classmethod
-    def with_child(cls, child: T) -> typing.Self:
-        return cls.new(ExtendedTypeGroup.rest(), child)
+    def with_node(cls, node: T) -> typing.Self:
+        return cls.new(ExtendedTypeGroup.rest(), node)
 
 ###########################################################
 ######################## EXCEPTION ########################
@@ -1351,6 +1389,42 @@ class ExceptionInfoWrapper(
 ################### CORE BOOLEAN NODES ####################
 ###########################################################
 
+class BaseIntBoolean(BaseInt, IBoolean, IDefault, ABC):
+
+    @classmethod
+    def create(cls) -> typing.Self:
+        return cls(0)
+
+    @classmethod
+    def from_bool(cls, value: bool) -> IntBoolean:
+        assert value in (True, False)
+        return cls(1 if value else 0)
+
+    @classmethod
+    def create_true(cls) -> typing.Self:
+        return cls(1)
+
+    @property
+    def as_bool(self) -> bool | None:
+        if self.as_int == 0:
+            return False
+        if self.as_int == 1:
+            return True
+        return None
+
+class IntBoolean(BaseIntBoolean, IInstantiable):
+    pass
+
+class UnknownBoolean(InheritableNode, IRunnableBoolean, IInstantiable):
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup())
+
+    @property
+    def as_bool(self) -> bool | None:
+        return None
+
 class Not(BooleanWrapper, IInstantiable):
 
     @property
@@ -1362,7 +1436,7 @@ class Not(BooleanWrapper, IInstantiable):
             return None
         return not child.as_bool
 
-class IsEmpty(SingleOptionalChildWrapper[INode], IBoolean, IInstantiable):
+class IsEmpty(SingleOptionalChildWrapper[INode], IRunnableBoolean, IInstantiable):
 
     def _raise_if_empty(self) -> INode:
         optional = self.nested_arg(self.idx_value).apply()
@@ -1387,7 +1461,7 @@ class IsEmpty(SingleOptionalChildWrapper[INode], IBoolean, IInstantiable):
             return None
         return value.value is None
 
-class IsInstance(InheritableNode, IBoolean, typing.Generic[T], IInstantiable):
+class IsInstance(InheritableNode, IRunnableBoolean, typing.Generic[T], IInstantiable):
 
     idx_instance = 1
     idx_type = 2
@@ -1431,7 +1505,7 @@ class IsInstance(InheritableNode, IBoolean, typing.Generic[T], IInstantiable):
         return typing.cast(T, cls(instance, TypeNode(t)).as_type_or_raise)
 
 
-class Eq(InheritableNode, IBoolean, IInstantiable):
+class Eq(InheritableNode, IRunnableBoolean, IInstantiable):
 
     idx_left = 1
     idx_right = 2
@@ -1461,7 +1535,7 @@ class Eq(InheritableNode, IBoolean, IInstantiable):
     def from_ints(cls, left: int, right: int) -> Eq:
         return cls(Integer(left), Integer(right))
 
-class IsInsideRange(InheritableNode, IBoolean, IInstantiable):
+class IsInsideRange(InheritableNode, IRunnableBoolean, IInstantiable):
 
     idx_value = 1
     idx_min_value = 2
@@ -1505,45 +1579,13 @@ class IsInsideRange(InheritableNode, IBoolean, IInstantiable):
             return None
         return min_value.as_int <= value.as_int <= max_value.as_int
 
-class BaseIntBoolean(BaseInt, IBoolean, IDefault, ABC):
-
-    @classmethod
-    def create(cls) -> typing.Self:
-        return cls(0)
-
-    @property
-    def as_bool(self) -> bool | None:
-        if self.as_int == 0:
-            return False
-        if self.as_int == 1:
-            return True
-        return None
-
-class IntBoolean(BaseIntBoolean, IInstantiable):
-
-    @classmethod
-    def create(cls) -> typing.Self:
-        return cls(0)
-
-    @classmethod
-    def create_true(cls) -> typing.Self:
-        return cls(1)
-
-    @property
-    def as_bool(self) -> bool | None:
-        if self.as_int == 0:
-            return False
-        if self.as_int == 1:
-            return True
-        return None
-
-class MultiArgBooleanNode(InheritableNode, IBoolean, ABC):
+class MultiArgBooleanNode(InheritableNode, IRunnableBoolean, ABC):
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup.rest(IBoolean.as_type())
 
-class DoubleIntBooleanNode(InheritableNode, IBoolean, ABC):
+class DoubleIntBooleanNode(InheritableNode, IRunnableBoolean, ABC):
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -1571,6 +1613,27 @@ class And(MultiArgBooleanNode, IInstantiable):
                 return False
         return None if has_none else True
 
+    def run(self, info: RunInfo) -> INode:
+        arg_1 = self.nested_arg(1).apply().run(info)
+        assert isinstance(arg_1, IBoolean)
+        val_1 = arg_1.as_bool
+        if val_1 is False:
+            return IBoolean.false()
+
+        arg_2 = self.nested_arg(2).apply().run(info)
+        assert isinstance(arg_2, IBoolean)
+        val_2 = arg_2.as_bool
+        if val_2 is False:
+            return IBoolean.false()
+
+        val_1 = arg_1.strict_bool
+        val_2 = arg_2.strict_bool
+
+        if val_1 is None or val_2 is None:
+            return UnknownBoolean()
+
+        return IBoolean.true()
+
 class Or(MultiArgBooleanNode, IInstantiable):
 
     @property
@@ -1585,6 +1648,27 @@ class Or(MultiArgBooleanNode, IInstantiable):
             elif arg.as_bool is True:
                 return True
         return None if has_none else False
+
+    def run(self, info: RunInfo) -> INode:
+        arg_1 = self.nested_arg(1).apply().run(info)
+        assert isinstance(arg_1, IBoolean)
+        val_1 = arg_1.as_bool
+        if val_1 is True:
+            return IBoolean.true()
+
+        arg_2 = self.nested_arg(2).apply().run(info)
+        assert isinstance(arg_2, IBoolean)
+        val_2 = arg_2.as_bool
+        if val_2 is True:
+            return IBoolean.true()
+
+        val_1 = arg_1.strict_bool
+        val_2 = arg_2.strict_bool
+
+        if val_1 is None or val_2 is None:
+            return UnknownBoolean()
+
+        return IBoolean.false()
 
 class GreaterThan(DoubleIntBooleanNode, IInstantiable):
 
@@ -1753,7 +1837,7 @@ class FunctionCall(ControlFlowBaseNode, IInstantiable):
     def _run(self, info: RunInfo):
         fn = self.function.apply()
         assert isinstance(fn, IFunction)
-        arg_group = self.arg_group.apply()
+        arg_group = self.arg_group.apply().run(info)
         assert isinstance(arg_group, BaseGroup)
         return fn.with_arg_group(group=arg_group, info=info)
 

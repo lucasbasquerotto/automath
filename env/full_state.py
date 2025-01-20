@@ -11,7 +11,7 @@ from env.core import (
     INodeIndex,
     NodeMainBaseIndex,
     NodeArgBaseIndex,
-    IFromSingleChild,
+    IFromSingleNode,
     IGroup,
     IFunction,
     IBoolean,
@@ -184,7 +184,7 @@ class FullState(
     InheritableNode,
     IFullState,
     IOpaqueScope,
-    IFromSingleChild[MetaInfo],
+    IFromSingleNode[MetaInfo],
     IWrapper,
     IInstantiable,
 ):
@@ -202,8 +202,8 @@ class FullState(
         ]))
 
     @classmethod
-    def with_child(cls, child: MetaInfo) -> typing.Self:
-        return cls.with_args(meta=child)
+    def with_node(cls, node: MetaInfo) -> typing.Self:
+        return cls.with_args(meta=node)
 
     @classmethod
     def with_args(
@@ -499,11 +499,11 @@ class MetaFullStateIntIndexTypeIndex(FullStateGroupTypeBaseIndex[FullStateIntInd
             SubtypeOuterGroup.idx_subtypes,
         ))
 
-class MetaSingleChildTypeIndex(FullStateGroupTypeBaseIndex[IFromSingleChild], IInstantiable):
+class MetaSingleChildTypeIndex(FullStateGroupTypeBaseIndex[IFromSingleNode], IInstantiable):
 
     @classmethod
     def inner_item_type(cls):
-        return IFromSingleChild
+        return IFromSingleNode
 
     @classmethod
     def group(cls, full_state: FullState) -> TmpNestedArgs:

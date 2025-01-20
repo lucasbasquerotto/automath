@@ -15,12 +15,13 @@ from env.core import (
     IDefault,
     ISingleOptionalChild,
     IFromInt,
-    IFromSingleChild,
+    IFromSingleNode,
     IsEmpty,
     CountableTypeGroup,
     IOptional,
     NestedArgIndexGroup,
     IntGroup,
+    RunInfo,
     Eq,
     Not,
     IInstantiable,
@@ -372,8 +373,8 @@ class ScratchBaseActionOutput(GeneralAction, ISingleChild[StateScratchIndex], AB
     idx_index = 1
 
     @classmethod
-    def with_child(cls, child: StateScratchIndex) -> typing.Self:
-        return cls.new(child)
+    def with_node(cls, node: StateScratchIndex) -> typing.Self:
+        return cls.new(node)
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -637,13 +638,13 @@ class DefineScratchFromSingleArg(
         assert isinstance(arg_index, StateScratchIndex)
 
         node_type = type_index.find_in_outer_node(full_state).value_or_raise
-        assert isinstance(node_type, TypeNode) and issubclass(node_type.type, IFromSingleChild)
+        assert isinstance(node_type, TypeNode) and issubclass(node_type.type, IFromSingleNode)
 
         state = full_state.current_state.apply().cast(State)
         scratch = arg_index.find_in_outer_node(state).value_or_raise
         arg = scratch.value_or_raise
 
-        content = node_type.type.with_child(arg)
+        content = node_type.type.with_node(arg)
 
         return DefineScratchOutput(scratch_index, Scratch(content))
 
@@ -795,7 +796,7 @@ class DefineScratchFromFunctionWithSingleArg(
         if isinstance(content, TypeNode):
             t = content.type
             if issubclass(t, ISingleChild):
-                fn_call = t.with_child(single_arg)
+                fn_call = t.with_node(single_arg)
             else:
                 assert issubclass(t, IInheritableNode)
                 t.arg_type_group().validate_values(DefaultGroup(single_arg))
@@ -918,6 +919,44 @@ class DefineScratchFromScratchNode(
         new_content = source_inner_index.find_in_node(source_scratch).value_or_raise
 
         return DefineScratchOutput(scratch_index, Scratch(new_content))
+
+class RunScratch(
+    BasicAction[DefineScratchOutput],
+    IInstantiable,
+):
+
+    idx_scratch_index = 1
+    idx_source_index = 2
+
+    @classmethod
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+        scratch_index = StateScratchIndex(arg1)
+        source_index = StateScratchIndex(arg2)
+        Eq.from_ints(arg3, 0).raise_on_false()
+        return cls(scratch_index, source_index)
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            StateScratchIndex,
+            StateScratchIndex,
+        ]))
+
+    def _run(self, full_state: FullState) -> DefineScratchOutput:
+        scratch_index = self.nested_arg(self.idx_scratch_index).apply()
+        source_index = self.nested_arg(self.idx_source_index).apply()
+        assert isinstance(scratch_index, StateScratchIndex)
+        assert isinstance(source_index, StateScratchIndex)
+
+        state = full_state.current_state.apply().cast(State)
+        scratch = source_index.find_in_outer_node(state).value_or_raise
+        assert isinstance(scratch, Scratch)
+        old_content = scratch.value_or_raise
+
+        info = RunInfo.create()
+        content = old_content.as_node.run(info)
+
+        return DefineScratchOutput(scratch_index, Scratch(content))
 
 ###########################################################
 ##################### UPDATE SCRATCH ######################

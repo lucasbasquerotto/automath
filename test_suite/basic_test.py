@@ -100,7 +100,7 @@ def basic_test():
     params = (Param.from_int(1), Param.from_int(2), Param.from_int(3))
     p1, p2, p3 = params
     goal = HaveScratch.with_goal(
-        FunctionExpr.with_child(
+        FunctionExpr.with_node(
             Or(
                 And(p1, p2, IntBoolean(1)),
                 And(p2, p3),
