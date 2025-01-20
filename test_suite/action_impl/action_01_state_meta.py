@@ -367,7 +367,6 @@ def dynamic_goal_test():
     p1_args = (
         core.NearParentScope.create(),
         core.Integer(1),
-        core.TypeNode(core.IBoolean),
     )
     scratch_dynamic_goal = core.FunctionExpr.with_node(
         core.And(

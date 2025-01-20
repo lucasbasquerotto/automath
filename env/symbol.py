@@ -165,13 +165,7 @@ class Symbol:
             scope_id_str = r"{" + sympy.latex(cls._symbolic(scope_id, node_types, raw=raw)) + r"}"
             index = node.index.apply()
             index_str = r"{" + sympy.latex(cls._symbolic(index, node_types, raw=raw)) + r"}"
-            type_node = node.type_node.apply()
-            type_node_str = (
-                r"[" + sympy.latex(cls._symbolic(type_node, node_types, raw=raw)) + r"]"
-                if not isinstance(type_node, core.UnknownType)
-                else ''
-            )
-            return sympy.Symbol(f'{name_str}_{index_str}^{scope_id_str}{type_node_str}')
+            return sympy.Symbol(f'{name_str}_{index_str}^{scope_id_str}')
 
         raw_args = [arg.as_node for arg in node.args if isinstance(arg, core.INode)]
         assert len(raw_args) == len(node.args)

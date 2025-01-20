@@ -495,7 +495,7 @@ class TypeNode(BaseNode, IType, IFunction, ISpecialValue, typing.Generic[T], IIn
 
     def with_arg_group(self, group: BaseGroup, info: RunInfo) -> INode:
         t = self.type
-        assert issubclass(t, IInheritableNode)
+        assert issubclass(t, InheritableNode)
         return t.new(*group.as_tuple).as_node.run(info)
 
     def accepted_by(self, outer_type: IType) -> bool | None:
@@ -511,8 +511,7 @@ class TypeNode(BaseNode, IType, IFunction, ISpecialValue, typing.Generic[T], IIn
     def valid(self, instance: INode) -> bool | None:
         if not issubclass(self.type, Placeholder):
             if isinstance(instance, Placeholder):
-                p_type = instance.type_node.apply().cast(IType)
-                return p_type.accepted_by(self)
+                return None
         return isinstance(instance, self.type)
 
     def run(self, info: RunInfo):
@@ -720,14 +719,12 @@ class Placeholder(InheritableNode, IFromInt, typing.Generic[T], ABC):
 
     idx_parent_scope = 1
     idx_index = 2
-    idx_type_node = 3
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             ParentScopeBase,
             BaseInt,
-            IType,
         ]))
 
     @property
@@ -737,10 +734,6 @@ class Placeholder(InheritableNode, IFromInt, typing.Generic[T], ABC):
     @property
     def index(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_index)
-
-    @property
-    def type_node(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_type_node)
 
     def run(self, info: RunInfo):
         node = super().run(info).cast(Placeholder[T])
@@ -763,7 +756,6 @@ class Param(Placeholder[T], IInstantiable, typing.Generic[T]):
         return cls(
             FarParentScope.create(),
             Integer(value),
-            UnknownType(),
         )
 
 class Var(Placeholder[T], IInstantiable, typing.Generic[T]):
@@ -773,7 +765,6 @@ class Var(Placeholder[T], IInstantiable, typing.Generic[T]):
         return cls(
             NearParentScope.create(),
             Integer(value),
-            UnknownType(),
         )
 
 ###########################################################
@@ -1279,6 +1270,7 @@ class RunnableBoolean(InheritableNode, IBoolean, ABC):
 
     def run(self, info: RunInfo) -> INode:
         args = [arg.as_node.run(info) for arg in self.args]
+        self.arg_type_group().validate_values(DefaultGroup(*args))
         value = self.func(*args).strict_bool
         return IntBoolean.from_bool(value)
 
@@ -1601,15 +1593,16 @@ class And(MultiArgBooleanNode, IInstantiable):
         return None if has_none else True
 
     def run(self, info: RunInfo) -> INode:
-        run_args: list[IBoolean] = []
+        run_args: list[INode] = []
         for arg in self.args:
             run_arg = arg.as_node.run(info)
-            assert isinstance(run_arg, IBoolean)
-            val_1 = run_arg.as_bool
-            if val_1 is False:
-                return IBoolean.false()
+            if isinstance(run_arg, IBoolean):
+                val_1 = run_arg.as_bool
+                if val_1 is False:
+                    return IBoolean.false()
             run_args.append(run_arg)
         for run_arg in run_args:
+            assert isinstance(run_arg, IBoolean)
             run_arg.raise_on_undefined()
         return IBoolean.true()
 
@@ -1629,15 +1622,16 @@ class Or(MultiArgBooleanNode, IInstantiable):
         return None if has_none else False
 
     def run(self, info: RunInfo) -> INode:
-        run_args: list[IBoolean] = []
+        run_args: list[INode] = []
         for arg in self.args:
             run_arg = arg.as_node.run(info)
-            assert isinstance(run_arg, IBoolean)
-            val_1 = run_arg.as_bool
-            if val_1 is True:
-                return IBoolean.true()
+            if isinstance(run_arg, IBoolean):
+                val_1 = run_arg.as_bool
+                if val_1 is True:
+                    return IBoolean.true()
             run_args.append(run_arg)
         for run_arg in run_args:
+            assert isinstance(run_arg, IBoolean)
             run_arg.raise_on_undefined()
         return IBoolean.false()
 

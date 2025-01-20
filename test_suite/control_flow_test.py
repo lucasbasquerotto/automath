@@ -155,12 +155,10 @@ def test_control_flow() -> list[full_state.FullState]:
                                 core.Param(
                                     core.FarParentScope.create(),
                                     core.Integer(1),
-                                    core.UnknownType(),
                                 ),
                                 core.Param(
                                     core.NearParentScope.create(),
                                     core.Integer(1),
-                                    core.UnknownType(),
                                 ),
                             )
                         ),

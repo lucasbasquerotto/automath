@@ -41,19 +41,17 @@ def test_update_scratch() -> list[full_state.FullState]:
     p1_args = (
         core.NearParentScope.create(),
         core.Integer(3),
-        core.TypeNode(core.IBoolean),
     )
     p2_args = (
         core.FarParentScope.create(),
         core.Integer(2),
-        core.TypeNode(core.IBoolean),
     )
     goal_1 = core.Or(
         core.Param(*p1_args),
         core.Param.from_int(2),
         core.IntBoolean.from_int(1),
     )
-    assert len(goal_1) == 10
+    assert len(goal_1) == 8
     goal_2 = core.Or(
         core.FunctionCall.define(
             core.TypeNode(core.Param),
@@ -128,7 +126,7 @@ def test_update_scratch() -> list[full_state.FullState]:
     assert env.full_state.goal_achieved() is False
 
     # Run Action
-    node_idx = 1 + 10 + 1
+    node_idx = 1 + len(goal_1) + 1
     raw_action = action_impl.DefineScratchFromScratchNode.from_raw(3, 2, node_idx)
     full_action = action_impl.DefineScratchFromScratchNode(
         state.StateScratchIndex(3),
