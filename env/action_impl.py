@@ -956,6 +956,9 @@ class RunScratch(
         info = RunInfo.create()
         content = old_content.as_node.run(info)
 
+        again = content.as_node.run(info)
+        Eq(content, again).raise_on_not_true()
+
         return DefineScratchOutput(scratch_index, Scratch(content))
 
 ###########################################################

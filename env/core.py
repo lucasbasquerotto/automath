@@ -1203,7 +1203,7 @@ class ScopedFunctionBase(InheritableNode, IFunction, IScope, ABC):
             param_type_group.validate_values(new_group)
             scope_data = ScopeDataParamItem(*new_group.as_tuple)
         new_info = (
-            info.clear_scopes()
+            info.create()
             if isinstance(self, IOpaqueScope)
             else info
         ).add_scope(scope_data)
@@ -1777,28 +1777,48 @@ class ScopeDataGroup(BaseGroup[ScopeDataPlaceholderItem], IInstantiable):
 class RunInfo(InheritableNode, IDefault, IInstantiable):
 
     idx_scope_data_group = 1
+    idx_return_after_scope = 2
 
     @classmethod
     def create(cls) -> typing.Self:
-        return cls(ScopeDataGroup())
+        return cls(ScopeDataGroup(), Optional())
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             ScopeDataGroup,
+            Optional[FarParentScope],
         ]))
 
     @property
     def scope_data_group(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_scope_data_group)
 
+    @property
+    def return_after_scope(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_return_after_scope)
+
     def add_scope(self, item: ScopeDataPlaceholderItem) -> typing.Self:
         group = self.scope_data_group.apply().cast(ScopeDataGroup)
         new_group = group.add_item(item)
-        return self.func(new_group)
+        return self.with_new_args(
+            scope_data_group=new_group,
+            return_after_scope=Optional())
 
-    def clear_scopes(self) -> typing.Self:
-        return self.func(ScopeDataGroup())
+    def with_new_args(
+        self,
+        scope_data_group: ScopeDataGroup | None = None,
+        return_after_scope: Optional[FarParentScope] | None = None,
+    ) -> typing.Self:
+        scope_data_group = (
+            scope_data_group
+            if scope_data_group is not None
+            else self.scope_data_group.apply().cast(ScopeDataGroup))
+        return_after_scope = (
+            return_after_scope
+            if return_after_scope is not None
+            else self.return_after_scope.apply().cast(Optional[FarParentScope]))
+        return self.func(scope_data_group, return_after_scope)
 
     def add_scope_item(
         self,
@@ -1808,11 +1828,33 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
     ) -> typing.Self:
         group = self.scope_data_group.apply().cast(ScopeDataGroup)
         new_group = group.add_scope_item(scope_index, item_index, value)
-        return self.func(new_group)
+        return self.with_new_args(
+            scope_data_group=new_group,
+            return_after_scope=Optional())
 
     def is_future(self) -> IBoolean:
         group = self.scope_data_group.apply().cast(ScopeDataGroup)
         return group.is_future()
+
+class RunInfoResult(InheritableNode, IInstantiable):
+
+    idx_new_info = 1
+    idx_return_value = 2
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            RunInfo,
+            Optional[INode],
+        ]))
+
+    @property
+    def new_info(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_new_info)
+
+    @property
+    def return_value(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_return_value)
 
 class ControlFlowBaseNode(InheritableNode, ABC):
 
@@ -1945,3 +1987,25 @@ class Loop(ControlFlowBaseNode, IInstantiable):
             cond_node.raise_on_undefined()
             condition = cond_node.strict_bool
         return data
+
+# class InstructionGroup(ControlFlowBaseNode, IInstantiable):
+
+#     @classmethod
+#     def arg_type_group(cls) -> ExtendedTypeGroup:
+#         return ExtendedTypeGroup(RestTypeGroup(TypeNode(IRunnable)))
+
+#     def _run(self, info: RunInfo):
+#         condition = True
+#         data: Optional[INode] = Optional()
+#         while condition:
+#             fn = self.callback.apply()
+#             result = FunctionCall(fn, DefaultGroup(data)).as_node.run(info)
+#             assert isinstance(result, LoopGuard)
+#             cond_node = result.condition.apply().run(info)
+#             assert isinstance(cond_node, IBoolean)
+#             cond_node.raise_on_undefined()
+#             new_data = result.result.apply().run(info)
+#             data = Optional(new_data)
+#             cond_node.raise_on_undefined()
+#             condition = cond_node.strict_bool
+#         return data
