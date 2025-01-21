@@ -172,6 +172,101 @@ def test_control_flow() -> list[full_state.FullState]:
                 core.IntGroup.from_ints([2, 2]),
             ),
         ),
+
+        core.FunctionCall(
+            core.FunctionWrapper.with_node(
+                core.FunctionCall(
+                    core.FunctionWrapper.with_node(
+                        core.FunctionCall(
+                            core.FunctionExpr.with_node(
+                                core.DefaultGroup(
+                                    core.DefaultGroup(
+                                        core.FunctionCall(
+                                            core.TypeNode(core.LessThan),
+                                            core.Param.from_int(1),
+                                        ),
+                                        core.FunctionCall(
+                                            core.TypeNode(core.LessThan),
+                                            core.Param.from_int(2),
+                                        ),
+                                        core.FunctionCall(
+                                            core.TypeNode(core.LessThan),
+                                            core.Param.from_int(3),
+                                        ),
+                                    ),
+                                    core.DefaultGroup(
+                                        core.FunctionCall(
+                                            core.TypeNode(core.GreaterThan),
+                                            core.Param.from_int(1),
+                                        ),
+                                        core.FunctionCall(
+                                            core.TypeNode(core.GreaterThan),
+                                            core.Param.from_int(2),
+                                        ),
+                                        core.FunctionCall(
+                                            core.TypeNode(core.GreaterThan),
+                                            core.Param.from_int(3),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                            core.DefaultGroup(
+                                core.IntGroup(
+                                    core.Param(
+                                        core.NearParentScope.create(),
+                                        core.Integer(1),
+                                    ),
+                                    core.Param(
+                                        core.FarParentScope.create(),
+                                        core.Integer(1),
+                                    ),
+                                ),
+                                core.IntGroup(
+                                    core.Param(
+                                        core.FarParentScope.create(),
+                                        core.Integer(1),
+                                    ),
+                                    core.Param(
+                                        core.FarParentScope.create(),
+                                        core.Integer(1),
+                                    ),
+                                ),
+                                core.IntGroup(
+                                    core.Param(
+                                        core.FarParentScope.create(),
+                                        core.Integer(1),
+                                    ),
+                                    core.Param(
+                                        core.NearParentScope.create(),
+                                        core.Integer(1),
+                                    ),
+                                ),
+                            )
+                        ),
+                    ),
+                    core.DefaultGroup(
+                        core.FunctionCall(
+                            core.FunctionExpr.with_node(
+                                core.Param.from_int(1),
+                            ),
+                            core.DefaultGroup(
+                                core.Integer(1),
+                            ),
+                        ),
+                    )
+                ),
+            ),
+            core.FunctionCall(
+                core.FunctionExpr.with_node(
+                    core.DefaultGroup(
+                        core.Param.from_int(1),
+                    ),
+                ),
+                core.DefaultGroup(
+                    core.Integer(2),
+                ),
+            ),
+        ),
     ]
     scratches = if_scratches + loop_scratches + fn_scratches
 
@@ -225,6 +320,18 @@ def test_control_flow() -> list[full_state.FullState]:
     )
 
     # Function Expression
+    default_result = core.DefaultGroup(
+        core.DefaultGroup(
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+            core.IBoolean.false(),
+        ),
+        core.DefaultGroup(
+            core.IBoolean.false(),
+            core.IBoolean.false(),
+            core.IBoolean.true(),
+        ),
+    )
     index = len(if_scratches + loop_scratches)
     scratches = run(
         env=env,
@@ -232,18 +339,15 @@ def test_control_flow() -> list[full_state.FullState]:
         scratches=scratches,
         args_groups=args_groups,
         scratch_idx=index+1,
-        new_scratch=core.DefaultGroup(
-            core.DefaultGroup(
-                core.IBoolean.true(),
-                core.IBoolean.false(),
-                core.IBoolean.false(),
-            ),
-            core.DefaultGroup(
-                core.IBoolean.false(),
-                core.IBoolean.false(),
-                core.IBoolean.true(),
-            ),
-        ),
+        new_scratch=default_result,
+    )
+    scratches = run(
+        env=env,
+        state_meta=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+        scratch_idx=index+2,
+        new_scratch=default_result,
     )
 
     return [env.full_state]

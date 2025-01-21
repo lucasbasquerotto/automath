@@ -715,7 +715,7 @@ class IOpaqueScope(IScope, ABC):
 class IInnerScope(IScope, ABC):
     pass
 
-class Placeholder(InheritableNode, IFunction, IFromInt, typing.Generic[T], ABC):
+class Placeholder(InheritableNode, IFromInt, typing.Generic[T], ABC):
 
     idx_parent_scope = 1
     idx_index = 2
@@ -735,19 +735,7 @@ class Placeholder(InheritableNode, IFunction, IFromInt, typing.Generic[T], ABC):
     def index(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_index)
 
-    def with_arg_group(self, group: BaseGroup, info: RunInfo) -> INode:
-        new_group = group.run(info)
-        args = [arg.as_node.run(info) for arg in self.args]
-        param_type_group = self.arg_type_group()
-        param_type_group.validate_values(new_group)
-        expanded = self.func(*args).expand(info)
-        assert isinstance(expanded, IFunction)
-        return FunctionCall.define(
-            fn=expanded,
-            args=new_group,
-        ).as_node.run(info)
-
-    def expand(self, info: RunInfo):
+    def run(self, info: RunInfo):
         node = super().run(info).cast(Placeholder[T])
         parent_scope = node.parent_scope.apply().cast(ParentScopeBase).run(info)
         scope_index = parent_scope.as_int
@@ -756,13 +744,12 @@ class Placeholder(InheritableNode, IFunction, IFromInt, typing.Generic[T], ABC):
         if isinstance(parent_scope, NearParentScope):
             scope_index = len(scope_data_group.as_tuple) - scope_index + 1
         scope = NodeArgIndex(scope_index).find_in_node(scope_data_group).value_or_raise
-        assert isinstance(scope, ScopeDataPlaceholderItem)
+        assert isinstance(scope, ScopeDataParamBaseItem)
         assert isinstance(self, scope.item_inner_type())
+        if isinstance(scope, ScopeDataFutureParamItem):
+            return node
         item = NodeArgIndex(index.as_int).find_in_node(scope).value_or_raise
-        return item
-
-    def run(self, info: RunInfo):
-        return self.expand(info).as_node.run(info)
+        return item.as_node.run(info)
 
 class Param(Placeholder[T], IInstantiable, typing.Generic[T]):
 
@@ -1208,17 +1195,29 @@ class ScopedFunctionBase(InheritableNode, IFunction, IScope, ABC):
         return self.as_node.nested_arg(self.idx_expr)
 
     def with_arg_group(self, group: BaseGroup, info: RunInfo) -> INode:
-        new_group = group.run(info)
-        param_type_group = self.param_type_group.apply().cast(ExtendedTypeGroup)
-        param_type_group.validate_values(new_group)
-        expr = self.expr.apply()
-        scope_data = ScopeDataParamItem(*new_group.as_tuple)
+        if info.is_future():
+            scope_data: ScopeDataParamBaseItem = ScopeDataFutureParamItem()
+        else:
+            new_group = group.run(info)
+            param_type_group = self.param_type_group.apply().cast(ExtendedTypeGroup)
+            param_type_group.validate_values(new_group)
+            scope_data = ScopeDataParamItem(*new_group.as_tuple)
         new_info = (
             info.clear_scopes()
             if isinstance(self, IOpaqueScope)
             else info
         ).add_scope(scope_data)
+        expr = self.expr.apply()
         return expr.run(new_info)
+
+    def prepare_expr(self, info: RunInfo):
+        raise NotImplementedError
+
+    def run(self, info: RunInfo):
+        self.validate()
+        type_group = self.param_type_group.apply().run(info)
+        assert isinstance(type_group, ExtendedTypeGroup)
+        return self.func(type_group, self.prepare_expr(info))
 
 class FunctionExpr(
     ScopedFunctionBase,
@@ -1231,6 +1230,10 @@ class FunctionExpr(
     @classmethod
     def with_node(cls, node: T) -> typing.Self:
         return cls.new(ExtendedTypeGroup.rest(), node)
+
+    def prepare_expr(self, info: RunInfo):
+        expr = self.expr.apply()
+        return expr
 
 class FunctionWrapper(
     ScopedFunctionBase,
@@ -1250,6 +1253,10 @@ class FunctionWrapper(
     @classmethod
     def with_node(cls, node: T) -> typing.Self:
         return cls.new(ExtendedTypeGroup.rest(), node)
+
+    def prepare_expr(self, info: RunInfo):
+        new_info = info.add_scope(ScopeDataFutureParamItem())
+        return self.expr.apply().run(new_info)
 
 ###########################################################
 ################### BASIC BOOLEAN NODES ###################
@@ -1700,7 +1707,7 @@ class ScopeDataPlaceholderItem(BaseGroup[Optional], ABC):
         items[index.as_int - 1] = Optional(value)
         return self.func(*items)
 
-class ScopeDataParamItem(ScopeDataPlaceholderItem, IInstantiable):
+class ScopeDataParamBaseItem(ScopeDataPlaceholderItem, ABC):
 
     @classmethod
     def item_inner_type(cls):
@@ -1710,7 +1717,19 @@ class ScopeDataParamItem(ScopeDataPlaceholderItem, IInstantiable):
     def is_dynamic(cls) -> IBoolean:
         return IBoolean.false()
 
-class ScopeDataVarItem(ScopeDataPlaceholderItem, IInstantiable):
+class IScopeDataActualItem(INode, ABC):
+    pass
+
+class IScopeDataFutureItem(INode, ABC):
+    pass
+
+class ScopeDataParamItem(ScopeDataParamBaseItem, IScopeDataActualItem, IInstantiable):
+    pass
+
+class ScopeDataFutureParamItem(ScopeDataParamBaseItem, IScopeDataFutureItem, IInstantiable):
+    pass
+
+class ScopeDataVarBaseItem(ScopeDataPlaceholderItem, ABC):
 
     @classmethod
     def item_inner_type(cls):
@@ -1720,11 +1739,21 @@ class ScopeDataVarItem(ScopeDataPlaceholderItem, IInstantiable):
     def is_dynamic(cls) -> IBoolean:
         return IBoolean.true()
 
+class ScopeDataVarItem(ScopeDataVarBaseItem, IScopeDataActualItem, IInstantiable):
+    pass
+
+class ScopeDataFutureVarItem(ScopeDataVarBaseItem, IScopeDataFutureItem, IInstantiable):
+    pass
+
 class ScopeDataGroup(BaseGroup[ScopeDataPlaceholderItem], IInstantiable):
 
     @classmethod
     def item_type(cls):
         return ScopeDataPlaceholderItem
+
+    def is_future(self):
+        items = self.as_tuple
+        return any([isinstance(item, IScopeDataFutureItem) for item in items])
 
     def add_item(self, item: ScopeDataPlaceholderItem) -> typing.Self:
         items = list(self.as_tuple)
@@ -1781,10 +1810,19 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
         new_group = group.add_scope_item(scope_index, item_index, value)
         return self.func(new_group)
 
+    def is_future(self) -> IBoolean:
+        group = self.scope_data_group.apply().cast(ScopeDataGroup)
+        return group.is_future()
+
 class ControlFlowBaseNode(InheritableNode, ABC):
 
     def run(self, info: RunInfo):
         self.validate()
+        if info.is_future():
+            return self.func(*[
+                arg.as_node.run(info)
+                for arg in self.args
+            ])
         return self._run(info)
 
     def _run(self, info: RunInfo):
@@ -1815,7 +1853,7 @@ class FunctionCall(ControlFlowBaseNode, IInstantiable):
         return cls(fn, args)
 
     def _run(self, info: RunInfo):
-        fn = self.function.apply() #TODO verify if run should be called
+        fn = self.function.apply().run(info)
         assert isinstance(fn, IFunction)
         arg_group = self.arg_group.apply().run(info)
         assert isinstance(arg_group, BaseGroup)
