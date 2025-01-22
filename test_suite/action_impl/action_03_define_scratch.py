@@ -3,12 +3,12 @@ from env import core, state, full_state, action_impl, meta_env, node_types, acti
 from env.goal_env import GoalEnv
 
 def get_current_state(env: GoalEnv):
-    return env.full_state.nested_args(
+    return env.full_state.nested_arg(
         (full_state.FullState.idx_current, full_state.HistoryNode.idx_state)
     ).apply().cast(state.State)
 
 def get_remaining_steps(env: GoalEnv) -> int | None:
-    value = env.full_state.nested_args(
+    value = env.full_state.nested_arg(
         (
             full_state.FullState.idx_current,
             full_state.HistoryNode.idx_meta_data,
@@ -20,12 +20,12 @@ def get_remaining_steps(env: GoalEnv) -> int | None:
 def get_last_history_action(env: GoalEnv):
     history = env.full_state.history.apply().cast(full_state.HistoryGroupNode)
     last = history.as_tuple[-1]
-    return last.action_data.apply().nested_arg(
+    return last.action_data.apply().inner_arg(
         core.Optional.idx_value
     ).apply().cast(full_state.ActionData)
 
 def get_default_type_index(node_type: type[core.INode], env: GoalEnv):
-    selected_types = env.full_state.meta.apply().nested_args((
+    selected_types = env.full_state.meta.apply().nested_arg((
         meta_env.MetaInfo.idx_default_group,
         meta_env.SubtypeOuterGroup.idx_subtypes,
     )).apply().cast(meta_env.GeneralTypeGroup)
@@ -33,7 +33,7 @@ def get_default_type_index(node_type: type[core.INode], env: GoalEnv):
     return meta_idx
 
 def get_from_int_type_index(node_type: type[core.INode], env: GoalEnv):
-    selected_types = env.full_state.meta.apply().nested_args((
+    selected_types = env.full_state.meta.apply().nested_arg((
         meta_env.MetaInfo.idx_from_int_group,
         meta_env.SubtypeOuterGroup.idx_subtypes,
     )).apply().cast(meta_env.GeneralTypeGroup)
@@ -41,7 +41,7 @@ def get_from_int_type_index(node_type: type[core.INode], env: GoalEnv):
     return meta_idx
 
 def get_from_single_child_type_index(node_type: type[core.INode], env: GoalEnv):
-    selected_types = env.full_state.meta.apply().nested_args((
+    selected_types = env.full_state.meta.apply().nested_arg((
         meta_env.MetaInfo.idx_single_child_group,
         meta_env.SubtypeOuterGroup.idx_subtypes,
     )).apply().cast(meta_env.GeneralTypeGroup)
@@ -49,7 +49,7 @@ def get_from_single_child_type_index(node_type: type[core.INode], env: GoalEnv):
     return meta_idx
 
 def get_from_full_state_int_index_type_index(node_type: type[core.INode], env: GoalEnv):
-    selected_types = env.full_state.meta.apply().nested_args((
+    selected_types = env.full_state.meta.apply().nested_arg((
         meta_env.MetaInfo.idx_full_state_int_index_group,
         meta_env.SubtypeOuterGroup.idx_subtypes,
     )).apply().cast(meta_env.GeneralTypeGroup)
@@ -58,7 +58,7 @@ def get_from_full_state_int_index_type_index(node_type: type[core.INode], env: G
 
 def test_define_scratch() -> list[full_state.FullState]:
     def has_goal(env: GoalEnv, goal: meta_env.IGoal):
-        selected_goal = env.full_state.nested_args(
+        selected_goal = env.full_state.nested_arg(
             (full_state.FullState.idx_meta, meta_env.MetaInfo.idx_goal)
         ).apply()
         return selected_goal == goal

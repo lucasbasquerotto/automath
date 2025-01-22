@@ -52,17 +52,17 @@ from env.action import IAction
 from env.core import Optional
 
 def get_current_state(env: GoalEnv):
-    return env.full_state.nested_args(
+    return env.full_state.nested_arg(
         (FullState.idx_current, HistoryNode.idx_state)
     ).apply().cast(State)
 
 def get_last_history_action(env: GoalEnv):
     history = env.full_state.history.apply().cast(HistoryGroupNode)
     last = history.as_tuple[-1]
-    return last.action_data.apply().nested_arg(Optional.idx_value).apply()
+    return last.action_data.apply().inner_arg(Optional.idx_value).apply()
 
 def get_from_int_type_index(node_type: type[INode], env: GoalEnv):
-    selected_types = env.full_state.meta.apply().nested_args((
+    selected_types = env.full_state.meta.apply().nested_arg((
         MetaInfo.idx_from_int_group,
         SubtypeOuterGroup.idx_subtypes,
     )).apply().cast(GeneralTypeGroup)
@@ -72,7 +72,7 @@ def get_from_int_type_index(node_type: type[INode], env: GoalEnv):
 def get_info_type_index(node_type: type[INode], env: GoalEnv, node_types: tuple[type[INode], ...]):
     index_type_idx = node_types.index(MetaAllTypesTypeIndex) + 1
     type_node = node_types[index_type_idx-1].as_type()
-    selected_types = env.full_state.meta.apply().nested_args((
+    selected_types = env.full_state.meta.apply().nested_arg((
         MetaInfo.idx_full_state_int_index_group,
         SubtypeOuterGroup.idx_subtypes,
     )).apply().cast(GeneralTypeGroup)
@@ -88,7 +88,7 @@ def get_empty_exception(action: IAction):
     )
 
 def get_single_child_type_index(node_type: type[INode], env: GoalEnv):
-    selected_types = env.full_state.meta.apply().nested_args((
+    selected_types = env.full_state.meta.apply().nested_arg((
         MetaInfo.idx_single_child_group,
         SubtypeOuterGroup.idx_subtypes,
     )).apply().cast(GeneralTypeGroup)
@@ -112,7 +112,7 @@ def basic_test():
     env.full_state.validate()
     node_types = env.full_state.node_types()
 
-    selected_goal = env.full_state.nested_args((FullState.idx_meta, MetaInfo.idx_goal)).apply()
+    selected_goal = env.full_state.nested_arg((FullState.idx_meta, MetaInfo.idx_goal)).apply()
     assert selected_goal == goal
 
     current_state = get_current_state(env)
@@ -788,7 +788,7 @@ def basic_test():
     env.step(action)
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
-    content = current_state.nested_args((
+    content = current_state.nested_arg((
         State.idx_scratch_group,
         1,
         Scratch.idx_value,

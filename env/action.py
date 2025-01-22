@@ -16,7 +16,7 @@ from env.core import (
     Integer,
     GreaterThan,
     IWrapper,
-    TmpNestedArg,
+    TmpInnerArg,
     IInstantiable)
 from env.state import State
 from env.meta_env import (
@@ -49,12 +49,12 @@ class FullActionOutput(InheritableNode, IWrapper, IInstantiable):
         ]))
 
     @property
-    def output(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_output)
+    def output(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_output)
 
     @property
-    def new_state(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_new_state)
+    def new_state(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_new_state)
 
 ###########################################################
 #################### ACTION EXCEPTION #####################
@@ -110,12 +110,12 @@ class ActionInputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantia
         ]))
 
     @property
-    def action(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_action)
+    def action(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_action)
 
     @property
-    def exception(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_exception)
+    def exception(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_exception)
 
     def to_action_data(self) -> ActionData:
         return ActionData.from_args(
@@ -139,16 +139,16 @@ class ActionOutputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstanti
         ]))
 
     @property
-    def action(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_action)
+    def action(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_action)
 
     @property
-    def output(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_output)
+    def output(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_output)
 
     @property
-    def exception(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_exception)
+    def exception(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_exception)
 
     def to_action_data(self) -> ActionData:
         return ActionData.from_args(

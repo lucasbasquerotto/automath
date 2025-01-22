@@ -2,19 +2,19 @@ from env import core, full_state, state, meta_env, action_impl, node_types, comp
 from env.goal_env import GoalEnv
 
 def get_current_state(env: GoalEnv):
-    return env.full_state.nested_args(
+    return env.full_state.nested_arg(
         (full_state.FullState.idx_current, full_state.HistoryNode.idx_state)
     ).apply().cast(state.State)
 
 def get_last_history_action(env: GoalEnv):
     history = env.full_state.history.apply().cast(full_state.HistoryGroupNode)
     last = history.as_tuple[-1]
-    return last.action_data.apply().nested_arg(
+    return last.action_data.apply().inner_arg(
         core.Optional.idx_value
     ).apply().cast(full_state.ActionData)
 
 def get_meta_subgroup_type_index(meta_idx: int, node_type: type[core.INode], env: GoalEnv):
-    selected_types = env.full_state.meta.apply().nested_args((
+    selected_types = env.full_state.meta.apply().nested_arg((
         meta_idx,
         meta_env.SubtypeOuterGroup.idx_subtypes,
     )).apply().cast(meta_env.GeneralTypeGroup)
@@ -49,16 +49,6 @@ def run(
         for i, s in enumerate(scratches)
     ]
 
-    expected_state = state.State.from_raw(
-        meta_info=state_meta,
-        scratches=scratches,
-        args_groups=args_groups,
-    )
-    if current_state != expected_state:
-        print('current_state:', env.symbol(current_state).to_str())
-        print('expected_state:', env.symbol(expected_state).to_str())
-    assert current_state == expected_state
-
     expected_history = full_state.ActionData.from_args(
         action=core.Optional(full_action),
         output=core.Optional(output),
@@ -69,12 +59,22 @@ def run(
         print('expected_history:', env.symbol(expected_history).to_str())
     assert last_history_action == expected_history
 
+    expected_state = state.State.from_raw(
+        meta_info=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+    )
+    if current_state != expected_state:
+        print('current_state:', env.symbol(current_state).to_str())
+        print('expected_state:', env.symbol(expected_state).to_str())
+    assert current_state == expected_state
+
     assert env.full_state.goal_achieved() is False
 
     return scratches
 
 def has_goal(env: GoalEnv, goal: meta_env.IGoal):
-    selected_goal = env.full_state.nested_args(
+    selected_goal = env.full_state.nested_arg(
         (full_state.FullState.idx_meta, meta_env.MetaInfo.idx_goal)
     ).apply()
     return selected_goal == goal
@@ -287,6 +287,36 @@ def test_control_flow() -> list[full_state.FullState]:
         core.InstructionGroup(
             core.Assign(
                 core.Integer(1),
+                core.FunctionCall(
+                    composite.Map,
+                    core.DefaultGroup(
+                        core.DefaultGroup(
+                            core.IntGroup.from_ints([1, 2]),
+                            core.IntGroup.from_ints([2, 2]),
+                            core.IntGroup.from_ints([2, 1]),
+                        ),
+                        core.FunctionExpr.with_node(
+                            core.DefaultGroup(
+                                core.FunctionCall(
+                                    core.TypeNode(core.LessThan),
+                                    core.Param.from_int(1),
+                                ),
+                                core.FunctionCall(
+                                    core.TypeNode(core.GreaterThan),
+                                    core.Param.from_int(1),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            core.Return.with_node(
+                core.Var.from_int(1),
+            ),
+        ),
+        core.InstructionGroup(
+            core.Assign(
+                core.Integer(1),
                 core.DefaultGroup(
                     core.IntGroup.from_ints([1, 2]),
                     core.IntGroup.from_ints([2, 2]),
@@ -463,11 +493,11 @@ def test_control_flow() -> list[full_state.FullState]:
         scratches=scratches,
         args_groups=args_groups,
         scratch_idx=index+1,
-        new_scratch=core.Optional(state.Scratch(core.DefaultGroup(
+        new_scratch=state.Scratch(core.DefaultGroup(
             core.IntGroup.from_ints([1, 2]),
             core.IntGroup.from_ints([2, 2]),
             core.IntGroup.from_ints([2, 1]),
-        ))),
+        )),
     )
     scratches = run(
         env=env,
@@ -475,6 +505,27 @@ def test_control_flow() -> list[full_state.FullState]:
         scratches=scratches,
         args_groups=args_groups,
         scratch_idx=index+2,
+        new_scratch=core.DefaultGroup(
+            core.DefaultGroup(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+            core.DefaultGroup(
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+            core.DefaultGroup(
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+    )
+    scratches = run(
+        env=env,
+        state_meta=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+        scratch_idx=index+3,
         new_scratch=default_result,
     )
 

@@ -27,7 +27,7 @@ from env.core import (
     IBoolean,
     BaseIntBoolean,
     IWrapper,
-    TmpNestedArg,
+    TmpInnerArg,
     IInstantiable,
 )
 
@@ -62,8 +62,8 @@ class Goal(InheritableNode, IGoal, typing.Generic[T, K], ABC):
         ))
 
     @property
-    def goal_inner_expr(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_goal_inner_expr)
+    def goal_inner_expr(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_goal_inner_expr)
 
     def evaluate(self, state: 'State', eval_param: K) -> IBoolean:
         raise NotImplementedError
@@ -104,7 +104,7 @@ class IGoalAchieved(IBoolean, ABC):
             for idx in idxs:
                 assert isinstance(goal_achieved, GoalAchievedGroup), f'{idx} in {idxs}'
                 groups.append((idx, goal_achieved))
-                goal_achieved = goal_achieved.as_node.nested_arg(idx).apply().cast(IGoalAchieved)
+                goal_achieved = goal_achieved.as_node.inner_arg(idx).apply().cast(IGoalAchieved)
 
         assert isinstance(goal_achieved, GoalAchieved)
         assert goal_achieved.as_bool is False
@@ -150,12 +150,12 @@ class DynamicGoal(InheritableNode, IDefault, IInstantiable):
         return cls(goal, IGoalAchieved.from_goal_expr(goal))
 
     @property
-    def goal_expr(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_goal_expr)
+    def goal_expr(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_goal_expr)
 
     @property
-    def goal_achieved(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_goal_achieved)
+    def goal_achieved(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_goal_achieved)
 
     def apply_goal_achieved(
         self,
@@ -197,12 +197,12 @@ class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
         ]))
 
     @property
-    def goal_achieved(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_goal_achieved)
+    def goal_achieved(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_goal_achieved)
 
     @property
-    def dynamic_goal_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_dynamic_goal_group)
+    def dynamic_goal_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_dynamic_goal_group)
 
     @classmethod
     def with_args(
@@ -280,12 +280,12 @@ class StateDefinition(InheritableNode, typing.Generic[D, T], ABC):
     idx_definition_expr = 2
 
     @property
-    def definition_key(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_definition_key)
+    def definition_key(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_definition_key)
 
     @property
-    def definition_expr(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_definition_expr)
+    def definition_expr(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_definition_expr)
 
 class FunctionDefinition(
     StateDefinition[FunctionId, FunctionExpr[T]],
@@ -345,20 +345,20 @@ class State(InheritableNode, IOpaqueScope, IDefault, IWrapper, IInstantiable):
         )
 
     @property
-    def meta_info(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_meta_info)
+    def meta_info(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_meta_info)
 
     @property
-    def scratch_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_scratch_group)
+    def scratch_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_scratch_group)
 
     @property
-    def args_outer_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_args_outer_group)
+    def args_outer_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_args_outer_group)
 
     @property
-    def definition_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_definition_group)
+    def definition_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_definition_group)
 
     def goal_achieved(self) -> bool:
         meta_info = self.meta_info.apply().cast(StateMetaInfo)
@@ -575,12 +575,12 @@ class StateArgsGroupArgIndex(InheritableNode, IStateIndex[INode], IInstantiable)
         ]))
 
     @property
-    def group_index(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_group_index)
+    def group_index(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_group_index)
 
     @property
-    def arg_index(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_arg_index)
+    def arg_index(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_arg_index)
 
     def find_in_outer_node(self, node: State):
         group_index = self.group_index.apply().cast(StateArgsGroupIndex)

@@ -8,12 +8,12 @@ from env import node_types as node_types_module
 from env.goal_env import GoalEnv
 
 def get_current_state(env: GoalEnv):
-    return env.full_state.nested_args(
+    return env.full_state.nested_arg(
         (full_state.FullState.idx_current, full_state.HistoryNode.idx_state)
     ).apply().cast(state.State)
 
 def get_remaining_steps(env: GoalEnv) -> int | None:
-    value = env.full_state.nested_args(
+    value = env.full_state.nested_arg(
         (
             full_state.FullState.idx_current,
             full_state.HistoryNode.idx_meta_data,
@@ -25,12 +25,12 @@ def get_remaining_steps(env: GoalEnv) -> int | None:
 def get_last_history_action(env: GoalEnv):
     history = env.full_state.history.apply().cast(full_state.HistoryGroupNode)
     last = history.as_tuple[-1]
-    return last.action_data.apply().nested_arg(
+    return last.action_data.apply().inner_arg(
         core.Optional.idx_value
     ).apply().cast(full_state.ActionData)
 
 def get_from_int_type_index(node_type: type[core.INode], env: GoalEnv):
-    selected_types = env.full_state.meta.apply().nested_args((
+    selected_types = env.full_state.meta.apply().nested_arg((
         meta_env.MetaInfo.idx_from_int_group,
         meta_env.SubtypeOuterGroup.idx_subtypes,
     )).apply().cast(meta_env.GeneralTypeGroup)
@@ -59,7 +59,7 @@ def goal_test():
     goal_3 = node_types_module.HaveScratch.with_goal(scratch_goal_3)
 
     def has_goal(env: GoalEnv, goal: meta_env.IGoal):
-        selected_goal = env.full_state.nested_args(
+        selected_goal = env.full_state.nested_arg(
             (full_state.FullState.idx_meta, meta_env.MetaInfo.idx_goal)
         ).apply()
         return selected_goal == goal
@@ -392,7 +392,7 @@ def dynamic_goal_test():
     goal_2 = node_types_module.HaveDynamicGoalAchieved.create()
 
     def has_goal(env: GoalEnv, goal: meta_env.IGoal):
-        selected_goal = env.full_state.nested_args(
+        selected_goal = env.full_state.nested_arg(
             (full_state.FullState.idx_meta, meta_env.MetaInfo.idx_goal)
         ).apply()
         return selected_goal == goal

@@ -2,26 +2,26 @@ from env import core, state, full_state, action_impl, meta_env, node_types
 from env.goal_env import GoalEnv
 
 def get_current_state(env: GoalEnv):
-    return env.full_state.nested_args(
+    return env.full_state.nested_arg(
         (full_state.FullState.idx_current, full_state.HistoryNode.idx_state)
     ).apply().cast(state.State)
 
 def get_last_history_action(env: GoalEnv):
     history = env.full_state.history.apply().cast(full_state.HistoryGroupNode)
     last = history.as_tuple[-1]
-    return last.action_data.apply().nested_arg(
+    return last.action_data.apply().inner_arg(
         core.Optional.idx_value
     ).apply().cast(full_state.ActionData)
 
 def get_meta_group_type_index(meta_idx: int, node_type: type[core.INode], env: GoalEnv):
-    selected_types = env.full_state.meta.apply().nested_arg(
+    selected_types = env.full_state.meta.apply().inner_arg(
         meta_idx
     ).apply().cast(meta_env.GeneralTypeGroup)
     meta_idx = selected_types.as_tuple.index(node_type.as_type()) + 1
     return meta_idx
 
 def get_meta_subgroup_type_index(meta_idx: int, node_type: type[core.INode], env: GoalEnv):
-    selected_types = env.full_state.meta.apply().nested_args((
+    selected_types = env.full_state.meta.apply().nested_arg((
         meta_idx,
         meta_env.SubtypeOuterGroup.idx_subtypes,
     )).apply().cast(meta_env.GeneralTypeGroup)
@@ -30,7 +30,7 @@ def get_meta_subgroup_type_index(meta_idx: int, node_type: type[core.INode], env
 
 def get_type_details(node_type: type[core.INode], env: GoalEnv) -> meta_env.DetailedType:
     type_idx = env.full_state.node_types().index(node_type)
-    details = env.full_state.meta.apply().nested_args((
+    details = env.full_state.meta.apply().nested_arg((
         meta_env.MetaInfo.idx_all_types_details,
     )).apply().cast(meta_env.DetailedTypeGroup)
     result = details.as_tuple[type_idx]
@@ -86,7 +86,7 @@ def run(
     return scratches
 
 def has_goal(env: GoalEnv, goal: meta_env.IGoal):
-    selected_goal = env.full_state.nested_args(
+    selected_goal = env.full_state.nested_arg(
         (full_state.FullState.idx_meta, meta_env.MetaInfo.idx_goal)
     ).apply()
     return selected_goal == goal
@@ -853,7 +853,7 @@ def test_indices() -> list[full_state.FullState]:
     )
 
     # Final Verification
-    full_state_int_indices = env.full_state.nested_args((
+    full_state_int_indices = env.full_state.nested_arg((
         full_state.FullState.idx_meta,
         meta_env.MetaInfo.idx_full_state_int_index_group,
         meta_env.SubtypeOuterGroup.idx_subtypes
@@ -867,7 +867,7 @@ def test_indices() -> list[full_state.FullState]:
         assert isinstance(action_data, full_state.ActionData)
         act = action_data.action.apply().cast(core.IOptional[meta_env.IAction]).value_or_raise
         if isinstance(act, action_impl.DefineScratchFromIntIndex):
-            full_state_int_index = act.nested_arg(
+            full_state_int_index = act.inner_arg(
                 act.idx_type_index
             ).apply().cast(full_state.MetaFullStateIntIndexTypeIndex)
             index = full_state_int_indices[full_state_int_index.as_int - 1]

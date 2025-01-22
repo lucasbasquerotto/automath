@@ -25,7 +25,7 @@ from env.core import (
     BaseNode,
     IWrapper,
     IntGroup,
-    TmpNestedArg,
+    TmpInnerArg,
     IInstantiable)
 from env.state import State, IGoal
 from env.env_utils import load_all_superclasses
@@ -52,8 +52,8 @@ class MetaData(InheritableNode, IDefault, IInstantiable):
         ]))
 
     @property
-    def remaining_steps(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_remaining_steps)
+    def remaining_steps(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_remaining_steps)
 
     @classmethod
     def with_args(
@@ -105,7 +105,7 @@ class DetailedType(
 
     @property
     def child(self) -> TypeNode[T]:
-        return self.nested_arg(self.idx_node_type).apply().cast(TypeNode[T])
+        return self.inner_arg(self.idx_node_type).apply().cast(TypeNode[T])
 
     @classmethod
     def with_child(cls, child: TypeNode[T], all_types: typing.Sequence[TypeNode[T]]) -> typing.Self:
@@ -162,12 +162,12 @@ class SubtypeOuterGroup(InheritableNode, IWrapper, IInstantiable, typing.Generic
         return cls(common_type, subtypes)
 
     @property
-    def common_type(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_common_type)
+    def common_type(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_common_type)
 
     @property
-    def subtypes(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_subtypes)
+    def subtypes(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_subtypes)
 
     def validate(self):
         super().validate()
@@ -193,12 +193,12 @@ class MetaInfoOptions(InheritableNode, IDefault, IInstantiable):
         ]))
 
     @property
-    def max_history_state_size(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_max_history_state_size)
+    def max_history_state_size(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_max_history_state_size)
 
     @property
-    def max_steps(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_max_steps)
+    def max_steps(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_max_steps)
 
     @classmethod
     def with_args(
@@ -421,77 +421,77 @@ class MetaInfo(InheritableNode, IWrapper, IInstantiable):
         )
 
     @property
-    def goal(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_goal)
+    def goal(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_goal)
 
     @property
-    def options(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_options)
+    def options(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_options)
 
     @property
-    def all_types(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_all_types)
+    def all_types(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_all_types)
 
     @property
-    def allowed_basic_actions(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_allowed_basic_actions)
+    def allowed_basic_actions(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_allowed_basic_actions)
 
     @property
-    def allowed_actions(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_allowed_actions)
+    def allowed_actions(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_allowed_actions)
 
     @property
-    def all_types_details(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_all_types_details)
+    def all_types_details(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_all_types_details)
 
     @property
-    def default_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_default_group)
+    def default_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_default_group)
 
     @property
-    def from_int_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_from_int_group)
+    def from_int_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_from_int_group)
 
     @property
-    def int_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_int_group)
+    def int_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_int_group)
 
     @property
-    def node_index_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_node_index_group)
+    def node_index_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_node_index_group)
 
     @property
-    def full_state_index_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_full_state_index_group)
+    def full_state_index_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_full_state_index_group)
 
     @property
-    def full_state_int_index_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_full_state_int_index_group)
+    def full_state_int_index_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_full_state_int_index_group)
 
     @property
-    def single_child_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_single_child_group)
+    def single_child_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_single_child_group)
 
     @property
-    def group_outer_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_group_outer_group)
+    def group_outer_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_group_outer_group)
 
     @property
-    def function_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_function_group)
+    def function_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_function_group)
 
     @property
-    def boolean_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_boolean_group)
+    def boolean_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_boolean_group)
 
     @property
-    def instantiable_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_instantiable_group)
+    def instantiable_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_instantiable_group)
 
     @property
-    def basic_actions(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_basic_actions)
+    def basic_actions(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_basic_actions)
 
     @property
-    def all_actions(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_all_actions)
+    def all_actions(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_all_actions)

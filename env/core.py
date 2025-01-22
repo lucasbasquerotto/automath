@@ -181,7 +181,7 @@ class IGroup(IWrapper, IInheritableNode, IAdditive, typing.Generic[T], ABC):
         node_2 = another_aux.as_node.cast(IGroup)
 
         new_args = list(node_1.as_tuple) + list(node_2.as_tuple)
-        return info.to_result(self.__class__.from_items(*new_args))
+        return info.to_result(self.__class__.from_items(new_args))
 
 class IFunction(INode, ABC):
 
@@ -301,7 +301,7 @@ class IInstantiable(INode, ABC):
 ############### TEMPORARY AUXILIAR CLASSES ################
 ###########################################################
 
-class TmpNestedArg:
+class TmpInnerArg:
 
     def __init__(self, node: BaseNode, idx: int):
         assert isinstance(node, BaseNode)
@@ -320,7 +320,7 @@ class TmpNestedArg:
     def to_node(self) -> InnerArg:
         return InnerArg(self.node, NodeArgIndex(self.idx))
 
-class TmpNestedArgs:
+class TmpNestedArg:
 
     def __init__(self, node: BaseNode, idxs: tuple[int, ...]):
         assert isinstance(node, BaseNode)
@@ -336,6 +336,12 @@ class TmpNestedArgs:
             assert isinstance(node_aux, BaseNode)
             node = node_aux
         return node
+
+    def to_node(self) -> NestedArg:
+        return NestedArg(
+            self.node,
+            NestedArgIndexGroup.from_ints(self.idxs)
+        )
 
 ###########################################################
 ######################## BASE NODE ########################
@@ -468,11 +474,11 @@ class BaseNode(IRunnable, ABC):
         # pylint: disable=not-callable
         return fn(*args)
 
-    def nested_arg(self, idx: int) -> TmpNestedArg:
-        return TmpNestedArg(self, idx)
+    def inner_arg(self, idx: int) -> TmpInnerArg:
+        return TmpInnerArg(self, idx)
 
-    def nested_args(self, idxs: tuple[int, ...]) -> TmpNestedArgs:
-        return TmpNestedArgs(self, idxs)
+    def nested_arg(self, idxs: tuple[int, ...]) -> TmpNestedArg:
+        return TmpNestedArg(self, idxs)
 
     def validate(self):
         for arg in self.args:
@@ -693,7 +699,8 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
                 return info.to_result(new_arg)
             args.append(new_arg)
         result = self.func(*args)
-        result.strict_validate()
+        if not info.is_future():
+            result.strict_validate()
         return info.to_result(result)
 
 ###########################################################
@@ -733,7 +740,7 @@ class OptionalBase(InheritableNode, IOptional[T], typing.Generic[T], ABC):
     def value(self) -> T | None:
         if len(self.args) == 0:
             return None
-        value = self.nested_arg(self.idx_value).apply()
+        value = self.inner_arg(self.idx_value).apply()
         return typing.cast(T, value)
 
     @classmethod
@@ -808,12 +815,12 @@ class Placeholder(InheritableNode, IFromInt, typing.Generic[T], ABC):
         ]))
 
     @property
-    def parent_scope(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_parent_scope)
+    def parent_scope(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_parent_scope)
 
     @property
-    def index(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_index)
+    def index(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_index)
 
     def run(self, info: RunInfo):
         info_aux, node_aux = super().run(info).as_tuple
@@ -848,8 +855,11 @@ class Placeholder(InheritableNode, IFromInt, typing.Generic[T], ABC):
             return info.to_result(node)
 
         item = NodeArgIndex(index.as_int).find_in_node(scope).value_or_raise
-        info_aux, result = item.as_node.run(info).as_tuple
+        info_aux, node_aux = item.as_node.run(info).as_tuple
         info = info_aux.with_scopes(info)
+        node_aux = node_aux.as_node.cast(IOptional)
+
+        result = node_aux.value_or_raise
 
         return info.to_result(result)
 
@@ -1021,7 +1031,10 @@ class BaseGroup(InheritableNode, IGroup[T], IDefault, typing.Generic[T], ABC):
     def strict_validate(self):
         super().strict_validate()
         for arg in self.args:
-            assert isinstance(arg, self.item_type())
+            t = self.item_type()
+            origin = typing.get_origin(t)
+            t = origin if origin is not None else t
+            assert isinstance(arg, t), f'{type(arg)} != {t}'
 
 class DefaultGroup(BaseGroup[INode], IInstantiable):
 
@@ -1046,7 +1059,7 @@ class NestedArgIndexGroup(BaseIntGroup, IInstantiable):
 
     def apply(self, node: BaseNode) -> BaseNode:
         args_indices = [arg.as_int for arg in self.args]
-        return node.nested_args(tuple(args_indices)).apply()
+        return node.nested_arg(tuple(args_indices)).apply()
 
 class BaseOptionalValueGroup(BaseGroup[IOptional[T]], IFromInt, typing.Generic[T], ABC):
 
@@ -1131,8 +1144,8 @@ class SingleValueTypeGroup(
         ]))
 
     @property
-    def type_node(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_type_node)
+    def type_node(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_type_node)
 
     @property
     def child(self) -> IType:
@@ -1162,8 +1175,8 @@ class ExtendedTypeGroup(
         ]))
 
     @property
-    def group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_group)
+    def group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_group)
 
     def validate_values(self, values: BaseGroup):
         group = self.group.apply().cast(IBaseTypeGroup)
@@ -1294,33 +1307,42 @@ class ScopedFunctionBase(InheritableNode, IFunction, IScope, ABC):
         ]))
 
     @property
-    def param_type_group(self) -> TmpNestedArg:
-        return self.as_node.nested_arg(self.idx_param_type_group)
+    def param_type_group(self) -> TmpInnerArg:
+        return self.as_node.inner_arg(self.idx_param_type_group)
 
     @property
-    def expr(self) -> TmpNestedArg:
-        return self.as_node.nested_arg(self.idx_expr)
+    def expr(self) -> TmpInnerArg:
+        return self.as_node.inner_arg(self.idx_expr)
 
     def with_arg_group(self, group: BaseGroup, info: RunInfo):
+        initial_info = info
         if info.is_future():
-            scope_data: ScopeDataParamBaseItemGroup = ScopeDataFutureParamItem()
+            scope_data: ScopeDataParamBaseItemGroup = ScopeDataFutureParamItemGroup()
         else:
             info_aux, node_aux = group.run(info).as_tuple
             info = info_aux.with_scopes(info)
             if info.must_return():
+                if isinstance(self, IOpaqueScope):
+                    return initial_info.opaque(node=node_aux, info=info)
                 return info.to_result(node_aux)
             new_group = node_aux.as_node.cast(BaseGroup)
             param_type_group = self.param_type_group.apply().cast(ExtendedTypeGroup)
             param_type_group.validate_values(new_group)
-            scope_data = ScopeDataParamItemGroup(*new_group.as_tuple)
-        scope_data.strict_validate()
+            scope_data = ScopeDataParamItemGroup.from_optional_items(new_group.as_tuple)
+            scope_data.strict_validate()
         new_info = (
             info.create()
             if isinstance(self, IOpaqueScope)
             else info
         ).add_scope(scope_data)
         expr = self.expr.apply()
-        return expr.run(new_info)
+
+        result = expr.run(new_info)
+
+        if isinstance(self, IOpaqueScope):
+            new_info, new_node = result.as_tuple
+            return initial_info.opaque(node=new_node, info=new_info)
+        return result
 
     def prepare_expr(self, info: RunInfo) -> RunInfoResult:
         raise NotImplementedError
@@ -1378,7 +1400,7 @@ class FunctionWrapper(
         return cls.new(ExtendedTypeGroup.rest(), node)
 
     def prepare_expr(self, info: RunInfo):
-        new_info = info.add_scope(ScopeDataFutureParamItem())
+        new_info = info.add_scope(ScopeDataFutureParamItemGroup())
         return self.expr.apply().run(new_info)
 
 ###########################################################
@@ -1439,8 +1461,8 @@ class BooleanWrapper(
         ]))
 
     @property
-    def raw_child(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_value)
+    def raw_child(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_value)
 
     @property
     def child(self) -> IBoolean:
@@ -1484,11 +1506,11 @@ class TypeExceptionInfo(
 
     @property
     def type(self):
-        return self.nested_arg(self.idx_type)
+        return self.inner_arg(self.idx_type)
 
     @property
     def node(self):
-        return self.nested_arg(self.idx_node)
+        return self.inner_arg(self.idx_node)
 
 class InvalidNodeException(Exception):
 
@@ -1521,7 +1543,7 @@ class ExceptionInfoWrapper(
 
     @property
     def info(self):
-        return self.nested_arg(self.idx_info)
+        return self.inner_arg(self.idx_info)
 
     @property
     def child(self) -> IExceptionInfo:
@@ -1558,8 +1580,8 @@ class SingleOptionalBooleanChildWrapper(
         ]))
 
     @property
-    def raw_child(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_value)
+    def raw_child(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_value)
 
     @property
     def child(self) -> IOptional[T]:
@@ -1568,7 +1590,7 @@ class SingleOptionalBooleanChildWrapper(
 class IsEmpty(SingleOptionalBooleanChildWrapper[INode], IInstantiable):
 
     def _raise_if_empty(self) -> INode:
-        optional = self.nested_arg(self.idx_value).apply()
+        optional = self.inner_arg(self.idx_value).apply()
         if not isinstance(optional, IOptional):
             raise self.to_exception()
         value = optional.value
@@ -1585,7 +1607,7 @@ class IsEmpty(SingleOptionalBooleanChildWrapper[INode], IInstantiable):
 
     @property
     def as_bool(self) -> bool | None:
-        value = self.nested_arg(self.idx_value).apply()
+        value = self.inner_arg(self.idx_value).apply()
         if not isinstance(value, IOptional):
             return None
         return value.value is None
@@ -1603,12 +1625,12 @@ class IsInstance(RunnableBoolean, typing.Generic[T], IInstantiable):
         )))
 
     @property
-    def instance(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_instance)
+    def instance(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_instance)
 
     @property
-    def type(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_type)
+    def type(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_type)
 
     @property
     def as_bool(self) -> bool | None:
@@ -1647,12 +1669,12 @@ class Eq(RunnableBoolean, IInstantiable):
         )))
 
     @property
-    def left(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_left)
+    def left(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_left)
 
     @property
-    def right(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_right)
+    def right(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_right)
 
     @property
     def as_bool(self) -> bool | None:
@@ -1790,15 +1812,15 @@ class IsInsideRange(RunnableBoolean, IInstantiable):
 
     @property
     def raw_value(self):
-        return self.nested_arg(self.idx_value)
+        return self.inner_arg(self.idx_value)
 
     @property
     def min_value(self):
-        return self.nested_arg(self.idx_min_value)
+        return self.inner_arg(self.idx_min_value)
 
     @property
     def max_value(self):
-        return self.nested_arg(self.idx_max_value)
+        return self.inner_arg(self.idx_max_value)
 
     @property
     def as_bool(self) -> bool | None:
@@ -1817,11 +1839,7 @@ class IsInsideRange(RunnableBoolean, IInstantiable):
 ################### CONTROL FLOW NODES ####################
 ###########################################################
 
-class ScopeDataPlaceholderItemGroup(BaseGroup[Optional], ABC):
-
-    @classmethod
-    def item_type(cls):
-        return Optional
+class ScopeDataPlaceholderItemGroup(BaseOptionalValueGroup[Placeholder], ABC):
 
     @classmethod
     def item_inner_type(cls) -> type[Placeholder]:
@@ -1864,7 +1882,7 @@ class ScopeDataParamItemGroup(
 ):
     pass
 
-class ScopeDataFutureParamItem(
+class ScopeDataFutureParamItemGroup(
     ScopeDataParamBaseItemGroup,
     IScopeDataFutureItemGroup,
     IInstantiable,
@@ -1910,25 +1928,31 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
 
     idx_scope_data_group = 1
     idx_return_after_scope = 2
+    idx_exception = 3
 
     @classmethod
     def create(cls) -> typing.Self:
-        return cls(ScopeDataGroup(), Optional())
+        return cls(ScopeDataGroup(), Optional(), Optional())
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             ScopeDataGroup,
             Optional[RunInfoScopeDataIndex],
+            Optional[IExceptionInfo],
         ]))
 
     @property
-    def scope_data_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_scope_data_group)
+    def scope_data_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_scope_data_group)
 
     @property
-    def return_after_scope(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_return_after_scope)
+    def return_after_scope(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_return_after_scope)
+
+    @property
+    def exception(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_exception)
 
     def add_scope(self, item: ScopeDataPlaceholderItemGroup) -> typing.Self:
         group = self.scope_data_group.apply().cast(ScopeDataGroup)
@@ -1941,6 +1965,7 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
         self,
         scope_data_group: ScopeDataGroup | None = None,
         return_after_scope: Optional[RunInfoScopeDataIndex] | None = None,
+        exception: Optional[IExceptionInfo] | None = None,
     ) -> typing.Self:
         scope_data_group = (
             scope_data_group
@@ -1950,7 +1975,11 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
             return_after_scope
             if return_after_scope is not None
             else self.return_after_scope.apply().cast(Optional[RunInfoScopeDataIndex]))
-        return self.func(scope_data_group, return_after_scope)
+        exception = (
+            exception
+            if exception is not None
+            else self.exception.apply().cast(Optional[IExceptionInfo]))
+        return self.func(scope_data_group, return_after_scope, exception)
 
     def add_scope_var(
         self,
@@ -1975,6 +2004,12 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
 
     def to_result(self, value: INode) -> RunInfoResult:
         return RunInfoResult(self, value)
+
+    def opaque(self, node: INode, info: RunInfo) -> RunInfoResult:
+        new_info = self.with_new_args(
+            exception=info.exception.apply().cast(Optional[IExceptionInfo])
+        )
+        return new_info.to_result(node)
 
     def with_scopes(self, info_base: RunInfo):
         base_amount = info_base.scope_data_group.apply().cast(ScopeDataGroup).amount()
@@ -2008,12 +2043,12 @@ class RunInfoResult(InheritableNode, IInstantiable):
         ]))
 
     @property
-    def new_info(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_new_info)
+    def new_info(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_new_info)
 
     @property
-    def return_value(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_return_value)
+    def return_value(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_return_value)
 
     @property
     def as_tuple(self):
@@ -2052,12 +2087,12 @@ class FunctionCall(ControlFlowBaseNode, IInstantiable):
         ]))
 
     @property
-    def function(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_function)
+    def function(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_function)
 
     @property
-    def arg_group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_arg_group)
+    def arg_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_arg_group)
 
     @classmethod
     def define(cls, fn: IFunction, args: BaseGroup) -> INode:
@@ -2093,16 +2128,16 @@ class If(ControlFlowBaseNode, IInstantiable):
         ]))
 
     @property
-    def condition(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_condition)
+    def condition(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_condition)
 
     @property
-    def true_expr(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_true_expr)
+    def true_expr(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_true_expr)
 
     @property
-    def false_expr(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_false_expr)
+    def false_expr(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_false_expr)
 
     def _run(self, info: RunInfo):
         info_aux, node_aux = self.condition.apply().run(info).as_tuple
@@ -2128,12 +2163,12 @@ class LoopGuard(InheritableNode, IInstantiable):
             INode,
         ]))
     @property
-    def condition(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_condition)
+    def condition(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_condition)
 
     @property
-    def result(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_result)
+    def result(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_result)
 
     @classmethod
     def with_args(cls, condition: IBoolean, result: INode) -> LoopGuard:
@@ -2156,12 +2191,12 @@ class Loop(ControlFlowBaseNode, IFromSingleNode[IFunction], IInstantiable):
         ]))
 
     @property
-    def callback(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_callback)
+    def callback(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_callback)
 
     @property
-    def initial_data(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_initial_data)
+    def initial_data(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_initial_data)
 
     def _run(self, info: RunInfo):
         info_aux, node_aux = self.callback.apply().run(info).as_tuple
@@ -2234,12 +2269,12 @@ class Assign(ControlFlowBaseNode, IInstantiable):
         ]))
 
     @property
-    def var_index(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_var_index)
+    def var_index(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_var_index)
 
     @property
-    def value(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_value)
+    def value(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_value)
 
     def _run(self, info: RunInfo):
         info_aux, node_aux = self.var_index.apply().run(info).as_tuple
@@ -2284,12 +2319,12 @@ class Return(ControlFlowBaseNode, IFromSingleNode[INode], IInstantiable):
         ]))
 
     @property
-    def parent_scope(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_parent_scope)
+    def parent_scope(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_parent_scope)
 
     @property
-    def value(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_value)
+    def value(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_value)
 
     def _run(self, info: RunInfo):
         info_aux, node_aux = self.parent_scope.apply().run(info).as_tuple
@@ -2323,12 +2358,12 @@ class InnerArg(ControlFlowBaseNode, IInstantiable):
         ]))
 
     @property
-    def node(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_node)
+    def node(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_node)
 
     @property
-    def arg_index(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_arg_index)
+    def arg_index(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_arg_index)
 
     def _run(self, info: RunInfo):
         info_aux, node_aux = self.node.apply().run(info).as_tuple
@@ -2347,6 +2382,46 @@ class InnerArg(ControlFlowBaseNode, IInstantiable):
 
         return info.to_result(result)
 
+class NestedArg(ControlFlowBaseNode, IInstantiable):
+
+    idx_node = 1
+    idx_arg_indices = 2
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            INode,
+            NestedArgIndexGroup,
+        ]))
+
+    @classmethod
+    def from_raw(cls, node: INode, indices: typing.Sequence[int]) -> typing.Self:
+        return cls(node, NestedArgIndexGroup.from_ints(indices))
+
+    @property
+    def node(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_node)
+
+    @property
+    def arg_indices(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_arg_indices)
+
+    def _run(self, info: RunInfo):
+        info_aux, node_aux = self.node.apply().run(info).as_tuple
+        info = info_aux.with_scopes(info)
+        if info.must_return():
+            return info.to_result(node_aux)
+        node = node_aux.as_node.cast(INode)
+
+        info_aux, node_aux = self.arg_indices.apply().run(info).as_tuple
+        info = info_aux.with_scopes(info)
+        if info.must_return():
+            return info.to_result(node_aux)
+        arg_indices = node_aux.as_node.cast(NestedArgIndexGroup)
+
+        result = arg_indices.apply(node)
+
+        return info.to_result(result)
 
 ###########################################################
 ##################### RUN INFO INDEX ######################
@@ -2453,7 +2528,7 @@ class GroupIterator(InheritableNode, IFromSingleNode[BaseGroup], IIterator, IIns
 
     @classmethod
     def with_node(cls, node: INode) -> typing.Self:
-        return cls(node, Integer(1))
+        return cls(node, NodeArgIndex(1))
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
@@ -2463,12 +2538,12 @@ class GroupIterator(InheritableNode, IFromSingleNode[BaseGroup], IIterator, IIns
         ]))
 
     @property
-    def group(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_group)
+    def group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_group)
 
     @property
-    def index(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_index)
+    def index(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_index)
 
     def with_new_args(
         self,
@@ -2513,8 +2588,8 @@ class Next(ControlFlowBaseNode, IInstantiable):
         ]))
 
     @property
-    def iter(self) -> TmpNestedArg:
-        return self.nested_arg(self.idx_iter)
+    def iter(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_iter)
 
     def _run(self, info: RunInfo):
         info_aux, node_aux = self.iter.apply().run(info).as_tuple
