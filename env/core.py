@@ -52,17 +52,38 @@ class IDefault(INode, ABC):
     def as_node(self) -> BaseNode:
         raise NotImplementedError(self.__class__)
 
+class IAdditive(INode, ABC):
+
+    def add(self, another: INode, run_info: RunInfo) -> RunInfoResult:
+        raise NotImplementedError(self.__class__)
+
 class IFromInt(INode, ABC):
 
     @classmethod
     def from_int(cls, value: int) -> typing.Self:
         raise NotImplementedError(cls)
 
-class IInt(IFromInt, ABC):
+class IInt(IFromInt, IAdditive, ABC):
 
     @property
     def as_int(self) -> int:
         raise NotImplementedError(self.__class__)
+
+    def add(self, another: INode, run_info: RunInfo):
+        info_aux, node_aux = self.as_node.run(run_info).as_tuple
+        info = info_aux.with_scopes(run_info)
+        if info.must_return():
+            return info.to_result(node_aux)
+        node_1 = node_aux.as_node.cast(IInt)
+
+        info_aux, another_aux = another.as_node.run(info).as_tuple
+        info = info_aux.with_scopes(info)
+        if info.must_return():
+            return info.to_result(another_aux)
+        node_2 = another_aux.as_node.cast(IInt)
+
+        new_value = node_1.as_int + node_2.as_int
+        return info.to_result(self.__class__.from_int(new_value))
 
 class INodeIndex(INode, ABC):
 
@@ -132,7 +153,7 @@ class ISingleOptionalChild(ISingleChild[IOptional[T]], typing.Generic[T], ABC):
 class IWrapper(INode, ABC):
     pass
 
-class IGroup(IWrapper, typing.Generic[T], ABC):
+class IGroup(IWrapper, IInheritableNode, IAdditive, typing.Generic[T], ABC):
 
     @classmethod
     def item_type(cls) -> type[T]:
@@ -145,6 +166,22 @@ class IGroup(IWrapper, typing.Generic[T], ABC):
     @classmethod
     def from_items(cls, items: typing.Sequence[T]) -> typing.Self:
         return cls(*items)
+
+    def add(self, another: INode, run_info: RunInfo):
+        info_aux, node_aux = self.as_node.run(run_info).as_tuple
+        info = info_aux.with_scopes(run_info)
+        if info.must_return():
+            return info.to_result(node_aux)
+        node_1 = node_aux.as_node.cast(IGroup)
+
+        info_aux, another_aux = another.as_node.run(info).as_tuple
+        info = info_aux.with_scopes(info)
+        if info.must_return():
+            return info.to_result(another_aux)
+        node_2 = another_aux.as_node.cast(IGroup)
+
+        new_args = list(node_1.as_tuple) + list(node_2.as_tuple)
+        return info.to_result(self.__class__.from_items(*new_args))
 
 class IFunction(INode, ABC):
 
@@ -279,6 +316,9 @@ class TmpNestedArg:
         assert isinstance(node_aux, BaseNode)
         node = node_aux
         return node
+
+    def to_node(self) -> InnerArg:
+        return InnerArg(self.node, NodeArgIndex(self.idx))
 
 class TmpNestedArgs:
 
@@ -438,6 +478,9 @@ class BaseNode(IRunnable, ABC):
         for arg in self.args:
             if isinstance(arg, INode):
                 arg.as_node.validate()
+
+    def strict_validate(self):
+        self.validate()
 
     def cast(self, t: typing.Type[T]) -> T:
         origin = typing.get_origin(t)
@@ -636,6 +679,10 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
             assert len(args) == len(type_group.args), \
                 f'{type(self)}: {len(args)} != {len(type_group.args)}'
 
+    def strict_validate(self):
+        self.validate()
+        self.arg_type_group().validate_values(DefaultGroup(*self.args))
+
     def run(self, info: RunInfo):
         self.validate()
         args: list[INode] = []
@@ -645,8 +692,9 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
             if info.must_return():
                 return info.to_result(new_arg)
             args.append(new_arg)
-        self.arg_type_group().validate_values(DefaultGroup(*args))
-        return info.to_result(self.func(*args))
+        result = self.func(*args)
+        result.strict_validate()
+        return info.to_result(result)
 
 ###########################################################
 ###################### SPECIAL NODES ######################
@@ -793,10 +841,10 @@ class Placeholder(InheritableNode, IFromInt, typing.Generic[T], ABC):
         index = node_aux.as_node.cast(BaseInt)
 
         scope = scope_index.find_in_outer_node(info).value_or_raise
-        assert isinstance(scope, ScopeDataParamBaseItemGroup)
+        assert isinstance(scope, ScopeDataPlaceholderItemGroup), type(scope)
         assert isinstance(node, scope.item_inner_type())
 
-        if isinstance(scope, ScopeDataFutureParamItem):
+        if isinstance(scope, IScopeDataFutureItemGroup):
             return info.to_result(node)
 
         item = NodeArgIndex(index.as_int).find_in_node(scope).value_or_raise
@@ -969,6 +1017,11 @@ class BaseGroup(InheritableNode, IGroup[T], IDefault, typing.Generic[T], ABC):
 
     def amount_node(self) -> Integer:
         return Integer(self.amount())
+
+    def strict_validate(self):
+        super().strict_validate()
+        for arg in self.args:
+            assert isinstance(arg, self.item_type())
 
 class DefaultGroup(BaseGroup[INode], IInstantiable):
 
@@ -1252,13 +1305,15 @@ class ScopedFunctionBase(InheritableNode, IFunction, IScope, ABC):
         if info.is_future():
             scope_data: ScopeDataParamBaseItemGroup = ScopeDataFutureParamItem()
         else:
-            info_aux, new_group = group.run(info).as_tuple
+            info_aux, node_aux = group.run(info).as_tuple
             info = info_aux.with_scopes(info)
             if info.must_return():
-                return info.to_result(new_group)
+                return info.to_result(node_aux)
+            new_group = node_aux.as_node.cast(BaseGroup)
             param_type_group = self.param_type_group.apply().cast(ExtendedTypeGroup)
             param_type_group.validate_values(new_group)
             scope_data = ScopeDataParamItemGroup(*new_group.as_tuple)
+        scope_data.strict_validate()
         new_info = (
             info.create()
             if isinstance(self, IOpaqueScope)
@@ -1864,7 +1919,7 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             ScopeDataGroup,
-            Optional[FarParentScope],
+            Optional[RunInfoScopeDataIndex],
         ]))
 
     @property
@@ -1885,7 +1940,7 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
     def with_new_args(
         self,
         scope_data_group: ScopeDataGroup | None = None,
-        return_after_scope: Optional[FarParentScope] | None = None,
+        return_after_scope: Optional[RunInfoScopeDataIndex] | None = None,
     ) -> typing.Self:
         scope_data_group = (
             scope_data_group
@@ -1894,7 +1949,7 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
         return_after_scope = (
             return_after_scope
             if return_after_scope is not None
-            else self.return_after_scope.apply().cast(Optional[FarParentScope]))
+            else self.return_after_scope.apply().cast(Optional[RunInfoScopeDataIndex]))
         return self.func(scope_data_group, return_after_scope)
 
     def add_scope_var(
@@ -1924,9 +1979,10 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
     def with_scopes(self, info_base: RunInfo):
         base_amount = info_base.scope_data_group.apply().cast(ScopeDataGroup).amount()
         new_group = self.scope_data_group.apply().cast(ScopeDataGroup).as_tuple[:base_amount]
-        return_after_scope = self.return_after_scope.apply().cast(Optional[FarParentScope])
+        return_after_scope = self.return_after_scope.apply().cast(Optional[RunInfoScopeDataIndex])
         return_after_val = return_after_scope.value
         if return_after_val is not None:
+            assert isinstance(return_after_val, RunInfoScopeDataIndex)
             ret_index = return_after_val.as_int
             if ret_index > base_amount:
                 return_after_scope = Optional()
@@ -1935,7 +1991,7 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
             return_after_scope=return_after_scope)
 
     def must_return(self) -> bool:
-        return_after_scope = self.return_after_scope.apply().cast(Optional[FarParentScope])
+        return_after_scope = self.return_after_scope.apply().cast(Optional[RunInfoScopeDataIndex])
         return_after_val = return_after_scope.value
         return return_after_val is not None
 
@@ -2083,26 +2139,47 @@ class LoopGuard(InheritableNode, IInstantiable):
     def with_args(cls, condition: IBoolean, result: INode) -> LoopGuard:
         return cls(condition, result)
 
-class Loop(ControlFlowBaseNode, IInstantiable):
+class Loop(ControlFlowBaseNode, IFromSingleNode[IFunction], IInstantiable):
 
     idx_callback = 1
+    idx_initial_data = 2
+
+    @classmethod
+    def with_node(cls, node: IFunction) -> typing.Self:
+        return cls(node, Optional())
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(CountableTypeGroup.from_types([
             IFunction,
+            Optional[INode],
         ]))
 
     @property
     def callback(self) -> TmpNestedArg:
         return self.nested_arg(self.idx_callback)
 
+    @property
+    def initial_data(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_initial_data)
+
     def _run(self, info: RunInfo):
+        info_aux, node_aux = self.callback.apply().run(info).as_tuple
+        info = info_aux.with_scopes(info)
+        if info.must_return():
+            return info.to_result(node_aux)
+        callback = node_aux.as_node.cast(IFunction)
+
+        info_aux, node_aux = self.initial_data.apply().run(info).as_tuple
+        info = info_aux.with_scopes(info)
+        if info.must_return():
+            return info.to_result(node_aux)
+        initial_data = node_aux.as_node.cast(Optional[INode])
+
         condition = True
-        data: Optional[INode] = Optional()
+        data = initial_data
         while condition:
-            fn = self.callback.apply()
-            info_aux, node_aux = FunctionCall(fn, DefaultGroup(data)).run(info).as_tuple
+            info_aux, node_aux = FunctionCall(callback, DefaultGroup(data)).run(info).as_tuple
             info = info_aux.with_scopes(info)
             if info.must_return():
                 return info.to_result(node_aux)
@@ -2123,20 +2200,26 @@ class Loop(ControlFlowBaseNode, IInstantiable):
             condition = cond_node.strict_bool
         return info.to_result(data)
 
-class InstructionGroup(ControlFlowBaseNode, IInstantiable):
+class InstructionGroup(ControlFlowBaseNode, IInnerScope, IInstantiable):
 
     @classmethod
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(RestTypeGroup(TypeNode(IRunnable)))
 
     def _run(self, info: RunInfo):
+        scope_data = (
+            ScopeDataFutureVarItemGroup()
+            if info.is_future()
+            else ScopeDataVarItemGroup()
+        )
+        info = info.add_scope(scope_data)
+
         for arg in self.args:
             info_aux, node_aux = arg.as_node.run(info).as_tuple
             info = info_aux.with_scopes(info)
             if info.must_return():
                 return info.to_result(node_aux)
         return info.to_result(Void())
-
 
 class Assign(ControlFlowBaseNode, IInstantiable):
 
@@ -2175,7 +2258,7 @@ class Assign(ControlFlowBaseNode, IInstantiable):
         info = info_aux.with_scopes(info)
         if info.must_return():
             return info.to_result(node_aux)
-        scope_index = node_aux.as_node.cast(NodeArgIndex)
+        scope_index = node_aux.as_node.cast(RunInfoScopeDataIndex)
 
         info = info.add_scope_var(
             scope_index=scope_index,
@@ -2183,6 +2266,87 @@ class Assign(ControlFlowBaseNode, IInstantiable):
             value=value)
 
         return info.to_result(value)
+
+class Return(ControlFlowBaseNode, IFromSingleNode[INode], IInstantiable):
+
+    idx_parent_scope = 1
+    idx_value = 2
+
+    @classmethod
+    def with_node(cls, node: INode) -> typing.Self:
+        return cls(FarParentScope.create(), node)
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            RunInfoScopeDataIndex,
+            INode,
+        ]))
+
+    @property
+    def parent_scope(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_parent_scope)
+
+    @property
+    def value(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_value)
+
+    def _run(self, info: RunInfo):
+        info_aux, node_aux = self.parent_scope.apply().run(info).as_tuple
+        info = info_aux.with_scopes(info)
+        if info.must_return():
+            return info.to_result(node_aux)
+        scope_index = node_aux.as_node.cast(RunInfoScopeDataIndex)
+
+        info_aux, node_aux = self.value.apply().run(info).as_tuple
+        info = info_aux.with_scopes(info)
+        if info.must_return():
+            return info.to_result(node_aux)
+        value = node_aux
+
+        info = info.with_new_args(
+            return_after_scope=Optional(scope_index)
+        )
+
+        return info.to_result(value)
+
+class InnerArg(ControlFlowBaseNode, IInstantiable):
+
+    idx_node = 1
+    idx_arg_index = 2
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            INode,
+            NodeArgIndex,
+        ]))
+
+    @property
+    def node(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_node)
+
+    @property
+    def arg_index(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_arg_index)
+
+    def _run(self, info: RunInfo):
+        info_aux, node_aux = self.node.apply().run(info).as_tuple
+        info = info_aux.with_scopes(info)
+        if info.must_return():
+            return info.to_result(node_aux)
+        node = node_aux.as_node.cast(INode)
+
+        info_aux, node_aux = self.arg_index.apply().run(info).as_tuple
+        info = info_aux.with_scopes(info)
+        if info.must_return():
+            return info.to_result(node_aux)
+        arg_index = node_aux.as_node.cast(NodeArgIndex)
+
+        result = arg_index.find_in_node(node).value_or_raise
+
+        return info.to_result(result)
+
 
 ###########################################################
 ##################### RUN INFO INDEX ######################
@@ -2207,7 +2371,13 @@ class IRunInfoIndex(ITypedIndex[RunInfo, T], typing.Generic[T], ABC):
     def remove_in_outer_target(self, target: RunInfo) -> IOptional[RunInfo]:
         raise NotImplementedError
 
-class RunInfoIntIndex(BaseInt, IRunInfoIndex[T], ITypedIntIndex[RunInfo, T], typing.Generic[T], ABC):
+class RunInfoIntIndex(
+    BaseInt,
+    IRunInfoIndex[T],
+    ITypedIntIndex[RunInfo, T],
+    typing.Generic[T],
+    ABC,
+):
     pass
 
 class RunInfoScopeDataIndex(RunInfoIntIndex[ScopeDataPlaceholderItemGroup], IInstantiable):
@@ -2252,3 +2422,129 @@ class RunInfoScopeDataIndex(RunInfoIntIndex[ScopeDataPlaceholderItemGroup], IIns
     def remove_in_outer_target(self, target: RunInfo) -> IOptional[RunInfo]:
         group_opt = self.remove_arg(self._outer_group(target))
         return self._update(target, group_opt)
+
+###########################################################
+######################## ITERATOR #########################
+###########################################################
+
+class IIterator(INode, ABC):
+
+    def next(self, run_info: RunInfo) -> RunInfoResult:
+        result = self._next(run_info)
+        info, node = result.as_tuple
+        if info.must_return():
+            return result
+        assert isinstance(node, IOptional)
+        group = node.value
+        if group is not None:
+            assert isinstance(group, DefaultGroup)
+            assert len(group.args) == 2
+            new_iter, _ = group.as_tuple
+            assert isinstance(new_iter, self.__class__)
+        return result
+
+    def _next(self, run_info: RunInfo) -> RunInfoResult:
+        raise NotImplementedError
+
+class GroupIterator(InheritableNode, IFromSingleNode[BaseGroup], IIterator, IInstantiable):
+
+    idx_group = 1
+    idx_index = 2
+
+    @classmethod
+    def with_node(cls, node: INode) -> typing.Self:
+        return cls(node, Integer(1))
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            BaseGroup,
+            NodeArgIndex,
+        ]))
+
+    @property
+    def group(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_group)
+
+    @property
+    def index(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_index)
+
+    def with_new_args(
+        self,
+        group: BaseGroup | None = None,
+        index: NodeArgIndex | None = None,
+    ) -> typing.Self:
+        group = group if group is not None else self.group.apply().cast(BaseGroup)
+        index = index if index is not None else self.index.apply().cast(NodeArgIndex)
+        return self.func(group, index)
+
+    def _next(self, run_info: RunInfo):
+        info_aux, node_aux = self.group.apply().run(run_info).as_tuple
+        run_info = info_aux.with_scopes(run_info)
+        if run_info.must_return():
+            return node_aux
+        group = node_aux.as_node.cast(BaseGroup)
+
+        info_aux, node_aux = self.index.apply().run(run_info).as_tuple
+        run_info = info_aux.with_scopes(run_info)
+        if run_info.must_return():
+            return node_aux
+        index = node_aux.as_node.cast(NodeArgIndex)
+
+        if index.as_int > group.amount():
+            return run_info.to_result(Optional())
+
+        value = index.find_in_node(group).value_or_raise
+        new_iter = self.with_new_args(
+            group=group,
+            index=NodeArgIndex(index.as_int + 1),
+        )
+        return run_info.to_result(Optional(DefaultGroup(new_iter, value)))
+
+class Next(ControlFlowBaseNode, IInstantiable):
+
+    idx_iter = 1
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            IIterator,
+        ]))
+
+    @property
+    def iter(self) -> TmpNestedArg:
+        return self.nested_arg(self.idx_iter)
+
+    def _run(self, info: RunInfo):
+        info_aux, node_aux = self.iter.apply().run(info).as_tuple
+        info = info_aux.with_scopes(info)
+        if info.must_return():
+            return info.to_result(node_aux)
+        iterator = node_aux.as_node.cast(IIterator)
+        return iterator.next(info)
+
+class Add(ControlFlowBaseNode, IInstantiable):
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup.rest(IAdditive.as_type())
+
+    def _run(self, info: RunInfo):
+        node: IAdditive | None = None
+        for arg in self.args:
+            info_aux, node_aux = arg.as_node.run(info).as_tuple
+            info = info_aux.with_scopes(info)
+            if info.must_return():
+                return info.to_result(node_aux)
+            if node is None:
+                arg_node = node_aux.as_node.cast(IAdditive)
+                node = arg_node
+            else:
+                info_aux, node_aux = node.add(node_aux, run_info=info).as_tuple
+                info = info_aux.with_scopes(info)
+                if info.must_return():
+                    return info.to_result(node_aux)
+                node = node_aux
+        assert node is not None
+        return info.to_result(node)
