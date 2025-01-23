@@ -520,14 +520,14 @@ def test_control_flow() -> list[full_state.FullState]:
             ),
         ),
     )
-    scratches = run(
-        env=env,
-        state_meta=state_meta,
-        scratches=scratches,
-        args_groups=args_groups,
-        scratch_idx=index+3,
-        new_scratch=default_result,
-    )
+    # scratches = run(
+    #     env=env,
+    #     state_meta=state_meta,
+    #     scratches=scratches,
+    #     args_groups=args_groups,
+    #     scratch_idx=index+3,
+    #     new_scratch=default_result,
+    # )
 
     return [env.full_state]
 

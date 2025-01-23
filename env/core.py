@@ -190,7 +190,46 @@ class IFunction(INode, ABC):
 
 class IRunnable(INode, ABC):
 
+    _cached_run: dict[tuple[INode, RunInfo], RunInfoResult] = dict()
+
     def run(self, info: RunInfo) -> RunInfoResult:
+        cached = self._cached_run.get((self, info))
+        if cached is not None:
+            return cached
+
+        try:
+            try:
+                result = self._run(info)
+            except NodeReturnException as e:
+                result = e.result
+
+            assert isinstance(result, RunInfoResult)
+            self._cached_run[(self, info)] = result
+            new_info, new_node = result.as_tuple
+
+            try:
+                new_result = new_node.as_node.run(info)
+            except NodeReturnException as e:
+                new_result = e.result
+            _, node_aux = new_result.as_tuple
+            Eq(new_node, node_aux).raise_on_not_true()
+
+            new_info = new_info.with_scopes(info)
+            new_result = new_info.to_result(new_node)
+            # if new_info.must_return():
+            #     raise NodeReturnException(new_result)
+            return new_result
+        except NodeReturnException as e:
+            raise e
+        except InvalidNodeException as e:
+            exc_info = e.info
+            exc_info = exc_info.add_stack(
+                node=self,
+                run_info=info,
+            )
+            raise InvalidNodeException(exc_info) from e
+
+    def _run(self, info: RunInfo) -> RunInfoResult:
         raise NotImplementedError(self.__class__)
 
 class IBoolean(INode):
@@ -563,7 +602,7 @@ class TypeNode(BaseNode, IType, IFunction, ISpecialValue, typing.Generic[T], IIn
                 return None
         return isinstance(instance, self.type)
 
-    def run(self, info: RunInfo):
+    def _run(self, info: RunInfo):
         self.validate()
         return info.to_result(self)
 
@@ -600,7 +639,7 @@ class BaseInt(BaseNode, IInt, ISpecialValue, ABC):
     def node_value(self) -> INode:
         return self
 
-    def run(self, info: RunInfo):
+    def _run(self, info: RunInfo):
         self.validate()
         return info.to_result(self)
 
@@ -689,7 +728,7 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
         self.validate()
         self.arg_type_group().validate_values(DefaultGroup(*self.args))
 
-    def run(self, info: RunInfo):
+    def _run(self, info: RunInfo):
         self.validate()
         args: list[INode] = []
         for arg in self.args:
@@ -772,7 +811,7 @@ class ParentScopeBase(BaseInt, IDefault, ABC):
     def _index(self, info: RunInfo) -> RunInfoScopeDataIndex:
         raise NotImplementedError
 
-    def run(self, info: RunInfo):
+    def _run(self, info: RunInfo):
         node = self._index(info)
         assert isinstance(node, RunInfoScopeDataIndex)
         scope_data_group = info.scope_data_group.apply().cast(ScopeDataGroup)
@@ -822,8 +861,8 @@ class Placeholder(InheritableNode, IFromInt, typing.Generic[T], ABC):
     def index(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_index)
 
-    def run(self, info: RunInfo):
-        info_aux, node_aux = super().run(info).as_tuple
+    def _run(self, info: RunInfo):
+        info_aux, node_aux = super()._run(info).as_tuple
         info = info_aux.with_scopes(info)
         if info.must_return():
             return info.to_result(node_aux)
@@ -1347,7 +1386,7 @@ class ScopedFunctionBase(InheritableNode, IFunction, IScope, ABC):
     def prepare_expr(self, info: RunInfo) -> RunInfoResult:
         raise NotImplementedError
 
-    def run(self, info: RunInfo):
+    def _run(self, info: RunInfo):
         self.validate()
 
         info_aux, node_aux = self.param_type_group.apply().run(info).as_tuple
@@ -1435,8 +1474,8 @@ class IntBoolean(BaseIntBoolean, IInstantiable):
 
 class RunnableBoolean(InheritableNode, IBoolean, ABC):
 
-    def run(self, info: RunInfo):
-        info_aux, node_aux = super().run(info).as_tuple
+    def _run(self, info: RunInfo):
+        info_aux, node_aux = super()._run(info).as_tuple
         info = info_aux.with_scopes(info)
         if info.must_return():
             return info.to_result(node_aux)
@@ -1476,10 +1515,30 @@ class BooleanWrapper(
 ######################## EXCEPTION ########################
 ###########################################################
 
+class NodeReturnException(Exception):
+
+    def __init__(self, result: RunInfoResult):
+        super().__init__(result)
+
+    @property
+    def result(self) -> RunInfoResult:
+        result = self.args[0]
+        assert isinstance(result, RunInfoResult)
+        return result
+
 class IExceptionInfo(INode, ABC):
 
     def as_exception(self):
         return InvalidNodeException(self)
+
+    def add_stack(self, node: INode, run_info: RunInfo) -> StackExceptionInfo:
+        if isinstance(self, StackExceptionInfo):
+            return self.add_stack(node, run_info)
+
+        return StackExceptionInfo(
+            StackExceptionInfoGroup(StackExceptionInfoItem(node, run_info)),
+            self,
+        )
 
 class BooleanExceptionInfo(
     BooleanWrapper,
@@ -1511,6 +1570,69 @@ class TypeExceptionInfo(
     @property
     def node(self):
         return self.inner_arg(self.idx_node)
+
+class StackExceptionInfoItem(
+    InheritableNode,
+    IInstantiable,
+):
+
+    idx_node = 1
+    idx_run_info = 2
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            INode,
+            RunInfo,
+        ]))
+
+    @property
+    def node(self):
+        return self.inner_arg(self.idx_node)
+
+    @property
+    def run_info(self):
+        return self.inner_arg(self.idx_run_info)
+
+
+class StackExceptionInfoGroup(
+    BaseGroup[StackExceptionInfoItem],
+    IInstantiable,
+):
+
+    @classmethod
+    def item_type(cls):
+        return StackExceptionInfoItem
+
+class StackExceptionInfo(
+    InheritableNode,
+    IExceptionInfo,
+    IInstantiable,
+):
+
+    idx_stack_group = 1
+    idx_cause = 2
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            StackExceptionInfoGroup,
+            IExceptionInfo,
+        ]))
+
+    @property
+    def stack_group(self):
+        return self.inner_arg(self.idx_stack_group)
+
+    @property
+    def cause(self):
+        return self.inner_arg(self.idx_cause)
+
+    def add_stack(self, node: INode, run_info: RunInfo) -> typing.Self:
+        stack_group = self.stack_group.apply().cast(StackExceptionInfoGroup)
+        new_item = StackExceptionInfoItem(node, run_info)
+        new_stack_group = stack_group.func(*stack_group.args, new_item)
+        return self.func(new_stack_group, self.cause)
 
 class InvalidNodeException(Exception):
 
@@ -1720,7 +1842,7 @@ class And(MultiArgBooleanNode, IInstantiable):
                 return False
         return None if has_none else True
 
-    def run(self, info: RunInfo) -> RunInfoResult:
+    def _run(self, info: RunInfo) -> RunInfoResult:
         run_args: list[INode] = []
         for arg in self.args:
             info_aux, run_arg = arg.as_node.run(info).as_tuple
@@ -1752,7 +1874,7 @@ class Or(MultiArgBooleanNode, IInstantiable):
                 return True
         return None if has_none else False
 
-    def run(self, info: RunInfo) -> RunInfoResult:
+    def _run(self, info: RunInfo) -> RunInfoResult:
         run_args: list[INode] = []
         for arg in self.args:
             info_aux, run_arg = arg.as_node.run(info).as_tuple
@@ -2058,7 +2180,7 @@ class RunInfoResult(InheritableNode, IInstantiable):
 
 class ControlFlowBaseNode(InheritableNode, ABC):
 
-    def run(self, info: RunInfo) -> RunInfoResult:
+    def _run(self, info: RunInfo) -> RunInfoResult:
         self.validate()
         if info.is_future():
             args: list[INode] = []
@@ -2069,9 +2191,9 @@ class ControlFlowBaseNode(InheritableNode, ABC):
                     return info.to_result(node_aux)
                 args.append(node_aux)
             return info.to_result(self.func(*args))
-        return self._run(info)
+        return self._run_control(info)
 
-    def _run(self, info: RunInfo) -> RunInfoResult:
+    def _run_control(self, info: RunInfo) -> RunInfoResult:
         raise NotImplementedError(self.__class__)
 
 class FunctionCall(ControlFlowBaseNode, IInstantiable):
@@ -2098,7 +2220,7 @@ class FunctionCall(ControlFlowBaseNode, IInstantiable):
     def define(cls, fn: IFunction, args: BaseGroup) -> INode:
         return cls(fn, args)
 
-    def _run(self, info: RunInfo):
+    def _run_control(self, info: RunInfo):
         info_aux, node_aux = self.function.apply().run(info).as_tuple
         info = info_aux.with_scopes(info)
         if info.must_return():
@@ -2139,7 +2261,7 @@ class If(ControlFlowBaseNode, IInstantiable):
     def false_expr(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_false_expr)
 
-    def _run(self, info: RunInfo):
+    def _run_control(self, info: RunInfo):
         info_aux, node_aux = self.condition.apply().run(info).as_tuple
         info = info_aux.with_scopes(info)
         if info.must_return():
@@ -2198,7 +2320,7 @@ class Loop(ControlFlowBaseNode, IFromSingleNode[IFunction], IInstantiable):
     def initial_data(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_initial_data)
 
-    def _run(self, info: RunInfo):
+    def _run_control(self, info: RunInfo):
         info_aux, node_aux = self.callback.apply().run(info).as_tuple
         info = info_aux.with_scopes(info)
         if info.must_return():
@@ -2241,7 +2363,7 @@ class InstructionGroup(ControlFlowBaseNode, IInnerScope, IInstantiable):
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup(RestTypeGroup(TypeNode(IRunnable)))
 
-    def _run(self, info: RunInfo):
+    def _run_control(self, info: RunInfo):
         scope_data = (
             ScopeDataFutureVarItemGroup()
             if info.is_future()
@@ -2276,7 +2398,7 @@ class Assign(ControlFlowBaseNode, IInstantiable):
     def value(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_value)
 
-    def _run(self, info: RunInfo):
+    def _run_control(self, info: RunInfo):
         info_aux, node_aux = self.var_index.apply().run(info).as_tuple
         info = info_aux.with_scopes(info)
         if info.must_return():
@@ -2326,7 +2448,7 @@ class Return(ControlFlowBaseNode, IFromSingleNode[INode], IInstantiable):
     def value(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_value)
 
-    def _run(self, info: RunInfo):
+    def _run_control(self, info: RunInfo):
         info_aux, node_aux = self.parent_scope.apply().run(info).as_tuple
         info = info_aux.with_scopes(info)
         if info.must_return():
@@ -2365,7 +2487,7 @@ class InnerArg(ControlFlowBaseNode, IInstantiable):
     def arg_index(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_arg_index)
 
-    def _run(self, info: RunInfo):
+    def _run_control(self, info: RunInfo):
         info_aux, node_aux = self.node.apply().run(info).as_tuple
         info = info_aux.with_scopes(info)
         if info.must_return():
@@ -2406,7 +2528,7 @@ class NestedArg(ControlFlowBaseNode, IInstantiable):
     def arg_indices(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_arg_indices)
 
-    def _run(self, info: RunInfo):
+    def _run_control(self, info: RunInfo):
         info_aux, node_aux = self.node.apply().run(info).as_tuple
         info = info_aux.with_scopes(info)
         if info.must_return():
@@ -2591,7 +2713,7 @@ class Next(ControlFlowBaseNode, IInstantiable):
     def iter(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_iter)
 
-    def _run(self, info: RunInfo):
+    def _run_control(self, info: RunInfo):
         info_aux, node_aux = self.iter.apply().run(info).as_tuple
         info = info_aux.with_scopes(info)
         if info.must_return():
@@ -2605,7 +2727,7 @@ class Add(ControlFlowBaseNode, IInstantiable):
     def arg_type_group(cls) -> ExtendedTypeGroup:
         return ExtendedTypeGroup.rest(IAdditive.as_type())
 
-    def _run(self, info: RunInfo):
+    def _run_control(self, info: RunInfo):
         node: IAdditive | None = None
         for arg in self.args:
             info_aux, node_aux = arg.as_node.run(info).as_tuple

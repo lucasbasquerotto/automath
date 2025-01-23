@@ -166,7 +166,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
     def as_action(self) -> typing.Self:
         return self
 
-    def _run(self, full_state: FullState) -> O:
+    def _run_action(self, full_state: FullState) -> O:
         raise NotImplementedError
 
     def inner_run(self, full_state: FullState) -> FullActionOutput:
@@ -185,7 +185,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             raise ActionTypeExceptionInfo(self.as_type(), e.info).as_exception() from e
 
         try:
-            output = self._run(full_state)
+            output = self._run_action(full_state)
             assert isinstance(output, IActionOutput)
         except InvalidNodeException as e:
             raise ActionInputExceptionInfo(self, e.info).as_exception() from e
@@ -276,5 +276,5 @@ class GeneralAction(
     IActionOutput,
     ABC,
 ):
-    def _run(self, full_state: FullState) -> typing.Self:
+    def _run_action(self, full_state: FullState) -> typing.Self:
         return self

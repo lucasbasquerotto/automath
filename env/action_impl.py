@@ -133,7 +133,7 @@ class VerifyGoal(
             Integer,
         ]))
 
-    def _run(self, full_state: FullState) -> VerifyGoalOutput:
+    def _run_action(self, full_state: FullState) -> VerifyGoalOutput:
         scratch_index_nested_indices = self.inner_arg(
             self.idx_scratch_index_nested_indices
         ).apply().cast(Optional[StateScratchIndex])
@@ -213,7 +213,7 @@ class CreateDynamicGoal(
             StateScratchIndex,
         ]))
 
-    def _run(self, full_state: FullState) -> CreateDynamicGoalOutput:
+    def _run_action(self, full_state: FullState) -> CreateDynamicGoalOutput:
         scratch_index_goal = self.inner_arg(
             self.idx_scratch_index_goal
         ).apply().cast(StateScratchIndex)
@@ -312,7 +312,7 @@ class VerifyDynamicGoal(
             StateScratchIndex,
         ]))
 
-    def _run(self, full_state: FullState) -> VerifyDynamicGoalOutput:
+    def _run_action(self, full_state: FullState) -> VerifyDynamicGoalOutput:
         dynamic_node_index = self.inner_arg(
             self.idx_dynamic_node_index
         ).apply().cast(StateDynamicGoalIndex)
@@ -462,7 +462,7 @@ class CreateScratch(
     def child(self):
         return self.inner_arg(self.idx_clone_index).apply()
 
-    def _run(self, full_state: FullState) -> CreateScratchOutput:
+    def _run_action(self, full_state: FullState) -> CreateScratchOutput:
         clone_index = self.inner_arg(
             self.idx_clone_index
         ).apply().cast(Optional[StateScratchIndex])
@@ -528,7 +528,7 @@ class ClearScratch(BasicAction[DefineScratchOutput], IInstantiable):
             StateScratchIndex,
         ]))
 
-    def _run(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         assert isinstance(scratch_index, StateScratchIndex)
         return DefineScratchOutput(scratch_index, Scratch.create())
@@ -555,7 +555,7 @@ class DefineScratchFromDefault(
             MetaDefaultTypeIndex,
         ]))
 
-    def _run(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         type_index = self.inner_arg(self.idx_type_index).apply()
         assert isinstance(scratch_index, StateScratchIndex)
@@ -591,7 +591,7 @@ class DefineScratchFromInt(
             Integer,
         ]))
 
-    def _run(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         type_index = self.inner_arg(self.idx_type_index).apply()
         index_value = self.inner_arg(self.idx_index_value).apply()
@@ -629,7 +629,7 @@ class DefineScratchFromSingleArg(
             StateScratchIndex,
         ]))
 
-    def _run(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         type_index = self.inner_arg(self.idx_type_index).apply()
         arg_index = self.inner_arg(self.idx_arg).apply()
@@ -672,7 +672,7 @@ class DefineScratchFromIntIndex(
             Integer,
         ]))
 
-    def _run(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         type_index = self.inner_arg(self.idx_type_index).apply()
         index_value = self.inner_arg(self.idx_index_value).apply()
@@ -714,7 +714,7 @@ class DefineScratchFromFunctionWithIntArg(
             Integer,
         ]))
 
-    def _run(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         source_index = self.inner_arg(self.idx_source_index).apply()
         int_arg = self.inner_arg(self.idx_int_arg).apply()
@@ -771,7 +771,7 @@ class DefineScratchFromFunctionWithSingleArg(
             StateScratchIndex,
         ]))
 
-    def _run(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         source_index = self.inner_arg(self.idx_source_index).apply()
         single_arg_index = self.inner_arg(self.idx_single_arg_index).apply()
@@ -835,7 +835,7 @@ class DefineScratchFromFunctionWithArgs(
             Optional[StateArgsGroupIndex],
         ]))
 
-    def _run(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         source_index = self.inner_arg(self.idx_source_index).apply()
         args_group_index = self.inner_arg(self.idx_args_group_index).apply()
@@ -903,7 +903,7 @@ class DefineScratchFromScratchNode(
             ScratchNodeIndex,
         ]))
 
-    def _run(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         source_index = self.inner_arg(self.idx_source_index).apply()
         source_inner_index = self.inner_arg(self.idx_source_inner_index).apply()
@@ -942,7 +942,7 @@ class RunScratch(
             StateScratchIndex,
         ]))
 
-    def _run(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         source_index = self.inner_arg(self.idx_source_index).apply()
         assert isinstance(scratch_index, StateScratchIndex)
@@ -989,7 +989,7 @@ class UpdateScratchFromAnother(
             StateScratchIndex,
         ]))
 
-    def _run(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         scratch_inner_index = self.inner_arg(self.idx_scratch_inner_index).apply()
         source_index = self.inner_arg(self.idx_source_index).apply()
@@ -1069,7 +1069,7 @@ class CreateArgsGroup(
             Optional[StateArgsGroupIndex],
         ]))
 
-    def _run(self, full_state: FullState) -> CreateArgsGroupOutput:
+    def _run_action(self, full_state: FullState) -> CreateArgsGroupOutput:
         args_amount = self.inner_arg(self.idx_args_amount).apply().cast(Integer)
         args_group_source_index = self.inner_arg(
             self.idx_args_group_source_index
@@ -1178,7 +1178,7 @@ class DefineArgsGroup(
             StateScratchIndex,
         ]))
 
-    def _run(self, full_state: FullState) -> DefineArgsGroupArgOutput:
+    def _run_action(self, full_state: FullState) -> DefineArgsGroupArgOutput:
         args_group_index = self.inner_arg(self.idx_args_group_index).apply()
         arg_index = self.inner_arg(self.idx_arg_index).apply()
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
