@@ -292,6 +292,34 @@ def test_control_flow() -> list[full_state.FullState]:
                     core.DefaultGroup(
                         core.DefaultGroup(
                             core.IntGroup.from_ints([1, 2]),
+                        ),
+                        core.FunctionExpr.with_node(
+                            core.DefaultGroup(
+                                core.FunctionCall(
+                                    core.TypeNode(core.LessThan),
+                                    core.Param.from_int(1),
+                                ),
+                                core.FunctionCall(
+                                    core.TypeNode(core.GreaterThan),
+                                    core.Param.from_int(1),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            core.Return.with_node(
+                core.Var.from_int(1),
+            ),
+        ),
+        core.InstructionGroup(
+            core.Assign(
+                core.Integer(1),
+                core.FunctionCall(
+                    composite.Map,
+                    core.DefaultGroup(
+                        core.DefaultGroup(
+                            core.IntGroup.from_ints([1, 2]),
                             core.IntGroup.from_ints([2, 2]),
                             core.IntGroup.from_ints([2, 1]),
                         ),
@@ -312,6 +340,69 @@ def test_control_flow() -> list[full_state.FullState]:
             ),
             core.Return.with_node(
                 core.Var.from_int(1),
+            ),
+        ),
+        core.InstructionGroup(
+            core.Assign(
+                core.Integer(1),
+                core.FunctionWrapper.with_node(
+                    core.FunctionCall(
+                        composite.Map,
+                        core.DefaultGroup(
+                            core.Param(
+                                core.NearParentScope.from_int(1),
+                                core.Integer(2),
+                            ),
+                            core.FunctionWrapper.with_node(
+                                core.FunctionCall(
+                                    core.Param(
+                                        core.NearParentScope.from_int(2),
+                                        core.Integer(1),
+                                    ),
+                                    core.Param(
+                                        core.NearParentScope.from_int(1),
+                                        core.Integer(1),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            core.Assign(
+                core.Integer(2),
+                core.FunctionWrapper.with_node(
+                    core.FunctionCall(
+                        composite.Map,
+                        core.DefaultGroup(
+                            core.Param(
+                                core.NearParentScope.from_int(1),
+                                core.Integer(1),
+                            ),
+                            core.FunctionWrapper.with_node(
+                                core.FunctionCall(
+                                    core.Var(
+                                        core.NearParentScope.from_int(3),
+                                        core.Integer(1),
+                                    ),
+                                    core.DefaultGroup(
+                                        core.Param(
+                                            core.NearParentScope.from_int(1),
+                                            core.Integer(1),
+                                        ),
+                                        core.Param(
+                                            core.NearParentScope.from_int(2),
+                                            core.Integer(2),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            core.Return.with_node(
+                core.Var.from_int(2)
             ),
         ),
         core.InstructionGroup(
@@ -510,6 +601,19 @@ def test_control_flow() -> list[full_state.FullState]:
                 core.IBoolean.true(),
                 core.IBoolean.false(),
             ),
+        ),
+    )
+    scratches = run(
+        env=env,
+        state_meta=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+        scratch_idx=index+3,
+        new_scratch=core.DefaultGroup(
+            core.DefaultGroup(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
             core.DefaultGroup(
                 core.IBoolean.false(),
                 core.IBoolean.false(),
@@ -520,14 +624,69 @@ def test_control_flow() -> list[full_state.FullState]:
             ),
         ),
     )
-    # scratches = run(
-    #     env=env,
-    #     state_meta=state_meta,
-    #     scratches=scratches,
-    #     args_groups=args_groups,
-    #     scratch_idx=index+3,
-    #     new_scratch=default_result,
-    # )
+    scratches = run(
+        env=env,
+        state_meta=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+        scratch_idx=index+4,
+        new_scratch=core.FunctionWrapper.with_node(
+            core.FunctionCall(
+                composite.Map,
+                core.DefaultGroup(
+                    core.Param(
+                        core.NearParentScope.from_int(1),
+                        core.Integer(1),
+                    ),
+                    core.FunctionWrapper.with_node(
+                        core.FunctionCall(
+                            core.FunctionWrapper.with_node(
+                                core.FunctionCall(
+                                    composite.Map,
+                                    core.DefaultGroup(
+                                        core.Param(
+                                            core.NearParentScope.from_int(1),
+                                            core.Integer(2),
+                                        ),
+                                        core.FunctionWrapper.with_node(
+                                            core.FunctionCall(
+                                                core.Param(
+                                                    core.NearParentScope.from_int(2),
+                                                    core.Integer(1),
+                                                ),
+                                                core.Param(
+                                                    core.NearParentScope.from_int(1),
+                                                    core.Integer(1),
+                                                ),
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                            core.DefaultGroup(
+                                core.Param(
+                                    core.NearParentScope.from_int(1),
+                                    core.Integer(1),
+                                ),
+                                core.Param(
+                                    core.NearParentScope.from_int(2),
+                                    core.Integer(2),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+    scratches = run(
+        env=env,
+        state_meta=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+        scratch_idx=index+5,
+        new_scratch=default_result,
+    )
 
     return [env.full_state]
 
