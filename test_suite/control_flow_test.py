@@ -284,6 +284,7 @@ def test_control_flow() -> list[full_state.FullState]:
                 ),
             ),
         ),
+
         core.InstructionGroup(
             core.Assign(
                 core.Integer(1),
@@ -312,6 +313,7 @@ def test_control_flow() -> list[full_state.FullState]:
                 core.Var.from_int(1),
             ),
         ),
+
         core.InstructionGroup(
             core.Assign(
                 core.Integer(1),
@@ -342,6 +344,7 @@ def test_control_flow() -> list[full_state.FullState]:
                 core.Var.from_int(1),
             ),
         ),
+
         core.InstructionGroup(
             core.Assign(
                 core.Integer(1),
@@ -369,6 +372,7 @@ def test_control_flow() -> list[full_state.FullState]:
                     ),
                 ),
             ),
+
             core.Assign(
                 core.Integer(2),
                 core.FunctionWrapper.with_node(
@@ -405,6 +409,7 @@ def test_control_flow() -> list[full_state.FullState]:
                 core.Var.from_int(2)
             ),
         ),
+
         core.InstructionGroup(
             core.Assign(
                 core.Integer(1),

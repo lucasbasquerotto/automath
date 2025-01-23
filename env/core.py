@@ -197,24 +197,28 @@ class IRunnable(INode, ABC):
                 result = e.result
 
             assert isinstance(result, RunInfoResult)
-            self._cached_run[(self, info)] = result
             new_info, new_node = result.as_tuple
 
-            # if not info.is_future():
-            #     try:
-            #         new_result = new_node.as_node._run(info)
-            #     except NodeReturnException as e:
-            #         new_result = e.result
-            #     _, node_aux = new_result.as_tuple
-            #     Eq(new_node, node_aux).raise_on_not_true()
-
             if isinstance(self, IOpaqueScope):
-                return info.to_result(new_node)
-            new_info = new_info.with_scopes(info)
-            new_result = new_info.to_result(new_node)
+                result = info.to_result(new_node)
+                new_info, new_node = result.as_tuple
+            else:
+                new_info = new_info.with_scopes(info)
+                result = new_info.to_result(new_node)
+
+            self._cached_run[(self, info)] = result
+
+            try:
+                new_result = new_node.as_node.run(info)
+            except NodeReturnException as e:
+                new_result = e.result
+            _, node_aux = new_result.as_tuple
+            Eq(new_node, node_aux).raise_on_not_true()
+
             if new_info.must_return():
-                raise NodeReturnException(new_result)
-            return new_result
+                raise NodeReturnException(result)
+
+            return result
         except NodeReturnException as e:
             raise e
         except InvalidNodeException as e:
