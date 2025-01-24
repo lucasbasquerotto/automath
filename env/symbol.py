@@ -99,9 +99,13 @@ class Symbol:
         ).replace(
             r"\begin{cases}\text{}", ""
         ).replace(
-            r" \text{}\text{}\text{} ", ""
+            r" \text{}\text{}\text{} \text{}\text{}", "    "
         ).replace(
-            r"\text{}\text{}", "  "
+            r" \text{}\text{}\text{}", ""
+        ).replace(
+            r" \text{}\text{}", "    "
+        ).replace(
+            r"\text{}\text{}", "   "
         ).replace(
             r"\text{}", ""
         ).replace(

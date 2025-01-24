@@ -182,8 +182,11 @@ class IFunction(INode, ABC):
 
 class IRunnable(INode, ABC):
 
-    #TODO change to weakdict
     _cached_run: dict[tuple[INode, RunInfo], RunInfoResult] = dict()
+
+    @classmethod
+    def clear_cache(cls):
+        cls._cached_run.clear()
 
     def run(self, info: RunInfo) -> RunInfoResult:
         cached = self._cached_run.get((self, info))
@@ -1543,8 +1546,12 @@ class TypeExceptionInfo(
     def node(self):
         return self.inner_arg(self.idx_node)
 
+class IStackExceptionInfoItem(INode, ABC):
+    pass
+
 class StackExceptionInfoItem(
     InheritableNode,
+    IStackExceptionInfoItem,
     IInstantiable,
 ):
 
@@ -1566,15 +1573,96 @@ class StackExceptionInfoItem(
     def run_info(self):
         return self.inner_arg(self.idx_run_info)
 
+    @classmethod
+    def with_args(cls, node: INode, run_info: RunInfo) -> typing.Self:
+        return cls(node, run_info)
+
+class StackNodeArg(
+    InheritableNode,
+    IInstantiable,
+    IFromSingleNode[INode],
+):
+
+    idx_full_arg = 1
+    idx_arg_type = 2
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            Optional[INode],
+            Optional[TypeNode],
+        ]))
+
+    @property
+    def full_arg(self):
+        return self.inner_arg(self.idx_full_arg)
+
+    @property
+    def arg_type(self):
+        return self.inner_arg(self.idx_arg_type)
+
+    @classmethod
+    def with_full_arg(cls, arg: INode) -> typing.Self:
+        return cls(Optional(arg), Optional())
+
+    @classmethod
+    def with_arg_type(cls, arg_type: IType) -> typing.Self:
+        return cls(Optional(), Optional(arg_type))
+
+    @classmethod
+    def with_node(cls, node: INode) -> typing.Self:
+        return (
+            cls.with_full_arg(node)
+            if (
+                isinstance(node, ISpecialValue)
+                or isinstance(node, BaseIntGroup)
+            )
+            else cls.with_arg_type(node.as_node.as_type())
+        )
+
+class StackExceptionInfoSimplifiedItem(
+    InheritableNode,
+    IStackExceptionInfoItem,
+    IFromSingleNode[InheritableNode],
+    IInstantiable,
+):
+
+    idx_node = 1
+    idx_node_args = 2
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+            INode,
+            BaseGroup[INode],
+        ]))
+
+    @property
+    def node(self):
+        return self.inner_arg(self.idx_node)
+
+    @property
+    def node_args(self):
+        return self.inner_arg(self.idx_node_args)
+
+    @classmethod
+    def with_node(cls, node: InheritableNode) -> typing.Self:
+        return cls(
+            node.as_node.as_type(),
+            DefaultGroup.from_items([
+                StackNodeArg.with_node(arg)
+                for arg in node.args
+            ]),
+        )
 
 class StackExceptionInfoGroup(
-    BaseGroup[StackExceptionInfoItem],
+    BaseGroup[IStackExceptionInfoItem],
     IInstantiable,
 ):
 
     @classmethod
     def item_type(cls):
-        return StackExceptionInfoItem
+        return IStackExceptionInfoItem
 
 class StackExceptionInfo(
     InheritableNode,
@@ -1602,9 +1690,15 @@ class StackExceptionInfo(
 
     def _add_stack(self, node: INode, run_info: RunInfo) -> typing.Self:
         stack_group = self.stack_group.apply().cast(StackExceptionInfoGroup)
-        new_item = StackExceptionInfoItem(node.as_node.as_type(), run_info.create())
+        new_item = (
+            StackExceptionInfoItem.with_args(node=node, run_info=run_info)
+            if len(stack_group.args) == 0 or not isinstance(node, InheritableNode)
+            else StackExceptionInfoSimplifiedItem.with_node(node)
+        )
         new_stack_group = stack_group.func(*stack_group.args, new_item)
-        return self.func(new_stack_group, self.cause.apply())
+        result = self.func(new_stack_group, self.cause.apply())
+        result.validate()
+        return result
 
 class InvalidNodeException(Exception):
 
