@@ -230,7 +230,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
                 node=e.info.as_node,
                 node_types=full_state.node_types(),
             )
-            env_logger.debug(symbol.to_str(), exc_info=e)
+            env_logger.debug(str(symbol), exc_info=e)
             next_state = current.state.apply().cast(State)
             action_data = e.to_action_data()
 

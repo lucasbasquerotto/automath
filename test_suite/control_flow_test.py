@@ -55,8 +55,8 @@ def run(
         exception=core.Optional(),
     )
     if last_history_action != expected_history:
-        print('last_history_action:', env.symbol(last_history_action).to_str())
-        print('expected_history:', env.symbol(expected_history).to_str())
+        print('last_history_action:', env.symbol(last_history_action))
+        print('expected_history:', env.symbol(expected_history))
     assert last_history_action == expected_history
 
     expected_state = state.State.from_raw(
@@ -65,8 +65,8 @@ def run(
         args_groups=args_groups,
     )
     if current_state != expected_state:
-        print('current_state:', env.symbol(current_state).to_str())
-        print('expected_state:', env.symbol(expected_state).to_str())
+        print('current_state:', env.symbol(current_state))
+        print('expected_state:', env.symbol(expected_state))
     assert current_state == expected_state
 
     assert env.full_state.goal_achieved() is False
