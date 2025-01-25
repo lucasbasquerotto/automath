@@ -1,10 +1,10 @@
 from env import core
 
 Map: core.FunctionExpr[core.INode] = core.FunctionExpr(
-    core.ExtendedTypeGroup(core.CountableTypeGroup.from_types([
-        core.BaseGroup,
-        core.IFunction,
-    ])),
+    core.ExtendedTypeGroup(core.CountableTypeGroup(
+        core.BaseGroup.as_type(),
+        core.IFunction.as_type(),
+    )),
     core.InnerArg(
         core.Loop(
             core.FunctionExpr(

@@ -262,8 +262,11 @@ class IBoolean(INode):
         if self.as_bool is None:
             raise self.to_exception()
 
+    def to_exception_info(self):
+        return BooleanExceptionInfo(self)
+
     def to_exception(self):
-        return InvalidNodeException(BooleanExceptionInfo(self))
+        return InvalidNodeException(self.to_exception_info())
 
     @classmethod
     def true(cls) -> IBoolean:
@@ -1209,7 +1212,7 @@ class ExtendedTypeGroup(
         if isinstance(group, CountableTypeGroup):
             same_size = Eq(Integer(len(args)), Integer(len(group.args)))
             if not same_size.as_bool:
-                return False, Optional(same_size.to_exception())
+                return False, Optional(same_size.to_exception_info())
             for i, arg in enumerate(args):
                 t_arg = group.args[i]
                 if not isinstance(arg, INode):
@@ -1238,24 +1241,6 @@ class ExtendedTypeGroup(
         if valid is False:
             exception = exception_opt.value_or_raise
             raise InvalidNodeException(exception)
-
-    # def validate_values(self, values: BaseGroup):
-    #     group = self.group.apply().cast(IBaseTypeGroup)
-    #     args = values.args
-
-    #     if isinstance(group, CountableTypeGroup):
-    #         assert len(args) == len(group.args)
-    #         for i, arg in enumerate(args):
-    #             t_arg = group.args[i]
-    #             t_arg.verify(arg)
-    #             assert isinstance(arg, INode)
-    #     elif isinstance(group, SingleValueTypeGroup):
-    #         t_arg = group.type_node.apply().cast(IType)
-    #         for arg in args:
-    #             t_arg.verify(arg)
-    #             assert isinstance(arg, INode)
-    #     else:
-    #         raise ValueError(f"Invalid group type: {group}")
 
     @classmethod
     def create(cls) -> typing.Self:
@@ -1403,13 +1388,13 @@ class CompositeType(InheritableNode, IType, IInstantiable):
                     if not t1.accepts(t2):
                         return False
                 return True
-            assert isinstance(args1_group, RestTypeGroup)
+            assert isinstance(args1_group, SingleValueTypeGroup)
             if isinstance(args2_group, CountableTypeGroup):
                 for t2 in args2_group.args:
                     if not args1_group.child.accepts(t2):
                         return False
             else:
-                assert isinstance(args2_group, RestTypeGroup)
+                assert isinstance(args2_group, SingleValueTypeGroup)
                 return args1_group.child.accepts(args2_group.child)
             return True
         if isinstance(inner_type, TypeNode):
