@@ -1202,23 +1202,60 @@ class ExtendedTypeGroup(
     def group(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_group)
 
-    def validate_values(self, values: BaseGroup):
+    def _valid(self, values: BaseGroup) -> tuple[bool | None, IOptional[IExceptionInfo]]:
         group = self.group.apply().cast(IBaseTypeGroup)
         args = values.args
 
         if isinstance(group, CountableTypeGroup):
-            assert len(args) == len(group.args)
+            same_size = Eq(Integer(len(args)), Integer(len(group.args)))
+            if not same_size.as_bool:
+                return False, Optional(same_size.to_exception())
             for i, arg in enumerate(args):
                 t_arg = group.args[i]
-                t_arg.verify(arg)
-                assert isinstance(arg, INode)
+                if not isinstance(arg, INode):
+                    return False, Optional(TypeExceptionInfo(t_arg, values))
+                valid = t_arg.valid(arg)
+                if not valid:
+                    return valid, Optional(TypeExceptionInfo(t_arg, values))
         elif isinstance(group, SingleValueTypeGroup):
             t_arg = group.type_node.apply().cast(IType)
             for arg in args:
-                t_arg.verify(arg)
-                assert isinstance(arg, INode)
+                if not isinstance(arg, INode):
+                    return False, Optional(TypeExceptionInfo(t_arg, values))
+                valid = t_arg.valid(arg)
+                if not valid:
+                    return valid, Optional(TypeExceptionInfo(t_arg, values))
         else:
-            raise ValueError(f"Invalid group type: {group}")
+            return False, Optional(TypeExceptionInfo(TypeNode(IBaseTypeGroup), group))
+        return True, Optional()
+
+    def valid(self, values: BaseGroup) -> bool | None:
+        valid, _ = self._valid(values)
+        return valid
+
+    def validate_values(self, values: BaseGroup):
+        valid, exception_opt = self._valid(values)
+        if valid is False:
+            exception = exception_opt.value_or_raise
+            raise InvalidNodeException(exception)
+
+    # def validate_values(self, values: BaseGroup):
+    #     group = self.group.apply().cast(IBaseTypeGroup)
+    #     args = values.args
+
+    #     if isinstance(group, CountableTypeGroup):
+    #         assert len(args) == len(group.args)
+    #         for i, arg in enumerate(args):
+    #             t_arg = group.args[i]
+    #             t_arg.verify(arg)
+    #             assert isinstance(arg, INode)
+    #     elif isinstance(group, SingleValueTypeGroup):
+    #         t_arg = group.type_node.apply().cast(IType)
+    #         for arg in args:
+    #             t_arg.verify(arg)
+    #             assert isinstance(arg, INode)
+    #     else:
+    #         raise ValueError(f"Invalid group type: {group}")
 
     @classmethod
     def create(cls) -> typing.Self:
@@ -1313,6 +1350,83 @@ class IntersectionType(InheritableNode, IType, IInstantiable):
         if all([item is True for item in items]):
             return True
         return None
+
+class CompositeType(InheritableNode, IType, IInstantiable):
+
+    idx_type = 1
+    idx_type_args = 2
+
+    @classmethod
+    def arg_type_group(cls) -> ExtendedTypeGroup:
+        return ExtendedTypeGroup(CountableTypeGroup(
+            TypeNode(TypeNode),
+            UnionType(ExtendedTypeGroup.as_type(), Void.as_type()),
+        ))
+
+    @property
+    def type(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_type)
+
+    @property
+    def type_args(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_type_args)
+
+    def accepted_by(self, outer_type: IType) -> bool | None:
+        if isinstance(outer_type, CompositeType):
+            return outer_type.accepts(self)
+        if isinstance(outer_type, TypeNode):
+            t = self.inner_arg(self.idx_type).apply().as_node.cast(IType)
+            return t.accepted_by(outer_type)
+        return outer_type.accepts(self)
+
+    def accepts(self, inner_type: IType) -> bool | None:
+        if isinstance(inner_type, CompositeType):
+            t1 = self.inner_arg(self.idx_type).apply().as_node.cast(IType)
+            t2 = inner_type.inner_arg(self.idx_type).apply().as_node.cast(IType)
+            if t1 != t2:
+                return False
+            args1 = self.inner_arg(self.idx_type_args).apply()
+            if args1 == Void():
+                return True
+            assert isinstance(args1, ExtendedTypeGroup)
+            args2 = inner_type.inner_arg(self.idx_type_args).apply()
+            if not isinstance(args2, ExtendedTypeGroup):
+                return False
+            args1_group = args1.group.apply().cast(IBaseTypeGroup)
+            args2_group = args2.group.apply().cast(IBaseTypeGroup)
+            if isinstance(args1_group, CountableTypeGroup):
+                if not isinstance(args2_group, CountableTypeGroup):
+                    return False
+                if len(args1_group.args) != len(args2_group.args):
+                    return False
+                for t1, t2 in zip(args1_group.args, args2_group.args):
+                    if not t1.accepts(t2):
+                        return False
+                return True
+            assert isinstance(args1_group, RestTypeGroup)
+            if isinstance(args2_group, CountableTypeGroup):
+                for t2 in args2_group.args:
+                    if not args1_group.child.accepts(t2):
+                        return False
+            else:
+                assert isinstance(args2_group, RestTypeGroup)
+                return args1_group.child.accepts(args2_group.child)
+            return True
+        if isinstance(inner_type, TypeNode):
+            t = self.inner_arg(self.idx_type).apply().as_node.cast(IType)
+            return t.accepts(inner_type)
+        return inner_type.accepted_by(self)
+
+    def valid(self, instance: INode) -> bool | None:
+        t = self.inner_arg(self.idx_type).apply().as_node.cast(IType)
+        if not t.valid(instance):
+            return False
+        args = self.inner_arg(self.idx_type_args).apply()
+        if args == Void():
+            return True
+        assert isinstance(args, ExtendedTypeGroup)
+        i_args = instance.as_node.cast(InheritableNode).args
+        return args.valid(DefaultGroup(*i_args))
 
 ###########################################################
 ###################### FUNCTION NODE ######################

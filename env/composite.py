@@ -1,9 +1,28 @@
 from env import core
 
-Map = core.FunctionExpr.with_node(
+Map: core.FunctionExpr[core.INode] = core.FunctionExpr(
+    core.ExtendedTypeGroup(core.CountableTypeGroup.from_types([
+        core.BaseGroup,
+        core.IFunction,
+    ])),
     core.InnerArg(
         core.Loop(
-            core.FunctionExpr.with_node(
+            core.FunctionExpr(
+                core.ExtendedTypeGroup(core.CountableTypeGroup(
+                    core.CompositeType(
+                        core.Optional.as_type(),
+                        core.ExtendedTypeGroup(core.CountableTypeGroup(
+                            core.CompositeType(
+                                core.DefaultGroup.as_type(),
+                                core.ExtendedTypeGroup(core.CountableTypeGroup.from_types([
+                                    core.IIterator,
+                                    core.IFunction,
+                                    core.BaseGroup,
+                                ])),
+                            ),
+                        )),
+                    ),
+                )),
                 core.InstructionGroup(
                     core.Assign(
                         core.Integer(1),
