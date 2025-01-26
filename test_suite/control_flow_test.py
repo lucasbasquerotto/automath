@@ -98,7 +98,7 @@ def test_control_flow() -> list[full_state.FullState]:
     loop_scratches: list[core.INode | None] = [
         core.Loop.with_node(
             core.FunctionExpr(
-                core.Protocol(
+                core.Protocol.with_args(
                     core.CountableTypeGroup(core.INode.as_type()),
                     core.LoopGuard.as_type(),
                 ),
