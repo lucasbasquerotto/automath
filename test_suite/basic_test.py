@@ -5,7 +5,6 @@ from env.core import (
     Or,
     IntBoolean,
     Integer,
-    ExtendedTypeGroup,
     BooleanExceptionInfo,
     IsEmpty,
     NodeArgIndex,
@@ -818,7 +817,7 @@ def basic_test():
     env.step(action)
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
-    scratch_goal = FunctionExpr(ExtendedTypeGroup.rest(), call_3)
+    scratch_goal = FunctionExpr.with_node(call_3)
     assert current_state == State.from_raw(
         meta_info=StateMetaInfo.with_goal_achieved(GoalAchieved.achieved()),
         scratches=[scratch_goal],

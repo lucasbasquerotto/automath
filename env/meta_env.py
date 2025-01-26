@@ -19,7 +19,7 @@ from env.core import (
     IOptional,
     ITypedIndex,
     ITypedIntIndex,
-    ExtendedTypeGroup,
+    Protocol,
     CountableTypeGroup,
     IntersectionType,
     BaseNode,
@@ -46,8 +46,8 @@ class MetaData(InheritableNode, IDefault, IInstantiable):
         return cls.with_args()
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             Optional[Integer],
         ]))
 
@@ -96,10 +96,10 @@ class DetailedType(
     idx_superclasses = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             TypeNode[T],
-            Optional[ExtendedTypeGroup],
+            Optional[Protocol],
             GeneralTypeGroup[INode],
         ]))
 
@@ -112,7 +112,7 @@ class DetailedType(
         return cls(
             child,
             (
-                Optional(child.type.arg_type_group())
+                Optional(child.type.protocol())
                 if issubclass(child.type, IInstantiable) and child.type != IInstantiable
                 else Optional()
             ),
@@ -141,8 +141,8 @@ class SubtypeOuterGroup(InheritableNode, IWrapper, IInstantiable, typing.Generic
     idx_subtypes = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             IntersectionType,
             GeneralTypeGroup,
         ]))
@@ -186,8 +186,8 @@ class MetaInfoOptions(InheritableNode, IDefault, IInstantiable):
         return cls(Optional.create(), Optional.create())
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             IOptional[IInt],
             IOptional[IInt],
         ]))
@@ -276,7 +276,7 @@ class IBasicAction(IAction[S], typing.Generic[S], ABC):
     @classmethod
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         raw_args = [arg1, arg2, arg3]
-        group = cls.arg_type_group().group.apply()
+        group = cls.protocol().arg_group.apply()
         assert isinstance(group, CountableTypeGroup), type(group)
         types = group.as_tuple
         assert len(types) <= 3
@@ -339,8 +339,8 @@ class MetaInfo(InheritableNode, IWrapper, IInstantiable):
     idx_all_actions = 19
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             IGoal,
             MetaInfoOptions,
             GeneralTypeGroup[INode],

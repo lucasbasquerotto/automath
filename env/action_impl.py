@@ -8,7 +8,7 @@ from env.core import (
     DefaultGroup,
     Integer,
     Optional,
-    ExtendedTypeGroup,
+    Protocol,
     ISingleChild,
     FunctionCall,
     TypeNode,
@@ -68,8 +68,8 @@ class VerifyGoalOutput(GeneralAction, IInstantiable):
     idx_node = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             Optional[NestedArgIndexGroup],
             INode,
         ]))
@@ -126,8 +126,8 @@ class VerifyGoal(
         return cls(scratch_index_nested_indices, type_index, index_value)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             Optional[StateScratchIndex],
             MetaFromIntTypeIndex,
             Integer,
@@ -167,8 +167,8 @@ class CreateDynamicGoalOutput(GeneralAction, IInstantiable):
     idx_goal_expr = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateDynamicGoalIndex,
             IGoal,
         ]))
@@ -208,8 +208,8 @@ class CreateDynamicGoal(
         return cls(scratch_index_goal)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateScratchIndex,
         ]))
 
@@ -240,8 +240,8 @@ class VerifyDynamicGoalOutput(GeneralAction, IInstantiable):
     idx_node = 3
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateDynamicGoalIndex,
             Optional[NestedArgIndexGroup],
             INode,
@@ -305,8 +305,8 @@ class VerifyDynamicGoal(
         return cls(dynamic_node_index, scratch_index_nested_indices, scratch_content_index)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateDynamicGoalIndex,
             Optional[StateScratchIndex],
             StateScratchIndex,
@@ -352,8 +352,8 @@ class DeleteDynamicGoalOutput(GeneralAction, IBasicAction[FullState], IInstantia
         return cls(dynamic_goal_index)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateDynamicGoalIndex,
         ]))
 
@@ -377,8 +377,8 @@ class ScratchBaseActionOutput(GeneralAction, ISingleChild[StateScratchIndex], AB
         return cls.new(node)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateScratchIndex,
         ]))
 
@@ -395,8 +395,8 @@ class ScratchWithNodeBaseActionOutput(GeneralAction, ABC):
     idx_node = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateScratchIndex,
             Scratch,
         ]))
@@ -453,8 +453,8 @@ class CreateScratch(
         return cls(Optional.create())
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             Optional[StateScratchIndex],
         ]))
 
@@ -523,8 +523,8 @@ class ClearScratch(BasicAction[DefineScratchOutput], IInstantiable):
         return cls(scratch_index)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateScratchIndex,
         ]))
 
@@ -549,8 +549,8 @@ class DefineScratchFromDefault(
         return cls(scratch_index, type_index)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateScratchIndex,
             MetaDefaultTypeIndex,
         ]))
@@ -584,8 +584,8 @@ class DefineScratchFromInt(
         return cls(scratch_index, type_index, index_value)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateScratchIndex,
             MetaFromIntTypeIndex,
             Integer,
@@ -622,8 +622,8 @@ class DefineScratchFromSingleArg(
         return cls(scratch_index, type_index, arg)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateScratchIndex,
             MetaSingleChildTypeIndex,
             StateScratchIndex,
@@ -665,8 +665,8 @@ class DefineScratchFromIntIndex(
         return cls(scratch_index, type_index, index_value)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateScratchIndex,
             MetaFullStateIntIndexTypeIndex,
             Integer,
@@ -707,8 +707,8 @@ class DefineScratchFromFunctionWithIntArg(
         return cls(scratch_index, source_index, int_arg)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateScratchIndex,
             StateScratchIndex,
             Integer,
@@ -738,7 +738,7 @@ class DefineScratchFromFunctionWithIntArg(
                 fn_call = t.from_int(int_arg.as_int)
             else:
                 assert issubclass(t, IInheritableNode)
-                t.arg_type_group().validate_values(IntGroup(int_arg))
+                t.protocol().validate_values(IntGroup(int_arg))
                 fn_call = t.new(int_arg)
         else:
             fn_call = FunctionCall(content, IntGroup(int_arg))
@@ -764,8 +764,8 @@ class DefineScratchFromFunctionWithSingleArg(
         return cls(scratch_index, source_index, single_arg)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateScratchIndex,
             StateScratchIndex,
             StateScratchIndex,
@@ -799,7 +799,7 @@ class DefineScratchFromFunctionWithSingleArg(
                 fn_call = t.with_node(single_arg)
             else:
                 assert issubclass(t, IInheritableNode)
-                t.arg_type_group().validate_values(DefaultGroup(single_arg))
+                t.protocol().validate_values(DefaultGroup(single_arg))
                 fn_call = t.new(single_arg)
         else:
             fn_call = FunctionCall(content, DefaultGroup(single_arg))
@@ -828,8 +828,8 @@ class DefineScratchFromFunctionWithArgs(
         return cls(scratch_index, source_index, args_group_index)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateScratchIndex,
             StateScratchIndex,
             Optional[StateArgsGroupIndex],
@@ -870,7 +870,7 @@ class DefineScratchFromFunctionWithArgs(
             else:
                 t = content.type
                 assert issubclass(t, IInheritableNode)
-                t.arg_type_group().validate_values(filled_args_group)
+                t.protocol().validate_values(filled_args_group)
                 fn_call = t.new(*filled_args_group.as_tuple)
         else:
             fn_call = FunctionCall(content, filled_args_group)
@@ -896,8 +896,8 @@ class DefineScratchFromScratchNode(
         return cls(scratch_index, source_index, source_inner_index)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateScratchIndex,
             StateScratchIndex,
             ScratchNodeIndex,
@@ -936,8 +936,8 @@ class RunScratch(
         return cls(scratch_index, source_index)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateScratchIndex,
             StateScratchIndex,
         ]))
@@ -982,8 +982,8 @@ class UpdateScratchFromAnother(
         return cls(scratch_index, scratch_inner_index, source_index)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateScratchIndex,
             ScratchNodeIndex,
             StateScratchIndex,
@@ -1019,8 +1019,8 @@ class CreateArgsGroupOutput(GeneralAction, IInstantiable):
     idx_new_args_group = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateArgsGroupIndex,
             PartialArgsGroup,
         ]))
@@ -1063,8 +1063,8 @@ class CreateArgsGroup(
         return cls(args_amount, args_group_source_index)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             Integer,
             Optional[StateArgsGroupIndex],
         ]))
@@ -1105,8 +1105,8 @@ class DeleteArgsGroupOutput(GeneralAction, IBasicAction[FullState], IInstantiabl
         return cls(args_group_index)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateArgsGroupIndex,
         ]))
 
@@ -1124,8 +1124,8 @@ class DefineArgsGroupArgOutput(GeneralAction, IInstantiable):
     idx_new_arg = 3
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateArgsGroupIndex,
             NodeArgIndex,
             IOptional,
@@ -1171,8 +1171,8 @@ class DefineArgsGroup(
         return cls(args_group_index, arg_index, scratch_index)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateArgsGroupIndex,
             NodeArgIndex,
             StateScratchIndex,

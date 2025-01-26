@@ -4,7 +4,7 @@ from env.core import (
     IDefault,
     InheritableNode,
     Integer,
-    ExtendedTypeGroup,
+    Protocol,
     CountableTypeGroup,
     TmpInnerArg,
     IInstantiable)
@@ -20,8 +20,8 @@ class DefaultRewardEvaluator(InheritableNode, IRewardEvaluator, IDefault, IInsta
     idx_goal_reward = 1
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             Integer,
         ]))
 

@@ -97,7 +97,11 @@ def test_control_flow() -> list[full_state.FullState]:
     ]
     loop_scratches: list[core.INode | None] = [
         core.Loop.with_node(
-            core.FunctionExpr.with_node(
+            core.FunctionExpr(
+                core.Protocol(
+                    core.CountableTypeGroup(core.INode.as_type()),
+                    core.LoopGuard.as_type(),
+                ),
                 core.If(
                     core.IsEmpty(core.Param.from_int(1)),
                     core.LoopGuard.with_args(
@@ -550,7 +554,7 @@ def test_control_flow() -> list[full_state.FullState]:
         ),
     )
 
-    # Function Expression
+    # # Function Expression
     default_result = core.DefaultGroup(
         core.DefaultGroup(
             core.IBoolean.true(),

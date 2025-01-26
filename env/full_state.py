@@ -18,7 +18,7 @@ from env.core import (
     TypeNode,
     IOptional,
     Optional,
-    ExtendedTypeGroup,
+    Protocol,
     CountableTypeGroup,
     IExceptionInfo,
     IWrapper,
@@ -62,8 +62,8 @@ class ActionData(InheritableNode, IInstantiable):
     idx_exception = 3
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             IOptional[IAction],
             IOptional[IActionOutput],
             IOptional[IExceptionInfo],
@@ -101,8 +101,8 @@ class HistoryNode(InheritableNode, IDefault, IWrapper, IInstantiable):
     idx_action_data = 3
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             State,
             MetaData,
             IOptional[ActionData],
@@ -194,8 +194,8 @@ class FullState(
     idx_history = 3
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             MetaInfo,
             HistoryNode,
             HistoryGroupNode,

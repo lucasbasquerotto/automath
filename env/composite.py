@@ -1,28 +1,34 @@
 from env import core
 
 Map: core.FunctionExpr[core.INode] = core.FunctionExpr(
-    core.ExtendedTypeGroup(core.CountableTypeGroup(
+    core.Protocol(
+        core.CountableTypeGroup(
+            core.BaseGroup.as_type(),
+            core.IFunction.as_type(),
+        ),
         core.BaseGroup.as_type(),
-        core.IFunction.as_type(),
-    )),
+    ),
     core.InnerArg(
         core.Loop(
             core.FunctionExpr(
-                core.ExtendedTypeGroup(core.CountableTypeGroup(
-                    core.CompositeType(
-                        core.Optional.as_type(),
-                        core.ExtendedTypeGroup(core.CountableTypeGroup(
-                            core.CompositeType(
-                                core.DefaultGroup.as_type(),
-                                core.ExtendedTypeGroup(core.CountableTypeGroup.from_types([
-                                    core.IIterator,
-                                    core.IFunction,
-                                    core.BaseGroup,
-                                ])),
+                core.Protocol(
+                    core.CountableTypeGroup(
+                        core.CompositeType(
+                            core.Optional.as_type(),
+                            core.CountableTypeGroup(
+                                core.CompositeType(
+                                    core.DefaultGroup.as_type(),
+                                    core.CountableTypeGroup.from_types([
+                                        core.IIterator,
+                                        core.IFunction,
+                                        core.BaseGroup,
+                                    ]),
+                                ),
                             ),
-                        )),
+                        ),
                     ),
-                )),
+                    core.LoopGuard.as_type(),
+                ),
                 core.InstructionGroup(
                     core.Assign(
                         core.Integer(1),

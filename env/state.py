@@ -15,7 +15,7 @@ from env.core import (
     NodeArgIndex,
     IOpaqueScope,
     BaseInt,
-    ExtendedTypeGroup,
+    Protocol,
     BaseOptionalValueGroup,
     ITypedIndex,
     ITypedIntIndex,
@@ -55,8 +55,8 @@ class Goal(InheritableNode, IGoal, typing.Generic[T, K], ABC):
         raise NotImplementedError
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup(
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
             cls.goal_type().as_type(),
             cls.eval_param_type().as_type(),
         ))
@@ -139,8 +139,8 @@ class DynamicGoal(InheritableNode, IDefault, IInstantiable):
     idx_goal_achieved = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             IGoal,
             IGoalAchieved,
         ]))
@@ -190,8 +190,8 @@ class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
         return cls.with_goal_achieved(IGoalAchieved.from_goal_expr(goal))
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             IGoalAchieved,
             DynamicGoalGroup,
         ]))
@@ -294,8 +294,8 @@ class FunctionDefinition(
 ):
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             FunctionId,
             FunctionExpr[T],
         ]))
@@ -318,8 +318,8 @@ class State(InheritableNode, IOpaqueScope, IDefault, IWrapper, IInstantiable):
     idx_definition_group = 4
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateMetaInfo,
             ScratchGroup,
             PartialArgsOuterGroup,
@@ -568,8 +568,8 @@ class StateArgsGroupArgIndex(InheritableNode, IStateIndex[INode], IInstantiable)
         return INode
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StateArgsGroupIndex,
             NodeArgIndex,
         ]))

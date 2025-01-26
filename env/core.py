@@ -15,7 +15,7 @@ class INode(ABC):
         return TypeNode(cls)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
+    def protocol(cls) -> Protocol:
         raise NotImplementedError(cls)
 
     @property
@@ -209,6 +209,11 @@ class IRunnable(INode, ABC):
                 new_info = new_info.with_scopes(info)
                 result = new_info.to_result(new_node)
 
+            if not info.is_future():
+                self.protocol().validate_result(new_node)
+                if not isinstance(self, IDynamic):
+                    Eq(self.as_type(), new_node.as_type()).raise_on_not_true()
+
             self._cached_run[(self, info)] = result
 
             try:
@@ -233,6 +238,9 @@ class IRunnable(INode, ABC):
 
     def _run(self, info: RunInfo) -> RunInfoResult:
         raise NotImplementedError(self.__class__)
+
+class IDynamic(IRunnable, ABC):
+    pass
 
 class IBoolean(INode):
 
@@ -400,6 +408,14 @@ class BaseNode(IRunnable, ABC):
         self._cached_length: int | None = None
         self._cached_hash: int | None = None
 
+    @classmethod
+    def default_protocol(cls, args_group: IBaseTypeGroup) -> Protocol:
+        return Protocol(args_group, cls.as_type())
+
+    @classmethod
+    def rest_protocol(cls, arg_type: IType) -> Protocol:
+        return Protocol.rest(arg_type=arg_type, result_type=cls.as_type())
+
     @property
     def args(self) -> tuple[int | INode | typing.Type[INode], ...]:
         return self._args
@@ -560,8 +576,8 @@ class IType(INode, ABC):
 class TypeNode(BaseNode, IType, IFunction, ISpecialValue, typing.Generic[T], IInstantiable):
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup())
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup())
 
     def __init__(self, t: type[T]):
         origin = typing.get_origin(t)
@@ -623,8 +639,8 @@ class TypeNode(BaseNode, IType, IFunction, ISpecialValue, typing.Generic[T], IIn
 class BaseInt(BaseNode, IInt, ISpecialValue, ABC):
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup())
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup())
 
     def __init__(self, value: int):
         assert isinstance(value, int)
@@ -721,7 +737,7 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
     def validate(self):
         super().validate()
         args = self.args
-        type_group = self.arg_type_group().group.apply()
+        type_group = self.protocol().arg_group.apply()
         if isinstance(type_group, OptionalTypeGroup):
             assert len(args) <= 1, \
                 f'{type(self)}: {len(args)} > 1'
@@ -731,7 +747,7 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
 
     def strict_validate(self):
         self.validate()
-        self.arg_type_group().validate_values(DefaultGroup(*self.args))
+        self.protocol().validate_values(DefaultGroup(*self.args))
 
     def _run(self, info: RunInfo):
         self.validate()
@@ -751,14 +767,14 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
 class Void(InheritableNode, IDefault, IInstantiable):
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup())
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup())
 
 class UnknownType(InheritableNode, IType, IDefault, IInstantiable):
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup())
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup())
 
     def accepted_by(self, outer_type: IType) -> bool | None:
         return None
@@ -774,8 +790,8 @@ class OptionalBase(InheritableNode, IOptional[T], typing.Generic[T], ABC):
     idx_value = 1
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(OptionalTypeGroup(TypeNode(INode)))
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(OptionalTypeGroup(TypeNode(INode)))
 
     @property
     def value(self) -> T | None:
@@ -804,7 +820,14 @@ class Optional(OptionalBase[T], IInstantiable, typing.Generic[T]):
 ########################## SCOPE ##########################
 ###########################################################
 
-class ParentScopeBase(BaseInt, IDefault, ABC):
+class ParentScopeBase(BaseInt, IDynamic, IDefault, ABC):
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            CountableTypeGroup(),
+            RunInfoScopeDataIndex.as_type(),
+        )
 
     @classmethod
     def create(cls) -> typing.Self:
@@ -843,17 +866,20 @@ class IOpaqueScope(IScope, ABC):
 class IInnerScope(IScope, ABC):
     pass
 
-class Placeholder(InheritableNode, IFromInt, typing.Generic[T], ABC):
+class Placeholder(InheritableNode, IDynamic, IFromInt, typing.Generic[T], ABC):
 
     idx_parent_scope = 1
     idx_index = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            RunInfoScopeDataIndex,
-            BaseInt,
-        ]))
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            CountableTypeGroup.from_types([
+                RunInfoScopeDataIndex,
+                BaseInt,
+            ]),
+            INode.as_type(),
+        )
 
     @property
     def parent_scope(self) -> TmpInnerArg:
@@ -1034,8 +1060,8 @@ class NodeArgIndex(NodeArgBaseIndex, IInstantiable):
 class BaseGroup(InheritableNode, IGroup[T], IDefault, typing.Generic[T], ABC):
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(RestTypeGroup(TypeNode(cls.item_type())))
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(RestTypeGroup(TypeNode(cls.item_type())))
 
     @property
     def args(self) -> tuple[T, ...]:
@@ -1132,7 +1158,22 @@ class OptionalValueGroup(BaseOptionalValueGroup[T], IInstantiable, typing.Generi
 ####################### TYPE GROUPS #######################
 ###########################################################
 
-class IBaseTypeGroup(INode, ABC):
+class ITypeGroupValidator(INode, ABC):
+
+    def valid_info(self, values: BaseGroup) -> tuple[bool | None, IOptional[IExceptionInfo]]:
+        raise NotImplementedError
+
+    def valid(self, values: BaseGroup) -> bool | None:
+        valid, _ = self.valid_info(values)
+        return valid
+
+    def validate_values(self, values: BaseGroup):
+        valid, exception_opt = self.valid_info(values)
+        if valid is False:
+            exception = exception_opt.value_or_raise
+            raise InvalidNodeException(exception)
+
+class IBaseTypeGroup(ITypeGroupValidator, ABC):
     pass
 
 class CountableTypeGroup(
@@ -1155,6 +1196,26 @@ class CountableTypeGroup(
     def from_int(cls, value: int) -> typing.Self:
         return cls(*[UnknownType()] * value)
 
+    def valid_info(self, values: BaseGroup) -> tuple[bool | None, IOptional[IExceptionInfo]]:
+        args = values.args
+        same_size = Eq(Integer(len(args)), Integer(len(self.args)))
+
+        if not same_size.as_bool:
+            return False, Optional(same_size.to_exception_info())
+
+        for i, arg in enumerate(args):
+            t_arg = self.args[i]
+            if not isinstance(arg, INode):
+                return False, Optional(TypeExceptionInfo(t_arg, values))
+            valid = t_arg.valid(arg)
+            if not valid:
+                return valid, Optional(TypeExceptionInfo(t_arg, values))
+
+        if len(args) != len(self.args):
+            return False, Optional(Eq(Integer(len(args)), self.amount_node()).to_exception_info())
+
+        return True, Optional()
+
 class SingleValueTypeGroup(
     InheritableNode,
     IBaseTypeGroup,
@@ -1165,8 +1226,8 @@ class SingleValueTypeGroup(
     idx_type_node = 1
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             IType,
         ]))
 
@@ -1178,6 +1239,17 @@ class SingleValueTypeGroup(
     def child(self) -> IType:
         return self.type_node.apply().cast(IType)
 
+    def valid_info(self, values: BaseGroup) -> tuple[bool | None, IOptional[IExceptionInfo]]:
+        t_arg = self.type_node.apply().cast(IType)
+
+        for arg in values.args:
+            if not isinstance(arg, INode):
+                return False, Optional(TypeExceptionInfo(t_arg, values))
+            valid = t_arg.valid(arg)
+            if not valid:
+                return valid, Optional(TypeExceptionInfo(t_arg, values))
+
+        return True, Optional()
 
 class RestTypeGroup(SingleValueTypeGroup, IInstantiable):
     pass
@@ -1185,62 +1257,36 @@ class RestTypeGroup(SingleValueTypeGroup, IInstantiable):
 class OptionalTypeGroup(SingleValueTypeGroup, IInstantiable):
     pass
 
-class ExtendedTypeGroup(
+class Protocol(
     InheritableNode,
     IDefault,
     IFromInt,
-    IFromSingleNode[IOptional[IInt]],
+    IFromSingleNode[IBaseTypeGroup],
+    ITypeGroupValidator,
     IInstantiable,
 ):
 
-    idx_group = 1
+    idx_arg_group = 1
+    idx_result = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             IBaseTypeGroup,
+            IType,
         ]))
 
     @property
-    def group(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_group)
+    def arg_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_arg_group)
 
-    def _valid(self, values: BaseGroup) -> tuple[bool | None, IOptional[IExceptionInfo]]:
-        group = self.group.apply().cast(IBaseTypeGroup)
-        args = values.args
+    @property
+    def result(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_result)
 
-        if isinstance(group, CountableTypeGroup):
-            same_size = Eq(Integer(len(args)), Integer(len(group.args)))
-            if not same_size.as_bool:
-                return False, Optional(same_size.to_exception_info())
-            for i, arg in enumerate(args):
-                t_arg = group.args[i]
-                if not isinstance(arg, INode):
-                    return False, Optional(TypeExceptionInfo(t_arg, values))
-                valid = t_arg.valid(arg)
-                if not valid:
-                    return valid, Optional(TypeExceptionInfo(t_arg, values))
-        elif isinstance(group, SingleValueTypeGroup):
-            t_arg = group.type_node.apply().cast(IType)
-            for arg in args:
-                if not isinstance(arg, INode):
-                    return False, Optional(TypeExceptionInfo(t_arg, values))
-                valid = t_arg.valid(arg)
-                if not valid:
-                    return valid, Optional(TypeExceptionInfo(t_arg, values))
-        else:
-            return False, Optional(TypeExceptionInfo(TypeNode(IBaseTypeGroup), group))
-        return True, Optional()
-
-    def valid(self, values: BaseGroup) -> bool | None:
-        valid, _ = self._valid(values)
-        return valid
-
-    def validate_values(self, values: BaseGroup):
-        valid, exception_opt = self._valid(values)
-        if valid is False:
-            exception = exception_opt.value_or_raise
-            raise InvalidNodeException(exception)
+    def valid_info(self, values: BaseGroup) -> tuple[bool | None, IOptional[IExceptionInfo]]:
+        group = self.arg_group.apply().cast(IBaseTypeGroup)
+        return group.valid_info(values)
 
     @classmethod
     def create(cls) -> typing.Self:
@@ -1248,31 +1294,52 @@ class ExtendedTypeGroup(
 
     @classmethod
     def from_int(cls, value: int) -> typing.Self:
-        return cls(CountableTypeGroup.from_int(value))
+        return cls.with_node(CountableTypeGroup.from_int(value))
 
     @classmethod
-    def with_node(cls, node: IOptional[INT]) -> typing.Self:
-        value = node.value.as_int if node.value is not None else None
-        if value is None:
-            return cls.rest()
-        return cls.from_int(value)
+    def rest(
+        cls,
+        arg_type: IType = UnknownType(),
+        result_type: IType = UnknownType(),
+    ) -> typing.Self:
+        return cls(RestTypeGroup(arg_type), result_type)
 
     @classmethod
-    def rest(cls, type_node: IType = UnknownType()) -> typing.Self:
-        return cls(RestTypeGroup(type_node))
+    def with_node(cls, node: IBaseTypeGroup) -> typing.Self:
+        return cls(node, UnknownType())
+
+    def with_new_args(
+        self,
+        args_type_group: IBaseTypeGroup | None = None,
+        result_type: IType | None = None,
+    ) -> typing.Self:
+        args_type_group = (
+            args_type_group
+            if args_type_group is not None
+            else self.arg_group.apply().cast(IBaseTypeGroup))
+        result_type = (
+            result_type
+            if result_type is not None
+            else self.result.apply().cast(IType))
+        return self.func(args_type_group, result_type)
 
     def new_amount(self, amount: int) -> typing.Self:
-        group = self.group.apply().cast(IBaseTypeGroup)
+        group = self.arg_group.apply().cast(IBaseTypeGroup)
         if not isinstance(group, CountableTypeGroup):
-            return self.with_node(Optional(Integer(amount)))
+            return self.from_int(amount)
         items = group.as_tuple
         if amount == len(items):
             return self
-        return self.func(
-            CountableTypeGroup.from_items([
+        return self.with_new_args(
+            args_type_group=CountableTypeGroup.from_items([
                 (items[i] if i < len(items) else UnknownType())
                 for i in range(amount)
-            ]))
+            ])
+        )
+
+    def validate_result(self, result: INode):
+        result_type = self.result.apply().cast(IType)
+        result_type.verify(result)
 
 ###########################################################
 ########################## TYPES ##########################
@@ -1281,8 +1348,8 @@ class ExtendedTypeGroup(
 class UnionType(InheritableNode, IType, IInstantiable):
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup.rest(IType.as_type())
+    def protocol(cls) -> Protocol:
+        return cls.rest_protocol(IType.as_type())
 
     def accepted_by(self, outer_type: IType) -> bool | None:
         return IntersectionType(*self.args).accepts(outer_type)
@@ -1310,8 +1377,8 @@ class UnionType(InheritableNode, IType, IInstantiable):
 class IntersectionType(InheritableNode, IType, IInstantiable):
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup.rest(IType.as_type())
+    def protocol(cls) -> Protocol:
+        return cls.rest_protocol(IType.as_type())
 
     def accepted_by(self, outer_type: IType) -> bool | None:
         return UnionType(*self.args).accepts(outer_type)
@@ -1342,10 +1409,10 @@ class CompositeType(InheritableNode, IType, IInstantiable):
     idx_type_args = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup(
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
             TypeNode(TypeNode),
-            UnionType(ExtendedTypeGroup.as_type(), Void.as_type()),
+            UnionType(IBaseTypeGroup.as_type(), Void.as_type()),
         ))
 
     @property
@@ -1373,29 +1440,27 @@ class CompositeType(InheritableNode, IType, IInstantiable):
             args1 = self.inner_arg(self.idx_type_args).apply()
             if args1 == Void():
                 return True
-            assert isinstance(args1, ExtendedTypeGroup)
+            assert isinstance(args1, IBaseTypeGroup)
             args2 = inner_type.inner_arg(self.idx_type_args).apply()
-            if not isinstance(args2, ExtendedTypeGroup):
+            if not isinstance(args2, IBaseTypeGroup):
                 return False
-            args1_group = args1.group.apply().cast(IBaseTypeGroup)
-            args2_group = args2.group.apply().cast(IBaseTypeGroup)
-            if isinstance(args1_group, CountableTypeGroup):
-                if not isinstance(args2_group, CountableTypeGroup):
+            if isinstance(args1, CountableTypeGroup):
+                if not isinstance(args2, CountableTypeGroup):
                     return False
-                if len(args1_group.args) != len(args2_group.args):
+                if len(args1.args) != len(args2.args):
                     return False
-                for t1, t2 in zip(args1_group.args, args2_group.args):
+                for t1, t2 in zip(args1.args, args2.args):
                     if not t1.accepts(t2):
                         return False
                 return True
-            assert isinstance(args1_group, SingleValueTypeGroup)
-            if isinstance(args2_group, CountableTypeGroup):
-                for t2 in args2_group.args:
-                    if not args1_group.child.accepts(t2):
+            assert isinstance(args1, SingleValueTypeGroup)
+            if isinstance(args2, CountableTypeGroup):
+                for t2 in args2.args:
+                    if not args1.child.accepts(t2):
                         return False
             else:
-                assert isinstance(args2_group, SingleValueTypeGroup)
-                return args1_group.child.accepts(args2_group.child)
+                assert isinstance(args2, SingleValueTypeGroup)
+                return args1.child.accepts(args2.child)
             return True
         if isinstance(inner_type, TypeNode):
             t = self.inner_arg(self.idx_type).apply().as_node.cast(IType)
@@ -1409,7 +1474,7 @@ class CompositeType(InheritableNode, IType, IInstantiable):
         args = self.inner_arg(self.idx_type_args).apply()
         if args == Void():
             return True
-        assert isinstance(args, ExtendedTypeGroup)
+        assert isinstance(args, IBaseTypeGroup)
         i_args = instance.as_node.cast(InheritableNode).args
         return args.valid(DefaultGroup(*i_args))
 
@@ -1419,19 +1484,21 @@ class CompositeType(InheritableNode, IType, IInstantiable):
 
 class ScopedFunctionBase(InheritableNode, IFunction, IScope, ABC):
 
-    idx_param_type_group = 1
+    idx_protocol_arg = 1
     idx_expr = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            ExtendedTypeGroup,
-            INode,
-        ]))
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(
+            CountableTypeGroup.from_types([
+                Protocol,
+                INode,
+            ]),
+        )
 
     @property
-    def param_type_group(self) -> TmpInnerArg:
-        return self.as_node.inner_arg(self.idx_param_type_group)
+    def protocol_arg(self) -> TmpInnerArg:
+        return self.as_node.inner_arg(self.idx_protocol_arg)
 
     @property
     def expr(self) -> TmpInnerArg:
@@ -1443,8 +1510,8 @@ class ScopedFunctionBase(InheritableNode, IFunction, IScope, ABC):
         else:
             info, node_aux = group.run(info).as_tuple
             new_group = node_aux.as_node.cast(BaseGroup)
-            param_type_group = self.param_type_group.apply().cast(ExtendedTypeGroup)
-            param_type_group.validate_values(new_group)
+            protocol_arg = self.protocol_arg.apply().cast(Protocol)
+            protocol_arg.validate_values(new_group)
             scope_data = ScopeDataParamItemGroup.from_optional_items(new_group.as_tuple)
             scope_data.strict_validate()
         new_info = (
@@ -1453,17 +1520,35 @@ class ScopedFunctionBase(InheritableNode, IFunction, IScope, ABC):
             else info
         ).add_scope(scope_data)
 
+        expr = self.expr.apply()
+
         if isinstance(self, IOpaqueScope):
             try:
-                result = self.expr.apply().run(new_info)
+                result = expr.run(new_info)
             except NodeReturnException as e:
                 result = e.result
             _, node = result.as_tuple
-            return info.to_result(node)
+            new_info = info
         else:
-            new_info, node = self.expr.apply().run(new_info).as_tuple
+            new_info, node = expr.run(new_info).as_tuple
             new_info = new_info.with_scopes(info)
-            return new_info.to_result(node)
+
+        # try:
+        #     result = expr.run(new_info)
+        # except NodeReturnException as e:
+        #     result = e.result
+
+        # new_info, node = result.as_tuple
+
+        # if isinstance(self, IOpaqueScope):
+        #     new_info = info
+        # else:
+        #     new_info = new_info.with_scopes(info)
+
+        # if not info.is_future():
+        #     self.protocol_arg.apply().cast(Protocol).validate_result(node)
+
+        return new_info.to_result(node)
 
     def prepare_expr(self, info: RunInfo) -> RunInfoResult:
         raise NotImplementedError
@@ -1471,8 +1556,8 @@ class ScopedFunctionBase(InheritableNode, IFunction, IScope, ABC):
     def _run(self, info: RunInfo):
         self.validate()
 
-        info, node_aux = self.param_type_group.apply().run(info).as_tuple
-        type_group = node_aux.as_node.cast(ExtendedTypeGroup)
+        info, node_aux = self.protocol_arg.apply().run(info).as_tuple
+        type_group = node_aux.as_node.cast(Protocol)
 
         info, expr = self.prepare_expr(info).as_tuple
 
@@ -1488,7 +1573,10 @@ class FunctionExpr(
 
     @classmethod
     def with_node(cls, node: T) -> typing.Self:
-        return cls.new(ExtendedTypeGroup.rest(), node)
+        return cls.new(
+            Protocol.rest(result_type=node.as_type()),
+            node.protocol().result.apply().cast(IType),
+        )
 
     def prepare_expr(self, info: RunInfo):
         return info.to_result(self.expr.apply())
@@ -1502,15 +1590,15 @@ class FunctionWrapper(
 ):
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            ExtendedTypeGroup,
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
+            Protocol,
             FunctionCall,
         ]))
 
     @classmethod
     def with_node(cls, node: T) -> typing.Self:
-        return cls.new(ExtendedTypeGroup.rest(), node)
+        return cls.new(Protocol.rest(result_type=node.as_type()), node)
 
     def prepare_expr(self, info: RunInfo):
         new_info = info.add_scope(ScopeDataFutureParamItemGroup())
@@ -1546,7 +1634,18 @@ class BaseIntBoolean(BaseInt, IBoolean, IDefault, ABC):
 class IntBoolean(BaseIntBoolean, IInstantiable):
     pass
 
-class RunnableBoolean(InheritableNode, IBoolean, ABC):
+class RunnableBoolean(InheritableNode, IDynamic, IBoolean, ABC):
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            cls.args_type_group(),
+            IntBoolean.as_type(),
+        )
+
+    @classmethod
+    def args_type_group(cls) -> IBaseTypeGroup:
+        raise NotImplementedError
 
     def _run(self, info: RunInfo):
         result = super()._run(info)
@@ -1568,10 +1667,10 @@ class BooleanWrapper(
     idx_value = 1
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def args_type_group(cls):
+        return CountableTypeGroup.from_types([
             IBoolean,
-        ]))
+        ])
 
     @property
     def raw_child(self) -> TmpInnerArg:
@@ -1631,8 +1730,8 @@ class TypeExceptionInfo(
     idx_node = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             IType,
             INode,
         ]))
@@ -1658,8 +1757,8 @@ class StackExceptionInfoItem(
     idx_run_info = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             INode,
             RunInfo,
         ]))
@@ -1686,8 +1785,8 @@ class StackNodeArg(
     idx_arg_type = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             Optional[INode],
             Optional[TypeNode],
         ]))
@@ -1730,8 +1829,8 @@ class StackExceptionInfoSimplifiedItem(
     idx_node_args = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             INode,
             BaseGroup[INode],
         ]))
@@ -1773,8 +1872,8 @@ class StackExceptionInfo(
     idx_cause = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             StackExceptionInfoGroup,
             IExceptionInfo,
         ]))
@@ -1823,8 +1922,8 @@ class ExceptionInfoWrapper(
     idx_info = 1
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             IExceptionInfo,
         ]))
 
@@ -1861,10 +1960,10 @@ class SingleOptionalBooleanChildWrapper(
     idx_value = 1
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def args_type_group(cls):
+        return CountableTypeGroup.from_types([
             IOptional[T],
-        ]))
+        ])
 
     @property
     def raw_child(self) -> TmpInnerArg:
@@ -1905,11 +2004,11 @@ class IsInstance(RunnableBoolean, typing.Generic[T], IInstantiable):
     idx_type = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types((
+    def args_type_group(cls):
+        return CountableTypeGroup.from_types((
             INode,
             TypeNode[T],
-        )))
+        ))
 
     @property
     def instance(self) -> TmpInnerArg:
@@ -1949,11 +2048,11 @@ class Eq(RunnableBoolean, IInstantiable):
     idx_right = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types((
+    def args_type_group(cls):
+        return CountableTypeGroup.from_types((
             INode,
             INode,
-        )))
+        ))
 
     @property
     def left(self) -> TmpInnerArg:
@@ -1976,17 +2075,17 @@ class Eq(RunnableBoolean, IInstantiable):
 class MultiArgBooleanNode(RunnableBoolean, ABC):
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup.rest(IBoolean.as_type())
+    def args_type_group(cls):
+        return RestTypeGroup(IBoolean.as_type())
 
 class DoubleIntBooleanNode(RunnableBoolean, ABC):
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def args_type_group(cls):
+        return CountableTypeGroup.from_types([
             IInt,
             IInt,
-        ]))
+        ])
 
     @classmethod
     def with_args(cls, value_1: int, value_2: int) -> DoubleIntBooleanNode:
@@ -2083,12 +2182,12 @@ class IsInsideRange(RunnableBoolean, IInstantiable):
     idx_max_value = 3
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def args_type_group(cls):
+        return CountableTypeGroup.from_types([
             IInt,
             IInt,
             IInt,
-        ]))
+        ])
 
     @classmethod
     def from_raw(cls, value: int | IInt, min_value: int, max_value: int) -> typing.Self:
@@ -2219,8 +2318,8 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
         return cls(ScopeDataGroup(), Optional())
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             ScopeDataGroup,
             Optional[RunInfoScopeDataIndex],
         ]))
@@ -2310,8 +2409,8 @@ class RunInfoResult(InheritableNode, IInstantiable):
     idx_return_value = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             RunInfo,
             INode,
         ]))
@@ -2330,7 +2429,7 @@ class RunInfoResult(InheritableNode, IInstantiable):
         return_value = self.return_value.apply().cast(INode)
         return new_info, return_value
 
-class ControlFlowBaseNode(InheritableNode, ABC):
+class ControlFlowBaseNode(InheritableNode, IDynamic, ABC):
 
     def _run(self, info: RunInfo) -> RunInfoResult:
         self.validate()
@@ -2351,11 +2450,14 @@ class FunctionCall(ControlFlowBaseNode, IInstantiable):
     idx_arg_group = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            IFunction,
-            BaseGroup,
-        ]))
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            CountableTypeGroup.from_types([
+                IFunction,
+                BaseGroup,
+            ]),
+            INode.as_type(),
+        )
 
     @property
     def function(self) -> TmpInnerArg:
@@ -2385,12 +2487,15 @@ class If(ControlFlowBaseNode, IInstantiable):
     idx_false_expr = 3
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            IBoolean,
-            INode,
-            INode,
-        ]))
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            CountableTypeGroup.from_types([
+                IBoolean,
+                INode,
+                INode,
+            ]),
+            INode.as_type(),
+        )
 
     @property
     def condition(self) -> TmpInnerArg:
@@ -2419,8 +2524,8 @@ class LoopGuard(InheritableNode, IInstantiable):
     idx_result = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             IBoolean,
             INode,
         ]))
@@ -2446,11 +2551,14 @@ class Loop(ControlFlowBaseNode, IFromSingleNode[IFunction], IInstantiable):
         return cls(node, Optional())
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            IFunction,
-            Optional[INode],
-        ]))
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            CountableTypeGroup.from_types([
+                IFunction,
+                Optional[INode],
+            ]),
+            INode.as_type(),
+        )
 
     @property
     def callback(self) -> TmpInnerArg:
@@ -2487,8 +2595,11 @@ class Loop(ControlFlowBaseNode, IFromSingleNode[IFunction], IInstantiable):
 class InstructionGroup(ControlFlowBaseNode, IInnerScope, IInstantiable):
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(RestTypeGroup(TypeNode(IRunnable)))
+    def protocol(cls) -> Protocol:
+        return Protocol.rest(
+            arg_type=IRunnable.as_type(),
+            result_type=INode.as_type(),
+        )
 
     def _run_control(self, info: RunInfo):
         scope_data = (
@@ -2508,11 +2619,14 @@ class Assign(ControlFlowBaseNode, IInstantiable):
     idx_value = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            Integer,
-            INode,
-        ]))
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            CountableTypeGroup.from_types([
+                Integer,
+                INode,
+            ]),
+            INode.as_type(),
+        )
 
     @property
     def var_index(self) -> TmpInnerArg:
@@ -2549,11 +2663,14 @@ class Return(ControlFlowBaseNode, IFromSingleNode[INode], IInstantiable):
         return cls(FarParentScope.create(), node)
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            RunInfoScopeDataIndex,
-            INode,
-        ]))
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            CountableTypeGroup.from_types([
+                RunInfoScopeDataIndex,
+                INode,
+            ]),
+            INode.as_type(),
+        )
 
     @property
     def parent_scope(self) -> TmpInnerArg:
@@ -2582,11 +2699,14 @@ class InnerArg(ControlFlowBaseNode, IInstantiable):
     idx_arg_index = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            INode,
-            NodeArgIndex,
-        ]))
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            CountableTypeGroup.from_types([
+                INode,
+                NodeArgIndex,
+            ]),
+            INode.as_type(),
+        )
 
     @property
     def node(self) -> TmpInnerArg:
@@ -2613,11 +2733,14 @@ class NestedArg(ControlFlowBaseNode, IInstantiable):
     idx_arg_indices = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            INode,
-            NestedArgIndexGroup,
-        ]))
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            CountableTypeGroup.from_types([
+                INode,
+                NestedArgIndexGroup,
+            ]),
+            INode.as_type(),
+        )
 
     @classmethod
     def from_raw(cls, node: INode, indices: typing.Sequence[int]) -> typing.Self:
@@ -2748,8 +2871,8 @@ class GroupIterator(InheritableNode, IFromSingleNode[BaseGroup], IIterator, IIns
         return cls(node, NodeArgIndex(1))
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             BaseGroup,
             NodeArgIndex,
         ]))
@@ -2795,10 +2918,13 @@ class Next(ControlFlowBaseNode, IInstantiable):
     idx_iter = 1
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
-            IIterator,
-        ]))
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            CountableTypeGroup.from_types([
+                IIterator,
+            ]),
+            INode.as_type(),
+        )
 
     @property
     def iter(self) -> TmpInnerArg:
@@ -2812,8 +2938,8 @@ class Next(ControlFlowBaseNode, IInstantiable):
 class Add(ControlFlowBaseNode, IInstantiable):
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup.rest(IAdditive.as_type())
+    def protocol(cls) -> Protocol:
+        return Protocol.rest(IAdditive.as_type(), IAdditive.as_type())
 
     def _run_control(self, info: RunInfo):
         node: IAdditive | None = None

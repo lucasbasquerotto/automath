@@ -10,7 +10,7 @@ from env.core import (
     IsInsideRange,
     InvalidNodeException,
     IOptional,
-    ExtendedTypeGroup,
+    Protocol,
     CountableTypeGroup,
     IInt,
     Integer,
@@ -42,8 +42,8 @@ class FullActionOutput(InheritableNode, IWrapper, IInstantiable):
     idx_new_state = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             IActionOutput,
             State,
         ]))
@@ -84,8 +84,8 @@ class ActionTypeExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiab
     idx_exception = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             TypeNode[IAction],
             IExceptionInfo,
         ]))
@@ -103,8 +103,8 @@ class ActionInputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantia
     idx_exception = 2
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             IAction,
             IExceptionInfo,
         ]))
@@ -131,8 +131,8 @@ class ActionOutputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstanti
     idx_exception = 3
 
     @classmethod
-    def arg_type_group(cls) -> ExtendedTypeGroup:
-        return ExtendedTypeGroup(CountableTypeGroup.from_types([
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
             IAction,
             IActionOutput,
             IExceptionInfo,

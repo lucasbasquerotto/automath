@@ -578,7 +578,7 @@ def test_define_scratch() -> list[full_state.FullState]:
 
     # Run Action
     meta_idx = get_from_full_state_int_index_type_index(full_state.MetaAllTypesTypeIndex, env)
-    idx_node = env.full_state.node_types().index(core.ExtendedTypeGroup) + 1
+    idx_node = env.full_state.node_types().index(core.Protocol) + 1
     raw_action = action_impl.DefineScratchFromIntIndex.from_raw(1, meta_idx, idx_node)
     full_action = action_impl.DefineScratchFromIntIndex(
         state.StateScratchIndex(1),
@@ -587,7 +587,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        state.Scratch(core.TypeNode(core.ExtendedTypeGroup)),
+        state.Scratch(core.TypeNode(core.Protocol)),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -598,7 +598,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     last_history_action = get_last_history_action(env)
 
     # Verify
-    scratches[0] = core.TypeNode(core.ExtendedTypeGroup)
+    scratches[0] = core.TypeNode(core.Protocol)
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
         scratches=scratches,
@@ -619,7 +619,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     )
     output = action_impl.DefineScratchOutput(
         state.StateScratchIndex(1),
-        state.Scratch(core.ExtendedTypeGroup.create()),
+        state.Scratch(core.Protocol.create()),
     )
     env.step(raw_action)
     if prev_remaining_steps is not None:
@@ -630,7 +630,7 @@ def test_define_scratch() -> list[full_state.FullState]:
     last_history_action = get_last_history_action(env)
 
     # Verify
-    scratches[0] = core.ExtendedTypeGroup.create()
+    scratches[0] = core.Protocol.create()
     assert current_state == state.State.from_raw(
         meta_info=state_meta,
         scratches=scratches,

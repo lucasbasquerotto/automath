@@ -461,9 +461,9 @@ def test_indices() -> list[full_state.FullState]:
         node_type=full_state.MetaDefaultTypeIndex,
         value=get_meta_subgroup_type_index(
             meta_env.MetaInfo.idx_default_group,
-            core.ExtendedTypeGroup,
+            core.Protocol,
             env),
-        new_scratch=core.TypeNode(core.ExtendedTypeGroup),
+        new_scratch=core.TypeNode(core.Protocol),
     )
     scratches = run(
         env=env,
