@@ -209,10 +209,17 @@ class IRunnable(INode, ABC):
                 new_info = new_info.with_scopes(info)
                 result = new_info.to_result(new_node)
 
-            if not info.is_future():
-                self.protocol().validate_result(new_node)
-                if not isinstance(self, IDynamic):
-                    Eq(self.as_type(), new_node.as_type()).raise_on_not_true()
+            self.protocol().validate_result(new_node)
+            if (
+                (not isinstance(self, IDynamic))
+                or
+                (
+                    info.is_future()
+                    and not isinstance(self, Placeholder)
+                    and not isinstance(self, ParentScopeBase)
+                )
+            ):
+                Eq(self.as_type(), new_node.as_type()).raise_on_not_true()
 
             self._cached_run[(self, info)] = result
 
@@ -1482,7 +1489,14 @@ class CompositeType(InheritableNode, IType, IInstantiable):
 ###################### FUNCTION NODE ######################
 ###########################################################
 
-class ScopedFunctionBase(InheritableNode, IFunction, IScope, ABC):
+class ScopedFunctionBase(
+    InheritableNode,
+    IFunction,
+    IScope,
+    IFromSingleNode[T],
+    typing.Generic[T],
+    ABC,
+):
 
     idx_protocol_arg = 1
     idx_expr = 2
@@ -1494,6 +1508,13 @@ class ScopedFunctionBase(InheritableNode, IFunction, IScope, ABC):
                 Protocol,
                 INode,
             ]),
+        )
+
+    @classmethod
+    def with_node(cls, node: T) -> typing.Self:
+        return cls.new(
+            Protocol.rest(result_type=node.protocol().result.apply().cast(IType)),
+            node,
         )
 
     @property
@@ -1514,39 +1535,26 @@ class ScopedFunctionBase(InheritableNode, IFunction, IScope, ABC):
             protocol_arg.validate_values(new_group)
             scope_data = ScopeDataParamItemGroup.from_optional_items(new_group.as_tuple)
             scope_data.strict_validate()
+
         new_info = (
             info.create()
             if isinstance(self, IOpaqueScope)
             else info
         ).add_scope(scope_data)
 
-        expr = self.expr.apply()
+        try:
+            result = self.expr.apply().run(new_info)
+        except NodeReturnException as e:
+            result = e.result
 
         if isinstance(self, IOpaqueScope):
-            try:
-                result = expr.run(new_info)
-            except NodeReturnException as e:
-                result = e.result
             _, node = result.as_tuple
             new_info = info
         else:
-            new_info, node = expr.run(new_info).as_tuple
+            new_info, node = result.as_tuple
             new_info = new_info.with_scopes(info)
 
-        # try:
-        #     result = expr.run(new_info)
-        # except NodeReturnException as e:
-        #     result = e.result
-
-        # new_info, node = result.as_tuple
-
-        # if isinstance(self, IOpaqueScope):
-        #     new_info = info
-        # else:
-        #     new_info = new_info.with_scopes(info)
-
-        # if not info.is_future():
-        #     self.protocol_arg.apply().cast(Protocol).validate_result(node)
+        self.protocol_arg.apply().cast(Protocol).validate_result(node)
 
         return new_info.to_result(node)
 
@@ -1564,26 +1572,17 @@ class ScopedFunctionBase(InheritableNode, IFunction, IScope, ABC):
         return info.to_result(self.func(type_group, expr))
 
 class FunctionExpr(
-    ScopedFunctionBase,
-    IFromSingleNode[T],
+    ScopedFunctionBase[T],
     IOpaqueScope,
     IInstantiable,
     typing.Generic[T],
 ):
 
-    @classmethod
-    def with_node(cls, node: T) -> typing.Self:
-        return cls.new(
-            Protocol.rest(result_type=node.as_type()),
-            node.protocol().result.apply().cast(IType),
-        )
-
     def prepare_expr(self, info: RunInfo):
         return info.to_result(self.expr.apply())
 
 class FunctionWrapper(
-    ScopedFunctionBase,
-    IFromSingleNode[T],
+    ScopedFunctionBase[T],
     IInnerScope,
     IInstantiable,
     typing.Generic[T],
@@ -1595,10 +1594,6 @@ class FunctionWrapper(
             Protocol,
             FunctionCall,
         ]))
-
-    @classmethod
-    def with_node(cls, node: T) -> typing.Self:
-        return cls.new(Protocol.rest(result_type=node.as_type()), node)
 
     def prepare_expr(self, info: RunInfo):
         new_info = info.add_scope(ScopeDataFutureParamItemGroup())
