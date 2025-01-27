@@ -378,6 +378,10 @@ class MetaInfo(InheritableNode, IWrapper, IInstantiable):
                         assert not issubclass(st, IInstantiable), \
                             f"Instantiable class {t.type} has subclass {st}"
 
+                if t.type != IInstantiable:
+                    protocol = t.type.protocol()
+                    protocol.valid_protocol()
+
         all_types_group = GeneralTypeGroup.from_items(all_types)
         allowed_actions = [
             t
