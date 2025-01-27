@@ -738,12 +738,12 @@ class DefineScratchFromFunctionWithIntArg(
                 fn_call = t.from_int(int_arg.as_int)
             else:
                 assert issubclass(t, IInheritableNode)
-                t.protocol().validate_values(IntGroup(int_arg))
                 fn_call = t.new(int_arg)
         else:
             fn_call = FunctionCall(content, IntGroup(int_arg))
 
         assert isinstance(fn_call, INode)
+        fn_call.as_node.validate()
 
         return DefineScratchOutput(scratch_index, Scratch(fn_call))
 
@@ -799,12 +799,12 @@ class DefineScratchFromFunctionWithSingleArg(
                 fn_call = t.with_node(single_arg)
             else:
                 assert issubclass(t, IInheritableNode)
-                t.protocol().validate_values(DefaultGroup(single_arg))
                 fn_call = t.new(single_arg)
         else:
             fn_call = FunctionCall(content, DefaultGroup(single_arg))
 
         assert isinstance(fn_call, INode)
+        fn_call.as_node.validate()
 
         return DefineScratchOutput(scratch_index, Scratch(fn_call))
 
@@ -870,12 +870,12 @@ class DefineScratchFromFunctionWithArgs(
             else:
                 t = content.type
                 assert issubclass(t, IInheritableNode)
-                t.protocol().validate_values(filled_args_group)
                 fn_call = t.new(*filled_args_group.as_tuple)
         else:
             fn_call = FunctionCall(content, filled_args_group)
 
         assert isinstance(fn_call, INode)
+        fn_call.as_node.validate()
 
         return DefineScratchOutput(scratch_index, Scratch(fn_call))
 

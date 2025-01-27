@@ -209,7 +209,9 @@ class IRunnable(INode, ABC):
                 new_info = new_info.with_scopes(info)
                 result = new_info.to_result(new_node)
 
-            self.protocol().validate_result(new_node)
+            if not isinstance(self, IDynamic):
+                self.protocol().verify(new_node)
+
             if (
                 (not isinstance(self, IDynamic))
                 or
@@ -552,8 +554,8 @@ class BaseNode(IRunnable, ABC):
             if isinstance(arg, INode):
                 arg.as_node.validate()
 
-    def strict_validate(self):
-        self.validate()
+    def strict_validate(self) -> AliasInfo:
+        raise NotImplementedError(self.__class__)
 
     def cast(self, t: typing.Type[T]) -> T:
         origin = typing.get_origin(t)
@@ -573,12 +575,22 @@ class IType(INode, ABC):
     def accepted_by(self, outer_type: IType) -> bool | None:
         raise NotImplementedError
 
-    def valid(self, instance: INode) -> bool | None:
+    def valid(
+        self,
+        instance: INode,
+        alias_info: AliasInfo,
+    ) -> tuple[bool | None, AliasInfo]:
         raise NotImplementedError
 
-    def verify(self, instance: INode):
-        if self.valid(instance) is False:
+    def verify(
+        self,
+        instance: INode,
+        alias_info: AliasInfo,
+    ) -> AliasInfo:
+        valid, alias_info = self.valid(instance, alias_info)
+        if valid is False:
             raise InvalidNodeException(TypeExceptionInfo(self, instance))
+        return alias_info
 
 class TypeNode(BaseNode, IType, IFunction, ISpecialValue, typing.Generic[T], IInstantiable):
 
@@ -624,11 +636,19 @@ class TypeNode(BaseNode, IType, IFunction, ISpecialValue, typing.Generic[T], IIn
             return issubclass(inner_type.type, self.type)
         return inner_type.accepted_by(self)
 
-    def valid(self, instance: INode) -> bool | None:
+    def valid(
+        self,
+        instance: INode,
+        alias_info: AliasInfo,
+    ) -> tuple[bool | None, AliasInfo]:
         if not issubclass(self.type, Placeholder):
             if isinstance(instance, Placeholder):
-                return None
-        return isinstance(instance, self.type)
+                return None, alias_info
+        return isinstance(instance, self.type), alias_info
+
+    def strict_validate(self) -> AliasInfo:
+        self.validate()
+        return AliasInfo.create()
 
     def _run(self, info: RunInfo):
         self.validate()
@@ -670,6 +690,10 @@ class BaseInt(BaseNode, IInt, ISpecialValue, ABC):
     def _run(self, info: RunInfo):
         self.validate()
         return info.to_result(self)
+
+    def strict_validate(self) -> AliasInfo:
+        self.validate()
+        return AliasInfo.create()
 
 class Integer(BaseInt, IInstantiable):
 
@@ -752,9 +776,10 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
             assert len(args) == len(type_group.args), \
                 f'{type(self)}: {len(args)} != {len(type_group.args)}'
 
-    def strict_validate(self):
+    def strict_validate(self) -> AliasInfo:
         self.validate()
-        self.protocol().validate_args(DefaultGroup(*self.args))
+        alias_info = self.protocol().verify_args(DefaultGroup(*self.args))
+        return alias_info
 
     def _run(self, info: RunInfo):
         self.validate()
@@ -789,8 +814,12 @@ class UnknownType(InheritableNode, IType, IDefault, IInstantiable):
     def accepts(self, inner_type: IType) -> bool | None:
         return None
 
-    def valid(self, instance: INode) -> bool | None:
-        return None
+    def valid(
+        self,
+        instance: INode,
+        alias_info: AliasInfo,
+    ) -> tuple[bool | None, AliasInfo]:
+        return None, alias_info
 
 class OptionalBase(InheritableNode, IOptional[T], typing.Generic[T], ABC):
 
@@ -1181,18 +1210,31 @@ class OptionalValueGroup(BaseOptionalValueGroup[T], IInstantiable, typing.Generi
 
 class ITypeGroupValidator(INode, ABC):
 
-    def valid_info(self, values: BaseGroup) -> tuple[bool | None, IOptional[IExceptionInfo]]:
+    def valid_info(
+        self,
+        values: BaseGroup,
+        alias_info: AliasInfo,
+    ) -> tuple[bool | None, AliasInfo, IOptional[IExceptionInfo]]:
         raise NotImplementedError
 
-    def valid(self, values: BaseGroup) -> bool | None:
-        valid, _ = self.valid_info(values)
-        return valid
+    def valid(
+        self,
+        values: BaseGroup,
+        alias_info: AliasInfo,
+    ) -> tuple[bool | None, AliasInfo]:
+        valid, alias_info, _ = self.valid_info(values, alias_info=alias_info)
+        return valid, alias_info
 
-    def validate_values(self, values: BaseGroup):
-        valid, exception_opt = self.valid_info(values)
+    def validate_values(
+        self,
+        values: BaseGroup,
+        alias_info: AliasInfo,
+    ) -> AliasInfo:
+        valid, alias_info, exception_opt = self.valid_info(values, alias_info=alias_info)
         if valid is False:
             exception = exception_opt.value_or_raise
             raise InvalidNodeException(exception)
+        return alias_info
 
 class IBaseTypeGroup(ITypeGroupValidator, ABC):
     pass
@@ -1217,25 +1259,30 @@ class CountableTypeGroup(
     def from_int(cls, value: int) -> typing.Self:
         return cls(*[UnknownType()] * value)
 
-    def valid_info(self, values: BaseGroup) -> tuple[bool | None, IOptional[IExceptionInfo]]:
+    def valid_info(
+        self,
+        values: BaseGroup,
+        alias_info: AliasInfo,
+    ) -> tuple[bool | None, AliasInfo, IOptional[IExceptionInfo]]:
         args = values.args
         same_size = Eq(Integer(len(args)), Integer(len(self.args)))
 
         if not same_size.as_bool:
-            return False, Optional(same_size.to_exception_info())
+            return False, alias_info, Optional(same_size.to_exception_info())
 
         for i, arg in enumerate(args):
             t_arg = self.args[i]
             if not isinstance(arg, INode):
-                return False, Optional(TypeExceptionInfo(t_arg, values))
-            valid = t_arg.valid(arg)
+                return False, alias_info, Optional(TypeExceptionInfo(t_arg, values))
+            valid, alias_info = t_arg.valid(arg, alias_info=alias_info)
             if not valid:
-                return valid, Optional(TypeExceptionInfo(t_arg, values))
+                return valid, alias_info, Optional(TypeExceptionInfo(t_arg, values))
 
         if len(args) != len(self.args):
-            return False, Optional(Eq(Integer(len(args)), self.amount_node()).to_exception_info())
+            exc = Eq(Integer(len(args)), self.amount_node()).to_exception_info()
+            return False, alias_info, Optional(exc)
 
-        return True, Optional()
+        return True, alias_info, Optional()
 
 class SingleValueTypeGroup(
     InheritableNode,
@@ -1260,17 +1307,21 @@ class SingleValueTypeGroup(
     def child(self) -> IType:
         return self.type_node.apply().cast(IType)
 
-    def valid_info(self, values: BaseGroup) -> tuple[bool | None, IOptional[IExceptionInfo]]:
+    def valid_info(
+        self,
+        values: BaseGroup,
+        alias_info: AliasInfo,
+    ) -> tuple[bool | None, AliasInfo, IOptional[IExceptionInfo]]:
         t_arg = self.type_node.apply().cast(IType)
 
         for arg in values.args:
             if not isinstance(arg, INode):
-                return False, Optional(TypeExceptionInfo(t_arg, values))
-            valid = t_arg.valid(arg)
+                return False, alias_info, Optional(TypeExceptionInfo(t_arg, values))
+            valid, alias_info = t_arg.valid(arg, alias_info=alias_info)
             if not valid:
-                return valid, Optional(TypeExceptionInfo(t_arg, values))
+                return valid, alias_info, Optional(TypeExceptionInfo(t_arg, values))
 
-        return True, Optional()
+        return True, alias_info, Optional()
 
 class RestTypeGroup(SingleValueTypeGroup, IInstantiable):
     pass
@@ -1278,7 +1329,7 @@ class RestTypeGroup(SingleValueTypeGroup, IInstantiable):
 class OptionalTypeGroup(SingleValueTypeGroup, IInstantiable):
     pass
 
-class TypeAlias(InheritableNode, IType, ISingleChild[IType], IInstantiable):
+class TypeAlias(InheritableNode, ISingleChild[IType], IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
@@ -1292,9 +1343,6 @@ class TypeAlias(InheritableNode, IType, ISingleChild[IType], IInstantiable):
     def accepts(self, inner_type: IType) -> bool | None:
         return self.child.accepts(inner_type)
 
-    def valid(self, instance: INode) -> bool | None:
-        return self.child.valid(instance)
-
 class TypeAliasGroup(
     BaseGroup[TypeAlias],
     IInstantiable,
@@ -1305,7 +1353,7 @@ class TypeAliasGroup(
         return TypeAlias
 
 class TypeAliasOptionalGroup(
-    BaseOptionalValueGroup[TypeAlias],
+    BaseOptionalValueGroup[IType],
     IInstantiable,
 ):
 
@@ -1313,19 +1361,90 @@ class TypeAliasOptionalGroup(
     def init(cls, origin_group: TypeAliasGroup) -> typing.Self:
         return cls(*[Optional()] * len(origin_group.args))
 
-    def merge(self, other_group: TypeAliasOptionalGroup) -> typing.Self:
-        Eq(Integer(len(self.args)), Integer(len(other_group.args))).raise_on_not_true()
-        items: list[IOptional[TypeAlias]] = []
-        for item1, item2 in zip(self.as_tuple, other_group.as_tuple):
-            if item1.value is not None:
-                if item2.value is not None:
-                    Eq(item1.protocol(), item2.protocol()).raise_on_not_true()
-                items.append(item1)
-            elif item2.value is not None:
-                items.append(item2)
-            else:
-                items.append(Optional())
-        return self.func(*items)
+    def define(self, type_index: TypeIndex, new_type: IType) -> typing.Self:
+        old_type_opt = type_index.find_in_node(self)
+
+        if old_type_opt.is_empty():
+            new_self = type_index.replace_in_target(self, Optional(new_type)).value_or_raise
+            new_self.strict_validate()
+            return new_self
+
+        Eq(Optional(new_type), old_type_opt).raise_on_not_true()
+        return self
+
+class AliasInfo(
+    InheritableNode,
+    IDefault,
+    IFromSingleNode[TypeAliasGroup],
+    IInstantiable,
+):
+
+    idx_alias_group_base = 1
+    idx_alias_group_actual = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
+            TypeAliasGroup,
+            TypeAliasOptionalGroup,
+        ]))
+
+    def validate(self):
+        super().validate()
+        base_group = self.alias_group_base.apply().cast(TypeAliasGroup)
+        actual_group = self.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
+        base_amount = Integer(len(base_group.args))
+        actual_amount = Integer(len(actual_group.args))
+        Eq(base_amount, actual_amount).raise_on_not_true()
+
+    @property
+    def alias_group_base(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_alias_group_base)
+
+    @property
+    def alias_group_actual(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_alias_group_actual)
+
+    @classmethod
+    def create(cls) -> typing.Self:
+        return cls.with_node(TypeAliasGroup())
+
+    @classmethod
+    def with_node(cls, node: TypeAliasGroup) -> typing.Self:
+        return cls(node, TypeAliasOptionalGroup.init(node))
+
+    def define(self, type_index: TypeIndex, new_type: IType) -> AliasInfo:
+        base_group = self.alias_group_base.apply().cast(TypeAliasGroup)
+        alias = type_index.find_in_node(base_group).value_or_raise.as_node.cast(TypeAlias)
+        new_self = alias.child.verify(new_type, alias_info=self)
+        actual_group = new_self.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
+        actual_group = actual_group.define(type_index=type_index, new_type=new_type)
+        return new_self.func(base_group, actual_group)
+
+    def apply(self, protocol: Protocol) -> Protocol:
+        self_group = self.alias_group_base.apply().cast(TypeAliasGroup)
+        protocol_group = protocol.alias_group.apply().cast(TypeAliasGroup)
+        Eq(self_group, protocol_group).raise_on_not_true()
+
+        args_group = protocol.arg_group.apply().cast(IBaseTypeGroup)
+        result_group = protocol.result.apply().cast(IType)
+
+        actual_group = self.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
+
+        for i, (alias, actual) in enumerate(zip(self_group.as_tuple, actual_group.as_tuple)):
+            index = TypeIndex(i + 1)
+            t = actual.value_or_else(alias.child)
+            args_group = args_group.as_node.replace(index, t).as_node.cast(IBaseTypeGroup)
+            result_group = result_group.as_node.replace(index, t).as_node.cast(IType)
+
+        Eq(Integer(len(args_group.as_node.find(TypeIndex))), Integer.zero()).raise_on_not_true()
+        Eq(Integer(len(result_group.as_node.find(TypeIndex))), Integer.zero()).raise_on_not_true()
+
+        return Protocol.with_args(
+            alias_group=TypeAliasGroup(),
+            args_type_group=args_group,
+            result_type=result_group,
+        )
 
 class TypeIndex(NodeArgBaseIndex, IInstantiable):
     pass
@@ -1363,9 +1482,13 @@ class Protocol(
     def result(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_result)
 
-    def valid_info(self, values: BaseGroup) -> tuple[bool | None, IOptional[IExceptionInfo]]:
+    def valid_info(
+        self,
+        values: BaseGroup,
+        alias_info: AliasInfo,
+    ) -> tuple[bool | None, AliasInfo, IOptional[IExceptionInfo]]:
         group = self.arg_group.apply().cast(IBaseTypeGroup)
-        return group.valid_info(values)
+        return group.valid_info(values, alias_info=alias_info)
 
     @classmethod
     def create(cls) -> typing.Self:
@@ -1434,18 +1557,25 @@ class Protocol(
             ])
         )
 
-    def validate_args(self, args: BaseGroup):
-        original_group = self.arg_group.apply().cast(IBaseTypeGroup)
-        aliases = self.alias_group.apply().cast(TypeAliasGroup)
-        group = original_group
-        for i, alias in enumerate(aliases.as_tuple):
-            index = TypeIndex(i + 1)
-            group = group.as_node.replace(index, alias.child).as_node.cast(IBaseTypeGroup)
-        group.validate_values(args)
+    def verify(self, instance: INode):
+        if isinstance(instance, InheritableNode):
+            args = DefaultGroup(*instance.args)
+            alias_info = self.verify_args(args)
+            self.verify_result(instance, alias_info)
+        else:
+            instance.as_node.strict_validate()
 
-    def validate_result(self, result: INode):
+    def verify_args(self, args: BaseGroup) -> AliasInfo:
+        original_group = self.arg_group.apply().cast(IBaseTypeGroup)
+        aliases_base = self.alias_group.apply().cast(TypeAliasGroup)
+        alias_info = AliasInfo.with_node(aliases_base)
+        alias_info = original_group.validate_values(args, alias_info=alias_info)
+        return alias_info
+
+    def verify_result(self, result: INode, alias_info: AliasInfo) -> AliasInfo:
         result_type = self.result.apply().cast(IType)
-        result_type.verify(result)
+        alias_info = result_type.verify(result, alias_info=alias_info)
+        return alias_info
 
 ###########################################################
 ########################## TYPES ##########################
@@ -1470,15 +1600,22 @@ class UnionType(InheritableNode, IType, IInstantiable):
             return False
         return None
 
-    def valid(self, instance: INode) -> bool | None:
+    def valid(
+        self,
+        instance: INode,
+        alias_info: AliasInfo,
+    ) -> tuple[bool | None, AliasInfo]:
         args = [arg for arg in self.args if isinstance(arg, IType)]
-        assert len(args) == len(self.args)
-        items = [t.valid(instance) for t in args]
+        Eq.from_ints(len(args), len(self.args)).raise_on_not_true()
+        items: list[bool | None] = []
+        for t in args:
+            valid, alias_info = t.valid(instance, alias_info=alias_info)
+            items.append(valid)
         if any([item is True for item in items]):
-            return True
+            return True, alias_info
         if all([item is False for item in items]):
-            return False
-        return None
+            return False, alias_info
+        return None, alias_info
 
 class IntersectionType(InheritableNode, IType, IInstantiable):
 
@@ -1499,15 +1636,22 @@ class IntersectionType(InheritableNode, IType, IInstantiable):
             return True
         return None
 
-    def valid(self, instance: INode) -> bool | None:
+    def valid(
+        self,
+        instance: INode,
+        alias_info: AliasInfo,
+    ) -> tuple[bool | None, AliasInfo]:
         args = [arg for arg in self.args if isinstance(arg, IType)]
-        assert len(args) == len(self.args)
-        items = [t.valid(instance) for t in args]
+        Eq.from_ints(len(args), len(self.args)).raise_on_not_true()
+        items: list[bool | None] = []
+        for t in args:
+            valid, alias_info = t.valid(instance, alias_info=alias_info)
+            items.append(valid)
         if any([item is False for item in items]):
-            return False
+            return False, alias_info
         if all([item is True for item in items]):
-            return True
-        return None
+            return True, alias_info
+        return None, alias_info
 
 class CompositeType(InheritableNode, IType, IInstantiable):
 
@@ -1573,16 +1717,21 @@ class CompositeType(InheritableNode, IType, IInstantiable):
             return t.accepts(inner_type)
         return inner_type.accepted_by(self)
 
-    def valid(self, instance: INode) -> bool | None:
+    def valid(
+        self,
+        instance: INode,
+        alias_info: AliasInfo,
+    ) -> tuple[bool | None, AliasInfo]:
         t = self.inner_arg(self.idx_type).apply().as_node.cast(IType)
-        if not t.valid(instance):
-            return False
+        valid, alias_info = t.valid(instance, alias_info=alias_info)
+        if not valid:
+            return False, alias_info
         args = self.inner_arg(self.idx_type_args).apply()
         if args == Void():
-            return True
+            return True, alias_info
         assert isinstance(args, IBaseTypeGroup)
         i_args = instance.as_node.cast(InheritableNode).args
-        return args.valid(DefaultGroup(*i_args))
+        return args.valid(DefaultGroup(*i_args), alias_info=alias_info)
 
 ###########################################################
 ###################### FUNCTION NODE ######################
@@ -1625,13 +1774,15 @@ class ScopedFunctionBase(
         return self.as_node.inner_arg(self.idx_expr)
 
     def with_arg_group(self, group: BaseGroup, info: RunInfo):
+        alias_info: AliasInfo | None = None
+        protocol_arg: Protocol = self.protocol_arg.apply().cast(Protocol)
+
         if info.is_future():
             scope_data: ScopeDataParamBaseItemGroup = ScopeDataFutureParamItemGroup()
         else:
             info, node_aux = group.run(info).as_tuple
             new_group = node_aux.as_node.cast(BaseGroup)
-            protocol_arg = self.protocol_arg.apply().cast(Protocol)
-            protocol_arg.validate_args(new_group)
+            alias_info = protocol_arg.verify_args(new_group)
             scope_data = ScopeDataParamItemGroup.from_optional_items(new_group.as_tuple)
             scope_data.strict_validate()
 
@@ -1653,7 +1804,9 @@ class ScopedFunctionBase(
             new_info, node = result.as_tuple
             new_info = new_info.with_scopes(info)
 
-        self.protocol_arg.apply().cast(Protocol).validate_result(node)
+        if not info.is_future():
+            assert alias_info is not None
+            protocol_arg.verify_result(node, alias_info=alias_info)
 
         return new_info.to_result(node)
 
@@ -2118,7 +2271,8 @@ class IsInstance(RunnableBoolean, typing.Generic[T], IInstantiable):
         assert isinstance(instance, INode)
         t = self.type.apply()
         assert isinstance(t, TypeNode)
-        valid = t.valid(instance)
+        alias_info = AliasInfo.with_node(TypeAliasGroup())
+        valid, _ = t.valid(instance, alias_info=alias_info)
         return valid
 
     @property
