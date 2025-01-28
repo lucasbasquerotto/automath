@@ -1470,9 +1470,13 @@ class AliasInfo(
     def define(self, type_index: TypeIndex, new_type: IType) -> AliasInfo:
         base_group = self.alias_group_base.apply().cast(TypeAliasGroup)
         alias = type_index.find_in_node(base_group).value_or_raise.as_node.cast(TypeAlias)
-        new_self = alias.child.verify(new_type, alias_info=self)
+        base_type = alias.child
+        new_self = base_type.verify(new_type, alias_info=self)
         actual_group = new_self.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
-        actual_group = actual_group.define(type_index=type_index, new_type=new_type)
+        #TODO add tests
+        # full_type = UnionType(base_type, new_type)
+        full_type = IntersectionType(base_type, new_type)
+        actual_group = actual_group.define(type_index=type_index, new_type=full_type)
         return new_self.func(base_group, actual_group)
 
     def apply(self, protocol: Protocol) -> Protocol:
@@ -1519,7 +1523,9 @@ class TypeIndex(NodeArgBaseIndex, IType, IInstantiable):
         valid, alias_info = type_alias.child.valid(instance, alias_info=alias_info)
         if not valid:
             return valid, alias_info
-        actual_opt = self.find_in_node(actual_group).value_or_raise.as_node.cast(IOptional)
+        actual_opt = self.find_in_node(
+            actual_group
+        ).value_or_raise.as_node.cast(IOptional[INode])
         protocol = instance.as_node.protocol()
         alias_info_p = protocol.verify(instance)
         protocol = alias_info_p.apply(protocol)
@@ -1527,10 +1533,11 @@ class TypeIndex(NodeArgBaseIndex, IType, IInstantiable):
         result_type = protocol.result.apply().cast(IType)
         if not actual_opt.is_empty().as_bool:
             actual_type = actual_opt.value_or_raise.as_node.cast(IType)
-            Eq(result_type, actual_type).raise_on_not_true()
+            if not result_type.accepts(actual_type):
+                raise InvalidNodeException(
+                    TypeAcceptExceptionInfo(result_type, actual_type))
         else:
-            actual_group = actual_group.define(self, result_type)
-            alias_info = alias_info.func(base_group, actual_group)
+            alias_info = alias_info.define(self, result_type)
         return True, alias_info
 
 
@@ -2097,6 +2104,30 @@ class TypeExceptionInfo(
     @property
     def node(self):
         return self.inner_arg(self.idx_node)
+
+class TypeAcceptExceptionInfo(
+    InheritableNode,
+    IExceptionInfo,
+    IInstantiable,
+):
+
+    idx_type_that_accepts = 1
+    idx_type_to_accept = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup.from_types([
+            IType,
+            IType,
+        ]))
+
+    @property
+    def type_that_accepts(self):
+        return self.inner_arg(self.idx_type_that_accepts)
+
+    @property
+    def type_to_accept(self):
+        return self.inner_arg(self.idx_type_to_accept)
 
 class IStackExceptionInfoItem(INode, ABC):
     pass
