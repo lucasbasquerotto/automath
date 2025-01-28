@@ -4,7 +4,6 @@ from env import action
 from env import meta_env
 from env import full_state
 from env.symbol import Symbol
-from env.env_utils import load_all_subclasses_sorted
 from test_suite import basic_test, control_flow_test, indices_test
 from test_suite.action_impl import (
     action_01_state_meta,
@@ -70,10 +69,6 @@ def test() -> list[full_state.FullState]:
 
         return final_states
     except core.InvalidNodeException as e:
-        all_types = [t.as_type() for t in load_all_subclasses_sorted()]
-        symbol = Symbol(
-            node=e.info.as_node,
-            node_types=tuple([t.type for t in all_types]),
-        )
+        symbol = Symbol.default(e.info.as_node)
         env_logger.debug(str(symbol), exc_info=e)
         raise e

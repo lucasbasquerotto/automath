@@ -2,7 +2,6 @@
 from __future__ import annotations
 from abc import ABC
 import typing
-import sympy
 
 ###########################################################
 ##################### MAIN INTERFACES #####################
@@ -536,25 +535,6 @@ class BaseNode(IRunnable, ABC):
 
     def has_until(self, node: INode, until_type: type[INode] | None) -> bool:
         return node in self.as_node.find_until(node.__class__, until_type)
-
-    def eval(self) -> sympy.Basic:
-        name = self.func.__name__
-        if len(self.args) == 0:
-            return sympy.Symbol(name)
-
-        def eval_arg(arg: int | INode | typing.Type[INode]):
-            if isinstance(arg, INode):
-                return arg.as_node.eval()
-            if isinstance(arg, int):
-                return sympy.Integer(arg)
-            if isinstance(arg, type) and issubclass(arg, INode):
-                return sympy.Symbol(arg.__name__)
-            raise ValueError(f"Invalid argument: {arg}")
-
-        fn = sympy.Function(name)
-        args: list[sympy.Basic] = [eval_arg(arg) for arg in self.args]
-        # pylint: disable=not-callable
-        return fn(*args)
 
     def inner_arg(self, idx: int) -> TmpInnerArg:
         return TmpInnerArg(self, idx)
@@ -1438,9 +1418,9 @@ class TypeAliasOptionalGroup(
         return cls(*[Optional()] * len(origin_group.args))
 
     def define(self, type_index: TypeIndex, new_type: IType) -> typing.Self:
-        old_type_opt = type_index.find_in_node(self)
+        old_type_opt = type_index.find_in_node(self).value_or_raise.as_node.cast(IOptional)
 
-        if old_type_opt.is_empty():
+        if old_type_opt.is_empty().as_bool:
             new_self = type_index.replace_in_target(self, Optional(new_type)).value_or_raise
             new_self.strict_validate()
             return new_self
@@ -1539,13 +1519,13 @@ class TypeIndex(NodeArgBaseIndex, IType, IInstantiable):
         valid, alias_info = type_alias.child.valid(instance, alias_info=alias_info)
         if not valid:
             return valid, alias_info
-        actual_opt = self.find_in_node(actual_group)
+        actual_opt = self.find_in_node(actual_group).value_or_raise.as_node.cast(IOptional)
         protocol = instance.as_node.protocol()
         alias_info_p = protocol.verify(instance)
         protocol = alias_info_p.apply(protocol)
         Eq.from_ints(len(protocol.find(TypeIndex)), 0).raise_on_not_true()
         result_type = protocol.result.apply().cast(IType)
-        if not actual_opt.is_empty():
+        if not actual_opt.is_empty().as_bool:
             actual_type = actual_opt.value_or_raise.as_node.cast(IType)
             Eq(result_type, actual_type).raise_on_not_true()
         else:
@@ -2912,7 +2892,7 @@ class ControlFlowBaseNode(InheritableNode, IDynamic, ABC):
         p_result = protocol.result.apply().cast(IType)
         for alias in p_arg_group.as_node.find(TypeIndex):
             value = alias_group_actual.as_tuple[alias.as_int-1]
-            if value.is_empty():
+            if value.is_empty().as_bool:
                 p_result = p_result.as_node.replace(alias, InvalidType()).as_node.cast(IType)
         protocol = protocol.with_new_args(result_type=p_result)
         protocol.verify_result(result, alias_info=alias_info)
@@ -2953,7 +2933,7 @@ class FunctionCall(ControlFlowBaseNode, IInstantiable):
 
         result = fn.with_arg_group(group=fn_arg_group, info=info)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
-            fn_arg_group.as_tuple)
+            [fn, fn_arg_group])
         return RunInfoFullResult(result, arg_group)
 
 class If(ControlFlowBaseNode, IInstantiable):
@@ -2974,9 +2954,7 @@ class If(ControlFlowBaseNode, IInstantiable):
                 TypeIndex(1),
                 TypeIndex(2),
             ),
-            # UnionType(TypeIndex(1), TypeIndex(2)),
-            # CountableTypeGroup.as_type(),
-            INode.as_type(),
+            UnionType(TypeIndex(1), TypeIndex(2)),
         )
 
     @property
@@ -2999,13 +2977,15 @@ class If(ControlFlowBaseNode, IInstantiable):
 
         if flag:
             true_result = self.true_expr.apply().run(info)
+            _, true_node = true_result.as_tuple
             arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
-                [condition, true_result, None])
+                [condition, true_node, None])
             return RunInfoFullResult(true_result, arg_group)
 
         false_result = self.false_expr.apply().run(info)
+        _, false_node = false_result.as_tuple
         arg_group = OptionalValueGroup.from_optional_items(
-            [condition, None, false_result])
+            [condition, None, false_node])
         return RunInfoFullResult(false_result, arg_group)
 
 class LoopGuard(InheritableNode, IInstantiable):

@@ -2,6 +2,7 @@ import typing
 import sympy
 from sympy.printing.latex import LatexPrinter
 from env import core
+from env.env_utils import load_all_subclasses_sorted
 
 class SympyLeaf(sympy.Basic):
 
@@ -138,6 +139,8 @@ class SympyFunction(SympyShared):
 
 class Symbol:
 
+    _node_types: tuple[type[core.INode], ...] | None = None
+
     def __init__(
         self,
         node: core.BaseNode,
@@ -146,6 +149,17 @@ class Symbol:
         self._node = node
         self._node_types = node_types
         self._symbol = self._symbolic(self._node, self._node_types)
+
+    @classmethod
+    def default(cls, node: core.BaseNode) -> typing.Self:
+        node_types = cls._node_types
+        if node_types is None:
+            node_types = tuple(load_all_subclasses_sorted())
+            cls._node_types = node_types
+        return cls(
+            node=node,
+            node_types=node_types,
+        )
 
     @property
     def symbol(self) -> sympy.Basic:

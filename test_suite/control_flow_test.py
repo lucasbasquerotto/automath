@@ -87,12 +87,12 @@ def test_control_flow() -> list[full_state.FullState]:
         core.If(
             core.IBoolean.true(),
             core.Integer(1),
-            core.Integer(2),
+            core.IntGroup.from_ints([2, 3]),
         ),
         core.If(
             core.IBoolean.false(),
             core.Integer(1),
-            core.Integer(2),
+            core.IntGroup.from_ints([2, 3]),
         ),
     ]
     loop_scratches: list[core.INode | None] = [
@@ -538,7 +538,7 @@ def test_control_flow() -> list[full_state.FullState]:
         scratches=scratches,
         args_groups=args_groups,
         scratch_idx=index+2,
-        new_scratch=core.Integer(2),
+        new_scratch=core.IntGroup.from_ints([2, 3]),
     )
 
     # Loop
