@@ -585,7 +585,11 @@ class IType(INode, ABC):
             raise InvalidNodeException(TypeExceptionInfo(self, instance))
         return alias_info
 
-class TypeNode(BaseNode, IType, IFunction, ISpecialValue, typing.Generic[T], IInstantiable):
+class IBasicType(IType, ABC):
+    pass
+
+
+class TypeNode(BaseNode, IBasicType, IFunction, ISpecialValue, typing.Generic[T], IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
@@ -806,7 +810,7 @@ class Void(InheritableNode, IDefault, IInstantiable):
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup())
 
-class UnknownType(InheritableNode, IType, IDefault, IInstantiable):
+class UnknownType(InheritableNode, IBasicType, IDefault, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
@@ -825,7 +829,7 @@ class UnknownType(InheritableNode, IType, IDefault, IInstantiable):
     ) -> tuple[bool | None, AliasInfo]:
         return None, alias_info
 
-class InvalidType(InheritableNode, IType, IDefault, IInstantiable):
+class InvalidType(InheritableNode, IBasicType, IDefault, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
@@ -1473,8 +1477,6 @@ class AliasInfo(
         base_type = alias.child
         new_self = base_type.verify(new_type, alias_info=self)
         actual_group = new_self.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
-        #TODO add tests
-        # full_type = UnionType(base_type, new_type)
         full_type = IntersectionType(base_type, new_type)
         actual_group = actual_group.define(type_index=type_index, new_type=full_type)
         return new_self.func(base_group, actual_group)
@@ -1685,24 +1687,53 @@ class Protocol(
 ########################## TYPES ##########################
 ###########################################################
 
-class UnionType(InheritableNode, IType, IInstantiable):
+class IComplexType(IType, ABC):
+
+    def accepted_by(self, outer_type: IType) -> bool | None:
+        if isinstance(outer_type, IBasicType):
+            return self.accepted_by_basic_type(outer_type)
+        return outer_type.accepts(self)
+
+    def accepted_by_basic_type(self, outer_type: IBasicType) -> bool | None:
+        raise NotImplementedError
+
+    def multi_bool(
+        self,
+        items: typing.Sequence[bool | None],
+        any_case: bool,
+        all_case: bool,
+    ) -> bool | None:
+        if any([item is any_case for item in items]):
+            return any_case
+        if all([item is all_case for item in items]):
+            return all_case
+        return None
+
+class UnionType(InheritableNode, IComplexType, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.rest_protocol(IType.as_type())
 
-    def accepted_by(self, outer_type: IType) -> bool | None:
-        return IntersectionType(*self.args).accepts(outer_type)
+    def accepted_by_basic_type(self, outer_type: IBasicType) -> bool | None:
+        args = [arg for arg in self.args if isinstance(arg, IType)]
+        assert len(args) == len(self.args)
+        items = [outer_type.accepts(t) for t in args]
+        return self.multi_bool(
+            items,
+            any_case=True,
+            all_case=False,
+        )
 
     def accepts(self, inner_type: IType) -> bool | None:
         args = [arg for arg in self.args if isinstance(arg, IType)]
         assert len(args) == len(self.args)
         items = [t.accepts(inner_type) for t in args]
-        if any([item is True for item in items]):
-            return True
-        if all([item is False for item in items]):
-            return False
-        return None
+        return self.multi_bool(
+            items,
+            any_case=True,
+            all_case=False,
+        )
 
     def valid(
         self,
@@ -1715,30 +1746,37 @@ class UnionType(InheritableNode, IType, IInstantiable):
         for t in args:
             valid, alias_info = t.valid(instance, alias_info=alias_info)
             items.append(valid)
-        if any([item is True for item in items]):
-            return True, alias_info
-        if all([item is False for item in items]):
-            return False, alias_info
-        return None, alias_info
+        return self.multi_bool(
+            items,
+            any_case=True,
+            all_case=False,
+        ), alias_info
 
-class IntersectionType(InheritableNode, IType, IInstantiable):
+class IntersectionType(InheritableNode, IComplexType, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.rest_protocol(IType.as_type())
 
-    def accepted_by(self, outer_type: IType) -> bool | None:
-        return UnionType(*self.args).accepts(outer_type)
+    def accepted_by_basic_type(self, outer_type: IBasicType) -> bool | None:
+        args = [arg for arg in self.args if isinstance(arg, IType)]
+        assert len(args) == len(self.args)
+        items = [outer_type.accepts(t) for t in args]
+        return self.multi_bool(
+            items,
+            any_case=True,
+            all_case=False,
+        )
 
     def accepts(self, inner_type: IType) -> bool | None:
         args = [arg for arg in self.args if isinstance(arg, IType)]
         assert len(args) == len(self.args)
         items = [t.accepts(inner_type) for t in args]
-        if any([item is False for item in items]):
-            return False
-        if all([item is True for item in items]):
-            return True
-        return None
+        return self.multi_bool(
+            items,
+            any_case=False,
+            all_case=True,
+        )
 
     def valid(
         self,
@@ -1751,13 +1789,13 @@ class IntersectionType(InheritableNode, IType, IInstantiable):
         for t in args:
             valid, alias_info = t.valid(instance, alias_info=alias_info)
             items.append(valid)
-        if any([item is False for item in items]):
-            return False, alias_info
-        if all([item is True for item in items]):
-            return True, alias_info
-        return None, alias_info
+        return self.multi_bool(
+            items,
+            any_case=False,
+            all_case=True,
+        ), alias_info
 
-class CompositeType(InheritableNode, IType, IInstantiable):
+class CompositeType(InheritableNode, IComplexType, IInstantiable):
 
     idx_type = 1
     idx_type_args = 2
@@ -1777,9 +1815,7 @@ class CompositeType(InheritableNode, IType, IInstantiable):
     def type_args(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_type_args)
 
-    def accepted_by(self, outer_type: IType) -> bool | None:
-        if isinstance(outer_type, CompositeType):
-            return outer_type.accepts(self)
+    def accepted_by_basic_type(self, outer_type: IBasicType) -> bool | None:
         if isinstance(outer_type, TypeNode):
             t = self.inner_arg(self.idx_type).apply().as_node.cast(IType)
             return t.accepted_by(outer_type)
