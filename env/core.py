@@ -1412,6 +1412,18 @@ class TypeAliasGroup(
     def item_type(cls) -> type[TypeAlias]:
         return TypeAlias
 
+    def strict_validate(self):
+        super().strict_validate()
+        for i, arg_aux in enumerate(self.args):
+            index = i + 1
+            arg = arg_aux.as_node.cast(TypeAlias)
+            inner_idxs = sorted(arg.as_node.find(TypeIndex), key=lambda t: t.as_int)
+            invalid_idxs = [idx for idx in inner_idxs if idx.as_int <= index]
+            if len(invalid_idxs) > 0:
+                invalid_group = DefaultGroup(*invalid_idxs)
+                raise InvalidNodeException(
+                    TypeIndexExceptionInfo(TypeIndex(index), arg, invalid_group))
+
 class TypeAliasOptionalGroup(
     BaseOptionalValueGroup[IType],
     IInstantiable,
@@ -2164,6 +2176,39 @@ class TypeAcceptExceptionInfo(
     @property
     def type_to_accept(self):
         return self.inner_arg(self.idx_type_to_accept)
+
+class TypeIndexExceptionInfo(
+    InheritableNode,
+    IExceptionInfo,
+    IInstantiable,
+):
+
+    idx_type_index = 1
+    idx_type_alias = 2
+    idx_invalid_inner_type_indices = 3
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            TypeIndex.as_type(),
+            TypeAlias.as_type(),
+            CompositeType(
+                DefaultGroup.as_type(),
+                RestTypeGroup.with_node(TypeIndex.as_type()),
+            )
+        ))
+
+    @property
+    def type_index(self):
+        return self.inner_arg(self.idx_type_index)
+
+    @property
+    def type_alias(self):
+        return self.inner_arg(self.idx_type_alias)
+
+    @property
+    def invalid_inner_type_indices(self):
+        return self.inner_arg(self.idx_invalid_inner_type_indices)
 
 class IStackExceptionInfoItem(INode, ABC):
     pass
