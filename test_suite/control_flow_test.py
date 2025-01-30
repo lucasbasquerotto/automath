@@ -203,11 +203,80 @@ def test_control_flow() -> list[full_state.FullState]:
     ]
     fn_scratches: list[core.INode | None] = [
         core.FunctionCall(
-            core.FunctionExpr.with_node(
+            core.FunctionExpr(
+                core.Protocol(
+                    core.TypeAliasGroup(),
+                    core.RestTypeGroup(
+                        core.CompositeType(
+                            core.IntGroup.as_type(),
+                            core.CountableTypeGroup(
+                                core.Integer.as_type(),
+                                core.Integer.as_type(),
+                            ),
+                        ),
+                    ),
+                    core.CompositeType(
+                        core.DefaultGroup.as_type(),
+                        core.RestTypeGroup(
+                            core.CompositeType(
+                                core.DefaultGroup.as_type(),
+                                core.RestTypeGroup(
+                                    core.IntBoolean.as_type(),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
                 core.FunctionCall(
-                    core.FunctionWrapper.with_node(
+                    core.FunctionWrapper(
+                        core.Protocol(
+                            core.TypeAliasGroup(),
+                            core.RestTypeGroup(
+                                core.CompositeType(
+                                    core.IntGroup.as_type(),
+                                    core.CountableTypeGroup(
+                                        core.Integer.as_type(),
+                                        core.Integer.as_type(),
+                                    ),
+                                ),
+                            ),
+                            core.CompositeType(
+                                core.DefaultGroup.as_type(),
+                                core.RestTypeGroup(
+                                    core.CompositeType(
+                                        core.DefaultGroup.as_type(),
+                                        core.RestTypeGroup(
+                                            core.IntBoolean.as_type(),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
                         core.FunctionCall(
-                            core.FunctionExpr.with_node(
+                            core.FunctionExpr(
+                                core.Protocol(
+                                    core.TypeAliasGroup(),
+                                    core.RestTypeGroup(
+                                        core.CompositeType(
+                                            core.IntGroup.as_type(),
+                                            core.CountableTypeGroup(
+                                                core.Integer.as_type(),
+                                                core.Integer.as_type(),
+                                            ),
+                                        ),
+                                    ),
+                                    core.CompositeType(
+                                        core.DefaultGroup.as_type(),
+                                        core.RestTypeGroup(
+                                            core.CompositeType(
+                                                core.DefaultGroup.as_type(),
+                                                core.RestTypeGroup(
+                                                    core.IntBoolean.as_type(),
+                                                ),
+                                            ),
+                                        ),
+                                    ),
+                                ),
                                 core.DefaultGroup(
                                     core.DefaultGroup(
                                         core.FunctionCall(
@@ -335,7 +404,14 @@ def test_control_flow() -> list[full_state.FullState]:
                     ),
                     core.DefaultGroup(
                         core.FunctionCall(
-                            core.FunctionExpr.with_node(
+                            core.FunctionExpr(
+                                core.Protocol(
+                                    core.TypeAliasGroup(),
+                                    core.CountableTypeGroup(
+                                        core.Integer.as_type(),
+                                    ),
+                                    core.Integer.as_type(),
+                                ),
                                 core.Param.from_int(1),
                             ),
                             core.DefaultGroup(
@@ -346,7 +422,19 @@ def test_control_flow() -> list[full_state.FullState]:
                 ),
             ),
             core.FunctionCall(
-                core.FunctionExpr.with_node(
+                core.FunctionExpr(
+                    core.Protocol(
+                        core.TypeAliasGroup(),
+                        core.RestTypeGroup(
+                            core.Integer.as_type(),
+                        ),
+                        core.CompositeType(
+                            core.DefaultGroup.as_type(),
+                            core.RestTypeGroup(
+                                core.Integer.as_type(),
+                            ),
+                        ),
+                    ),
                     core.DefaultGroup(
                         core.Param.from_int(1),
                     ),
