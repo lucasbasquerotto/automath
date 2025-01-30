@@ -98,9 +98,96 @@ def test_control_flow() -> list[full_state.FullState]:
     loop_scratches: list[core.INode | None] = [
         core.Loop.with_node(
             core.FunctionExpr(
-                core.Protocol.with_args(
-                    core.CountableTypeGroup(core.INode.as_type()),
-                    core.LoopGuard.as_type(),
+                core.Protocol(
+                    core.TypeAliasGroup(),
+                    core.CountableTypeGroup(
+                        core.CompositeType(
+                            core.Optional.as_type(),
+                            core.OptionalTypeGroup(
+                                core.Integer.as_type(),
+                            ),
+                        ),
+                    ),
+                    core.CompositeType(
+                        core.LoopGuard.as_type(),
+                        core.CountableTypeGroup(
+                            core.IntBoolean.as_type(),
+                            core.UnionType(
+                                core.Integer.as_type(),
+                                core.CompositeType(
+                                    core.DefaultGroup.as_type(),
+                                    core.RestTypeGroup(
+                                        core.UnionType(
+                                            core.Integer.as_type(),
+                                            core.CompositeType(
+                                                core.Optional.as_type(),
+                                                core.OptionalTypeGroup(
+                                                    core.Integer.as_type(),
+                                                ),
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+                core.If(
+                    core.IsEmpty(core.Param.from_int(1)),
+                    core.LoopGuard.with_args(
+                        condition=core.IBoolean.true(),
+                        result=core.Integer(9)
+                    ),
+                    core.LoopGuard.with_args(
+                        condition=core.IBoolean.false(),
+                        result=core.DefaultGroup(core.Integer(0), core.Param.from_int(1))
+                    ),
+                )
+            ),
+        ),
+
+        core.Loop.with_node(
+            core.FunctionExpr(
+                core.Protocol(
+                    core.TypeAliasGroup(
+                        core.TypeAlias(
+                            core.Optional.as_type()
+                        ),
+                        core.TypeAlias(
+                            core.IInt.as_type(),
+                        ),
+                    ),
+                    core.CountableTypeGroup(
+                        core.CompositeType(
+                            core.TypeIndex(1),
+                            core.OptionalTypeGroup(
+                                core.TypeIndex(2),
+                            ),
+                        ),
+                    ),
+                    core.CompositeType(
+                        core.LoopGuard.as_type(),
+                        core.CountableTypeGroup(
+                            core.IntBoolean.as_type(),
+                            core.UnionType(
+                                core.TypeIndex(2),
+                                core.CompositeType(
+                                    core.DefaultGroup.as_type(),
+                                    core.RestTypeGroup(
+                                        core.UnionType(
+                                            core.TypeIndex(2),
+                                            core.CompositeType(
+                                                core.TypeIndex(1),
+                                                core.OptionalTypeGroup(
+                                                    core.TypeIndex(2),
+                                                ),
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
                 ),
                 core.If(
                     core.IsEmpty(core.Param.from_int(1)),
@@ -549,6 +636,16 @@ def test_control_flow() -> list[full_state.FullState]:
         scratches=scratches,
         args_groups=args_groups,
         scratch_idx=index+1,
+        new_scratch=core.Optional(
+            core.DefaultGroup(core.Integer(0), core.Optional(core.Integer(9)))
+        ),
+    )
+    scratches = run(
+        env=env,
+        state_meta=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+        scratch_idx=index+2,
         new_scratch=core.Optional(
             core.DefaultGroup(core.Integer(0), core.Optional(core.Integer(9)))
         ),

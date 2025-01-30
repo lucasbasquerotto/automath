@@ -588,7 +588,6 @@ class IType(INode, ABC):
 class IBasicType(IType, ABC):
     pass
 
-
 class TypeNode(BaseNode, IBasicType, IFunction, ISpecialValue, typing.Generic[T], IInstantiable):
 
     @classmethod
@@ -1487,11 +1486,12 @@ class AliasInfo(
         base_group = self.alias_group_base.apply().cast(TypeAliasGroup)
         alias = type_index.find_in_node(base_group).value_or_raise.as_node.cast(TypeAlias)
         base_type = alias.child
-        new_self = base_type.verify(new_type, alias_info=self)
-        actual_group = new_self.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
+        if base_type.accepts(new_type) is False:
+            raise InvalidNodeException(TypeAcceptExceptionInfo(base_type, new_type))
+        actual_group = self.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
         full_type = IntersectionType(base_type, new_type)
         actual_group = actual_group.define(type_index=type_index, new_type=full_type)
-        return new_self.func(base_group, actual_group)
+        return self.func(base_group, actual_group)
 
     def apply(self, protocol: Protocol) -> Protocol:
         self_group = self.alias_group_base.apply().cast(TypeAliasGroup)
@@ -1554,6 +1554,10 @@ class TypeIndex(NodeArgBaseIndex, IType, IInstantiable):
             alias_info = alias_info.define(self, result_type)
         return True, alias_info
 
+    def actual_type(self, alias_info: AliasInfo) -> IOptional[IType]:
+        actual_group = alias_info.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
+        actual_opt = self.find_in_node(actual_group).value_or_raise.as_node.cast(IOptional[IType])
+        return actual_opt
 
 class Protocol(
     InheritableNode,
@@ -1699,6 +1703,63 @@ class Protocol(
 ########################## TYPES ##########################
 ###########################################################
 
+class Type(InheritableNode, IBasicType, ISingleChild[IType], IInstantiable):
+
+    idx_type = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            UnionType(TypeNode.as_type(), TypeIndex.as_type()),
+        ))
+
+    @property
+    def type(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_type)
+
+    @property
+    def child(self) -> IType:
+        return self.type.apply().cast(IType)
+
+    def accepted_by(self, outer_type: IType) -> bool | None:
+        if isinstance(outer_type, TypeNode):
+            return isinstance(self, outer_type.type)
+        return outer_type.accepts(self)
+
+    def accepts(self, inner_type: IType) -> bool | None:
+        if isinstance(inner_type, Type):
+            my_type = self.type.apply().cast(IType)
+            inner_sub_type = inner_type.type.apply().cast(IType)
+            if isinstance(my_type, TypeNode) and isinstance(inner_sub_type, TypeNode):
+                return issubclass(inner_sub_type.type, my_type.type)
+            return None
+        if isinstance(inner_type, TypeIndex):
+            return None
+        if isinstance(inner_type, TypeNode):
+            my_type = self.type.apply().cast(IType)
+            if isinstance(my_type, TypeNode):
+                return my_type == TypeNode(INode)
+            assert isinstance(my_type, TypeIndex)
+            return None
+        return False
+
+    def valid(
+        self,
+        instance: INode,
+        alias_info: AliasInfo,
+    ) -> tuple[bool | None, AliasInfo]:
+        my_type = self.type.apply().cast(IType)
+        if isinstance(my_type, TypeNode):
+            if isinstance(instance, TypeNode) or isinstance(instance, TypeIndex):
+                return my_type.accepts(instance), alias_info
+            return False, alias_info
+        if isinstance(my_type, TypeIndex):
+            valid, alias_info = my_type.valid(instance, alias_info=alias_info)
+            actual_type = my_type.actual_type(alias_info).value_or_raise
+            assert isinstance(actual_type, TypeNode)
+            return valid, alias_info
+        return False, alias_info
+
 class IComplexType(IType, ABC):
 
     def accepted_by(self, outer_type: IType) -> bool | None:
@@ -1815,7 +1876,7 @@ class CompositeType(InheritableNode, IComplexType, IInstantiable):
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
-            TypeNode(TypeNode),
+            UnionType(TypeNode.as_type(), TypeIndex.as_type()),
             UnionType(IBaseTypeGroup.as_type(), Void.as_type()),
         ))
 
