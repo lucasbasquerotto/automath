@@ -156,14 +156,17 @@ def test_control_flow() -> list[full_state.FullState]:
                         core.TypeAlias(
                             core.IInt.as_type(),
                         ),
-                    ),
-                    core.CountableTypeGroup(
-                        core.CompositeType(
-                            core.TypeIndex(1),
-                            core.OptionalTypeGroup(
-                                core.TypeIndex(2),
+                        core.TypeAlias(
+                            core.CompositeType(
+                                core.TypeIndex(1),
+                                core.OptionalTypeGroup(
+                                    core.TypeIndex(2),
+                                ),
                             ),
                         ),
+                    ),
+                    core.CountableTypeGroup(
+                        core.TypeIndex(3),
                     ),
                     core.CompositeType(
                         core.LoopGuard.as_type(),
@@ -176,12 +179,7 @@ def test_control_flow() -> list[full_state.FullState]:
                                     core.RestTypeGroup(
                                         core.UnionType(
                                             core.TypeIndex(2),
-                                            core.CompositeType(
-                                                core.TypeIndex(1),
-                                                core.OptionalTypeGroup(
-                                                    core.TypeIndex(2),
-                                                ),
-                                            ),
+                                            core.TypeIndex(3),
                                         ),
                                     ),
                                 ),

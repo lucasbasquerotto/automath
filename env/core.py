@@ -582,7 +582,7 @@ class IType(INode, ABC):
     ) -> AliasInfo:
         valid, alias_info = self.valid(instance, alias_info)
         if valid is False:
-            raise InvalidNodeException(TypeExceptionInfo(self, instance))
+            raise InvalidNodeException(TypeExceptionInfo(self, instance, alias_info))
         return alias_info
 
 class IBasicType(IType, ABC):
@@ -1311,12 +1311,12 @@ class CountableTypeGroup(
                 t_arg = self.args[i]
                 if not isinstance(arg, INode):
                     if raise_on_invalid:
-                        raise InvalidNodeException(TypeExceptionInfo(t_arg, values))
+                        raise InvalidNodeException(TypeExceptionInfo(t_arg, values, alias_info))
                     return False, alias_info
                 valid, alias_info = t_arg.valid(arg, alias_info=alias_info)
                 if valid is False:
                     if raise_on_invalid:
-                        raise InvalidNodeException(TypeExceptionInfo(t_arg, arg))
+                        raise InvalidNodeException(TypeExceptionInfo(t_arg, arg, alias_info))
                     return valid, alias_info
 
         if len(args) != len(self.args):
@@ -1362,12 +1362,12 @@ class SingleValueTypeGroup(
             if arg is not None:
                 if not isinstance(arg, INode):
                     if raise_on_invalid:
-                        raise InvalidNodeException(TypeExceptionInfo(t_arg, values))
+                        raise InvalidNodeException(TypeExceptionInfo(t_arg, values, alias_info))
                     return False, alias_info
                 valid, alias_info = t_arg.valid(arg, alias_info=alias_info)
                 if valid is False:
                     if raise_on_invalid:
-                        raise InvalidNodeException(TypeExceptionInfo(t_arg, arg))
+                        raise InvalidNodeException(TypeExceptionInfo(t_arg, arg, alias_info))
                     return valid, alias_info
 
         return True, alias_info
@@ -1417,7 +1417,7 @@ class TypeAliasGroup(
             index = i + 1
             arg = arg_aux.as_node.cast(TypeAlias)
             inner_idxs = sorted(arg.as_node.find(TypeIndex), key=lambda t: t.as_int)
-            invalid_idxs = [idx for idx in inner_idxs if idx.as_int <= index]
+            invalid_idxs = [idx for idx in inner_idxs if idx.as_int >= index]
             if len(invalid_idxs) > 0:
                 invalid_group = DefaultGroup(*invalid_idxs)
                 raise InvalidNodeException(
@@ -1495,8 +1495,8 @@ class AliasInfo(
 
     def apply(self, protocol: Protocol) -> Protocol:
         self_group = self.alias_group_base.apply().cast(TypeAliasGroup)
-        protocol_group = protocol.alias_group.apply().cast(TypeAliasGroup)
-        Eq(self_group, protocol_group).raise_on_not_true()
+        p_alias_group = protocol.alias_group.apply().cast(TypeAliasGroup)
+        Eq(self_group, p_alias_group).raise_on_not_true()
 
         args_group = protocol.arg_group.apply().cast(IBaseTypeGroup)
         result_group = protocol.result.apply().cast(IType)
@@ -1509,6 +1509,7 @@ class AliasInfo(
             args_group = args_group.as_node.replace(index, t).as_node.cast(IBaseTypeGroup)
             result_group = result_group.as_node.replace(index, t).as_node.cast(IType)
 
+        Eq(Integer(len(p_alias_group.as_node.find(TypeIndex))), Integer.zero()).raise_on_not_true()
         Eq(Integer(len(args_group.as_node.find(TypeIndex))), Integer.zero()).raise_on_not_true()
         Eq(Integer(len(result_group.as_node.find(TypeIndex))), Integer.zero()).raise_on_not_true()
 
@@ -2198,12 +2199,14 @@ class TypeExceptionInfo(
 
     idx_type = 1
     idx_node = 2
+    idx_alias_info = 3
 
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup.from_types([
             IType,
             INode,
+            AliasInfo,
         ]))
 
     @property
@@ -2213,6 +2216,10 @@ class TypeExceptionInfo(
     @property
     def node(self):
         return self.inner_arg(self.idx_node)
+
+    @property
+    def alias_info(self):
+        return self.inner_arg(self.idx_alias_info)
 
 class TypeAcceptExceptionInfo(
     InheritableNode,
