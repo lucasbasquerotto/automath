@@ -130,7 +130,7 @@ class GoalAchievedGroup(BaseGroup[IGoalAchieved], IGoalAchieved, IInstantiable):
         return IGoalAchieved
 
     @property
-    def as_bool(self) -> bool | None:
+    def as_bool(self) -> bool:
         return And(*self.args).as_bool
 
 class DynamicGoal(InheritableNode, IDefault, IInstantiable):

@@ -168,7 +168,7 @@ def goal_test():
             assert actual_output_opt == core.Optional(output)
             core.Not(
                 last_history_action.exception.apply().cast(core.IOptional).is_empty()
-            ).raise_on_not_true()
+            ).raise_on_false()
             assert env.full_state.goal_achieved() is False
 
         return env.full_state
@@ -345,7 +345,7 @@ def goal_test():
             assert actual_output_opt == core.Optional(output)
             core.Not(
                 last_history_action.exception.apply().cast(core.IOptional).is_empty()
-            ).raise_on_not_true()
+            ).raise_on_false()
             assert env.full_state.goal_achieved() is False
 
         return env.full_state

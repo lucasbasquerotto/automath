@@ -97,9 +97,9 @@ class VerifyGoalOutput(GeneralAction, IInstantiable):
         if nested_args_indices is not None:
             assert isinstance(nested_args_indices, NestedArgIndexGroup)
             goal_achieved = nested_args_indices.apply(goal_achieved.as_node).cast(IGoalAchieved)
-        Not(goal_achieved).raise_on_not_true()
+        Not(goal_achieved).raise_on_false()
 
-        goal.evaluate(state, node).raise_on_not_true()
+        goal.evaluate(state, node).raise_on_false()
 
         new_meta_info = meta_info.apply_goal_achieved(nested_args_wrapper)
         new_state = state.with_new_args(meta_info=new_meta_info)
@@ -273,9 +273,9 @@ class VerifyDynamicGoalOutput(GeneralAction, IInstantiable):
         if nested_args_indices is not None:
             assert isinstance(nested_args_indices, NestedArgIndexGroup)
             goal_achieved = nested_args_indices.apply(goal_achieved.as_node).cast(IGoalAchieved)
-        Not(goal_achieved).raise_on_not_true()
+        Not(goal_achieved).raise_on_false()
 
-        goal.evaluate(state, node).raise_on_not_true()
+        goal.evaluate(state, node).raise_on_false()
 
         dynamic_goal = dynamic_goal.apply_goal_achieved(nested_args_wrapper)
         new_state = dynamic_goal_index.replace_in_outer_target(
@@ -957,7 +957,7 @@ class RunScratch(
         _, content = old_content.as_node.run(info).as_tuple
 
         _, again = content.as_node.run(info).as_tuple
-        Eq(content, again).raise_on_not_true()
+        Eq(content, again).raise_on_false()
 
         return DefineScratchOutput(scratch_index, Scratch(content))
 
