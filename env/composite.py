@@ -18,16 +18,38 @@ Map: core.FunctionExpr[core.INode] = core.FunctionExpr(
                             core.CountableTypeGroup(
                                 core.CompositeType(
                                     core.DefaultGroup.as_type(),
-                                    core.CountableTypeGroup.from_types([
-                                        core.IIterator,
-                                        core.IFunction,
-                                        core.BaseGroup,
-                                    ]),
+                                    core.CountableTypeGroup(
+                                        core.IIterator.as_type(),
+                                        core.IFunction.as_type(),
+                                        core.BaseGroup.as_type(),
+                                    ),
                                 ),
                             ),
                         ),
                     ),
-                    core.LoopGuard.as_type(),
+                    core.UnionType(
+                        core.CompositeType(
+                            core.LoopGuard.as_type(),
+                            core.CountableTypeGroup(
+                                core.InstanceType(core.IBoolean.true()),
+                                core.CompositeType(
+                                    core.DefaultGroup.as_type(),
+                                    core.CountableTypeGroup(
+                                        core.IIterator.as_type(),
+                                        core.IFunction.as_type(),
+                                        core.BaseGroup.as_type(),
+                                    ),
+                                ),
+                            ),
+                        ),
+                        core.CompositeType(
+                            core.LoopGuard.as_type(),
+                            core.CountableTypeGroup(
+                                core.InstanceType(core.IBoolean.false()),
+                                core.DefaultGroup.as_type(),
+                            ),
+                        ),
+                    ),
                 ),
                 core.InstructionGroup(
                     core.Assign(

@@ -1761,6 +1761,37 @@ class Type(InheritableNode, IBasicType, ISingleChild[IType], IInstantiable):
             return valid, alias_info
         return False, alias_info
 
+class InstanceType(InheritableNode, IBasicType, ISingleChild[INode], IInstantiable):
+
+    idx_instance = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(INode.as_type()))
+
+    @property
+    def instance(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_instance)
+
+    @property
+    def child(self) -> IType:
+        return self.instance.apply().cast(IType)
+
+    def accepted_by(self, outer_type: IType) -> bool | None:
+        if isinstance(outer_type, TypeNode):
+            return outer_type == self.as_node.as_type()
+        return outer_type.accepts(self)
+
+    def accepts(self, inner_type: IType) -> bool | None:
+        return None
+
+    def valid(
+        self,
+        instance: INode,
+        alias_info: AliasInfo,
+    ) -> tuple[bool | None, AliasInfo]:
+        return instance == self.instance.apply().as_node, alias_info
+
 class IComplexType(IType, ABC):
 
     def accepted_by(self, outer_type: IType) -> bool | None:
