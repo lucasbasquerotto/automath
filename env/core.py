@@ -1472,8 +1472,6 @@ class AliasInfo(
         base_group = self.alias_group_base.apply().cast(TypeAliasGroup)
         alias = type_index.find_in_node(base_group).value_or_raise.as_node.cast(TypeAlias)
         base_type = alias.child
-        if not base_type.accepts(new_type):
-            raise InvalidNodeException(TypeAcceptExceptionInfo(base_type, new_type))
         actual_group = self.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
         full_type = IntersectionType(base_type, new_type)
         actual_group = actual_group.define(type_index=type_index, new_type=full_type)
@@ -1508,10 +1506,12 @@ class AliasInfo(
 class TypeIndex(NodeArgBaseIndex, IType, IInstantiable):
 
     def accepted_by(self, outer_type: IType) -> bool:
-        return True
+        if isinstance(outer_type, TypeNode):
+            return outer_type.type == TypeIndex
+        return outer_type.accepts(self)
 
     def accepts(self, inner_type: IType) -> bool:
-        return True
+        return False
 
     def valid(
         self,
