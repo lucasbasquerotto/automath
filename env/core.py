@@ -555,18 +555,19 @@ class BaseNode(IRunnable, ABC):
 
 class IType(INode, ABC):
 
-    def accepts(self, inner_type: IType) -> bool:
-        raise NotImplementedError
-
-    def accepted_by(self, outer_type: IType) -> bool:
-        raise NotImplementedError
-
     def valid(
         self,
         instance: INode,
         alias_info: AliasInfo,
     ) -> tuple[bool, AliasInfo]:
         raise NotImplementedError
+
+    def static_valid(
+        self,
+        instance: INode,
+    ) -> bool:
+        valid, _ = self.valid(instance, AliasInfo.create())
+        return valid
 
     def verify(
         self,
@@ -614,16 +615,6 @@ class TypeNode(BaseNode, IBasicType, IFunction, ISpecialValue, typing.Generic[T]
         t = self.type
         assert issubclass(t, InheritableNode)
         return t.new(*group.as_tuple).as_node.run(info)
-
-    def accepted_by(self, outer_type: IType) -> bool:
-        if isinstance(outer_type, TypeNode):
-            return issubclass(self.type, outer_type.type)
-        return outer_type.accepts(self)
-
-    def accepts(self, inner_type: IType) -> bool:
-        if isinstance(inner_type, TypeNode):
-            return issubclass(inner_type.type, self.type)
-        return inner_type.accepted_by(self)
 
     def valid(
         self,
@@ -805,14 +796,6 @@ class UnknownType(InheritableNode, IBasicType, IDefault, IInstantiable):
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup())
 
-    def accepted_by(self, outer_type: IType) -> bool:
-        if isinstance(outer_type, TypeNode):
-            return False
-        return outer_type.accepts(self)
-
-    def accepts(self, inner_type: IType) -> bool:
-        return True
-
     def valid(
         self,
         instance: INode,
@@ -825,12 +808,6 @@ class InvalidType(InheritableNode, IBasicType, IDefault, IInstantiable):
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup())
-
-    def accepted_by(self, outer_type: IType) -> bool:
-        return False
-
-    def accepts(self, inner_type: IType) -> bool:
-        return False
 
     def valid(
         self,
@@ -1505,14 +1482,6 @@ class AliasInfo(
 
 class TypeIndex(NodeArgBaseIndex, IType, IInstantiable):
 
-    def accepted_by(self, outer_type: IType) -> bool:
-        if isinstance(outer_type, TypeNode):
-            return outer_type.type == TypeIndex
-        return outer_type.accepts(self)
-
-    def accepts(self, inner_type: IType) -> bool:
-        return False
-
     def valid(
         self,
         instance: INode,
@@ -1532,13 +1501,7 @@ class TypeIndex(NodeArgBaseIndex, IType, IInstantiable):
         protocol = alias_info_p.apply(protocol)
         Eq.from_ints(len(protocol.find(TypeIndex)), 0).raise_on_false()
         result_type = protocol.result.apply().cast(IType)
-        if not actual_opt.is_empty().as_bool:
-            actual_type = actual_opt.value_or_raise.as_node.cast(IType)
-            if not result_type.accepts(actual_type):
-                raise InvalidNodeException(
-                    TypeAcceptExceptionInfo(result_type, actual_type))
-        else:
-            alias_info = alias_info.define(self, result_type)
+        alias_info = alias_info.define(self, result_type)
         return True, alias_info
 
     def actual_type(self, alias_info: AliasInfo) -> IOptional[IType]:
@@ -1708,43 +1671,19 @@ class Type(InheritableNode, IBasicType, ISingleChild[IType], IInstantiable):
     def child(self) -> IType:
         return self.type.apply().cast(IType)
 
-    def accepted_by(self, outer_type: IType) -> bool:
-        if isinstance(outer_type, TypeNode):
-            return isinstance(self, outer_type.type)
-        return outer_type.accepts(self)
-
-    def accepts(self, inner_type: IType) -> bool:
-        if isinstance(inner_type, Type):
-            my_type = self.type.apply().cast(IType)
-            inner_sub_type = inner_type.type.apply().cast(IType)
-            if isinstance(my_type, TypeNode) and isinstance(inner_sub_type, TypeNode):
-                return issubclass(inner_sub_type.type, my_type.type)
-            return False
-        if isinstance(inner_type, TypeIndex):
-            return False
-        if isinstance(inner_type, TypeNode):
-            my_type = self.type.apply().cast(IType)
-            if isinstance(my_type, TypeNode):
-                return my_type == TypeNode(INode)
-            assert isinstance(my_type, TypeIndex)
-            return False
-        return False
-
     def valid(
         self,
         instance: INode,
         alias_info: AliasInfo,
     ) -> tuple[bool, AliasInfo]:
         my_type = self.type.apply().cast(IType)
-        if isinstance(my_type, TypeNode):
-            if isinstance(instance, TypeNode) or isinstance(instance, TypeIndex):
-                return my_type.accepts(instance), alias_info
-            return False, alias_info
         if isinstance(my_type, TypeIndex):
-            valid, alias_info = my_type.valid(instance, alias_info=alias_info)
             actual_type = my_type.actual_type(alias_info).value_or_raise
-            assert isinstance(actual_type, TypeNode)
-            return valid, alias_info
+        else:
+            actual_type = my_type
+        assert isinstance(actual_type, TypeNode)
+        if isinstance(instance, TypeNode):
+            return issubclass(instance.type, actual_type.type), alias_info
         return False, alias_info
 
 class InstanceType(InheritableNode, IBasicType, ISingleChild[INode], IInstantiable):
@@ -1763,14 +1702,6 @@ class InstanceType(InheritableNode, IBasicType, ISingleChild[INode], IInstantiab
     def child(self) -> IType:
         return self.instance.apply().cast(IType)
 
-    def accepted_by(self, outer_type: IType) -> bool:
-        if isinstance(outer_type, TypeNode):
-            return outer_type == self.as_node.as_type()
-        return outer_type.accepts(self)
-
-    def accepts(self, inner_type: IType) -> bool:
-        return False
-
     def valid(
         self,
         instance: INode,
@@ -1779,14 +1710,6 @@ class InstanceType(InheritableNode, IBasicType, ISingleChild[INode], IInstantiab
         return instance == self.instance.apply().as_node, alias_info
 
 class IComplexType(IType, ABC):
-
-    def accepted_by(self, outer_type: IType) -> bool:
-        if isinstance(outer_type, IBasicType):
-            return self.accepted_by_basic_type(outer_type)
-        return outer_type.accepts(self)
-
-    def accepted_by_basic_type(self, outer_type: IBasicType) -> bool:
-        raise NotImplementedError
 
     def multi_bool(
         self,
@@ -1805,26 +1728,6 @@ class UnionType(InheritableNode, IComplexType, IInstantiable):
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.rest_protocol(IType.as_type())
-
-    def accepted_by_basic_type(self, outer_type: IBasicType) -> bool:
-        args = [arg for arg in self.args if isinstance(arg, IType)]
-        assert len(args) == len(self.args)
-        items = [outer_type.accepts(t) for t in args]
-        return self.multi_bool(
-            items,
-            any_case=True,
-            all_case=False,
-        )
-
-    def accepts(self, inner_type: IType) -> bool:
-        args = [arg for arg in self.args if isinstance(arg, IType)]
-        assert len(args) == len(self.args)
-        items = [t.accepts(inner_type) for t in args]
-        return self.multi_bool(
-            items,
-            any_case=True,
-            all_case=False,
-        )
 
     def valid(
         self,
@@ -1848,26 +1751,6 @@ class IntersectionType(InheritableNode, IComplexType, IInstantiable):
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.rest_protocol(IType.as_type())
-
-    def accepted_by_basic_type(self, outer_type: IBasicType) -> bool:
-        args = [arg for arg in self.args if isinstance(arg, IType)]
-        assert len(args) == len(self.args)
-        items = [outer_type.accepts(t) for t in args]
-        return self.multi_bool(
-            items,
-            any_case=True,
-            all_case=False,
-        )
-
-    def accepts(self, inner_type: IType) -> bool:
-        args = [arg for arg in self.args if isinstance(arg, IType)]
-        assert len(args) == len(self.args)
-        items = [t.accepts(inner_type) for t in args]
-        return self.multi_bool(
-            items,
-            any_case=False,
-            all_case=True,
-        )
 
     def valid(
         self,
@@ -1905,48 +1788,6 @@ class CompositeType(InheritableNode, IComplexType, IInstantiable):
     @property
     def type_args(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_type_args)
-
-    def accepted_by_basic_type(self, outer_type: IBasicType) -> bool:
-        if isinstance(outer_type, TypeNode):
-            t = self.inner_arg(self.idx_type).apply().as_node.cast(IType)
-            return t.accepted_by(outer_type)
-        return outer_type.accepts(self)
-
-    def accepts(self, inner_type: IType) -> bool:
-        if isinstance(inner_type, CompositeType):
-            t1 = self.inner_arg(self.idx_type).apply().as_node.cast(IType)
-            t2 = inner_type.inner_arg(self.idx_type).apply().as_node.cast(IType)
-            if t1 != t2:
-                return False
-            args1 = self.inner_arg(self.idx_type_args).apply()
-            if args1 == Void():
-                return True
-            assert isinstance(args1, IBaseTypeGroup)
-            args2 = inner_type.inner_arg(self.idx_type_args).apply()
-            if not isinstance(args2, IBaseTypeGroup):
-                return False
-            if isinstance(args1, CountableTypeGroup):
-                if not isinstance(args2, CountableTypeGroup):
-                    return False
-                if len(args1.args) != len(args2.args):
-                    return False
-                for t1, t2 in zip(args1.args, args2.args):
-                    if not t1.accepts(t2):
-                        return False
-                return True
-            assert isinstance(args1, SingleValueTypeGroup)
-            if isinstance(args2, CountableTypeGroup):
-                for t2 in args2.args:
-                    if not args1.child.accepts(t2):
-                        return False
-            else:
-                assert isinstance(args2, SingleValueTypeGroup)
-                return args1.child.accepts(args2.child)
-            return True
-        if isinstance(inner_type, TypeNode):
-            t = self.inner_arg(self.idx_type).apply().as_node.cast(IType)
-            return t.accepts(inner_type)
-        return inner_type.accepted_by(self)
 
     def valid(
         self,

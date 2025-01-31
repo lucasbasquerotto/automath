@@ -14,6 +14,7 @@ from env.core import (
     BaseGroup,
     Integer,
     TypeNode,
+    Type,
     Optional,
     BaseInt,
     IOptional,
@@ -151,12 +152,29 @@ class SubtypeOuterGroup(InheritableNode, IWrapper, IInstantiable, typing.Generic
     def from_all_types(cls, common_type: TypeNode[T], all_types: GeneralTypeGroup):
         assert isinstance(common_type, TypeNode)
         assert isinstance(all_types, GeneralTypeGroup)
-        types = IntersectionType(common_type, IInstantiable.as_type(), BaseNode.as_type())
+        full_type = IntersectionType(
+            Type(common_type),
+            Type(IInstantiable.as_type()),
+            Type(BaseNode.as_type()),
+        )
         subtypes = GeneralTypeGroup.from_items(
             [
                 item
                 for item in all_types.as_tuple
-                if types.accepts(item.type.as_type())
+                if full_type.static_valid(item)
+            ]
+        )
+        assert subtypes == GeneralTypeGroup.from_items(
+            [
+                item
+                for item in all_types.as_tuple
+                if (
+                    issubclass(item.type, common_type.type)
+                    and
+                    issubclass(item.type, IInstantiable)
+                    and
+                    issubclass(item.type, BaseNode)
+                )
             ]
         )
         return cls(common_type, subtypes)
