@@ -266,9 +266,6 @@ class IDynamic(IRunnable, ABC):
 
 class IBoolean(INode):
 
-    _true: IBoolean | None = None
-    _false: IBoolean | None = None
-
     @property
     def as_bool(self) -> bool:
         raise NotImplementedError(self.__class__)
@@ -292,19 +289,17 @@ class IBoolean(INode):
 
     @classmethod
     def true(cls) -> IBoolean:
-        t = cls._true
-        if t is None:
-            t = IntBoolean.create_true()
-            cls._true = t
-        return t
+        return IntBoolean.create_true()
 
     @classmethod
     def false(cls) -> IBoolean:
-        f = cls._false
-        if f is None:
-            f = IntBoolean.create()
-            cls._false = f
-        return f
+        return IntBoolean.create()
+
+    @classmethod
+    def from_bool(cls, value: bool) -> IBoolean:
+        if value:
+            return cls.true()
+        return cls.false()
 
 class ITypedIndex(INodeIndex, typing.Generic[O, T], ABC):
 
@@ -1953,7 +1948,27 @@ class BaseIntBoolean(BaseInt, IBoolean, IDefault, ABC):
         raise InvalidNodeException(BooleanExceptionInfo(self))
 
 class IntBoolean(BaseIntBoolean, IInstantiable):
-    pass
+
+    _true: IntBoolean | None = None
+    _false: IntBoolean | None = None
+
+    @staticmethod
+    def __new__(cls: type[IntBoolean], value: int) -> IntBoolean:
+        if value == 0:
+            if cls._false is None:
+                instance = super().__new__(cls)
+                instance.__class__.__init__(instance, value)
+                cls._false = instance
+            return cls._false
+        if value == 1:
+            if cls._true is None:
+                instance = super().__new__(cls)
+                instance.__class__.__init__(instance, value)
+                cls._true = instance
+            return cls._true
+        instance = super().__new__(cls)
+        instance.__class__.__init__(instance, value)
+        raise InvalidNodeException(BooleanExceptionInfo(instance))
 
 class RunnableBoolean(InheritableNode, IDynamic, IBoolean, ABC):
 
