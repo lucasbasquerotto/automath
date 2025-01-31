@@ -1488,14 +1488,10 @@ class TypeIndex(NodeArgBaseIndex, IType, IInstantiable):
         alias_info: AliasInfo,
     ) -> tuple[bool, AliasInfo]:
         base_group = alias_info.alias_group_base.apply().cast(TypeAliasGroup)
-        actual_group = alias_info.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
         type_alias = self.find_in_node(base_group).value_or_raise.as_node.cast(TypeAlias)
         valid, alias_info = type_alias.child.valid(instance, alias_info=alias_info)
         if not valid:
             return valid, alias_info
-        actual_opt = self.find_in_node(
-            actual_group
-        ).value_or_raise.as_node.cast(IOptional[INode])
         protocol = instance.as_node.protocol()
         alias_info_p = protocol.verify(instance)
         protocol = alias_info_p.apply(protocol)
