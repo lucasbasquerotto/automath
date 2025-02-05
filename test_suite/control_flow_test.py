@@ -667,7 +667,6 @@ def test_control_flow() -> list[full_state.FullState]:
                                         # core.Type(core.DoubleIntBooleanNode.as_type()),
                                         core.TypeNode.as_type(),
                                     ),
-                                    # core.DefaultGroup.as_type(),
                                     core.CompositeType(
                                         core.DefaultGroup.as_type(),
                                         core.RestTypeGroup(
@@ -675,46 +674,22 @@ def test_control_flow() -> list[full_state.FullState]:
                                         ),
                                     ),
                                 ),
-                                core.TypeEnforcer(
-                                    core.CompositeType(
-                                        core.DefaultGroup.as_type(),
-                                        core.RestTypeGroup(
-                                            core.IBoolean.as_type(),
-                                        ),
+                                core.FunctionCall(
+                                    core.Var(
+                                        core.NearParentScope.from_int(3),
+                                        core.Integer(3),
                                     ),
-                                    core.FunctionCall(
-                                        core.Var(
-                                            core.NearParentScope.from_int(3),
-                                            core.Integer(3),
+                                    core.DefaultGroup(
+                                        core.Param(
+                                            core.NearParentScope.from_int(1),
+                                            core.Integer(1),
                                         ),
-                                        core.DefaultGroup(
-                                            core.Param(
-                                                core.NearParentScope.from_int(1),
-                                                core.Integer(1),
-                                            ),
-                                            core.Param(
-                                                core.NearParentScope.from_int(2),
-                                                core.Integer(2),
-                                            ),
+                                        core.Param(
+                                            core.NearParentScope.from_int(2),
+                                            core.Integer(2),
                                         ),
                                     ),
                                 ),
-                                # core.FunctionCall(
-                                #     core.Var(
-                                #         core.NearParentScope.from_int(3),
-                                #         core.Integer(3),
-                                #     ),
-                                #     core.DefaultGroup(
-                                #         core.Param(
-                                #             core.NearParentScope.from_int(1),
-                                #             core.Integer(1),
-                                #         ),
-                                #         core.Param(
-                                #             core.NearParentScope.from_int(2),
-                                #             core.Integer(2),
-                                #         ),
-                                #     ),
-                                # ),
                             ),
                         ),
                     ),

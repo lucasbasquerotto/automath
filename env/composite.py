@@ -23,9 +23,9 @@ Map: core.FunctionExpr[core.INode] = core.FunctionExpr(
             ),
         ),
         core.CompositeType(
-            core.BaseGroup.as_type(),
+            core.DefaultGroup.as_type(),
             core.RestTypeGroup(
-                core.TypeIndex(2),
+                core.LazyTypeIndex(2),
             ),
         ),
     ),

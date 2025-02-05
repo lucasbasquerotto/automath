@@ -600,7 +600,7 @@ class IType(INode, ABC):
 
         while len(node_stack) > 0:
             my_node, node_to_verify = node_stack.pop()
-            if isinstance(my_node, TypeIndex):
+            if isinstance(my_node, BaseTypeIndex):
                 if not isinstance(node_to_verify, IType):
                     return False, alias_info
                 alias_info = alias_info.define(my_node, node_to_verify)
@@ -1223,13 +1223,25 @@ class BaseIntGroup(BaseGroup[IInt], ABC):
         return IInt
 
     @classmethod
+    def create_item(cls, value: int):
+        return Integer(value)
+
+    @classmethod
     def from_ints(cls, indices: typing.Sequence[int]) -> typing.Self:
-        return cls(*[Integer(i) for i in indices])
+        return cls(*[cls.create_item(i) for i in indices])
 
 class IntGroup(BaseIntGroup, IInstantiable):
     pass
 
 class NestedArgIndexGroup(BaseIntGroup, IInstantiable):
+
+    @classmethod
+    def item_type(cls):
+        return NodeArgIndex
+
+    @classmethod
+    def create_item(cls, value: int):
+        return NodeArgIndex(value)
 
     def apply(self, node: BaseNode) -> BaseNode:
         args_indices = [arg.as_int for arg in self.args]
@@ -1442,7 +1454,7 @@ class TypeAliasGroup(
         for i, arg_aux in enumerate(self.args):
             index = i + 1
             arg = arg_aux.as_node.cast(TypeAlias)
-            inner_idxs = sorted(arg.as_node.find(TypeIndex), key=lambda t: t.as_int)
+            inner_idxs = sorted(arg.as_node.find(BaseTypeIndex), key=lambda t: t.as_int)
             invalid_idxs = [idx for idx in inner_idxs if idx.as_int >= index]
             if len(invalid_idxs) > 0:
                 invalid_group = DefaultGroup(*invalid_idxs)
@@ -1458,7 +1470,7 @@ class TypeAliasOptionalGroup(
     def init(cls, origin_group: TypeAliasGroup) -> typing.Self:
         return cls(*[Optional()] * len(origin_group.args))
 
-    def define(self, type_index: TypeIndex, new_type: IType) -> typing.Self:
+    def define(self, type_index: BaseTypeIndex, new_type: IType) -> typing.Self:
         old_type_opt = type_index.find_in_node(self).value_or_raise.as_node.cast(IOptional)
 
         if old_type_opt.is_empty().as_bool:
@@ -1508,7 +1520,7 @@ class AliasInfo(
     def with_node(cls, node: TypeAliasGroup) -> typing.Self:
         return cls(node, TypeAliasOptionalGroup.init(node))
 
-    def define(self, type_index: TypeIndex, new_type: IType) -> AliasInfo:
+    def define(self, type_index: BaseTypeIndex, new_type: IType) -> AliasInfo:
         base_group = self.alias_group_base.apply().cast(TypeAliasGroup)
         alias = type_index.find_in_node(base_group).value_or_raise.as_node.cast(TypeAlias)
         base_type = alias.child
@@ -1529,13 +1541,16 @@ class AliasInfo(
 
         for i, (alias, actual) in enumerate(zip(self_group.as_tuple, actual_group.as_tuple)):
             index = TypeIndex(i + 1)
+            index_lazy = LazyTypeIndex(i + 1)
             t = actual.value_or_else(alias.child) if lax else actual.value_or_raise
             args_group = args_group.as_node.replace(index, t).as_node.cast(IBaseTypeGroup)
+            args_group = args_group.as_node.replace(index_lazy, t).as_node.cast(IBaseTypeGroup)
             result_group = result_group.as_node.replace(index, t).as_node.cast(IType)
+            result_group = result_group.as_node.replace(index_lazy, t).as_node.cast(IType)
 
-        Eq(Integer(len(p_alias_group.as_node.find(TypeIndex))), Integer.zero()).raise_on_false()
-        Eq(Integer(len(args_group.as_node.find(TypeIndex))), Integer.zero()).raise_on_false()
-        Eq(Integer(len(result_group.as_node.find(TypeIndex))), Integer.zero()).raise_on_false()
+        Eq(Integer(len(p_alias_group.as_node.find(BaseTypeIndex))), Integer.zero()).raise_on_false()
+        Eq(Integer(len(args_group.as_node.find(BaseTypeIndex))), Integer.zero()).raise_on_false()
+        Eq(Integer(len(result_group.as_node.find(BaseTypeIndex))), Integer.zero()).raise_on_false()
 
         return Protocol.with_args(
             alias_group=TypeAliasGroup(),
@@ -1548,12 +1563,22 @@ class AliasInfo(
         actual_group = self.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
         for i, (alias, actual) in enumerate(zip(base_group.as_tuple, actual_group.as_tuple)):
             index = TypeIndex(i + 1)
+            lazy_index = LazyTypeIndex(i + 1)
             t = actual.value_or_else(alias.child) if lax else actual.value_or_raise
             node = node.as_node.replace(index, t)
-        Eq(Integer(len(node.as_node.find(TypeIndex))), Integer.zero()).raise_on_false()
+            node = node.as_node.replace(lazy_index, t)
+        Eq(Integer(len(node.as_node.find(BaseTypeIndex))), Integer.zero()).raise_on_false()
         return node
 
-class TypeIndex(NodeArgBaseIndex, IType, IInstantiable):
+class BaseTypeIndex(NodeArgBaseIndex, IType, ABC):
+
+    def define(
+        self,
+        protocol: Protocol,
+        instance: INode,
+        alias_info: AliasInfo,
+    ) -> AliasInfo:
+        raise NotImplementedError
 
     def valid(
         self,
@@ -1568,15 +1593,41 @@ class TypeIndex(NodeArgBaseIndex, IType, IInstantiable):
         protocol = instance.as_node.protocol()
         alias_info_p = protocol.verify(instance)
         protocol = alias_info_p.apply(protocol)
-        Eq.from_ints(len(protocol.find(TypeIndex)), 0).raise_on_false()
-        result_type = protocol.result.apply().cast(IType)
-        alias_info = alias_info.define(self, result_type)
+        Eq.from_ints(len(protocol.find(BaseTypeIndex)), 0).raise_on_false()
+        alias_info = self.define(
+            protocol=protocol,
+            instance=instance,
+            alias_info=alias_info)
         return True, alias_info
 
     def actual_type(self, alias_info: AliasInfo) -> IOptional[IType]:
         actual_group = alias_info.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
         actual_opt = self.find_in_node(actual_group).value_or_raise.as_node.cast(IOptional[IType])
         return actual_opt
+
+class TypeIndex(BaseTypeIndex, IInstantiable):
+
+    def define(
+        self,
+        protocol: Protocol,
+        instance: INode,
+        alias_info: AliasInfo,
+    ) -> AliasInfo:
+        result_type = protocol.result.apply().cast(IType)
+        alias_info = alias_info.define(self, result_type)
+        return alias_info
+
+class LazyTypeIndex(BaseTypeIndex, IInstantiable):
+
+    def define(
+        self,
+        protocol: Protocol,
+        instance: INode,
+        alias_info: AliasInfo,
+    ) -> AliasInfo:
+        actual_type = self.actual_type(alias_info).value_or_raise.as_node.cast(IType)
+        actual_type.verify(instance, alias_info=alias_info)
+        return alias_info
 
 class Protocol(
     InheritableNode,
@@ -1690,7 +1741,7 @@ class Protocol(
             ])
         )
 
-    def verify(self, instance: INode):
+    def verify(self, instance: INode) -> AliasInfo:
         if isinstance(instance, InheritableNode):
             args = DefaultGroup(*instance.args)
             alias_info = self.verify_args(args)
@@ -1699,6 +1750,10 @@ class Protocol(
         else:
             instance.as_node.strict_validate()
             return AliasInfo.create()
+
+    def fill_aliases(self, instance: INode) -> 'Protocol':
+        alias_info = self.verify(instance)
+        return alias_info.apply(self)
 
     def verify_args(self, args: BaseGroup) -> AliasInfo:
         return self.verify_optional_args(args.to_optional_group())
@@ -1740,7 +1795,7 @@ class Type(InheritableNode, IBasicType, ISingleChild[IType], IInstantiable):
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
-            UnionType(TypeNode.as_type(), TypeIndex.as_type()),
+            UnionType(TypeNode.as_type(), BaseTypeIndex.as_type()),
         ))
 
     @property
@@ -1757,7 +1812,7 @@ class Type(InheritableNode, IBasicType, ISingleChild[IType], IInstantiable):
         alias_info: AliasInfo,
     ) -> tuple[bool, AliasInfo]:
         my_type = self.type.apply().cast(IType)
-        if isinstance(my_type, TypeIndex):
+        if isinstance(my_type, BaseTypeIndex):
             actual_type = my_type.actual_type(alias_info).value_or_raise
         else:
             actual_type = my_type
@@ -1955,7 +2010,7 @@ class CompositeType(InheritableNode, IComplexType, IInstantiable):
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
-            UnionType(TypeNode.as_type(), TypeIndex.as_type()),
+            UnionType(TypeNode.as_type(), BaseTypeIndex.as_type()),
             UnionType(IBaseTypeGroup.as_type(), Void.as_type()),
         ))
 
@@ -2066,7 +2121,6 @@ class ScopedFunctionBase(
         if not info.is_future():
             result_type.verify(node, alias_info=AliasInfo.create())
             assert alias_info is not None
-            #TODO print
             protocol_arg.verify_result(node, alias_info=alias_info)
 
         return RunInfoResult.with_args(
@@ -2342,11 +2396,11 @@ class TypeIndexExceptionInfo(
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
-            TypeIndex.as_type(),
+            BaseTypeIndex.as_type(),
             TypeAlias.as_type(),
             CompositeType(
                 DefaultGroup.as_type(),
-                RestTypeGroup.with_node(TypeIndex.as_type()),
+                RestTypeGroup.with_node(BaseTypeIndex.as_type()),
             )
         ))
 
@@ -3161,7 +3215,7 @@ class ControlFlowBaseNode(InheritableNode, IDynamic, ABC):
         alias_group_actual = alias_info.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
         p_arg_group = protocol.arg_group.apply().cast(IBaseTypeGroup)
         p_result = protocol.result.apply().cast(IType)
-        for alias in p_arg_group.as_node.find(TypeIndex):
+        for alias in p_arg_group.as_node.find(BaseTypeIndex):
             value = alias_group_actual.as_tuple[alias.as_int-1]
             if value.is_empty().as_bool:
                 p_result = p_result.as_node.replace(alias, InvalidType()).as_node.cast(IType)
@@ -3496,7 +3550,18 @@ class InnerArg(ControlFlowBaseNode, IInstantiable):
 
         result = arg_index.find_in_node(node).value_or_raise
 
-        result = info.to_result(original=self, result=result)
+        node_protocol = node.protocol().fill_aliases(node)
+        p_group = node_protocol.arg_group.apply().cast(IBaseTypeGroup)
+        if isinstance(p_group, CountableTypeGroup):
+            arg_type = arg_index.find_in_node(p_group).value_or_raise.as_node.cast(IType)
+        else:
+            assert isinstance(p_group, SingleValueTypeGroup)
+            arg_type = p_group.type_node.apply().cast(IType)
+
+        result = RunInfoResult.with_args(
+            run_info=info,
+            return_value=result,
+            return_type=arg_type)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [node, arg_index]
         )
@@ -3533,15 +3598,19 @@ class NestedArg(ControlFlowBaseNode, IInstantiable):
         return self.inner_arg(self.idx_arg_indices)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux, _ = self.node.apply().run(info).as_tuple
-        node = node_aux.as_node.cast(INode)
+        info, root_node, result_type = self.node.apply().run(info).as_tuple
+        node = root_node
 
         info, node_aux, _ = self.arg_indices.apply().run(info).as_tuple
         arg_indices = node_aux.as_node.cast(NestedArgIndexGroup)
 
-        result = arg_indices.apply(node)
+        for arg_index in arg_indices.as_tuple:
+            info, node, result_type = InnerArg(node, arg_index).run(info).as_tuple
 
-        result = info.to_result(original=self, result=result)
+        result = RunInfoResult.with_args(
+            run_info=info,
+            return_value=node,
+            return_type=result_type)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [node, arg_indices]
         )

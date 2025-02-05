@@ -11,6 +11,6 @@ MIN_EXPLORATION_RATE = 0.01
 
 # Logging Settings
 LOGGER = "automath"
-# LOG_LEVEL = "INFO"
-LOG_LEVEL = "DEBUG"
+LOG_LEVEL = "INFO"
+# LOG_LEVEL = "DEBUG"
 LOG_FILE = "agent.log"
