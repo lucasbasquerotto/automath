@@ -1,12 +1,33 @@
 from env import core
 
 Map: core.FunctionExpr[core.INode] = core.FunctionExpr(
-    core.Protocol.with_args(
-        core.CountableTypeGroup(
-            core.BaseGroup.as_type(),
-            core.IFunction.as_type(),
+    core.Protocol(
+        core.TypeAliasGroup(
+            core.TypeAlias(
+                core.INode.as_type()
+            ),
+            core.TypeAlias(
+                core.INode.as_type()
+            ),
         ),
-        core.BaseGroup.as_type(),
+        core.CountableTypeGroup(
+            core.CompositeType(
+                core.BaseGroup.as_type(),
+                core.RestTypeGroup(
+                    core.TypeIndex(1),
+                ),
+            ),
+            core.FunctionType(
+                core.CountableTypeGroup(core.TypeIndex(1)),
+                core.TypeIndex(2),
+            ),
+        ),
+        core.CompositeType(
+            core.BaseGroup.as_type(),
+            core.RestTypeGroup(
+                core.TypeIndex(2),
+            ),
+        ),
     ),
     core.InnerArg(
         core.Loop(
