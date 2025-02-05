@@ -468,16 +468,25 @@ def test_control_flow() -> list[full_state.FullState]:
                 core.FunctionCall(
                     composite.Map,
                     core.DefaultGroup(
-                        core.DefaultGroup(
-                            core.IntGroup.from_ints([1, 2]),
-                        ),
                         core.FunctionExpr(
                             core.Protocol(
                                 core.TypeAliasGroup(),
                                 core.CountableTypeGroup(
-                                    core.IntGroup.as_type(),
+                                    core.CompositeType(
+                                        core.IntGroup.as_type(),
+                                        core.CountableTypeGroup(
+                                            core.Integer.as_type(),
+                                            core.Integer.as_type(),
+                                        ),
+                                    ),
                                 ),
-                                core.DefaultGroup.as_type(),
+                                core.CompositeType(
+                                    core.DefaultGroup.as_type(),
+                                    core.CountableTypeGroup(
+                                        core.IntBoolean.as_type(),
+                                        core.IntBoolean.as_type(),
+                                    ),
+                                ),
                             ),
                             core.DefaultGroup(
                                 core.FunctionCall(
@@ -489,6 +498,9 @@ def test_control_flow() -> list[full_state.FullState]:
                                     core.Param.from_int(1),
                                 ),
                             ),
+                        ),
+                        core.DefaultGroup(
+                            core.IntGroup.from_ints([1, 2]),
                         ),
                     ),
                 ),
@@ -504,11 +516,6 @@ def test_control_flow() -> list[full_state.FullState]:
                 core.FunctionCall(
                     composite.Map,
                     core.DefaultGroup(
-                        core.DefaultGroup(
-                            core.IntGroup.from_ints([1, 2]),
-                            core.IntGroup.from_ints([2, 2]),
-                            core.IntGroup.from_ints([2, 1]),
-                        ),
                         core.FunctionExpr(
                             core.Protocol(
                                 core.TypeAliasGroup(),
@@ -528,6 +535,11 @@ def test_control_flow() -> list[full_state.FullState]:
                                 ),
                             ),
                         ),
+                        core.DefaultGroup(
+                            core.IntGroup.from_ints([1, 2]),
+                            core.IntGroup.from_ints([2, 2]),
+                            core.IntGroup.from_ints([2, 1]),
+                        ),
                     ),
                 ),
             ),
@@ -543,10 +555,6 @@ def test_control_flow() -> list[full_state.FullState]:
                     core.FunctionCall(
                         composite.Map,
                         core.DefaultGroup(
-                            core.Param(
-                                core.NearParentScope.from_int(1),
-                                core.Integer(2),
-                            ),
                             core.FunctionWrapper.with_node(
                                 core.FunctionCall(
                                     core.Param(
@@ -559,6 +567,10 @@ def test_control_flow() -> list[full_state.FullState]:
                                     ),
                                 ),
                             ),
+                            core.Param(
+                                core.NearParentScope.from_int(1),
+                                core.Integer(2),
+                            ),
                         ),
                     ),
                 ),
@@ -570,10 +582,6 @@ def test_control_flow() -> list[full_state.FullState]:
                     core.FunctionCall(
                         composite.Map,
                         core.DefaultGroup(
-                            core.Param(
-                                core.NearParentScope.from_int(1),
-                                core.Integer(1),
-                            ),
                             core.FunctionWrapper.with_node(
                                 core.FunctionCall(
                                     core.Var(
@@ -591,6 +599,10 @@ def test_control_flow() -> list[full_state.FullState]:
                                         ),
                                     ),
                                 ),
+                            ),
+                            core.Param(
+                                core.NearParentScope.from_int(1),
+                                core.Integer(1),
                             ),
                         ),
                     ),
@@ -623,10 +635,6 @@ def test_control_flow() -> list[full_state.FullState]:
                     core.FunctionCall(
                         composite.Map,
                         core.DefaultGroup(
-                            core.Param(
-                                core.NearParentScope.from_int(1),
-                                core.Integer(2),
-                            ),
                             core.FunctionWrapper(
                                 core.Protocol(
                                     core.TypeAliasGroup(),
@@ -646,6 +654,10 @@ def test_control_flow() -> list[full_state.FullState]:
                                     ),
                                 ),
                             ),
+                            core.Param(
+                                core.NearParentScope.from_int(1),
+                                core.Integer(2),
+                            ),
                         ),
                     ),
                 ),
@@ -656,16 +668,11 @@ def test_control_flow() -> list[full_state.FullState]:
                     core.FunctionCall(
                         composite.Map,
                         core.DefaultGroup(
-                            core.Param(
-                                core.NearParentScope.from_int(1),
-                                core.Integer(1),
-                            ),
                             core.FunctionWrapper(
                                 core.Protocol(
                                     core.TypeAliasGroup(),
                                     core.CountableTypeGroup(
-                                        # core.Type(core.DoubleIntBooleanNode.as_type()),
-                                        core.TypeNode.as_type(),
+                                        core.Type(core.DoubleIntBooleanNode.as_type()),
                                     ),
                                     core.CompositeType(
                                         core.DefaultGroup.as_type(),
@@ -690,6 +697,10 @@ def test_control_flow() -> list[full_state.FullState]:
                                         ),
                                     ),
                                 ),
+                            ),
+                            core.Param(
+                                core.NearParentScope.from_int(1),
+                                core.Integer(1),
                             ),
                         ),
                     ),
@@ -860,20 +871,12 @@ def test_control_flow() -> list[full_state.FullState]:
             core.FunctionCall(
                 composite.Map,
                 core.DefaultGroup(
-                    core.Param(
-                        core.NearParentScope.from_int(1),
-                        core.Integer(1),
-                    ),
                     core.FunctionWrapper.with_node(
                         core.FunctionCall(
                             core.FunctionWrapper.with_node(
                                 core.FunctionCall(
                                     composite.Map,
                                     core.DefaultGroup(
-                                        core.Param(
-                                            core.NearParentScope.from_int(1),
-                                            core.Integer(2),
-                                        ),
                                         core.FunctionWrapper.with_node(
                                             core.FunctionCall(
                                                 core.Param(
@@ -885,6 +888,10 @@ def test_control_flow() -> list[full_state.FullState]:
                                                     core.Integer(1),
                                                 ),
                                             ),
+                                        ),
+                                        core.Param(
+                                            core.NearParentScope.from_int(1),
+                                            core.Integer(2),
                                         ),
                                     ),
                                 ),
@@ -900,6 +907,10 @@ def test_control_flow() -> list[full_state.FullState]:
                                 ),
                             ),
                         ),
+                    ),
+                    core.Param(
+                        core.NearParentScope.from_int(1),
+                        core.Integer(1),
                     ),
                 ),
             ),

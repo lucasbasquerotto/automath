@@ -11,15 +11,15 @@ Map: core.FunctionExpr[core.INode] = core.FunctionExpr(
             ),
         ),
         core.CountableTypeGroup(
-            core.CompositeType(
-                core.BaseGroup.as_type(),
-                core.RestTypeGroup(
-                    core.TypeIndex(1),
-                ),
-            ),
             core.FunctionType(
                 core.CountableTypeGroup(core.TypeIndex(1)),
                 core.TypeIndex(2),
+            ),
+            core.CompositeType(
+                core.BaseGroup.as_type(),
+                core.RestTypeGroup(
+                    core.LazyTypeIndex(1),
+                ),
             ),
         ),
         core.CompositeType(
@@ -32,7 +32,15 @@ Map: core.FunctionExpr[core.INode] = core.FunctionExpr(
     core.InnerArg(
         core.Loop(
             core.FunctionExpr(
-                core.Protocol.with_args(
+                core.Protocol(
+                    core.TypeAliasGroup(
+                        core.TypeAlias(
+                            core.INode.as_type()
+                        ),
+                        core.TypeAlias(
+                            core.INode.as_type()
+                        ),
+                    ),
                     core.CountableTypeGroup(
                         core.CompositeType(
                             core.Optional.as_type(),
@@ -40,9 +48,17 @@ Map: core.FunctionExpr[core.INode] = core.FunctionExpr(
                                 core.CompositeType(
                                     core.DefaultGroup.as_type(),
                                     core.CountableTypeGroup(
+                                        core.FunctionType(
+                                            core.CountableTypeGroup(core.TypeIndex(1)),
+                                            core.TypeIndex(2),
+                                        ),
                                         core.IIterator.as_type(),
-                                        core.IFunction.as_type(),
-                                        core.BaseGroup.as_type(),
+                                        core.CompositeType(
+                                            core.DefaultGroup.as_type(),
+                                            core.RestTypeGroup(
+                                                core.LazyTypeIndex(2),
+                                            ),
+                                        ),
                                     ),
                                 ),
                             ),
@@ -56,9 +72,17 @@ Map: core.FunctionExpr[core.INode] = core.FunctionExpr(
                                 core.CompositeType(
                                     core.DefaultGroup.as_type(),
                                     core.CountableTypeGroup(
+                                        core.FunctionType(
+                                            core.CountableTypeGroup(core.TypeIndex(1)),
+                                            core.TypeIndex(2),
+                                        ),
                                         core.IIterator.as_type(),
-                                        core.IFunction.as_type(),
-                                        core.BaseGroup.as_type(),
+                                        core.CompositeType(
+                                            core.DefaultGroup.as_type(),
+                                            core.RestTypeGroup(
+                                                core.LazyTypeIndex(2),
+                                            ),
+                                        ),
                                     ),
                                 ),
                             ),
@@ -67,7 +91,12 @@ Map: core.FunctionExpr[core.INode] = core.FunctionExpr(
                             core.LoopGuard.as_type(),
                             core.CountableTypeGroup(
                                 core.InstanceType(core.IBoolean.false()),
-                                core.DefaultGroup.as_type(),
+                                core.CompositeType(
+                                    core.DefaultGroup.as_type(),
+                                    core.RestTypeGroup(
+                                        core.LazyTypeIndex(2),
+                                    ),
+                                ),
                             ),
                         ),
                     ),
@@ -96,7 +125,7 @@ Map: core.FunctionExpr[core.INode] = core.FunctionExpr(
                     ),
                     core.Assign(
                         core.Integer(4),
-                        core.Next(core.Var.from_int(1))
+                        core.Next(core.Var.from_int(2))
                     ),
                     core.Return.with_node(
                         core.If(
@@ -108,16 +137,16 @@ Map: core.FunctionExpr[core.INode] = core.FunctionExpr(
                             core.LoopGuard.with_args(
                                 condition=core.IBoolean.true(),
                                 result=core.DefaultGroup(
+                                    core.Var.from_int(1),
                                     core.NestedArg.from_raw(
                                         node=core.Var.from_int(4),
                                         indices=(1, 1),
                                     ),
-                                    core.Var.from_int(2),
                                     core.Add(
                                         core.Var.from_int(3),
                                         core.DefaultGroup(
                                             core.FunctionCall(
-                                                core.Var.from_int(2),
+                                                core.Var.from_int(1),
                                                 core.DefaultGroup(
                                                     core.NestedArg.from_raw(
                                                         node=core.Var.from_int(4),
@@ -135,10 +164,10 @@ Map: core.FunctionExpr[core.INode] = core.FunctionExpr(
             ),
             core.Optional(
                 core.DefaultGroup(
+                    core.Param.from_int(1),
                     core.GroupIterator.with_node(
-                        core.Param.from_int(1),
+                        core.Param.from_int(2),
                     ),
-                    core.Param.from_int(2),
                     core.DefaultGroup(),
                 )
             ),
