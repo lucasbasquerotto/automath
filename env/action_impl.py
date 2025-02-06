@@ -954,9 +954,9 @@ class RunScratch(
         old_content = scratch.value_or_raise
 
         info = RunInfo.create()
-        _, content, __ = old_content.as_node.run(info).as_tuple
+        _, content = old_content.as_node.run(info).as_tuple
 
-        _, again, __ = content.as_node.run(info).as_tuple
+        _, again = content.as_node.run(info).as_tuple
         Eq(content, again).raise_on_false()
 
         return DefineScratchOutput(scratch_index, Scratch(content))

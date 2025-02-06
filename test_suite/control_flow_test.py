@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 from env import core, full_state, state, meta_env, action_impl, node_types, composite
 from env.goal_env import GoalEnv
 
@@ -444,6 +445,56 @@ def test_control_flow() -> list[full_state.FullState]:
                 ),
             ),
         ),
+
+        core.FunctionCall(
+            core.FunctionExpr(
+                core.Protocol(
+                    core.TypeAliasGroup(
+                        core.TypeAlias(
+                            core.IInt.as_type()
+                        ),
+                    ),
+                    core.CountableTypeGroup(
+                        core.TypeIndex(1),
+                        core.TypeIndex(1),
+                        core.LazyTypeIndex(1),
+                        core.TypeIndex(1),
+                    ),
+                    core.CompositeType(
+                        core.DefaultGroup.as_type(),
+                        core.CountableTypeGroup(
+                            core.TypeIndex(1),
+                            core.TypeIndex(1),
+                            core.TypeIndex(1),
+                            core.LazyTypeIndex(1),
+                            core.TypeIndex(1),
+                        ),
+                    ),
+                ),
+                core.DefaultGroup(
+                    core.Param.from_int(1),
+                    core.Param.from_int(2),
+                    core.Param.from_int(4),
+                    core.Param.from_int(3),
+                    core.Param.from_int(1),
+                ),
+            ),
+            core.DefaultGroup(
+                core.TypeEnforcer(
+                    core.BaseInt.as_type(),
+                    core.Integer(2),
+                ),
+                core.TypeEnforcer(
+                    core.BaseInt.as_type(),
+                    core.NodeArgIndex(5),
+                ),
+                core.NodeMainIndex(7),
+                core.TypeEnforcer(
+                    core.BaseInt.as_type(),
+                    core.TypeIndex(9),
+                ),
+            ),
+        ),
     ]
     assignment_scratches = [
         core.InstructionGroup(
@@ -811,6 +862,32 @@ def test_control_flow() -> list[full_state.FullState]:
         args_groups=args_groups,
         scratch_idx=index+2,
         new_scratch=default_result,
+    )
+    scratches = run(
+        env=env,
+        state_meta=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+        scratch_idx=index+3,
+        new_scratch=core.DefaultGroup(
+            core.TypeEnforcer(
+                core.BaseInt.as_type(),
+                core.Integer(2),
+            ),
+            core.TypeEnforcer(
+                core.BaseInt.as_type(),
+                core.NodeArgIndex(5),
+            ),
+            core.TypeEnforcer(
+                core.BaseInt.as_type(),
+                core.TypeIndex(9),
+            ),
+            core.NodeMainIndex(7),
+            core.TypeEnforcer(
+                core.BaseInt.as_type(),
+                core.Integer(2),
+            ),
+        ),
     )
 
     # Assignments

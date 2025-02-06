@@ -29,6 +29,23 @@ class INode(ABC):
     def func(self) -> typing.Type[typing.Self]:
         return type(self)
 
+    def actual_instance(self) -> BaseNode:
+        return self.as_node
+
+    def real(self, t: typing.Type[T]) -> T:
+        origin = typing.get_origin(t)
+        t = origin if origin is not None else t
+        instance: BaseNode = self.as_node
+        if not issubclass(t, TypeEnforcer):
+            instance = instance.actual_instance()
+        return instance.cast(t)
+
+    def cast(self, t: typing.Type[T]) -> T:
+        origin = typing.get_origin(t)
+        t = origin if origin is not None else t
+        assert isinstance(self, t), f'{type(self)} != {t}'
+        return typing.cast(T, self)
+
 class IInheritableNode(INode, ABC):
 
     @classmethod
@@ -71,14 +88,14 @@ class IInt(IFromInt, IAdditive, ABC):
     def add(self, another: INode, run_info: RunInfo):
         info = run_info
 
-        info, node_aux, _ = self.as_node.run(info).as_tuple
-        node_1 = node_aux.as_node.cast(IInt)
+        info, node_aux = self.as_node.run(info).as_tuple
+        node_1 = node_aux.real(IInt)
 
-        info, another_aux, _ = another.as_node.run(info).as_tuple
-        node_2 = another_aux.as_node.cast(IInt)
+        info, another_aux = another.as_node.run(info).as_tuple
+        node_2 = another_aux.real(IInt)
 
         new_value = node_1.as_int + node_2.as_int
-        return info.to_result(original=self, result=self.__class__.from_int(new_value))
+        return info.to_result(self.__class__.from_int(new_value))
 
 class INodeIndex(INode, ABC):
 
@@ -165,14 +182,14 @@ class IGroup(IWrapper, IInheritableNode, IAdditive, typing.Generic[T], ABC):
     def add(self, another: INode, run_info: RunInfo):
         info = run_info
 
-        info, node_aux, _ = self.as_node.run(info).as_tuple
-        node_1 = node_aux.as_node.cast(IGroup)
+        info, node_aux = self.as_node.run(info).as_tuple
+        node_1 = node_aux.real(IGroup)
 
-        info, another_aux, _ = another.as_node.run(info).as_tuple
-        node_2 = another_aux.as_node.cast(IGroup)
+        info, another_aux = another.as_node.run(info).as_tuple
+        node_2 = another_aux.real(IGroup)
 
         new_args = list(node_1.as_tuple) + list(node_2.as_tuple)
-        return info.to_result(original=self, result=self.__class__.from_items(new_args))
+        return info.to_result(self.__class__.from_items(new_args))
 
 class IFunction(INode, ABC):
 
@@ -206,21 +223,19 @@ class IRunnable(INode, ABC):
             assert isinstance(outer_result, RunInfoFullResult)
             result, args_group = outer_result.as_tuple
             assert isinstance(result, RunInfoResult)
-            new_info, new_node, result_type = result.as_tuple
+            new_info, new_node = result.as_tuple
 
             if isinstance(self, IOpaqueScope):
                 result = RunInfoResult.with_args(
                     run_info=info,
                     return_value=new_node,
-                    return_type=result_type,
                 )
-                new_info, new_node, result_type = result.as_tuple
+                new_info, new_node = result.as_tuple
             else:
                 new_info = new_info.with_scopes(info)
                 result = RunInfoResult.with_args(
                     run_info=new_info,
                     return_value=new_node,
-                    return_type=result_type,
                 )
 
             if (
@@ -244,11 +259,10 @@ class IRunnable(INode, ABC):
                 new_result, _ = new_outer_result.as_tuple
 
             assert isinstance(new_result, RunInfoResult)
-            _, node_aux, __ = new_result.as_tuple
+            _, node_aux = new_result.as_tuple
             Eq(new_node, node_aux).raise_on_false()
 
             if not info.is_future():
-                result_type.verify(new_node, alias_info=AliasInfo.create())
                 if isinstance(self, IDynamic):
                     self.verify_result(result=new_node, args_group=args_group)
                 else:
@@ -356,7 +370,7 @@ class ITypedIntIndex(IInt, ITypedIndex[O, T], typing.Generic[O, T], ABC):
         if result.value is not None:
             assert isinstance(result.value, self.item_type()), \
                 f'{type(result.value)} != {self.item_type()}'
-        return typing.cast(IOptional[T], result)
+        return result.real(IOptional[T])
 
     def replace_arg(self, target: K, new_node: T) -> IOptional[K]:
         return NodeArgIndex(self.as_int).replace_in_target(target, new_node)
@@ -550,11 +564,18 @@ class BaseNode(IRunnable, ABC):
     def strict_validate(self) -> AliasInfo:
         raise NotImplementedError(self.__class__)
 
-    def cast(self, t: typing.Type[T]) -> T:
-        origin = typing.get_origin(t)
-        t = origin if origin is not None else t
-        assert isinstance(self, t), f'{type(self)} != {t}'
-        return typing.cast(T, self)
+    def result_type(self) -> IType:
+        instance = self.actual_instance()
+        protocol = instance.as_node.protocol()
+        alias_info_p = protocol.verify(instance)
+        protocol = alias_info_p.apply(protocol)
+        Eq.from_ints(len(protocol.find(BaseTypeIndex)), 0).raise_on_false()
+        result_type = (
+            self.type.apply().real(IType)
+            if isinstance(self, TypeEnforcer)
+            else protocol.result.apply().real(IType))
+        result_type.verify(instance, alias_info=AliasInfo.create())
+        return result_type
 
 ###########################################################
 ######################## TYPE NODE ########################
@@ -563,6 +584,14 @@ class BaseNode(IRunnable, ABC):
 class IType(INode, ABC):
 
     def valid(
+        self,
+        instance: INode,
+        alias_info: AliasInfo,
+    ) -> tuple[bool, AliasInfo]:
+        instance = instance.as_node.actual_instance()
+        return self._valid(instance, alias_info)
+
+    def _valid(
         self,
         instance: INode,
         alias_info: AliasInfo,
@@ -587,37 +616,40 @@ class IType(INode, ABC):
         return alias_info
 
     @classmethod
-    def valid_type(
+    def general_valid_type(
         cls,
         base_type: INode,
         type_to_verify: INode,
         alias_info: AliasInfo,
     ) -> tuple[bool, AliasInfo]:
-        node_stack: list[tuple[INode, INode]] = [(
+        type_stack: list[tuple[INode, INode]] = [(
             base_type,
             type_to_verify,
         )]
+        Eq.from_ints(len(type_to_verify.as_node.find(BaseTypeIndex)), 0).raise_on_false()
 
-        while len(node_stack) > 0:
-            my_node, node_to_verify = node_stack.pop()
-            if isinstance(my_node, BaseTypeIndex):
-                if not isinstance(node_to_verify, IType):
+        while len(type_stack) > 0:
+            my_type, type_to_verify = type_stack.pop()
+            if isinstance(my_type, ITypeValidator):
+                if not isinstance(type_to_verify, IType):
                     return False, alias_info
-                alias_info = alias_info.define(my_node, node_to_verify)
+                valid, alias_info = my_type.valid_type(type_to_verify, alias_info)
+                if not valid:
+                    return False, alias_info
             elif (
-                isinstance(my_node, InheritableNode)
-                and isinstance(node_to_verify, InheritableNode)
-                and len(my_node.as_node.args) > 0
+                isinstance(my_type, InheritableNode)
+                and isinstance(type_to_verify, InheritableNode)
+                and len(my_type.as_node.args) > 0
             ):
-                if my_node.func != node_to_verify.func:
+                if my_type.func != type_to_verify.func:
                     return False, alias_info
-                my_args = my_node.args
-                fn_args = node_to_verify.args
+                my_args = my_type.args
+                fn_args = type_to_verify.args
                 if len(my_args) != len(fn_args):
                     return False, alias_info
                 for my_arg, fn_arg in zip(my_args, fn_args):
-                    node_stack.append((my_arg, fn_arg))
-            elif my_node != node_to_verify:
+                    type_stack.append((my_arg, fn_arg))
+            elif my_type != type_to_verify:
                 return False, alias_info
 
         return True, alias_info
@@ -629,13 +661,30 @@ class IType(INode, ABC):
     ) -> IType:
         alias_info = AliasInfo.with_node(alias_group)
         alias_info = self.verify(instance, alias_info)
-        final_type = alias_info.apply_to_node(self).as_node.cast(IType)
+        final_type = alias_info.apply_to_node(self).real(IType)
         return final_type
+
+class ITypeValidator(IType, ABC):
+
+    def valid_type(
+        self,
+        type_to_verify: IType,
+        alias_info: AliasInfo,
+    ) -> tuple[bool, AliasInfo]:
+        raise NotImplementedError
 
 class IBasicType(IType, ABC):
     pass
 
-class TypeNode(BaseNode, IBasicType, IFunction, ISpecialValue, typing.Generic[T], IInstantiable):
+class TypeNode(
+    BaseNode,
+    IBasicType,
+    ITypeValidator,
+    IFunction,
+    ISpecialValue,
+    typing.Generic[T],
+    IInstantiable,
+):
 
     @classmethod
     def protocol(cls) -> Protocol:
@@ -672,7 +721,7 @@ class TypeNode(BaseNode, IBasicType, IFunction, ISpecialValue, typing.Generic[T]
         assert issubclass(t, InheritableNode)
         return t.new(*group.as_tuple).as_node.run(info)
 
-    def valid(
+    def _valid(
         self,
         instance: INode,
         alias_info: AliasInfo,
@@ -685,13 +734,24 @@ class TypeNode(BaseNode, IBasicType, IFunction, ISpecialValue, typing.Generic[T]
 
     def _run(self, info: RunInfo) -> RunInfoFullResult:
         self.validate()
-        result = info.to_result(original=self, result=self)
+        result = info.to_result(self)
         return RunInfoFullResult(result, OptionalValueGroup())
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, TypeNode):
             return False
         return self.type == other.type
+
+    def valid_type(
+        self,
+        type_to_verify: IType,
+        alias_info: AliasInfo,
+    ) -> tuple[bool, AliasInfo]:
+        if not isinstance(type_to_verify, TypeNode):
+            return False, alias_info
+        if not issubclass(type_to_verify.type, self.type):
+            return False, alias_info
+        return True, alias_info
 
 ###########################################################
 ######################## INT NODE #########################
@@ -723,7 +783,7 @@ class BaseInt(BaseNode, IInt, ISpecialValue, ABC):
 
     def _run(self, info: RunInfo) -> RunInfoFullResult:
         self.validate()
-        result = info.to_result(original=self, result=self)
+        result = info.to_result(self)
         return RunInfoFullResult(result, OptionalValueGroup())
 
     def strict_validate(self) -> AliasInfo:
@@ -828,7 +888,7 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
         self.validate()
         args: list[INode] = []
         for arg in self.args:
-            info, new_arg, _ = arg.as_node.run(info).as_tuple
+            info, new_arg = arg.as_node.run(info).as_tuple
             args.append(new_arg)
         new_node = self.func(*args)
         if not info.is_future():
@@ -837,10 +897,9 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
             RunInfoResult.with_args(
                 run_info=info,
                 return_value=new_node,
-                return_type=new_node.as_type(),
             )
             if isinstance(self, IDynamic)
-            else info.to_result(original=self, result=new_node))
+            else info.to_result(new_node))
         return RunInfoFullResult(result, OptionalValueGroup.from_optional_items(args))
 
 ###########################################################
@@ -859,7 +918,7 @@ class UnknownType(InheritableNode, IBasicType, IDefault, IInstantiable):
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup())
 
-    def valid(
+    def _valid(
         self,
         instance: INode,
         alias_info: AliasInfo,
@@ -872,7 +931,7 @@ class InvalidType(InheritableNode, IBasicType, IDefault, IInstantiable):
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup())
 
-    def valid(
+    def _valid(
         self,
         instance: INode,
         alias_info: AliasInfo,
@@ -947,10 +1006,10 @@ class ParentScopeBase(BaseInt, IDynamic, IDefault, ABC):
     def _run(self, info: RunInfo):
         node = self._index(info)
         assert isinstance(node, RunInfoScopeDataIndex)
-        scope_data_group = info.scope_data_group.apply().cast(ScopeDataGroup)
+        scope_data_group = info.scope_data_group.apply().real(ScopeDataGroup)
         amount = len(scope_data_group.as_tuple)
         IsInsideRange(node, Integer.zero(), Integer(amount)).raise_on_false()
-        result = info.to_result(original=self, result=node)
+        result = info.to_result(node)
         return RunInfoFullResult(result, OptionalValueGroup())
 
     def verify_result(self, result: INode, args_group: OptionalValueGroup):
@@ -959,7 +1018,7 @@ class ParentScopeBase(BaseInt, IDynamic, IDefault, ABC):
 class NearParentScope(ParentScopeBase, IInstantiable):
 
     def _index(self, info: RunInfo):
-        scope_data_group = info.scope_data_group.apply().cast(ScopeDataGroup)
+        scope_data_group = info.scope_data_group.apply().real(ScopeDataGroup)
         amount = len(scope_data_group.as_tuple)
         scope_index = amount - self.as_int + 1
         return RunInfoScopeDataIndex(scope_index)
@@ -1006,11 +1065,11 @@ class Placeholder(InheritableNode, IDynamic, IFromInt, typing.Generic[T], ABC):
 
     def _run(self, info: RunInfo) -> RunInfoFullResult:
         base_result, arg_group = super()._run(info).as_tuple
-        info, node_aux, _ = base_result.as_tuple
-        node = node_aux.as_node.cast(self.__class__)
+        info, node_aux = base_result.as_tuple
+        node = node_aux.real(self.__class__)
 
-        scope_index = node.parent_scope.apply().cast(RunInfoScopeDataIndex)
-        index = node.index.apply().cast(BaseInt)
+        scope_index = node.parent_scope.apply().real(RunInfoScopeDataIndex)
+        index = node.index.apply().real(BaseInt)
 
         scope = scope_index.find_in_outer_node(info).value_or_raise
         assert isinstance(scope, ScopeDataPlaceholderItemGroup), type(scope)
@@ -1019,19 +1078,19 @@ class Placeholder(InheritableNode, IDynamic, IFromInt, typing.Generic[T], ABC):
             f'{type(node)} != {scope.item_inner_type()} ({scope_index.as_int} - {index.as_int})'
 
         if isinstance(scope, IScopeDataFutureItemGroup):
-            groups = info.scope_data_group.apply().cast(ScopeDataGroup).as_tuple
+            groups = info.scope_data_group.apply().real(ScopeDataGroup).as_tuple
             group_amount = len(groups)
             near_scope = NearParentScope.from_int(group_amount - scope_index.as_int + 1)
-            result = info.to_result(original=node, result=node.func(near_scope, index))
+            result = info.to_result(node.func(near_scope, index))
             return RunInfoFullResult(result, arg_group)
 
         item = NodeArgIndex(index.as_int).find_in_node(scope).value_or_raise
-        info, node_aux, _ = item.as_node.run(info).as_tuple
-        node_aux = node_aux.as_node.cast(IOptional)
+        info, node_aux = item.as_node.run(info).as_tuple
+        node_aux = node_aux.real(IOptional)
 
         new_node = node_aux.value_or_raise
 
-        result = info.to_result(original=new_node, result=new_node)
+        result = info.to_result(new_node)
         return RunInfoFullResult(result, arg_group)
 
 class Param(Placeholder[T], IInstantiable, typing.Generic[T]):
@@ -1149,7 +1208,7 @@ class NodeArgBaseIndex(NodeIntBaseIndex, ABC):
                 for i, arg in enumerate(args)
             ])
             assert isinstance(new_target, type(target_node))
-            return Optional(typing.cast(T, new_target))
+            return Optional(new_target).real(IOptional[T])
         return Optional()
 
     def remove_in_target(self, target_node: T) -> Optional[T]:
@@ -1165,7 +1224,7 @@ class NodeArgBaseIndex(NodeIntBaseIndex, ABC):
             ]
             new_target = target_node.func(*new_args)
             assert isinstance(new_target, type(target_node))
-            return Optional(typing.cast(T, new_target))
+            return Optional(new_target).real(Optional[T])
         return Optional()
 
 class NodeArgIndex(NodeArgBaseIndex, IInstantiable):
@@ -1391,7 +1450,7 @@ class SingleValueTypeGroup(
 
     @property
     def child(self) -> IType:
-        return self.type_node.apply().cast(IType)
+        return self.type_node.apply().real(IType)
 
     def valid_info(
         self,
@@ -1399,7 +1458,7 @@ class SingleValueTypeGroup(
         alias_info: AliasInfo,
         raise_on_invalid: bool = False,
     ) -> tuple[bool, AliasInfo]:
-        t_arg = self.type_node.apply().cast(IType)
+        t_arg = self.type_node.apply().real(IType)
 
         for arg_opt in values.args:
             arg = arg_opt.value
@@ -1438,7 +1497,7 @@ class TypeAlias(InheritableNode, ISingleChild[IType], IInstantiable):
 
     @property
     def child(self) -> IType:
-        return self.type.apply().cast(IType)
+        return self.type.apply().real(IType)
 
 class TypeAliasGroup(
     BaseGroup[TypeAlias],
@@ -1453,7 +1512,7 @@ class TypeAliasGroup(
         super().strict_validate()
         for i, arg_aux in enumerate(self.args):
             index = i + 1
-            arg = arg_aux.as_node.cast(TypeAlias)
+            arg = arg_aux.real(TypeAlias)
             inner_idxs = sorted(arg.as_node.find(BaseTypeIndex), key=lambda t: t.as_int)
             invalid_idxs = [idx for idx in inner_idxs if idx.as_int >= index]
             if len(invalid_idxs) > 0:
@@ -1471,7 +1530,7 @@ class TypeAliasOptionalGroup(
         return cls(*[Optional()] * len(origin_group.args))
 
     def define(self, type_index: BaseTypeIndex, new_type: IType) -> typing.Self:
-        old_type_opt = type_index.find_in_node(self).value_or_raise.as_node.cast(IOptional)
+        old_type_opt = type_index.find_in_node(self).value_or_raise.real(IOptional)
 
         if old_type_opt.is_empty().as_bool:
             new_self = type_index.replace_in_target(self, Optional(new_type)).value_or_raise
@@ -1500,8 +1559,8 @@ class AliasInfo(
 
     def validate(self):
         super().validate()
-        base_group = self.alias_group_base.apply().cast(TypeAliasGroup)
-        actual_group = self.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
+        base_group = self.alias_group_base.apply().real(TypeAliasGroup)
+        actual_group = self.alias_group_actual.apply().real(TypeAliasOptionalGroup)
         SameArgsAmount(base_group, actual_group).raise_on_false()
 
     @property
@@ -1521,32 +1580,32 @@ class AliasInfo(
         return cls(node, TypeAliasOptionalGroup.init(node))
 
     def define(self, type_index: BaseTypeIndex, new_type: IType) -> AliasInfo:
-        base_group = self.alias_group_base.apply().cast(TypeAliasGroup)
-        alias = type_index.find_in_node(base_group).value_or_raise.as_node.cast(TypeAlias)
+        base_group = self.alias_group_base.apply().real(TypeAliasGroup)
+        alias = type_index.find_in_node(base_group).value_or_raise.real(TypeAlias)
         base_type = alias.child
-        actual_group = self.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
+        actual_group = self.alias_group_actual.apply().real(TypeAliasOptionalGroup)
         full_type = IntersectionType(base_type, new_type)
         actual_group = actual_group.define(type_index=type_index, new_type=full_type)
         return self.func(base_group, actual_group)
 
     def apply(self, protocol: Protocol, lax=False) -> Protocol:
-        self_group = self.alias_group_base.apply().cast(TypeAliasGroup)
-        p_alias_group = protocol.alias_group.apply().cast(TypeAliasGroup)
+        self_group = self.alias_group_base.apply().real(TypeAliasGroup)
+        p_alias_group = protocol.alias_group.apply().real(TypeAliasGroup)
         Eq(self_group, p_alias_group).raise_on_false()
 
-        args_group = protocol.arg_group.apply().cast(IBaseTypeGroup)
-        result_group = protocol.result.apply().cast(IType)
+        args_group = protocol.arg_group.apply().real(IBaseTypeGroup)
+        result_group = protocol.result.apply().real(IType)
 
-        actual_group = self.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
+        actual_group = self.alias_group_actual.apply().real(TypeAliasOptionalGroup)
 
         for i, (alias, actual) in enumerate(zip(self_group.as_tuple, actual_group.as_tuple)):
             index = TypeIndex(i + 1)
             index_lazy = LazyTypeIndex(i + 1)
             t = actual.value_or_else(alias.child) if lax else actual.value_or_raise
-            args_group = args_group.as_node.replace(index, t).as_node.cast(IBaseTypeGroup)
-            args_group = args_group.as_node.replace(index_lazy, t).as_node.cast(IBaseTypeGroup)
-            result_group = result_group.as_node.replace(index, t).as_node.cast(IType)
-            result_group = result_group.as_node.replace(index_lazy, t).as_node.cast(IType)
+            args_group = args_group.as_node.replace(index, t).real(IBaseTypeGroup)
+            args_group = args_group.as_node.replace(index_lazy, t).real(IBaseTypeGroup)
+            result_group = result_group.as_node.replace(index, t).real(IType)
+            result_group = result_group.as_node.replace(index_lazy, t).real(IType)
 
         Eq(Integer(len(p_alias_group.as_node.find(BaseTypeIndex))), Integer.zero()).raise_on_false()
         Eq(Integer(len(args_group.as_node.find(BaseTypeIndex))), Integer.zero()).raise_on_false()
@@ -1559,8 +1618,8 @@ class AliasInfo(
         )
 
     def apply_to_node(self, node: INode, lax=False) -> INode:
-        base_group = self.alias_group_base.apply().cast(TypeAliasGroup)
-        actual_group = self.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
+        base_group = self.alias_group_base.apply().real(TypeAliasGroup)
+        actual_group = self.alias_group_actual.apply().real(TypeAliasOptionalGroup)
         for i, (alias, actual) in enumerate(zip(base_group.as_tuple, actual_group.as_tuple)):
             index = TypeIndex(i + 1)
             lazy_index = LazyTypeIndex(i + 1)
@@ -1570,12 +1629,12 @@ class AliasInfo(
         Eq(Integer(len(node.as_node.find(BaseTypeIndex))), Integer.zero()).raise_on_false()
         return node
 
-class BaseTypeIndex(NodeArgBaseIndex, IType, ABC):
+class BaseTypeIndex(NodeArgBaseIndex, ITypeValidator, ABC):
 
     def define(
         self,
-        protocol: Protocol,
         instance: INode,
+        result_type: IType,
         alias_info: AliasInfo,
     ) -> AliasInfo:
         raise NotImplementedError
@@ -1585,35 +1644,51 @@ class BaseTypeIndex(NodeArgBaseIndex, IType, ABC):
         instance: INode,
         alias_info: AliasInfo,
     ) -> tuple[bool, AliasInfo]:
-        base_group = alias_info.alias_group_base.apply().cast(TypeAliasGroup)
-        type_alias = self.find_in_node(base_group).value_or_raise.as_node.cast(TypeAlias)
+        return self._valid(instance, alias_info)
+
+    def _valid(
+        self,
+        instance: INode,
+        alias_info: AliasInfo,
+    ) -> tuple[bool, AliasInfo]:
+        base_group = alias_info.alias_group_base.apply().real(TypeAliasGroup)
+        type_alias = self.find_in_node(base_group).value_or_raise.real(TypeAlias)
+        original = instance
+        instance = instance.as_node.actual_instance()
         valid, alias_info = type_alias.child.valid(instance, alias_info=alias_info)
         if not valid:
             return valid, alias_info
-        protocol = instance.as_node.protocol()
-        alias_info_p = protocol.verify(instance)
-        protocol = alias_info_p.apply(protocol)
-        Eq.from_ints(len(protocol.find(BaseTypeIndex)), 0).raise_on_false()
+        result_type = original.as_node.result_type()
+        result_type.verify(instance, alias_info=AliasInfo.create())
         alias_info = self.define(
-            protocol=protocol,
             instance=instance,
+            result_type=result_type,
             alias_info=alias_info)
         return True, alias_info
 
     def actual_type(self, alias_info: AliasInfo) -> IOptional[IType]:
-        actual_group = alias_info.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
-        actual_opt = self.find_in_node(actual_group).value_or_raise.as_node.cast(IOptional[IType])
+        actual_group = alias_info.alias_group_actual.apply().real(TypeAliasOptionalGroup)
+        actual_opt = self.find_in_node(actual_group).value_or_raise.real(IOptional[IType])
         return actual_opt
+
+    def valid_type(
+        self,
+        type_to_verify: IType,
+        alias_info: AliasInfo,
+    ) -> tuple[bool, AliasInfo]:
+        if not isinstance(type_to_verify, IType):
+            return False, alias_info
+        alias_info = alias_info.define(self, type_to_verify)
+        return True, alias_info
 
 class TypeIndex(BaseTypeIndex, IInstantiable):
 
     def define(
         self,
-        protocol: Protocol,
         instance: INode,
+        result_type: IType,
         alias_info: AliasInfo,
     ) -> AliasInfo:
-        result_type = protocol.result.apply().cast(IType)
         alias_info = alias_info.define(self, result_type)
         return alias_info
 
@@ -1621,11 +1696,11 @@ class LazyTypeIndex(BaseTypeIndex, IInstantiable):
 
     def define(
         self,
-        protocol: Protocol,
         instance: INode,
+        result_type: IType,
         alias_info: AliasInfo,
     ) -> AliasInfo:
-        actual_type = self.actual_type(alias_info).value_or_raise.as_node.cast(IType)
+        actual_type = self.actual_type(alias_info).value_or_raise.real(IType)
         actual_type.verify(instance, alias_info=alias_info)
         return alias_info
 
@@ -1668,7 +1743,7 @@ class Protocol(
         alias_info: AliasInfo,
         raise_on_invalid: bool = False,
     ) -> tuple[bool, AliasInfo]:
-        group = self.arg_group.apply().cast(IBaseTypeGroup)
+        group = self.arg_group.apply().real(IBaseTypeGroup)
         return group.valid_info(
             values,
             alias_info=alias_info,
@@ -1716,19 +1791,19 @@ class Protocol(
         alias_group = (
             alias_group
             if alias_group is not None
-            else self.alias_group.apply().cast(TypeAliasGroup))
+            else self.alias_group.apply().real(TypeAliasGroup))
         args_type_group = (
             args_type_group
             if args_type_group is not None
-            else self.arg_group.apply().cast(IBaseTypeGroup))
+            else self.arg_group.apply().real(IBaseTypeGroup))
         result_type = (
             result_type
             if result_type is not None
-            else self.result.apply().cast(IType))
+            else self.result.apply().real(IType))
         return self.func(alias_group, args_type_group, result_type)
 
     def new_amount(self, amount: int) -> typing.Self:
-        group = self.arg_group.apply().cast(IBaseTypeGroup)
+        group = self.arg_group.apply().real(IBaseTypeGroup)
         if not isinstance(group, CountableTypeGroup):
             return self.from_int(amount)
         items = group.as_tuple
@@ -1759,25 +1834,25 @@ class Protocol(
         return self.verify_optional_args(args.to_optional_group())
 
     def verify_optional_args(self, args_group: OptionalValueGroup) -> AliasInfo:
-        original_group = self.arg_group.apply().cast(IBaseTypeGroup)
-        aliases_base = self.alias_group.apply().cast(TypeAliasGroup)
+        original_group = self.arg_group.apply().real(IBaseTypeGroup)
+        aliases_base = self.alias_group.apply().real(TypeAliasGroup)
         alias_info = AliasInfo.with_node(aliases_base)
         alias_info = original_group.validate_values(args_group, alias_info=alias_info)
         return alias_info
 
     def verify_result(self, result: INode, alias_info: AliasInfo) -> AliasInfo:
-        result_type = self.result.apply().cast(IType)
+        result_type = self.result.apply().real(IType)
         alias_info = result_type.verify(result, alias_info=alias_info)
         return alias_info
 
     def with_default_aliases(self) -> 'Protocol':
-        alias_group = self.alias_group.apply().cast(TypeAliasGroup)
+        alias_group = self.alias_group.apply().real(TypeAliasGroup)
         alias_info = AliasInfo.with_node(alias_group)
         return alias_info.apply(self)
 
     def final_result_type(self, instance: INode) -> IType:
-        result_type = self.result.apply().cast(IType)
-        alias_group = self.alias_group.apply().cast(TypeAliasGroup)
+        result_type = self.result.apply().real(IType)
+        alias_group = self.alias_group.apply().real(TypeAliasGroup)
         final_result_type = result_type.fill_alias(instance, alias_group)
         return final_result_type
 
@@ -1795,7 +1870,7 @@ class Type(InheritableNode, IBasicType, ISingleChild[IType], IInstantiable):
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
-            UnionType(TypeNode.as_type(), BaseTypeIndex.as_type()),
+            UnionType(IType.as_type()),
         ))
 
     @property
@@ -1804,22 +1879,16 @@ class Type(InheritableNode, IBasicType, ISingleChild[IType], IInstantiable):
 
     @property
     def child(self) -> IType:
-        return self.type.apply().cast(IType)
+        return self.type.apply().real(IType)
 
-    def valid(
+    def _valid(
         self,
         instance: INode,
         alias_info: AliasInfo,
     ) -> tuple[bool, AliasInfo]:
-        my_type = self.type.apply().cast(IType)
-        if isinstance(my_type, BaseTypeIndex):
-            actual_type = my_type.actual_type(alias_info).value_or_raise
-        else:
-            actual_type = my_type
-        assert isinstance(actual_type, TypeNode)
-        if isinstance(instance, TypeNode):
-            return issubclass(instance.type, actual_type.type), alias_info
-        return False, alias_info
+        my_type = self.type.apply().real(IType)
+        type_to_verify = instance.real(IType)
+        return IType.general_valid_type(my_type, type_to_verify, alias_info)
 
 class InstanceType(InheritableNode, IBasicType, ISingleChild[INode], IInstantiable):
 
@@ -1835,9 +1904,9 @@ class InstanceType(InheritableNode, IBasicType, ISingleChild[INode], IInstantiab
 
     @property
     def child(self) -> IType:
-        return self.instance.apply().cast(IType)
+        return self.instance.apply().real(IType)
 
-    def valid(
+    def _valid(
         self,
         instance: INode,
         alias_info: AliasInfo,
@@ -1864,7 +1933,7 @@ class FunctionType(InheritableNode, IBasicType, IInstantiable):
     def result(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_result)
 
-    def valid(
+    def _valid(
         self,
         instance: INode,
         alias_info: AliasInfo,
@@ -1872,27 +1941,27 @@ class FunctionType(InheritableNode, IBasicType, IInstantiable):
         if not isinstance(instance, IFunction):
             return False, alias_info
 
-        arg_group = self.arg_group.apply().cast(IBaseTypeGroup)
-        result_type = self.result.apply().cast(IType)
+        arg_group = self.arg_group.apply().real(IBaseTypeGroup)
+        result_type = self.result.apply().real(IType)
         my_protocol = Protocol(
-            alias_info.alias_group_base.apply().cast(TypeAliasGroup),
+            alias_info.alias_group_base.apply().real(TypeAliasGroup),
             arg_group,
             result_type,
         )
 
         fn_protocol = instance.fn_protocol()
-        fn_alias_group = fn_protocol.alias_group.apply().cast(TypeAliasGroup)
+        fn_alias_group = fn_protocol.alias_group.apply().real(TypeAliasGroup)
 
         # Inner function must not have aliases
         Eq(fn_alias_group, TypeAliasGroup()).raise_on_false()
 
-        return IType.valid_type(
+        return IType.general_valid_type(
             base_type=my_protocol.with_new_args(alias_group=TypeAliasGroup()),
             type_to_verify=fn_protocol,
             alias_info=alias_info,
         )
 
-class TypeEnforcer(InheritableNode, IDynamic, IInstantiable):
+class TypeEnforcer(InheritableNode, IInstantiable):
 
     idx_type = 1
     idx_node = 2
@@ -1901,10 +1970,10 @@ class TypeEnforcer(InheritableNode, IDynamic, IInstantiable):
     def protocol(cls) -> Protocol:
         return Protocol(
             TypeAliasGroup(
-                TypeAlias(IType.as_type()),
+                TypeAlias(INode.as_type()),
             ),
             CountableTypeGroup(
-                TypeIndex(1),
+                Type(TypeIndex(1)),
                 INode.as_type(),
             ),
             TypeIndex(1),
@@ -1918,29 +1987,17 @@ class TypeEnforcer(InheritableNode, IDynamic, IInstantiable):
     def node(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_node)
 
-    def verify_result(self, result: INode, args_group: OptionalValueGroup):
-        IsInstance.verify(result, INode)
-        type_opt = args_group.inner_arg(self.idx_type).apply().cast(IOptional[INode])
-        t = type_opt.value_or_raise.as_node.cast(IType)
-        t.verify(result, alias_info=AliasInfo.create())
+    def strict_validate(self):
+        super().strict_validate()
+        t = self.type.apply().real(IType)
+        node = self.node.apply()
+        t.verify(node, alias_info=AliasInfo.create())
 
-    def _run(self, info: RunInfo) -> RunInfoFullResult:
-        info, t, _ = self.type.apply().run(info).as_tuple
-        info, final_node, _ = self.node.apply().run(info).as_tuple
-
-        result = (
-            info.to_result(original=self, result=self.func(t, final_node))
-            if info.is_future()
-            else RunInfoResult.with_args(
-                run_info=info,
-                return_value=final_node,
-                return_type=t,
-            )
-        )
-
-        return RunInfoFullResult(
-            result,
-            OptionalValueGroup.from_optional_items([t, final_node]))
+    def actual_instance(self) -> BaseNode:
+        instance: BaseNode = self
+        while isinstance(instance, TypeEnforcer):
+            instance = instance.node.apply()
+        return instance
 
 class IComplexType(IType, ABC):
 
@@ -1956,13 +2013,13 @@ class IComplexType(IType, ABC):
             return all_case
         return False
 
-class UnionType(InheritableNode, IComplexType, IInstantiable):
+class UnionType(InheritableNode, IComplexType, ITypeValidator, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.rest_protocol(IType.as_type())
 
-    def valid(
+    def _valid(
         self,
         instance: INode,
         alias_info: AliasInfo,
@@ -1979,13 +2036,29 @@ class UnionType(InheritableNode, IComplexType, IInstantiable):
             all_case=False,
         ), alias_info
 
-class IntersectionType(InheritableNode, IComplexType, IInstantiable):
+    def valid_type(
+        self,
+        type_to_verify: IType,
+        alias_info: AliasInfo,
+    ) -> tuple[bool, AliasInfo]:
+        args = [arg for arg in self.args if isinstance(arg, IType)]
+        Eq.from_ints(len(args), len(self.args)).raise_on_false()
+        for t in args:
+            valid, alias_info = IType.general_valid_type(
+                base_type=t,
+                type_to_verify=type_to_verify,
+                alias_info=alias_info)
+            if valid:
+                return True, alias_info
+        return False, alias_info
+
+class IntersectionType(InheritableNode, IComplexType, ITypeValidator, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.rest_protocol(IType.as_type())
 
-    def valid(
+    def _valid(
         self,
         instance: INode,
         alias_info: AliasInfo,
@@ -2001,6 +2074,22 @@ class IntersectionType(InheritableNode, IComplexType, IInstantiable):
             any_case=False,
             all_case=True,
         ), alias_info
+
+    def valid_type(
+        self,
+        type_to_verify: IType,
+        alias_info: AliasInfo,
+    ) -> tuple[bool, AliasInfo]:
+        args = [arg for arg in self.args if isinstance(arg, IType)]
+        Eq.from_ints(len(args), len(self.args)).raise_on_false()
+        for t in args:
+            valid, alias_info = IType.general_valid_type(
+                base_type=t,
+                type_to_verify=type_to_verify,
+                alias_info=alias_info)
+            if not valid:
+                return False, alias_info
+        return True, alias_info
 
 class CompositeType(InheritableNode, IComplexType, IInstantiable):
 
@@ -2022,12 +2111,12 @@ class CompositeType(InheritableNode, IComplexType, IInstantiable):
     def type_args(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_type_args)
 
-    def valid(
+    def _valid(
         self,
         instance: INode,
         alias_info: AliasInfo,
     ) -> tuple[bool, AliasInfo]:
-        t = self.inner_arg(self.idx_type).apply().as_node.cast(IType)
+        t = self.inner_arg(self.idx_type).apply().real(IType)
         valid, alias_info = t.valid(instance, alias_info=alias_info)
         if not valid:
             return False, alias_info
@@ -2035,7 +2124,7 @@ class CompositeType(InheritableNode, IComplexType, IInstantiable):
         if args == Void():
             return True, alias_info
         assert isinstance(args, IBaseTypeGroup)
-        i_args = instance.as_node.cast(InheritableNode).args
+        i_args = instance.real(InheritableNode).args
         return args.valid_info(
             DefaultGroup(*i_args).to_optional_group(),
             alias_info=alias_info)
@@ -2072,7 +2161,7 @@ class ScopedFunctionBase(
     @classmethod
     def with_node(cls, node: T) -> typing.Self:
         return cls.new(
-            Protocol.rest(result_type=node.protocol().result.apply().cast(IType)),
+            Protocol.rest(result_type=node.protocol().result.apply().real(IType)),
             node,
         )
 
@@ -2085,17 +2174,17 @@ class ScopedFunctionBase(
         return self.as_node.inner_arg(self.idx_expr)
 
     def fn_protocol(self) -> Protocol:
-        return self.protocol_arg.apply().cast(Protocol)
+        return self.protocol_arg.apply().real(Protocol)
 
     def with_arg_group(self, group: BaseGroup, info: RunInfo):
         alias_info: AliasInfo | None = None
-        protocol_arg: Protocol = self.protocol_arg.apply().cast(Protocol)
+        protocol_arg: Protocol = self.protocol_arg.apply().real(Protocol)
 
         if info.is_future():
             scope_data: ScopeDataParamBaseItemGroup = ScopeDataFutureParamItemGroup()
         else:
-            info, node_aux, _ = group.run(info).as_tuple
-            new_group = node_aux.as_node.cast(BaseGroup)
+            info, node_aux = group.run(info).as_tuple
+            new_group = node_aux.real(BaseGroup)
             alias_info = protocol_arg.verify_args(new_group)
             scope_data = ScopeDataParamItemGroup.from_optional_items(new_group.as_tuple)
             scope_data.strict_validate()
@@ -2112,21 +2201,19 @@ class ScopedFunctionBase(
             result, _ = e.result.as_tuple
 
         if isinstance(self, IOpaqueScope):
-            _, node, result_type = result.as_tuple
+            _, node = result.as_tuple
             new_info = info
         else:
-            new_info, node, result_type = result.as_tuple
+            new_info, node = result.as_tuple
             new_info = new_info.with_scopes(info)
 
         if not info.is_future():
-            result_type.verify(node, alias_info=AliasInfo.create())
             assert alias_info is not None
             protocol_arg.verify_result(node, alias_info=alias_info)
 
         return RunInfoResult.with_args(
             run_info=new_info,
             return_value=node,
-            return_type=result_type,
         )
 
     def prepare_expr(self, info: RunInfo) -> RunInfoResult:
@@ -2135,12 +2222,12 @@ class ScopedFunctionBase(
     def _run(self, info: RunInfo) -> RunInfoFullResult:
         self.validate()
 
-        info, node_aux, _ = self.protocol_arg.apply().run(info).as_tuple
-        type_group = node_aux.as_node.cast(Protocol)
+        info, node_aux = self.protocol_arg.apply().run(info).as_tuple
+        type_group = node_aux.real(Protocol)
 
-        info, expr, _ = self.prepare_expr(info).as_tuple
+        info, expr = self.prepare_expr(info).as_tuple
 
-        result = info.to_result(original=self, result=self.func(type_group, expr))
+        result = info.to_result(self.func(type_group, expr))
         args_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [type_group, expr]
         )
@@ -2162,7 +2249,6 @@ class FunctionExpr(
         return RunInfoResult.with_args(
             run_info=info,
             return_value=expr,
-            return_type=expr.as_type(),
         )
 
 class FunctionWrapper(
@@ -2174,16 +2260,7 @@ class FunctionWrapper(
 
     @classmethod
     def expr_type(cls) -> IType:
-        return UnionType(
-            FunctionCall.as_type(),
-            CompositeType(
-                TypeEnforcer.as_type(),
-                CountableTypeGroup(
-                    IType.as_type(),
-                    FunctionCall.as_type(),
-                )
-            ),
-        )
+        return FunctionCall.as_type()
 
     def prepare_expr(self, info: RunInfo):
         new_info = info.add_scope(ScopeDataFutureParamItemGroup())
@@ -2257,14 +2334,14 @@ class RunnableBoolean(InheritableNode, IDynamic, IBoolean, ABC):
 
     def _run(self, info: RunInfo) -> RunInfoFullResult:
         base_result, arg_group = super()._run(info).as_tuple
-        info, node_aux, _ = base_result.as_tuple
+        info, node_aux = base_result.as_tuple
         if info.is_future():
             return base_result
 
-        node = node_aux.as_node.cast(self.__class__)
+        node = node_aux.real(self.__class__)
         value = node.func(*node.args).strict_bool
 
-        result = info.to_result(original=self, result=IntBoolean.from_bool(value))
+        result = info.to_result(IntBoolean.from_bool(value))
         return RunInfoFullResult(result, arg_group)
 
 class BooleanWrapper(
@@ -2287,7 +2364,7 @@ class BooleanWrapper(
 
     @property
     def child(self) -> IBoolean:
-        return self.raw_child.apply().cast(IBoolean)
+        return self.raw_child.apply().real(IBoolean)
 
     @property
     def as_bool(self) -> bool:
@@ -2559,7 +2636,7 @@ class StackExceptionInfo(
         return self.inner_arg(self.idx_cause)
 
     def _add_stack(self, node: INode, run_info: RunInfo) -> typing.Self:
-        stack_group = self.stack_group.apply().cast(StackExceptionInfoGroup)
+        stack_group = self.stack_group.apply().real(StackExceptionInfoGroup)
         new_item = (
             StackExceptionInfoItem.with_args(node=node, run_info=run_info)
             if len(stack_group.args) == 0 or not isinstance(node, InheritableNode)
@@ -2578,7 +2655,8 @@ class InvalidNodeException(Exception):
     @property
     def info(self) -> IExceptionInfo:
         info = self.args[0]
-        return typing.cast(IExceptionInfo, info)
+        assert isinstance(info, IExceptionInfo)
+        return info
 
 ###########################################################
 ######################## EXCEPTION ########################
@@ -2605,7 +2683,7 @@ class ExceptionInfoWrapper(
 
     @property
     def child(self) -> IExceptionInfo:
-        return self.info.apply().cast(IExceptionInfo)
+        return self.info.apply().real(IExceptionInfo)
 
 ###########################################################
 ################### CORE BOOLEAN NODES ####################
@@ -2641,7 +2719,7 @@ class SingleOptionalBooleanChildWrapper(
 
     @property
     def child(self) -> IOptional[T]:
-        return self.raw_child.apply().cast(IOptional[T])
+        return self.raw_child.apply().real(IOptional[T])
 
 class IsEmpty(SingleOptionalBooleanChildWrapper[INode], IInstantiable):
 
@@ -2706,11 +2784,11 @@ class IsInstance(RunnableBoolean, typing.Generic[T], IInstantiable):
 
     @classmethod
     def with_args(cls, instance: INode, t: typing.Type[T]) -> IsInstance[T]:
-        return typing.cast(IsInstance[T], cls(instance, TypeNode(t)))
+        return cls(instance, TypeNode(t)).real(IsInstance[T])
 
     @classmethod
     def assert_type(cls, instance: INode, t: typing.Type[T]) -> T:
-        return typing.cast(T, cls(instance, TypeNode(t)).as_type_or_raise)
+        return cls(instance, TypeNode(t)).as_type_or_raise
 
     @classmethod
     def verify(cls, instance: INode, t: typing.Type[INode]):
@@ -2818,17 +2896,17 @@ class And(MultiArgBooleanNode, IInstantiable):
             return RunInfoFullResult(result, arg_group)
 
         for arg in self.args:
-            info, run_arg, _ = arg.as_node.run(info).as_tuple
+            info, run_arg = arg.as_node.run(info).as_tuple
             if isinstance(run_arg, IBoolean):
                 if not run_arg.as_bool:
-                    result = info.to_result(original=self, result=IBoolean.false())
+                    result = info.to_result(IBoolean.false())
                     return fn_return(result)
             run_args.append(run_arg)
 
         for run_arg in run_args:
             assert isinstance(run_arg, IBoolean)
 
-        result = info.to_result(original=self, result=IBoolean.true())
+        result = info.to_result(IBoolean.true())
 
         return fn_return(result)
 
@@ -2855,18 +2933,18 @@ class Or(MultiArgBooleanNode, IInstantiable):
             return RunInfoFullResult(result, arg_group)
 
         for arg in self.args:
-            info, run_arg, _ = arg.as_node.run(info).as_tuple
+            info, run_arg = arg.as_node.run(info).as_tuple
             if isinstance(run_arg, IBoolean):
                 val_1 = run_arg.as_bool
                 if val_1 is True:
-                    result = info.to_result(original=self, result=IBoolean.true())
+                    result = info.to_result(IBoolean.true())
                     return fn_return(result)
             run_args.append(run_arg)
 
         for run_arg in run_args:
             assert isinstance(run_arg, IBoolean)
 
-        result = info.to_result(original=self, result=IBoolean.false())
+        result = info.to_result(IBoolean.false())
 
         return fn_return(result)
 
@@ -3047,7 +3125,7 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
         return self.inner_arg(self.idx_return_after_scope)
 
     def add_scope(self, item: ScopeDataPlaceholderItemGroup) -> typing.Self:
-        group = self.scope_data_group.apply().cast(ScopeDataGroup)
+        group = self.scope_data_group.apply().real(ScopeDataGroup)
         new_group = group.add_item(item)
         return self.with_new_args(
             scope_data_group=new_group,
@@ -3061,11 +3139,11 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
         scope_data_group = (
             scope_data_group
             if scope_data_group is not None
-            else self.scope_data_group.apply().cast(ScopeDataGroup))
+            else self.scope_data_group.apply().real(ScopeDataGroup))
         return_after_scope = (
             return_after_scope
             if return_after_scope is not None
-            else self.return_after_scope.apply().cast(Optional[RunInfoScopeDataIndex]))
+            else self.return_after_scope.apply().real(Optional[RunInfoScopeDataIndex]))
         return self.func(scope_data_group, return_after_scope)
 
     def add_scope_var(
@@ -3083,22 +3161,22 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
         new_item = item.add_item(item_index, value)
         result = scope_index.replace_in_outer_target(self, new_item).value_or_raise
 
-        group_1 = self.scope_data_group.apply().cast(ScopeDataGroup)
-        group_2 = result.scope_data_group.apply().cast(ScopeDataGroup)
+        group_1 = self.scope_data_group.apply().real(ScopeDataGroup)
+        group_2 = result.scope_data_group.apply().real(ScopeDataGroup)
         SameArgsAmount(group_1, group_2).raise_on_false()
 
         return result
 
     def is_future(self) -> IBoolean:
-        group = self.scope_data_group.apply().cast(ScopeDataGroup)
+        group = self.scope_data_group.apply().real(ScopeDataGroup)
         return group.is_future()
 
     def with_scopes(self, info_base: RunInfo) -> typing.Self:
-        base_amount = info_base.scope_data_group.apply().cast(ScopeDataGroup).amount()
-        group = self.scope_data_group.apply().cast(ScopeDataGroup).as_tuple
+        base_amount = info_base.scope_data_group.apply().real(ScopeDataGroup).amount()
+        group = self.scope_data_group.apply().real(ScopeDataGroup).as_tuple
         Not(LessThan(Integer(len(group)), Integer(base_amount))).raise_on_false()
         new_group = group[:base_amount]
-        return_after_scope = self.return_after_scope.apply().cast(Optional[RunInfoScopeDataIndex])
+        return_after_scope = self.return_after_scope.apply().real(Optional[RunInfoScopeDataIndex])
         return_after_val = return_after_scope.value
         if return_after_val is not None:
             assert isinstance(return_after_val, RunInfoScopeDataIndex)
@@ -3110,32 +3188,25 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
             return_after_scope=return_after_scope)
 
     def must_return(self) -> bool:
-        return_after_scope = self.return_after_scope.apply().cast(Optional[RunInfoScopeDataIndex])
+        return_after_scope = self.return_after_scope.apply().real(Optional[RunInfoScopeDataIndex])
         return_after_val = return_after_scope.value
         return return_after_val is not None
 
-    def to_result(self, original: INode, result: INode) -> RunInfoResult:
-        result_type = (
-            original.as_type()
-            if self.is_future()
-            else original.protocol().final_result_type(result))
+    def to_result(self, result: INode) -> RunInfoResult:
         return RunInfoResult.with_args(
             run_info=self,
-            return_value=result,
-            return_type=result_type)
+            return_value=result)
 
 class RunInfoResult(InheritableNode, IInstantiable):
 
     idx_run_info = 1
     idx_return_value = 2
-    idx_return_type = 3
 
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
             RunInfo.as_type(),
             INode.as_type(),
-            IType.as_type(),
         ))
 
     @property
@@ -3147,24 +3218,18 @@ class RunInfoResult(InheritableNode, IInstantiable):
         return self.inner_arg(self.idx_return_value)
 
     @property
-    def return_type(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_return_type)
-
-    @property
     def as_tuple(self):
-        new_info = self.run_info.apply().cast(RunInfo)
+        new_info = self.run_info.apply().real(RunInfo)
         return_value = self.return_value.apply().cast(INode)
-        return_type = self.return_type.apply().cast(IType)
-        return new_info, return_value, return_type
+        return new_info, return_value
 
     @classmethod
     def with_args(
         cls,
         run_info: RunInfo,
         return_value: INode,
-        return_type: IType,
     ) -> RunInfoResult:
-        return cls(run_info, return_value, return_type)
+        return cls(run_info, return_value)
 
 class RunInfoFullResult(InheritableNode, IInstantiable):
 
@@ -3188,8 +3253,8 @@ class RunInfoFullResult(InheritableNode, IInstantiable):
 
     @property
     def as_tuple(self):
-        info_result = self.info_result.apply().cast(RunInfoResult)
-        return_value = self.run_args.apply().cast(OptionalValueGroup)
+        info_result = self.info_result.apply().real(RunInfoResult)
+        return_value = self.run_args.apply().real(OptionalValueGroup)
         return info_result, return_value
 
 class ControlFlowBaseNode(InheritableNode, IDynamic, ABC):
@@ -3199,9 +3264,9 @@ class ControlFlowBaseNode(InheritableNode, IDynamic, ABC):
         if info.is_future():
             args: list[INode] = []
             for arg in self.args:
-                info, node_aux, _ = arg.as_node.run(info).as_tuple
+                info, node_aux = arg.as_node.run(info).as_tuple
                 args.append(node_aux)
-            result = info.to_result(original=self, result=self.func(*args))
+            result = info.to_result(self.func(*args))
             arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(args)
             return RunInfoFullResult(result, arg_group)
         return self._run_control(info)
@@ -3212,13 +3277,13 @@ class ControlFlowBaseNode(InheritableNode, IDynamic, ABC):
     def verify_result(self, result: INode, args_group: OptionalValueGroup):
         protocol = self.protocol()
         alias_info = protocol.verify_optional_args(args_group)
-        alias_group_actual = alias_info.alias_group_actual.apply().cast(TypeAliasOptionalGroup)
-        p_arg_group = protocol.arg_group.apply().cast(IBaseTypeGroup)
-        p_result = protocol.result.apply().cast(IType)
+        alias_group_actual = alias_info.alias_group_actual.apply().real(TypeAliasOptionalGroup)
+        p_arg_group = protocol.arg_group.apply().real(IBaseTypeGroup)
+        p_result = protocol.result.apply().real(IType)
         for alias in p_arg_group.as_node.find(BaseTypeIndex):
             value = alias_group_actual.as_tuple[alias.as_int-1]
             if value.is_empty().as_bool:
-                p_result = p_result.as_node.replace(alias, InvalidType()).as_node.cast(IType)
+                p_result = p_result.as_node.replace(alias, InvalidType()).real(IType)
         protocol = protocol.with_new_args(result_type=p_result)
         protocol.verify_result(result, alias_info=alias_info)
 
@@ -3250,11 +3315,11 @@ class FunctionCall(ControlFlowBaseNode, IInstantiable):
         return cls(fn, args)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux, _ = self.function.apply().run(info).as_tuple
-        fn = node_aux.as_node.cast(IFunction)
+        info, node_aux = self.function.apply().run(info).as_tuple
+        fn = node_aux.real(IFunction)
 
-        info, node_aux, _ = self.arg_group.apply().run(info).as_tuple
-        fn_arg_group = node_aux.as_node.cast(BaseGroup)
+        info, node_aux = self.arg_group.apply().run(info).as_tuple
+        fn_arg_group = node_aux.real(BaseGroup)
 
         result = fn.with_arg_group(group=fn_arg_group, info=info)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
@@ -3295,20 +3360,20 @@ class If(ControlFlowBaseNode, IInstantiable):
         return self.inner_arg(self.idx_false_expr)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux, _ = self.condition.apply().run(info).as_tuple
-        condition = node_aux.as_node.cast(IBoolean)
+        info, node_aux = self.condition.apply().run(info).as_tuple
+        condition = node_aux.real(IBoolean)
 
         flag = condition.strict_bool
 
         if flag:
             true_result = self.true_expr.apply().run(info)
-            _, true_node, __ = true_result.as_tuple
+            _, true_node = true_result.as_tuple
             arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
                 [condition, true_node, None])
             return RunInfoFullResult(true_result, arg_group)
 
         false_result = self.false_expr.apply().run(info)
-        _, false_node, __ = false_result.as_tuple
+        _, false_node = false_result.as_tuple
         arg_group = OptionalValueGroup.from_optional_items(
             [condition, None, false_node])
         return RunInfoFullResult(false_result, arg_group)
@@ -3364,29 +3429,29 @@ class Loop(ControlFlowBaseNode, IFromSingleNode[IFunction], IInstantiable):
         return self.inner_arg(self.idx_initial_data)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux, _ = self.callback.apply().run(info).as_tuple
-        callback = node_aux.as_node.cast(IFunction)
+        info, node_aux = self.callback.apply().run(info).as_tuple
+        callback = node_aux.real(IFunction)
 
-        info, node_aux, _ = self.initial_data.apply().run(info).as_tuple
-        initial_data = node_aux.as_node.cast(Optional[INode])
+        info, node_aux = self.initial_data.apply().run(info).as_tuple
+        initial_data = node_aux.real(Optional[INode])
 
         condition = True
         data = initial_data
         idx = 0
         while condition:
             idx += 1
-            info, node_aux, _ = FunctionCall(callback, DefaultGroup(data)).run(info).as_tuple
-            result = node_aux.as_node.cast(LoopGuard)
+            info, node_aux = FunctionCall(callback, DefaultGroup(data)).run(info).as_tuple
+            result = node_aux.real(LoopGuard)
 
-            info, node_aux, _ = result.condition.apply().run(info).as_tuple
-            cond_node = node_aux.as_node.cast(IBoolean)
+            info, node_aux = result.condition.apply().run(info).as_tuple
+            cond_node = node_aux.real(IBoolean)
 
-            info, new_data, _ = result.result.apply().run(info).as_tuple
+            info, new_data = result.result.apply().run(info).as_tuple
 
             data = Optional(new_data)
             condition = cond_node.strict_bool
 
-        result = info.to_result(original=data, result=data)
+        result = info.to_result(result=data)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [callback, initial_data]
         )
@@ -3414,10 +3479,10 @@ class InstructionGroup(ControlFlowBaseNode, IInnerScope, IInstantiable):
 
         run_args: list[INode] = []
         for arg in self.args:
-            info, node, _ = arg.as_node.run(info).as_tuple
+            info, node = arg.as_node.run(info).as_tuple
             run_args.append(node)
 
-        result = info.to_result(original=self, result=Void())
+        result = info.to_result(Void())
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(run_args)
         return RunInfoFullResult(result, arg_group)
 
@@ -3448,21 +3513,21 @@ class Assign(ControlFlowBaseNode, IInstantiable):
         return self.inner_arg(self.idx_value)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux, _ = self.var_index.apply().run(info).as_tuple
-        var_index = node_aux.as_node.cast(Integer)
+        info, node_aux = self.var_index.apply().run(info).as_tuple
+        var_index = node_aux.real(Integer)
 
-        info, node_aux, _ = self.value.apply().run(info).as_tuple
+        info, node_aux = self.value.apply().run(info).as_tuple
         value = node_aux
 
-        info, node_aux, _ = NearParentScope.create().run(info).as_tuple
-        scope_index = node_aux.as_node.cast(RunInfoScopeDataIndex)
+        info, node_aux = NearParentScope.create().run(info).as_tuple
+        scope_index = node_aux.real(RunInfoScopeDataIndex)
 
         info = info.add_scope_var(
             scope_index=scope_index,
             item_index=var_index,
             value=value)
 
-        result = info.to_result(original=self, result=value)
+        result = info.to_result(value)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [var_index, value]
         )
@@ -3499,17 +3564,17 @@ class Return(ControlFlowBaseNode, IFromSingleNode[INode], IInstantiable):
         return self.inner_arg(self.idx_value)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux, _ = self.parent_scope.apply().run(info).as_tuple
-        scope_index = node_aux.as_node.cast(RunInfoScopeDataIndex)
+        info, node_aux = self.parent_scope.apply().run(info).as_tuple
+        scope_index = node_aux.real(RunInfoScopeDataIndex)
 
-        info, value, _ = self.value.apply().run(info).as_tuple
+        info, value = self.value.apply().run(info).as_tuple
 
         if not info.is_future():
             info = info.with_new_args(
                 return_after_scope=Optional(scope_index)
             )
 
-        result = info.to_result(original=self, result=value)
+        result = info.to_result(value)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [scope_index, value]
         )
@@ -3542,26 +3607,17 @@ class InnerArg(ControlFlowBaseNode, IInstantiable):
         return self.inner_arg(self.idx_arg_index)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux, _ = self.node.apply().run(info).as_tuple
-        node = node_aux.as_node.cast(INode)
+        info, node_aux = self.node.apply().run(info).as_tuple
+        node = node_aux.cast(INode)
 
-        info, node_aux, _ = self.arg_index.apply().run(info).as_tuple
-        arg_index = node_aux.as_node.cast(NodeArgIndex)
+        info, node_aux = self.arg_index.apply().run(info).as_tuple
+        arg_index = node_aux.real(NodeArgIndex)
 
         result = arg_index.find_in_node(node).value_or_raise
 
-        node_protocol = node.protocol().fill_aliases(node)
-        p_group = node_protocol.arg_group.apply().cast(IBaseTypeGroup)
-        if isinstance(p_group, CountableTypeGroup):
-            arg_type = arg_index.find_in_node(p_group).value_or_raise.as_node.cast(IType)
-        else:
-            assert isinstance(p_group, SingleValueTypeGroup)
-            arg_type = p_group.type_node.apply().cast(IType)
-
         result = RunInfoResult.with_args(
             run_info=info,
-            return_value=result,
-            return_type=arg_type)
+            return_value=result)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [node, arg_index]
         )
@@ -3598,19 +3654,18 @@ class NestedArg(ControlFlowBaseNode, IInstantiable):
         return self.inner_arg(self.idx_arg_indices)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, root_node, result_type = self.node.apply().run(info).as_tuple
+        info, root_node = self.node.apply().run(info).as_tuple
         node = root_node
 
-        info, node_aux, _ = self.arg_indices.apply().run(info).as_tuple
-        arg_indices = node_aux.as_node.cast(NestedArgIndexGroup)
+        info, node_aux = self.arg_indices.apply().run(info).as_tuple
+        arg_indices = node_aux.real(NestedArgIndexGroup)
 
         for arg_index in arg_indices.as_tuple:
-            info, node, result_type = InnerArg(node, arg_index).run(info).as_tuple
+            info, node = InnerArg(node, arg_index).run(info).as_tuple
 
         result = RunInfoResult.with_args(
             run_info=info,
-            return_value=node,
-            return_type=result_type)
+            return_value=node)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [node, arg_indices]
         )
@@ -3656,7 +3711,7 @@ class RunInfoScopeDataIndex(RunInfoIntIndex[ScopeDataPlaceholderItemGroup], IIns
 
     @classmethod
     def _outer_group(cls, run_info: RunInfo) -> ScopeDataGroup:
-        return run_info.scope_data_group.apply().cast(ScopeDataGroup)
+        return run_info.scope_data_group.apply().real(ScopeDataGroup)
 
     @classmethod
     def _update(
@@ -3699,7 +3754,7 @@ class IIterator(INode, ABC):
 
     def next(self, run_info: RunInfo) -> RunInfoResult:
         result = self._next(run_info)
-        _, node, __ = result.as_tuple
+        _, node = result.as_tuple
         assert isinstance(node, IOptional)
         group = node.value
         if group is not None:
@@ -3741,22 +3796,22 @@ class GroupIterator(InheritableNode, IFromSingleNode[BaseGroup], IIterator, IIns
         group: BaseGroup | None = None,
         index: NodeArgIndex | None = None,
     ) -> typing.Self:
-        group = group if group is not None else self.group.apply().cast(BaseGroup)
-        index = index if index is not None else self.index.apply().cast(NodeArgIndex)
+        group = group if group is not None else self.group.apply().real(BaseGroup)
+        index = index if index is not None else self.index.apply().real(NodeArgIndex)
         return self.func(group, index)
 
     def _next(self, run_info: RunInfo):
         info = run_info
 
-        info, node_aux, _ = self.group.apply().run(info).as_tuple
-        group = node_aux.as_node.cast(BaseGroup)
+        info, node_aux = self.group.apply().run(info).as_tuple
+        group = node_aux.real(BaseGroup)
 
-        info, node_aux, _ = self.index.apply().run(info).as_tuple
-        index = node_aux.as_node.cast(NodeArgIndex)
+        info, node_aux = self.index.apply().run(info).as_tuple
+        index = node_aux.real(NodeArgIndex)
 
         if index.as_int > group.amount():
             result: Optional[INode] = Optional()
-            return info.to_result(original=result, result=result)
+            return info.to_result(result)
 
         value = index.find_in_node(group).value_or_raise
         new_iter = self.with_new_args(
@@ -3764,7 +3819,7 @@ class GroupIterator(InheritableNode, IFromSingleNode[BaseGroup], IIterator, IIns
             index=NodeArgIndex(index.as_int + 1),
         )
         result = Optional(DefaultGroup(new_iter, value))
-        return info.to_result(original=result, result=result)
+        return info.to_result(result)
 
 class Next(ControlFlowBaseNode, IInstantiable):
 
@@ -3784,8 +3839,8 @@ class Next(ControlFlowBaseNode, IInstantiable):
         return self.inner_arg(self.idx_iter)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux, _ = self.iter.apply().run(info).as_tuple
-        iterator = node_aux.as_node.cast(IIterator)
+        info, node_aux = self.iter.apply().run(info).as_tuple
+        iterator = node_aux.real(IIterator)
         result = iterator.next(info)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [iterator]
@@ -3808,15 +3863,15 @@ class Add(ControlFlowBaseNode, IInstantiable):
         node: IAdditive | None = None
         run_args: list[INode] = []
         for arg in self.args:
-            info, node_aux, _ = arg.as_node.run(info).as_tuple
+            info, node_aux = arg.as_node.run(info).as_tuple
             run_args.append(node_aux)
             if node is None:
-                arg_node = node_aux.as_node.cast(IAdditive)
+                arg_node = node_aux.real(IAdditive)
                 node = arg_node
             else:
-                info, node, _ = node.add(node_aux, run_info=info).as_tuple
+                info, node = node.add(node_aux, run_info=info).as_tuple
         assert node is not None
-        result = info.to_result(original=self, result=node)
+        result = info.to_result(node)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             run_args)
         return RunInfoFullResult(result, arg_group)
