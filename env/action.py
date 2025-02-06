@@ -6,7 +6,7 @@ from env.core import (
     InheritableNode,
     IExceptionInfo,
     Optional,
-    TypeNode,
+    Type,
     IsInsideRange,
     InvalidNodeException,
     IOptional,
@@ -86,7 +86,7 @@ class ActionTypeExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiab
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
-            TypeNode[IAction].as_type(),
+            Type(IAction.as_type()),
             IExceptionInfo.as_type(),
         ))
 
