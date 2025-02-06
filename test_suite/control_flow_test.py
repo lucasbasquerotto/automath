@@ -333,11 +333,26 @@ def test_control_flow() -> list[full_state.FullState]:
         ),
 
         core.FunctionCall(
-            core.FunctionWrapper.with_node(
+            core.FunctionWrapper(
+                core.Protocol(
+                    core.TypeAliasGroup(),
+                    core.RestTypeGroup(core.INode.as_type()),
+                    core.INode.as_type(),
+                ),
                 core.FunctionCall(
-                    core.FunctionWrapper.with_node(
+                    core.FunctionWrapper(
+                        core.Protocol(
+                            core.TypeAliasGroup(),
+                            core.RestTypeGroup(core.INode.as_type()),
+                            core.INode.as_type(),
+                        ),
                         core.FunctionCall(
-                            core.FunctionExpr.with_node(
+                            core.FunctionExpr(
+                                core.Protocol(
+                                    core.TypeAliasGroup(),
+                                    core.RestTypeGroup(core.INode.as_type()),
+                                    core.INode.as_type(),
+                                ),
                                 core.DefaultGroup(
                                     core.DefaultGroup(
                                         core.FunctionCall(
@@ -602,11 +617,21 @@ def test_control_flow() -> list[full_state.FullState]:
         core.InstructionGroup(
             core.Assign(
                 core.Integer(1),
-                core.FunctionWrapper.with_node(
+                core.FunctionWrapper(
+                    core.Protocol(
+                        core.TypeAliasGroup(),
+                        core.RestTypeGroup(core.INode.as_type()),
+                        core.INode.as_type(),
+                    ),
                     core.FunctionCall(
                         composite.Map,
                         core.DefaultGroup(
-                            core.FunctionWrapper.with_node(
+                            core.FunctionWrapper(
+                                core.Protocol(
+                                    core.TypeAliasGroup(),
+                                    core.RestTypeGroup(core.INode.as_type()),
+                                    core.INode.as_type(),
+                                ),
                                 core.FunctionCall(
                                     core.Param(
                                         core.NearParentScope.from_int(2),
@@ -629,11 +654,21 @@ def test_control_flow() -> list[full_state.FullState]:
 
             core.Assign(
                 core.Integer(2),
-                core.FunctionWrapper.with_node(
+                core.FunctionWrapper(
+                    core.Protocol(
+                        core.TypeAliasGroup(),
+                        core.RestTypeGroup(core.INode.as_type()),
+                        core.INode.as_type(),
+                    ),
                     core.FunctionCall(
                         composite.Map,
                         core.DefaultGroup(
-                            core.FunctionWrapper.with_node(
+                            core.FunctionWrapper(
+                                core.Protocol(
+                                    core.TypeAliasGroup(),
+                                    core.RestTypeGroup(core.INode.as_type()),
+                                    core.INode.as_type(),
+                                ),
                                 core.FunctionCall(
                                     core.Var(
                                         core.NearParentScope.from_int(3),
@@ -682,7 +717,12 @@ def test_control_flow() -> list[full_state.FullState]:
             ),
             core.Assign(
                 core.Integer(3),
-                core.FunctionWrapper.with_node(
+                core.FunctionWrapper(
+                    core.Protocol(
+                        core.TypeAliasGroup(),
+                        core.RestTypeGroup(core.INode.as_type()),
+                        core.INode.as_type(),
+                    ),
                     core.FunctionCall(
                         composite.Map,
                         core.DefaultGroup(
@@ -715,7 +755,12 @@ def test_control_flow() -> list[full_state.FullState]:
             ),
             core.Assign(
                 core.Integer(4),
-                core.FunctionWrapper.with_node(
+                core.FunctionWrapper(
+                    core.Protocol(
+                        core.TypeAliasGroup(),
+                        core.RestTypeGroup(core.INode.as_type()),
+                        core.INode.as_type(),
+                    ),
                     core.FunctionCall(
                         composite.Map,
                         core.DefaultGroup(
@@ -944,17 +989,37 @@ def test_control_flow() -> list[full_state.FullState]:
         scratches=scratches,
         args_groups=args_groups,
         scratch_idx=index+4,
-        new_scratch=core.FunctionWrapper.with_node(
+        new_scratch=core.FunctionWrapper(
+            core.Protocol(
+                core.TypeAliasGroup(),
+                core.RestTypeGroup(core.INode.as_type()),
+                core.INode.as_type(),
+            ),
             core.FunctionCall(
                 composite.Map,
                 core.DefaultGroup(
-                    core.FunctionWrapper.with_node(
+                    core.FunctionWrapper(
+                        core.Protocol(
+                            core.TypeAliasGroup(),
+                            core.RestTypeGroup(core.INode.as_type()),
+                            core.INode.as_type(),
+                        ),
                         core.FunctionCall(
-                            core.FunctionWrapper.with_node(
+                            core.FunctionWrapper(
+                                core.Protocol(
+                                    core.TypeAliasGroup(),
+                                    core.RestTypeGroup(core.INode.as_type()),
+                                    core.INode.as_type(),
+                                ),
                                 core.FunctionCall(
                                     composite.Map,
                                     core.DefaultGroup(
-                                        core.FunctionWrapper.with_node(
+                                        core.FunctionWrapper(
+                                            core.Protocol(
+                                                core.TypeAliasGroup(),
+                                                core.RestTypeGroup(core.INode.as_type()),
+                                                core.INode.as_type(),
+                                            ),
                                             core.FunctionCall(
                                                 core.Param(
                                                     core.NearParentScope.from_int(2),

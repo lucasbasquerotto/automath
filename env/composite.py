@@ -1,6 +1,6 @@
 from env import core
 
-Map: core.FunctionExpr[core.INode] = core.FunctionExpr(
+Map: core.FunctionExpr = core.FunctionExpr(
     core.Protocol(
         core.TypeAliasGroup(
             core.TypeAlias(

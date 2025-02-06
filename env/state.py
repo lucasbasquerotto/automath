@@ -65,6 +65,10 @@ class Goal(InheritableNode, IGoal, typing.Generic[T, K], ABC):
     def goal_inner_expr(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_goal_inner_expr)
 
+    @property
+    def eval_param_type_raw(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_eval_param_type)
+
     def evaluate(self, state: 'State', eval_param: K) -> IBoolean:
         raise NotImplementedError
 
@@ -288,7 +292,7 @@ class StateDefinition(InheritableNode, typing.Generic[D, T], ABC):
         return self.inner_arg(self.idx_definition_expr)
 
 class FunctionDefinition(
-    StateDefinition[FunctionId, FunctionExpr[INode]],
+    StateDefinition[FunctionId, FunctionExpr],
     IInstantiable,
 ):
 

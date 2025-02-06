@@ -40,7 +40,12 @@ def get_from_int_type_index(node_type: type[core.INode], env: GoalEnv):
 def goal_test():
     params = (core.Param.from_int(1), core.Param.from_int(2), core.Param.from_int(3))
     p1, p2, p3 = params
-    scratch_goal_1 = core.FunctionExpr.with_node(
+    scratch_goal_1 = core.FunctionExpr(
+        core.Protocol(
+            core.TypeAliasGroup(),
+            core.RestTypeGroup(core.INode.as_type()),
+            core.INode.as_type(),
+        ),
         core.Or(
             core.And(p1, p2, core.IntBoolean(1)),
             core.And(p2, p3),
@@ -368,7 +373,12 @@ def dynamic_goal_test():
         core.NearParentScope.create(),
         core.Integer(1),
     )
-    scratch_dynamic_goal = core.FunctionExpr.with_node(
+    scratch_dynamic_goal = core.FunctionExpr(
+        core.Protocol(
+            core.TypeAliasGroup(),
+            core.RestTypeGroup(core.INode.as_type()),
+            core.INode.as_type(),
+        ),
         core.And(
             core.Or(
                 core.Param(*p1_args),

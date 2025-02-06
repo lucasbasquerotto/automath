@@ -1,5 +1,4 @@
 from env.core import (
-    FunctionExpr,
     Param,
     And,
     Or,
@@ -8,6 +7,7 @@ from env.core import (
     BooleanExceptionInfo,
     IsEmpty,
     NodeArgIndex,
+    InstanceType,
 )
 from env.full_state import (
     FullState,
@@ -99,7 +99,7 @@ def basic_test():
     params = (Param.from_int(1), Param.from_int(2), Param.from_int(3))
     p1, p2, p3 = params
     goal = HaveScratch.with_goal(
-        FunctionExpr.with_node(
+        InstanceType(
             Or(
                 And(p1, p2, IntBoolean(1)),
                 And(p2, p3),
@@ -782,7 +782,7 @@ def basic_test():
     assert env.full_state.goal_achieved() is False
 
     # Test case 27
-    meta_idx = get_single_child_type_index(FunctionExpr, env)
+    meta_idx = get_single_child_type_index(InstanceType, env)
     action = DefineScratchFromSingleArg.from_raw(1, meta_idx, 1)
     env.step(action)
     current_state = get_current_state(env)
@@ -817,7 +817,7 @@ def basic_test():
     env.step(action)
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
-    scratch_goal = FunctionExpr.with_node(call_3)
+    scratch_goal = InstanceType(call_3)
     assert current_state == State.from_raw(
         meta_info=StateMetaInfo.with_goal_achieved(GoalAchieved.achieved()),
         scratches=[scratch_goal],

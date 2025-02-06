@@ -700,9 +700,9 @@ class TypeNode(
         super().__init__(t)
 
     @property
-    def type(self) -> typing.Type[INode]:
+    def type(self) -> typing.Type[T]:
         t = self.args[0]
-        return typing.cast(typing.Type[INode], t)
+        return typing.cast(typing.Type[T], t)
 
     @property
     def node_value(self) -> INode:
@@ -1398,7 +1398,6 @@ class CountableTypeGroup(
     IBaseTypeGroup,
     IFromInt,
     IInstantiable,
-    typing.Generic[T],
 ):
 
     @classmethod
@@ -2168,8 +2167,6 @@ class ScopedFunctionBase(
     InheritableNode,
     IFunction,
     IScope,
-    IFromSingleNode[T],
-    typing.Generic[T],
     ABC,
 ):
 
@@ -2187,13 +2184,6 @@ class ScopedFunctionBase(
                 Protocol.as_type(),
                 cls.expr_type(),
             ),
-        )
-
-    @classmethod
-    def with_node(cls, node: T) -> typing.Self:
-        return cls.new(
-            Protocol.rest(result_type=node.protocol().result.apply().real(IType)),
-            node,
         )
 
     @property
@@ -2265,10 +2255,9 @@ class ScopedFunctionBase(
         return RunInfoFullResult(result, args_group)
 
 class FunctionExpr(
-    ScopedFunctionBase[T],
+    ScopedFunctionBase,
     IOpaqueScope,
     IInstantiable,
-    typing.Generic[T],
 ):
 
     @classmethod
@@ -2283,10 +2272,9 @@ class FunctionExpr(
         )
 
 class FunctionWrapper(
-    ScopedFunctionBase[T],
+    ScopedFunctionBase,
     IInnerScope,
     IInstantiable,
-    typing.Generic[T],
 ):
 
     @classmethod
@@ -2754,26 +2742,34 @@ class Not(BooleanWrapper, IInstantiable):
 
 class SingleOptionalBooleanChildWrapper(
     RunnableBoolean,
-    ISingleOptionalChild[T],
-    typing.Generic[T],
+    ISingleOptionalChild[INode],
     ABC,
 ):
 
     idx_value = 1
 
     @classmethod
+    def item_type(cls) -> IType:
+        return INode.as_type()
+
+    @classmethod
     def args_type_group(cls):
-        return CountableTypeGroup(IOptional.as_type())
+        return CountableTypeGroup(
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(cls.item_type()),
+            ),
+        )
 
     @property
     def raw_child(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_value)
 
     @property
-    def child(self) -> IOptional[T]:
-        return self.raw_child.apply().real(IOptional[T])
+    def child(self) -> Optional[INode]:
+        return self.raw_child.apply().real(Optional[INode])
 
-class IsEmpty(SingleOptionalBooleanChildWrapper[INode], IInstantiable):
+class IsEmpty(SingleOptionalBooleanChildWrapper, IInstantiable):
 
     def _raise_if_empty(self) -> INode:
         optional = self.inner_arg(self.idx_value).apply()
