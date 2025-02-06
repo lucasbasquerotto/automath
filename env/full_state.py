@@ -63,11 +63,11 @@ class ActionData(InheritableNode, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            IOptional[IAction],
-            IOptional[IActionOutput],
-            IOptional[IExceptionInfo],
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            IOptional[IAction].as_type(),
+            IOptional[IActionOutput].as_type(),
+            IOptional[IExceptionInfo].as_type(),
+        ))
 
     @property
     def action(self) -> TmpInnerArg:
@@ -102,11 +102,11 @@ class HistoryNode(InheritableNode, IDefault, IWrapper, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            State,
-            MetaData,
-            IOptional[ActionData],
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            State.as_type(),
+            MetaData.as_type(),
+            IOptional[ActionData].as_type(),
+        ))
 
     @classmethod
     def create(cls):
@@ -195,11 +195,11 @@ class FullState(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            MetaInfo,
-            HistoryNode,
-            HistoryGroupNode,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            MetaInfo.as_type(),
+            HistoryNode.as_type(),
+            HistoryGroupNode.as_type(),
+        ))
 
     @classmethod
     def with_node(cls, node: MetaInfo) -> typing.Self:

@@ -140,10 +140,10 @@ class DynamicGoal(InheritableNode, IDefault, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            IGoal,
-            IGoalAchieved,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            IGoal.as_type(),
+            IGoalAchieved.as_type(),
+        ))
 
     @classmethod
     def from_goal_expr(cls, goal: IGoal) -> typing.Self:
@@ -191,10 +191,10 @@ class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            IGoalAchieved,
-            DynamicGoalGroup,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            IGoalAchieved.as_type(),
+            DynamicGoalGroup.as_type(),
+        ))
 
     @property
     def goal_achieved(self) -> TmpInnerArg:
@@ -295,10 +295,10 @@ class FunctionDefinition(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            FunctionId,
-            FunctionExpr[T],
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            FunctionId.as_type(),
+            FunctionExpr[T].as_type(),
+        ))
 
 class StateDefinitionGroup(BaseGroup[StateDefinition], IInstantiable):
 
@@ -319,12 +319,12 @@ class State(InheritableNode, IOpaqueScope, IDefault, IWrapper, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateMetaInfo,
-            ScratchGroup,
-            PartialArgsOuterGroup,
-            StateDefinitionGroup,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateMetaInfo.as_type(),
+            ScratchGroup.as_type(),
+            PartialArgsOuterGroup.as_type(),
+            StateDefinitionGroup.as_type(),
+        ))
 
     @classmethod
     def create(cls) -> typing.Self:
@@ -569,10 +569,10 @@ class StateArgsGroupArgIndex(InheritableNode, IStateIndex[INode], IInstantiable)
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateArgsGroupIndex,
-            NodeArgIndex,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateArgsGroupIndex.as_type(),
+            NodeArgIndex.as_type(),
+        ))
 
     @property
     def group_index(self) -> TmpInnerArg:

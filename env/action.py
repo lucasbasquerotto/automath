@@ -43,10 +43,10 @@ class FullActionOutput(InheritableNode, IWrapper, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            IActionOutput,
-            State,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            IActionOutput.as_type(),
+            State.as_type(),
+        ))
 
     @property
     def output(self) -> TmpInnerArg:
@@ -85,10 +85,10 @@ class ActionTypeExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiab
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            TypeNode[IAction],
-            IExceptionInfo,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            TypeNode[IAction].as_type(),
+            IExceptionInfo.as_type(),
+        ))
 
     def to_action_data(self) -> ActionData:
         return ActionData.from_args(
@@ -104,10 +104,10 @@ class ActionInputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantia
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            IAction,
-            IExceptionInfo,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            IAction.as_type(),
+            IExceptionInfo.as_type(),
+        ))
 
     @property
     def action(self) -> TmpInnerArg:
@@ -132,11 +132,11 @@ class ActionOutputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstanti
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            IAction,
-            IActionOutput,
-            IExceptionInfo,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            IAction.as_type(),
+            IActionOutput.as_type(),
+            IExceptionInfo.as_type(),
+        ))
 
     @property
     def action(self) -> TmpInnerArg:

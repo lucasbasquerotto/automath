@@ -48,9 +48,7 @@ class MetaData(InheritableNode, IDefault, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            Optional[Integer],
-        ]))
+        return cls.default_protocol(CountableTypeGroup(Optional[Integer].as_type()))
 
     @property
     def remaining_steps(self) -> TmpInnerArg:
@@ -98,11 +96,11 @@ class DetailedType(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            TypeNode[T],
-            Optional[Protocol],
-            GeneralTypeGroup[INode],
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            TypeNode[T].as_type(),
+            Optional[Protocol].as_type(),
+            GeneralTypeGroup[INode].as_type(),
+        ))
 
     @property
     def child(self) -> TypeNode[T]:
@@ -143,10 +141,10 @@ class SubtypeOuterGroup(InheritableNode, IWrapper, IInstantiable, typing.Generic
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            IntersectionType,
-            GeneralTypeGroup,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            IntersectionType.as_type(),
+            GeneralTypeGroup.as_type(),
+        ))
 
     @classmethod
     def from_all_types(cls, common_type: TypeNode[T], all_types: GeneralTypeGroup):
@@ -205,10 +203,10 @@ class MetaInfoOptions(InheritableNode, IDefault, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            IOptional[IInt],
-            IOptional[IInt],
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            IOptional[IInt].as_type(),
+            IOptional[IInt].as_type(),
+        ))
 
     @property
     def max_history_state_size(self) -> TmpInnerArg:
@@ -358,27 +356,27 @@ class MetaInfo(InheritableNode, IWrapper, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            IGoal,
-            MetaInfoOptions,
-            GeneralTypeGroup[INode],
-            GeneralTypeGroup[IBasicAction],
-            GeneralTypeGroup[IAction],
-            DetailedTypeGroup,
-            SubtypeOuterGroup[IDefault],
-            SubtypeOuterGroup[IFromInt],
-            SubtypeOuterGroup[IInt],
-            SubtypeOuterGroup[INodeIndex],
-            SubtypeOuterGroup[IFullStateIndex],
-            SubtypeOuterGroup[FullStateIntBaseIndex],
-            SubtypeOuterGroup[IFromSingleNode],
-            SubtypeOuterGroup[IGroup],
-            SubtypeOuterGroup[IFunction],
-            SubtypeOuterGroup[IBoolean],
-            SubtypeOuterGroup[IInstantiable],
-            SubtypeOuterGroup[IBasicAction],
-            SubtypeOuterGroup[IAction],
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            IGoal.as_type(),
+            MetaInfoOptions.as_type(),
+            GeneralTypeGroup[INode].as_type(),
+            GeneralTypeGroup[IBasicAction].as_type(),
+            GeneralTypeGroup[IAction].as_type(),
+            DetailedTypeGroup.as_type(),
+            SubtypeOuterGroup[IDefault].as_type(),
+            SubtypeOuterGroup[IFromInt].as_type(),
+            SubtypeOuterGroup[IInt].as_type(),
+            SubtypeOuterGroup[INodeIndex].as_type(),
+            SubtypeOuterGroup[IFullStateIndex].as_type(),
+            SubtypeOuterGroup[FullStateIntBaseIndex].as_type(),
+            SubtypeOuterGroup[IFromSingleNode].as_type(),
+            SubtypeOuterGroup[IGroup].as_type(),
+            SubtypeOuterGroup[IFunction].as_type(),
+            SubtypeOuterGroup[IBoolean].as_type(),
+            SubtypeOuterGroup[IInstantiable].as_type(),
+            SubtypeOuterGroup[IBasicAction].as_type(),
+            SubtypeOuterGroup[IAction].as_type(),
+        ))
 
     @classmethod
     def with_defaults(

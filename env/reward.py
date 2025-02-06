@@ -21,9 +21,7 @@ class DefaultRewardEvaluator(InheritableNode, IRewardEvaluator, IDefault, IInsta
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            Integer,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(Integer.as_type()))
 
     @classmethod
     def create(cls):

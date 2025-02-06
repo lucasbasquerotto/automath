@@ -69,10 +69,10 @@ class VerifyGoalOutput(GeneralAction, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            Optional[NestedArgIndexGroup],
-            INode,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            Optional[NestedArgIndexGroup].as_type(),
+            INode.as_type(),
+        ))
 
     def apply(self, full_state: FullState) -> State:
         nested_args_wrapper = self.inner_arg(
@@ -127,11 +127,11 @@ class VerifyGoal(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            Optional[StateScratchIndex],
-            MetaFromIntTypeIndex,
-            Integer,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            Optional[StateScratchIndex].as_type(),
+            MetaFromIntTypeIndex.as_type(),
+            Integer.as_type(),
+        ))
 
     def _run_action(self, full_state: FullState) -> VerifyGoalOutput:
         scratch_index_nested_indices = self.inner_arg(
@@ -168,10 +168,10 @@ class CreateDynamicGoalOutput(GeneralAction, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateDynamicGoalIndex,
-            IGoal,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateDynamicGoalIndex.as_type(),
+            IGoal.as_type(),
+        ))
 
     def apply(self, full_state: FullState) -> State:
         index = self.inner_arg(self.idx_dynamic_goal_index).apply().cast(StateDynamicGoalIndex)
@@ -209,9 +209,7 @@ class CreateDynamicGoal(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateScratchIndex,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(StateScratchIndex.as_type()))
 
     def _run_action(self, full_state: FullState) -> CreateDynamicGoalOutput:
         scratch_index_goal = self.inner_arg(
@@ -241,11 +239,11 @@ class VerifyDynamicGoalOutput(GeneralAction, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateDynamicGoalIndex,
-            Optional[NestedArgIndexGroup],
-            INode,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateDynamicGoalIndex.as_type(),
+            Optional[NestedArgIndexGroup].as_type(),
+            INode.as_type(),
+        ))
 
     def apply(self, full_state: FullState) -> State:
         dynamic_goal_index = self.inner_arg(
@@ -306,11 +304,11 @@ class VerifyDynamicGoal(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateDynamicGoalIndex,
-            Optional[StateScratchIndex],
-            StateScratchIndex,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateDynamicGoalIndex.as_type(),
+            Optional[StateScratchIndex].as_type(),
+            StateScratchIndex.as_type(),
+        ))
 
     def _run_action(self, full_state: FullState) -> VerifyDynamicGoalOutput:
         dynamic_node_index = self.inner_arg(
@@ -353,9 +351,7 @@ class DeleteDynamicGoalOutput(GeneralAction, IBasicAction[FullState], IInstantia
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateDynamicGoalIndex,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(StateDynamicGoalIndex.as_type()))
 
     def apply(self, full_state: FullState) -> State:
         dynamic_goal_index = self.inner_arg(self.idx_dynamic_goal_index).apply()
@@ -378,9 +374,7 @@ class ScratchBaseActionOutput(GeneralAction, ISingleChild[StateScratchIndex], AB
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateScratchIndex,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(StateScratchIndex.as_type()))
 
     @property
     def child(self):
@@ -396,10 +390,10 @@ class ScratchWithNodeBaseActionOutput(GeneralAction, ABC):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateScratchIndex,
-            Scratch,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateScratchIndex.as_type(),
+            Scratch.as_type(),
+        ))
 
     @property
     def child(self):
@@ -454,9 +448,9 @@ class CreateScratch(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            Optional[StateScratchIndex],
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            Optional[StateScratchIndex].as_type(),
+        ))
 
     @property
     def child(self):
@@ -524,9 +518,7 @@ class ClearScratch(BasicAction[DefineScratchOutput], IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateScratchIndex,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(StateScratchIndex.as_type()))
 
     def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
@@ -550,10 +542,10 @@ class DefineScratchFromDefault(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateScratchIndex,
-            MetaDefaultTypeIndex,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateScratchIndex.as_type(),
+            MetaDefaultTypeIndex.as_type(),
+        ))
 
     def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
@@ -585,11 +577,11 @@ class DefineScratchFromInt(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateScratchIndex,
-            MetaFromIntTypeIndex,
-            Integer,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateScratchIndex.as_type(),
+            MetaFromIntTypeIndex.as_type(),
+            Integer.as_type(),
+        ))
 
     def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
@@ -623,11 +615,11 @@ class DefineScratchFromSingleArg(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateScratchIndex,
-            MetaSingleChildTypeIndex,
-            StateScratchIndex,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateScratchIndex.as_type(),
+            MetaSingleChildTypeIndex.as_type(),
+            StateScratchIndex.as_type(),
+        ))
 
     def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
@@ -666,11 +658,11 @@ class DefineScratchFromIntIndex(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateScratchIndex,
-            MetaFullStateIntIndexTypeIndex,
-            Integer,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateScratchIndex.as_type(),
+            MetaFullStateIntIndexTypeIndex.as_type(),
+            Integer.as_type(),
+        ))
 
     def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
@@ -708,11 +700,11 @@ class DefineScratchFromFunctionWithIntArg(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateScratchIndex,
-            StateScratchIndex,
-            Integer,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateScratchIndex.as_type(),
+            StateScratchIndex.as_type(),
+            Integer.as_type(),
+        ))
 
     def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
@@ -765,11 +757,11 @@ class DefineScratchFromFunctionWithSingleArg(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateScratchIndex,
-            StateScratchIndex,
-            StateScratchIndex,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateScratchIndex.as_type(),
+            StateScratchIndex.as_type(),
+            StateScratchIndex.as_type(),
+        ))
 
     def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
@@ -829,11 +821,11 @@ class DefineScratchFromFunctionWithArgs(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateScratchIndex,
-            StateScratchIndex,
-            Optional[StateArgsGroupIndex],
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateScratchIndex.as_type(),
+            StateScratchIndex.as_type(),
+            Optional[StateArgsGroupIndex].as_type(),
+        ))
 
     def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
@@ -897,11 +889,11 @@ class DefineScratchFromScratchNode(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateScratchIndex,
-            StateScratchIndex,
-            ScratchNodeIndex,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateScratchIndex.as_type(),
+            StateScratchIndex.as_type(),
+            ScratchNodeIndex.as_type(),
+        ))
 
     def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
@@ -937,10 +929,10 @@ class RunScratch(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateScratchIndex,
-            StateScratchIndex,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateScratchIndex.as_type(),
+            StateScratchIndex.as_type(),
+        ))
 
     def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
@@ -983,11 +975,11 @@ class UpdateScratchFromAnother(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateScratchIndex,
-            ScratchNodeIndex,
-            StateScratchIndex,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateScratchIndex.as_type(),
+            ScratchNodeIndex.as_type(),
+            StateScratchIndex.as_type(),
+        ))
 
     def _run_action(self, full_state: FullState) -> DefineScratchOutput:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
@@ -1020,10 +1012,10 @@ class CreateArgsGroupOutput(GeneralAction, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateArgsGroupIndex,
-            PartialArgsGroup,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateArgsGroupIndex.as_type(),
+            PartialArgsGroup.as_type(),
+        ))
 
     def apply(self, full_state: FullState) -> State:
         index = self.inner_arg(self.idx_index).apply()
@@ -1064,10 +1056,10 @@ class CreateArgsGroup(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            Integer,
-            Optional[StateArgsGroupIndex],
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            Integer.as_type(),
+            Optional[StateArgsGroupIndex].as_type(),
+        ))
 
     def _run_action(self, full_state: FullState) -> CreateArgsGroupOutput:
         args_amount = self.inner_arg(self.idx_args_amount).apply().cast(Integer)
@@ -1106,9 +1098,7 @@ class DeleteArgsGroupOutput(GeneralAction, IBasicAction[FullState], IInstantiabl
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateArgsGroupIndex,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(StateArgsGroupIndex.as_type()))
 
     def apply(self, full_state: FullState) -> State:
         args_group_index = self.inner_arg(self.idx_args_group_index).apply()
@@ -1125,11 +1115,11 @@ class DefineArgsGroupArgOutput(GeneralAction, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateArgsGroupIndex,
-            NodeArgIndex,
-            IOptional,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateArgsGroupIndex.as_type(),
+            NodeArgIndex.as_type(),
+            IOptional.as_type(),
+        ))
 
     def apply(self, full_state: FullState) -> State:
         group_index = self.inner_arg(self.idx_group_index).apply()
@@ -1172,11 +1162,11 @@ class DefineArgsGroup(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StateArgsGroupIndex,
-            NodeArgIndex,
-            StateScratchIndex,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StateArgsGroupIndex.as_type(),
+            NodeArgIndex.as_type(),
+            StateScratchIndex.as_type(),
+        ))
 
     def _run_action(self, full_state: FullState) -> DefineArgsGroupArgOutput:
         args_group_index = self.inner_arg(self.idx_args_group_index).apply()

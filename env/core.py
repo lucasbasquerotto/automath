@@ -944,7 +944,16 @@ class OptionalBase(InheritableNode, IOptional[T], typing.Generic[T], ABC):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(OptionalTypeGroup(TypeNode(INode)))
+        return Protocol(
+            TypeAliasGroup(
+                TypeAlias(INode.as_type()),
+            ),
+            OptionalTypeGroup(TypeIndex(1)),
+            CompositeType(
+                cls.as_type(),
+                OptionalTypeGroup(TypeIndex(1)),
+            )
+        )
 
     @property
     def value(self) -> T | None:
@@ -1044,12 +1053,15 @@ class Placeholder(InheritableNode, IDynamic, IFromInt, typing.Generic[T], ABC):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return Protocol.with_args(
-            CountableTypeGroup.from_types([
-                RunInfoScopeDataIndex,
-                BaseInt,
-            ]),
-            INode.as_type(),
+        return Protocol(
+            TypeAliasGroup(
+                TypeAlias(INode.as_type()),
+            ),
+            CountableTypeGroup(
+                RunInfoScopeDataIndex.as_type(),
+                BaseInt.as_type(),
+            ),
+            TypeIndex(1),
         )
 
     def verify_result(self, result: INode, args_group: OptionalValueGroup):
@@ -1238,7 +1250,14 @@ class BaseGroup(InheritableNode, IGroup[T], IDefault, typing.Generic[T], ABC):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(RestTypeGroup(TypeNode(cls.item_type())))
+        return Protocol(
+            TypeAliasGroup(),
+            RestTypeGroup(TypeNode(cls.item_type())),
+            CompositeType(
+                cls.as_type(),
+                RestTypeGroup(TypeNode(cls.item_type())),
+            ),
+        )
 
     @property
     def args(self) -> tuple[T, ...]:
@@ -1387,10 +1406,6 @@ class CountableTypeGroup(
         return IType
 
     @classmethod
-    def from_types(cls, types: typing.Sequence[type[INode]]) -> typing.Self:
-        return cls(*[TypeNode(t) for t in types])
-
-    @classmethod
     def from_int(cls, value: int) -> typing.Self:
         return cls(*[UnknownType()] * value)
 
@@ -1440,9 +1455,14 @@ class SingleValueTypeGroup(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            IType,
-        ]))
+        return Protocol(
+            TypeAliasGroup(TypeAlias(IType.as_type())),
+            CountableTypeGroup(TypeIndex(1)),
+            CompositeType(
+                cls.as_type(),
+                CountableTypeGroup(TypeIndex(1)),
+            ),
+        )
 
     @property
     def type_node(self) -> TmpInnerArg:
@@ -1487,9 +1507,14 @@ class TypeAlias(InheritableNode, ISingleChild[IType], IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            IType,
-        ]))
+        return Protocol(
+            TypeAliasGroup(TypeAlias(IType.as_type())),
+            CountableTypeGroup(TypeIndex(1)),
+            CompositeType(
+                cls.as_type(),
+                CountableTypeGroup(TypeIndex(1)),
+            ),
+        )
 
     @property
     def type(self) -> TmpInnerArg:
@@ -1518,7 +1543,7 @@ class TypeAliasGroup(
             if len(invalid_idxs) > 0:
                 invalid_group = DefaultGroup(*invalid_idxs)
                 raise InvalidNodeException(
-                    TypeIndexExceptionInfo(TypeIndex(index), arg, invalid_group))
+                    TypeAliasIndexExceptionInfo(TypeIndex(index), arg, invalid_group))
 
 class TypeAliasOptionalGroup(
     BaseOptionalValueGroup[IType],
@@ -1540,6 +1565,19 @@ class TypeAliasOptionalGroup(
         Eq(Optional(new_type), old_type_opt).raise_on_false()
         return self
 
+    def replace_aliases(self, node: INode) -> INode:
+        for i, actual in enumerate(self.as_tuple):
+            index = TypeIndex(i + 1)
+            lazy_index = LazyTypeIndex(i + 1)
+            t = (
+                InvalidType()
+                if actual.is_empty().as_bool
+                else actual.value_or_raise)
+            node = node.as_node.replace(index, t)
+            node = node.as_node.replace(lazy_index, t)
+        Eq(Integer(len(node.as_node.find(BaseTypeIndex))), Integer.zero()).raise_on_false()
+        return node
+
 class AliasInfo(
     InheritableNode,
     IDefault,
@@ -1552,10 +1590,10 @@ class AliasInfo(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            TypeAliasGroup,
-            TypeAliasOptionalGroup,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            TypeAliasGroup.as_type(),
+            TypeAliasOptionalGroup.as_type(),
+        ))
 
     def validate(self):
         super().validate()
@@ -1588,28 +1626,15 @@ class AliasInfo(
         actual_group = actual_group.define(type_index=type_index, new_type=full_type)
         return self.func(base_group, actual_group)
 
-    def apply(self, protocol: Protocol, lax=False) -> Protocol:
+    def apply(self, protocol: Protocol) -> Protocol:
         self_group = self.alias_group_base.apply().real(TypeAliasGroup)
         p_alias_group = protocol.alias_group.apply().real(TypeAliasGroup)
         Eq(self_group, p_alias_group).raise_on_false()
-
-        args_group = protocol.arg_group.apply().real(IBaseTypeGroup)
-        result_group = protocol.result.apply().real(IType)
+        Eq(Integer(len(p_alias_group.as_node.find(BaseTypeIndex))), Integer.zero()).raise_on_false()
 
         actual_group = self.alias_group_actual.apply().real(TypeAliasOptionalGroup)
-
-        for i, (alias, actual) in enumerate(zip(self_group.as_tuple, actual_group.as_tuple)):
-            index = TypeIndex(i + 1)
-            index_lazy = LazyTypeIndex(i + 1)
-            t = actual.value_or_else(alias.child) if lax else actual.value_or_raise
-            args_group = args_group.as_node.replace(index, t).real(IBaseTypeGroup)
-            args_group = args_group.as_node.replace(index_lazy, t).real(IBaseTypeGroup)
-            result_group = result_group.as_node.replace(index, t).real(IType)
-            result_group = result_group.as_node.replace(index_lazy, t).real(IType)
-
-        Eq(Integer(len(p_alias_group.as_node.find(BaseTypeIndex))), Integer.zero()).raise_on_false()
-        Eq(Integer(len(args_group.as_node.find(BaseTypeIndex))), Integer.zero()).raise_on_false()
-        Eq(Integer(len(result_group.as_node.find(BaseTypeIndex))), Integer.zero()).raise_on_false()
+        args_group = actual_group.replace_aliases(protocol.arg_group.apply()).real(IBaseTypeGroup)
+        result_group = actual_group.replace_aliases(protocol.result.apply()).real(IType)
 
         return Protocol.with_args(
             alias_group=TypeAliasGroup(),
@@ -1617,16 +1642,9 @@ class AliasInfo(
             result_type=result_group,
         )
 
-    def apply_to_node(self, node: INode, lax=False) -> INode:
-        base_group = self.alias_group_base.apply().real(TypeAliasGroup)
+    def apply_to_node(self, node: INode) -> INode:
         actual_group = self.alias_group_actual.apply().real(TypeAliasOptionalGroup)
-        for i, (alias, actual) in enumerate(zip(base_group.as_tuple, actual_group.as_tuple)):
-            index = TypeIndex(i + 1)
-            lazy_index = LazyTypeIndex(i + 1)
-            t = actual.value_or_else(alias.child) if lax else actual.value_or_raise
-            node = node.as_node.replace(index, t)
-            node = node.as_node.replace(lazy_index, t)
-        Eq(Integer(len(node.as_node.find(BaseTypeIndex))), Integer.zero()).raise_on_false()
+        node = actual_group.replace_aliases(node)
         return node
 
 class BaseTypeIndex(NodeArgBaseIndex, ITypeValidator, ABC):
@@ -1719,11 +1737,11 @@ class Protocol(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            TypeAliasGroup,
-            IBaseTypeGroup,
-            IType,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            TypeAliasGroup.as_type(),
+            IBaseTypeGroup.as_type(),
+            IType.as_type(),
+        ))
 
     @property
     def alias_group(self) -> TmpInnerArg:
@@ -1858,6 +1876,21 @@ class Protocol(
 
     def valid_protocol(self):
         self.full_strict_validate()
+        alias_group = self.alias_group.apply().real(TypeAliasGroup)
+        alias_amount = len(alias_group.as_tuple)
+        alias_idxs = sorted(list(self.find(BaseTypeIndex)), key=lambda index: index.as_int)
+        for index in alias_idxs:
+            if index.as_int <= 0 or index.as_int > alias_amount:
+                raise InvalidNodeException(
+                    TypeIndexProtocolExceptionInfo(index, self))
+        used_idxs = self.find(BaseTypeIndex)
+        for i in range(alias_amount):
+            index = TypeIndex(i + 1)
+            lazy_index = LazyTypeIndex(i + 1)
+            no_index = index not in used_idxs and lazy_index not in used_idxs
+            if no_index:
+                raise InvalidNodeException(
+                    TypeIndexProtocolExceptionInfo(index, self))
 
 ###########################################################
 ########################## TYPES ##########################
@@ -1920,10 +1953,10 @@ class FunctionType(InheritableNode, IBasicType, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            IBaseTypeGroup,
-            IType,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            IBaseTypeGroup.as_type(),
+            IType.as_type(),
+        ))
 
     @property
     def arg_group(self) -> TmpInnerArg:
@@ -2354,9 +2387,7 @@ class BooleanWrapper(
 
     @classmethod
     def args_type_group(cls):
-        return CountableTypeGroup.from_types([
-            IBoolean,
-        ])
+        return CountableTypeGroup(IBoolean.as_type())
 
     @property
     def raw_child(self) -> TmpInnerArg:
@@ -2418,11 +2449,11 @@ class TypeExceptionInfo(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            IType,
-            INode,
-            AliasInfo,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            IType.as_type(),
+            INode.as_type(),
+            AliasInfo.as_type(),
+        ))
 
     @property
     def type(self):
@@ -2447,10 +2478,10 @@ class TypeAcceptExceptionInfo(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            IType,
-            IType,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            IType.as_type(),
+            IType.as_type(),
+        ))
 
     @property
     def type_that_accepts(self):
@@ -2460,7 +2491,7 @@ class TypeAcceptExceptionInfo(
     def type_to_accept(self):
         return self.inner_arg(self.idx_type_to_accept)
 
-class TypeIndexExceptionInfo(
+class TypeAliasIndexExceptionInfo(
     InheritableNode,
     IExceptionInfo,
     IInstantiable,
@@ -2493,6 +2524,30 @@ class TypeIndexExceptionInfo(
     def invalid_inner_type_indices(self):
         return self.inner_arg(self.idx_invalid_inner_type_indices)
 
+class TypeIndexProtocolExceptionInfo(
+    InheritableNode,
+    IExceptionInfo,
+    IInstantiable,
+):
+
+    idx_type_index = 1
+    idx_protocol_arg = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            BaseTypeIndex.as_type(),
+            Protocol.as_type(),
+        ))
+
+    @property
+    def type_index(self):
+        return self.inner_arg(self.idx_type_index)
+
+    @property
+    def protocol_arg(self):
+        return self.inner_arg(self.idx_protocol_arg)
+
 class IStackExceptionInfoItem(INode, ABC):
     pass
 
@@ -2507,10 +2562,10 @@ class StackExceptionInfoItem(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            INode,
-            RunInfo,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            INode.as_type(),
+            RunInfo.as_type(),
+        ))
 
     @property
     def node(self):
@@ -2535,10 +2590,10 @@ class StackNodeArg(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            Optional[INode],
-            Optional[TypeNode],
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            Optional[INode].as_type(),
+            Optional[TypeNode].as_type(),
+        ))
 
     @property
     def full_arg(self):
@@ -2579,10 +2634,10 @@ class StackExceptionInfoSimplifiedItem(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            INode,
-            BaseGroup[INode],
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            INode.as_type(),
+            BaseGroup[INode].as_type(),
+        ))
 
     @property
     def node(self):
@@ -2622,10 +2677,10 @@ class StackExceptionInfo(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            StackExceptionInfoGroup,
-            IExceptionInfo,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            StackExceptionInfoGroup.as_type(),
+            IExceptionInfo.as_type(),
+        ))
 
     @property
     def stack_group(self):
@@ -2673,9 +2728,7 @@ class ExceptionInfoWrapper(
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            IExceptionInfo,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(IExceptionInfo.as_type()))
 
     @property
     def info(self):
@@ -2709,9 +2762,7 @@ class SingleOptionalBooleanChildWrapper(
 
     @classmethod
     def args_type_group(cls):
-        return CountableTypeGroup.from_types([
-            IOptional[T],
-        ])
+        return CountableTypeGroup(IOptional[T].as_type())
 
     @property
     def raw_child(self) -> TmpInnerArg:
@@ -2753,10 +2804,10 @@ class IsInstance(RunnableBoolean, typing.Generic[T], IInstantiable):
 
     @classmethod
     def args_type_group(cls):
-        return CountableTypeGroup.from_types((
-            INode,
-            TypeNode[T],
-        ))
+        return CountableTypeGroup(
+            INode.as_type(),
+            TypeNode[T].as_type(),
+        )
 
     @property
     def instance(self) -> TmpInnerArg:
@@ -2801,10 +2852,10 @@ class Eq(RunnableBoolean, IInstantiable):
 
     @classmethod
     def args_type_group(cls):
-        return CountableTypeGroup.from_types((
-            INode,
-            INode,
-        ))
+        return CountableTypeGroup(
+            INode.as_type(),
+            INode.as_type(),
+        )
 
     @property
     def left(self) -> TmpInnerArg:
@@ -2831,10 +2882,10 @@ class SameArgsAmount(RunnableBoolean, IInstantiable):
 
     @classmethod
     def args_type_group(cls):
-        return CountableTypeGroup.from_types((
-            INode,
-            INode,
-        ))
+        return CountableTypeGroup(
+            INode.as_type(),
+            INode.as_type(),
+        )
 
     @property
     def left(self) -> TmpInnerArg:
@@ -2862,10 +2913,10 @@ class DoubleIntBooleanNode(RunnableBoolean, ABC):
 
     @classmethod
     def args_type_group(cls):
-        return CountableTypeGroup.from_types([
-            IInt,
-            IInt,
-        ])
+        return CountableTypeGroup(
+            IInt.as_type(),
+            IInt.as_type(),
+        )
 
     @classmethod
     def with_args(cls, value_1: int, value_2: int) -> DoubleIntBooleanNode:
@@ -2978,11 +3029,11 @@ class IsInsideRange(RunnableBoolean, IInstantiable):
 
     @classmethod
     def args_type_group(cls):
-        return CountableTypeGroup.from_types([
-            IInt,
-            IInt,
-            IInt,
-        ])
+        return CountableTypeGroup(
+            IInt.as_type(),
+            IInt.as_type(),
+            IInt.as_type(),
+        )
 
     @classmethod
     def from_raw(cls, value: int | IInt, min_value: int, max_value: int) -> typing.Self:
@@ -3111,10 +3162,10 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            ScopeDataGroup,
-            Optional[RunInfoScopeDataIndex],
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            ScopeDataGroup.as_type(),
+            Optional[RunInfoScopeDataIndex].as_type(),
+        ))
 
     @property
     def scope_data_group(self) -> TmpInnerArg:
@@ -3238,10 +3289,10 @@ class RunInfoFullResult(InheritableNode, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            RunInfoResult,
-            OptionalValueGroup,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            RunInfoResult.as_type(),
+            OptionalValueGroup.as_type(),
+        ))
 
     @property
     def info_result(self) -> TmpInnerArg:
@@ -3295,10 +3346,10 @@ class FunctionCall(ControlFlowBaseNode, IInstantiable):
     @classmethod
     def protocol(cls) -> Protocol:
         return Protocol.with_args(
-            CountableTypeGroup.from_types([
-                IFunction,
-                BaseGroup,
-            ]),
+            CountableTypeGroup(
+                IFunction.as_type(),
+                BaseGroup.as_type(),
+            ),
             INode.as_type(),
         )
 
@@ -3385,10 +3436,11 @@ class LoopGuard(InheritableNode, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            IBoolean,
-            INode,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            IBoolean.as_type(),
+            INode.as_type(),
+        ))
+
     @property
     def condition(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_condition)
@@ -3413,10 +3465,10 @@ class Loop(ControlFlowBaseNode, IFromSingleNode[IFunction], IInstantiable):
     @classmethod
     def protocol(cls) -> Protocol:
         return Protocol.with_args(
-            CountableTypeGroup.from_types([
-                IFunction,
-                Optional[INode],
-            ]),
+            CountableTypeGroup(
+                IFunction.as_type(),
+                Optional[INode].as_type(),
+            ),
             INode.as_type(),
         )
 
@@ -3591,10 +3643,10 @@ class InnerArg(ControlFlowBaseNode, IInstantiable):
             TypeAliasGroup(
                 TypeAlias(INode.as_type()),
             ),
-            CountableTypeGroup.from_types([
-                INode,
-                NodeArgIndex,
-            ]),
+            CountableTypeGroup(
+                INode.as_type(),
+                NodeArgIndex.as_type(),
+            ),
             TypeIndex(1),
         )
 
@@ -3634,10 +3686,10 @@ class NestedArg(ControlFlowBaseNode, IInstantiable):
             TypeAliasGroup(
                 TypeAlias(INode.as_type()),
             ),
-            CountableTypeGroup.from_types([
-                INode,
-                NestedArgIndexGroup,
-            ]),
+            CountableTypeGroup(
+                INode.as_type(),
+                NestedArgIndexGroup.as_type(),
+            ),
             TypeIndex(1),
         )
 
@@ -3778,10 +3830,10 @@ class GroupIterator(InheritableNode, IFromSingleNode[BaseGroup], IIterator, IIns
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup.from_types([
-            BaseGroup,
-            NodeArgIndex,
-        ]))
+        return cls.default_protocol(CountableTypeGroup(
+            BaseGroup.as_type(),
+            NodeArgIndex.as_type(),
+        ))
 
     @property
     def group(self) -> TmpInnerArg:
@@ -3828,9 +3880,7 @@ class Next(ControlFlowBaseNode, IInstantiable):
     @classmethod
     def protocol(cls) -> Protocol:
         return Protocol.with_args(
-            CountableTypeGroup.from_types([
-                IIterator,
-            ]),
+            CountableTypeGroup(IIterator.as_type()),
             INode.as_type(),
         )
 
