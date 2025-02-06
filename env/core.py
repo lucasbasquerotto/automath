@@ -1902,9 +1902,7 @@ class Type(InheritableNode, IBasicType, ISingleChild[IType], IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup(
-            UnionType(IType.as_type()),
-        ))
+        return cls.default_protocol(CountableTypeGroup(IType.as_type()))
 
     @property
     def type(self) -> TmpInnerArg:
@@ -2007,7 +2005,7 @@ class TypeEnforcer(InheritableNode, IInstantiable):
             ),
             CountableTypeGroup(
                 Type(TypeIndex(1)),
-                INode.as_type(),
+                LazyTypeIndex(1),
             ),
             TypeIndex(1),
         )
@@ -2132,7 +2130,7 @@ class CompositeType(InheritableNode, IComplexType, IInstantiable):
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
-            UnionType(TypeNode.as_type(), BaseTypeIndex.as_type()),
+            IType.as_type(),
             UnionType(IBaseTypeGroup.as_type(), Void.as_type()),
         ))
 
@@ -2149,11 +2147,11 @@ class CompositeType(InheritableNode, IComplexType, IInstantiable):
         instance: INode,
         alias_info: AliasInfo,
     ) -> tuple[bool, AliasInfo]:
-        t = self.inner_arg(self.idx_type).apply().real(IType)
+        t = self.type.apply().real(IType)
         valid, alias_info = t.valid(instance, alias_info=alias_info)
         if not valid:
             return False, alias_info
-        args = self.inner_arg(self.idx_type_args).apply()
+        args = self.type_args.apply()
         if args == Void():
             return True, alias_info
         assert isinstance(args, IBaseTypeGroup)
@@ -2591,8 +2589,11 @@ class StackNodeArg(
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
-            Optional[INode].as_type(),
-            Optional[TypeNode].as_type(),
+            Optional.as_type(),
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(IType.as_type()),
+            ),
         ))
 
     @property
@@ -2636,7 +2637,7 @@ class StackExceptionInfoSimplifiedItem(
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
             INode.as_type(),
-            BaseGroup[INode].as_type(),
+            BaseGroup.as_type(),
         ))
 
     @property
@@ -2762,7 +2763,7 @@ class SingleOptionalBooleanChildWrapper(
 
     @classmethod
     def args_type_group(cls):
-        return CountableTypeGroup(IOptional[T].as_type())
+        return CountableTypeGroup(IOptional.as_type())
 
     @property
     def raw_child(self) -> TmpInnerArg:
@@ -2806,7 +2807,7 @@ class IsInstance(RunnableBoolean, typing.Generic[T], IInstantiable):
     def args_type_group(cls):
         return CountableTypeGroup(
             INode.as_type(),
-            TypeNode[T].as_type(),
+            TypeNode.as_type(),
         )
 
     @property
@@ -3164,7 +3165,10 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
             ScopeDataGroup.as_type(),
-            Optional[RunInfoScopeDataIndex].as_type(),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(RunInfoScopeDataIndex.as_type()),
+            ),
         ))
 
     @property
@@ -3467,7 +3471,7 @@ class Loop(ControlFlowBaseNode, IFromSingleNode[IFunction], IInstantiable):
         return Protocol.with_args(
             CountableTypeGroup(
                 IFunction.as_type(),
-                Optional[INode].as_type(),
+                Optional.as_type(),
             ),
             INode.as_type(),
         )

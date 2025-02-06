@@ -22,6 +22,8 @@ from env.core import (
     NestedArgIndexGroup,
     IntGroup,
     RunInfo,
+    CompositeType,
+    OptionalTypeGroup,
     Eq,
     Not,
     IInstantiable,
@@ -70,7 +72,10 @@ class VerifyGoalOutput(GeneralAction, IInstantiable):
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
-            Optional[NestedArgIndexGroup].as_type(),
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(NestedArgIndexGroup.as_type()),
+            ),
             INode.as_type(),
         ))
 
@@ -128,7 +133,10 @@ class VerifyGoal(
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
-            Optional[StateScratchIndex].as_type(),
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(StateScratchIndex.as_type()),
+            ),
             MetaFromIntTypeIndex.as_type(),
             Integer.as_type(),
         ))
@@ -241,7 +249,10 @@ class VerifyDynamicGoalOutput(GeneralAction, IInstantiable):
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
             StateDynamicGoalIndex.as_type(),
-            Optional[NestedArgIndexGroup].as_type(),
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(NestedArgIndexGroup.as_type()),
+            ),
             INode.as_type(),
         ))
 
@@ -306,7 +317,10 @@ class VerifyDynamicGoal(
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
             StateDynamicGoalIndex.as_type(),
-            Optional[StateScratchIndex].as_type(),
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(StateScratchIndex.as_type()),
+            ),
             StateScratchIndex.as_type(),
         ))
 
@@ -449,7 +463,10 @@ class CreateScratch(
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
-            Optional[StateScratchIndex].as_type(),
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(StateScratchIndex.as_type()),
+            ),
         ))
 
     @property
@@ -824,7 +841,10 @@ class DefineScratchFromFunctionWithArgs(
         return cls.default_protocol(CountableTypeGroup(
             StateScratchIndex.as_type(),
             StateScratchIndex.as_type(),
-            Optional[StateArgsGroupIndex].as_type(),
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(StateArgsGroupIndex.as_type()),
+            ),
         ))
 
     def _run_action(self, full_state: FullState) -> DefineScratchOutput:
@@ -1058,7 +1078,10 @@ class CreateArgsGroup(
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
             Integer.as_type(),
-            Optional[StateArgsGroupIndex].as_type(),
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(StateArgsGroupIndex.as_type()),
+            ),
         ))
 
     def _run_action(self, full_state: FullState) -> CreateArgsGroupOutput:

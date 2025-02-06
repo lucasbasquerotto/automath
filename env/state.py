@@ -288,16 +288,15 @@ class StateDefinition(InheritableNode, typing.Generic[D, T], ABC):
         return self.inner_arg(self.idx_definition_expr)
 
 class FunctionDefinition(
-    StateDefinition[FunctionId, FunctionExpr[T]],
+    StateDefinition[FunctionId, FunctionExpr[INode]],
     IInstantiable,
-    typing.Generic[T],
 ):
 
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
             FunctionId.as_type(),
-            FunctionExpr[T].as_type(),
+            FunctionExpr.as_type(),
         ))
 
 class StateDefinitionGroup(BaseGroup[StateDefinition], IInstantiable):

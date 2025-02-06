@@ -22,6 +22,8 @@ from env.core import (
     CountableTypeGroup,
     IExceptionInfo,
     IWrapper,
+    CompositeType,
+    OptionalTypeGroup,
     TmpInnerArg,
     TmpNestedArg,
     IInstantiable,
@@ -64,9 +66,18 @@ class ActionData(InheritableNode, IInstantiable):
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
-            IOptional[IAction].as_type(),
-            IOptional[IActionOutput].as_type(),
-            IOptional[IExceptionInfo].as_type(),
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(IActionOutput.as_type()),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(IActionOutput.as_type()),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(IExceptionInfo.as_type()),
+            ),
         ))
 
     @property
@@ -84,9 +95,9 @@ class ActionData(InheritableNode, IInstantiable):
     @classmethod
     def from_args(
         cls,
-        action: IOptional[IAction],
-        output: IOptional[IActionOutput],
-        exception: IOptional[IExceptionInfo],
+        action: Optional[IAction],
+        output: Optional[IActionOutput],
+        exception: Optional[IExceptionInfo],
     ) -> typing.Self:
         return cls(action, output, exception)
 
@@ -105,7 +116,10 @@ class HistoryNode(InheritableNode, IDefault, IWrapper, IInstantiable):
         return cls.default_protocol(CountableTypeGroup(
             State.as_type(),
             MetaData.as_type(),
-            IOptional[ActionData].as_type(),
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(ActionData.as_type()),
+            ),
         ))
 
     @classmethod
@@ -130,7 +144,7 @@ class HistoryNode(InheritableNode, IDefault, IWrapper, IInstantiable):
         cls,
         state: State,
         meta_data: MetaData,
-        action_data: IOptional[ActionData] | None = None,
+        action_data: Optional[ActionData] | None = None,
     ):
         action_data = action_data if action_data is not None else Optional.create()
         return cls(state, meta_data, action_data)
@@ -139,7 +153,7 @@ class HistoryNode(InheritableNode, IDefault, IWrapper, IInstantiable):
         self,
         state: State | None = None,
         meta_data: MetaData | None = None,
-        action_data: IOptional[ActionData] | None = None,
+        action_data: Optional[ActionData] | None = None,
     ) -> typing.Self:
         state = (
             state
@@ -152,7 +166,7 @@ class HistoryNode(InheritableNode, IDefault, IWrapper, IInstantiable):
         action_data = (
             action_data
             if action_data is not None
-            else self.action_data.apply().cast(IOptional[ActionData]))
+            else self.action_data.apply().cast(Optional[ActionData]))
         return self.with_args(
             state=state,
             meta_data=meta_data,

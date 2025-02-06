@@ -26,6 +26,8 @@ from env.core import (
     BaseNode,
     IWrapper,
     IntGroup,
+    CompositeType,
+    OptionalTypeGroup,
     TmpInnerArg,
     IInstantiable)
 from env.state import State, IGoal
@@ -48,7 +50,12 @@ class MetaData(InheritableNode, IDefault, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup(Optional[Integer].as_type()))
+        return cls.default_protocol(CountableTypeGroup(
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(Integer.as_type()),
+            ),
+        ))
 
     @property
     def remaining_steps(self) -> TmpInnerArg:
@@ -97,9 +104,12 @@ class DetailedType(
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
-            TypeNode[T].as_type(),
-            Optional[Protocol].as_type(),
-            GeneralTypeGroup[INode].as_type(),
+            TypeNode.as_type(),
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(Protocol.as_type()),
+            ),
+            GeneralTypeGroup.as_type(),
         ))
 
     @property
@@ -204,8 +214,14 @@ class MetaInfoOptions(InheritableNode, IDefault, IInstantiable):
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
-            IOptional[IInt].as_type(),
-            IOptional[IInt].as_type(),
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(BaseInt.as_type()),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(BaseInt.as_type()),
+            ),
         ))
 
     @property
@@ -308,6 +324,12 @@ class IBasicAction(IAction[S], typing.Generic[S], ABC):
             else:
                 type_node = types[i]
                 arg = node.args[i]
+                if isinstance(type_node, CompositeType):
+                    t1 = type_node.type.apply().real(TypeNode)
+                    t_args = type_node.type_args.apply().real(OptionalTypeGroup)
+                    t_arg = t_args.type_node.apply().real(TypeNode)
+                    assert issubclass(t_arg.type, IInt)
+                    type_node = t1
                 assert isinstance(type_node, TypeNode)
                 t = type_node.type
                 if issubclass(t, IOptional):
@@ -359,23 +381,68 @@ class MetaInfo(InheritableNode, IWrapper, IInstantiable):
         return cls.default_protocol(CountableTypeGroup(
             IGoal.as_type(),
             MetaInfoOptions.as_type(),
-            GeneralTypeGroup[INode].as_type(),
-            GeneralTypeGroup[IBasicAction].as_type(),
-            GeneralTypeGroup[IAction].as_type(),
+            GeneralTypeGroup.as_type(),
+            CompositeType(
+                GeneralTypeGroup.as_type(),
+                CountableTypeGroup(IBasicAction.as_type()),
+            ),
+            CompositeType(
+                GeneralTypeGroup.as_type(),
+                CountableTypeGroup(IAction.as_type()),
+            ),
             DetailedTypeGroup.as_type(),
-            SubtypeOuterGroup[IDefault].as_type(),
-            SubtypeOuterGroup[IFromInt].as_type(),
-            SubtypeOuterGroup[IInt].as_type(),
-            SubtypeOuterGroup[INodeIndex].as_type(),
-            SubtypeOuterGroup[IFullStateIndex].as_type(),
-            SubtypeOuterGroup[FullStateIntBaseIndex].as_type(),
-            SubtypeOuterGroup[IFromSingleNode].as_type(),
-            SubtypeOuterGroup[IGroup].as_type(),
-            SubtypeOuterGroup[IFunction].as_type(),
-            SubtypeOuterGroup[IBoolean].as_type(),
-            SubtypeOuterGroup[IInstantiable].as_type(),
-            SubtypeOuterGroup[IBasicAction].as_type(),
-            SubtypeOuterGroup[IAction].as_type(),
+            CompositeType(
+                SubtypeOuterGroup.as_type(),
+                CountableTypeGroup(IDefault.as_type()),
+            ),
+            CompositeType(
+                SubtypeOuterGroup.as_type(),
+                CountableTypeGroup(IFromInt.as_type()),
+            ),
+            CompositeType(
+                SubtypeOuterGroup.as_type(),
+                CountableTypeGroup(IInt.as_type()),
+            ),
+            CompositeType(
+                SubtypeOuterGroup.as_type(),
+                CountableTypeGroup(INodeIndex.as_type()),
+            ),
+            CompositeType(
+                SubtypeOuterGroup.as_type(),
+                CountableTypeGroup(IFullStateIndex.as_type()),
+            ),
+            CompositeType(
+                SubtypeOuterGroup.as_type(),
+                CountableTypeGroup(FullStateIntBaseIndex.as_type()),
+            ),
+            CompositeType(
+                SubtypeOuterGroup.as_type(),
+                CountableTypeGroup(IFromSingleNode.as_type()),
+            ),
+            CompositeType(
+                SubtypeOuterGroup.as_type(),
+                CountableTypeGroup(IGroup.as_type()),
+            ),
+            CompositeType(
+                SubtypeOuterGroup.as_type(),
+                CountableTypeGroup(IFunction.as_type()),
+            ),
+            CompositeType(
+                SubtypeOuterGroup.as_type(),
+                CountableTypeGroup(IBoolean.as_type()),
+            ),
+            CompositeType(
+                SubtypeOuterGroup.as_type(),
+                CountableTypeGroup(IInstantiable.as_type()),
+            ),
+            CompositeType(
+                SubtypeOuterGroup.as_type(),
+                CountableTypeGroup(IBasicAction.as_type()),
+            ),
+            CompositeType(
+                SubtypeOuterGroup.as_type(),
+                CountableTypeGroup(IAction.as_type()),
+            ),
         ))
 
     @classmethod
