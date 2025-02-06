@@ -202,6 +202,27 @@ def test_control_flow() -> list[full_state.FullState]:
             ),
         ),
     ]
+    default_fn_result = core.CompositeType(
+        core.DefaultGroup.as_type(),
+        core.CountableTypeGroup(
+            core.CompositeType(
+                core.DefaultGroup.as_type(),
+                core.CountableTypeGroup(
+                    core.IntBoolean.as_type(),
+                    core.IntBoolean.as_type(),
+                    core.IntBoolean.as_type(),
+                ),
+            ),
+            core.CompositeType(
+                core.DefaultGroup.as_type(),
+                core.CountableTypeGroup(
+                    core.IntBoolean.as_type(),
+                    core.IntBoolean.as_type(),
+                    core.IntBoolean.as_type(),
+                ),
+            ),
+        ),
+    )
     fn_scratches: list[core.INode | None] = [
         core.FunctionCall(
             core.FunctionExpr(
@@ -336,22 +357,44 @@ def test_control_flow() -> list[full_state.FullState]:
             core.FunctionWrapper(
                 core.Protocol(
                     core.TypeAliasGroup(),
-                    core.RestTypeGroup(core.INode.as_type()),
-                    core.INode.as_type(),
+                    core.CountableTypeGroup(core.BaseInt.as_type()),
+                    default_fn_result,
                 ),
                 core.FunctionCall(
                     core.FunctionWrapper(
                         core.Protocol(
                             core.TypeAliasGroup(),
-                            core.RestTypeGroup(core.INode.as_type()),
-                            core.INode.as_type(),
+                            core.CountableTypeGroup(core.Integer.as_type()),
+                            default_fn_result,
                         ),
                         core.FunctionCall(
                             core.FunctionExpr(
                                 core.Protocol(
                                     core.TypeAliasGroup(),
-                                    core.RestTypeGroup(core.INode.as_type()),
-                                    core.INode.as_type(),
+                                    core.CountableTypeGroup(
+                                        core.CompositeType(
+                                            core.IntGroup.as_type(),
+                                            core.CountableTypeGroup(
+                                                core.Integer.as_type(),
+                                                core.Integer.as_type(),
+                                            ),
+                                        ),
+                                        core.CompositeType(
+                                            core.IntGroup.as_type(),
+                                            core.CountableTypeGroup(
+                                                core.Integer.as_type(),
+                                                core.Integer.as_type(),
+                                            ),
+                                        ),
+                                        core.CompositeType(
+                                            core.IntGroup.as_type(),
+                                            core.CountableTypeGroup(
+                                                core.Integer.as_type(),
+                                                core.Integer.as_type(),
+                                            ),
+                                        ),
+                                    ),
+                                    default_fn_result,
                                 ),
                                 core.DefaultGroup(
                                     core.DefaultGroup(
@@ -620,7 +663,10 @@ def test_control_flow() -> list[full_state.FullState]:
                 core.FunctionWrapper(
                     core.Protocol(
                         core.TypeAliasGroup(),
-                        core.RestTypeGroup(core.INode.as_type()),
+                        core.CountableTypeGroup(
+                            core.IFunction.as_type(),
+                            core.DefaultGroup.as_type(),
+                        ),
                         core.INode.as_type(),
                     ),
                     core.FunctionCall(
@@ -629,7 +675,7 @@ def test_control_flow() -> list[full_state.FullState]:
                             core.FunctionWrapper(
                                 core.Protocol(
                                     core.TypeAliasGroup(),
-                                    core.RestTypeGroup(core.INode.as_type()),
+                                    core.CountableTypeGroup(core.DefaultGroup.as_type()),
                                     core.INode.as_type(),
                                 ),
                                 core.FunctionCall(
@@ -657,7 +703,10 @@ def test_control_flow() -> list[full_state.FullState]:
                 core.FunctionWrapper(
                     core.Protocol(
                         core.TypeAliasGroup(),
-                        core.RestTypeGroup(core.INode.as_type()),
+                        core.CountableTypeGroup(
+                            core.DefaultGroup.as_type(),
+                            core.IFunction.as_type(),
+                        ),
                         core.INode.as_type(),
                     ),
                     core.FunctionCall(
@@ -666,7 +715,7 @@ def test_control_flow() -> list[full_state.FullState]:
                             core.FunctionWrapper(
                                 core.Protocol(
                                     core.TypeAliasGroup(),
-                                    core.RestTypeGroup(core.INode.as_type()),
+                                    core.CountableTypeGroup(core.DefaultGroup.as_type()),
                                     core.INode.as_type(),
                                 ),
                                 core.FunctionCall(
@@ -711,8 +760,8 @@ def test_control_flow() -> list[full_state.FullState]:
             core.Assign(
                 core.Integer(2),
                 core.DefaultGroup(
-                    core.TypeNode(core.LessThan),
-                    core.TypeNode(core.GreaterThan),
+                    core.LessThan.as_type(),
+                    core.GreaterThan.as_type(),
                 ),
             ),
             core.Assign(
@@ -720,8 +769,31 @@ def test_control_flow() -> list[full_state.FullState]:
                 core.FunctionWrapper(
                     core.Protocol(
                         core.TypeAliasGroup(),
-                        core.RestTypeGroup(core.INode.as_type()),
-                        core.INode.as_type(),
+                        core.CountableTypeGroup(
+                            core.FunctionType(
+                                core.CountableTypeGroup(
+                                    core.IInt.as_type(),
+                                    core.IInt.as_type(),
+                                ),
+                                core.IntBoolean.as_type(),
+                            ),
+                            core.CompositeType(
+                                core.DefaultGroup.as_type(),
+                                core.RestTypeGroup(
+                                    core.CompositeType(
+                                        core.IntGroup.as_type(),
+                                        core.CountableTypeGroup(
+                                            core.Integer.as_type(),
+                                            core.Integer.as_type(),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                        core.CompositeType(
+                            core.DefaultGroup.as_type(),
+                            core.RestTypeGroup(core.IntBoolean.as_type()),
+                        ),
                     ),
                     core.FunctionCall(
                         composite.Map,
@@ -758,8 +830,33 @@ def test_control_flow() -> list[full_state.FullState]:
                 core.FunctionWrapper(
                     core.Protocol(
                         core.TypeAliasGroup(),
-                        core.RestTypeGroup(core.INode.as_type()),
-                        core.INode.as_type(),
+                        core.CountableTypeGroup(
+                            core.CompositeType(
+                                core.DefaultGroup.as_type(),
+                                core.RestTypeGroup(
+                                    core.FunctionType(
+                                        core.CountableTypeGroup(
+                                            core.IInt.as_type(),
+                                            core.IInt.as_type(),
+                                        ),
+                                        core.IntBoolean.as_type(),
+                                    ),
+                                ),
+                            ),
+                            core.CompositeType(
+                                core.DefaultGroup.as_type(),
+                                core.RestTypeGroup(
+                                    core.CompositeType(
+                                        core.IntGroup.as_type(),
+                                        core.CountableTypeGroup(
+                                            core.Integer.as_type(),
+                                            core.Integer.as_type(),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                        default_fn_result,
                     ),
                     core.FunctionCall(
                         composite.Map,
@@ -992,7 +1089,10 @@ def test_control_flow() -> list[full_state.FullState]:
         new_scratch=core.FunctionWrapper(
             core.Protocol(
                 core.TypeAliasGroup(),
-                core.RestTypeGroup(core.INode.as_type()),
+                core.CountableTypeGroup(
+                    core.DefaultGroup.as_type(),
+                    core.IFunction.as_type(),
+                ),
                 core.INode.as_type(),
             ),
             core.FunctionCall(
@@ -1001,14 +1101,17 @@ def test_control_flow() -> list[full_state.FullState]:
                     core.FunctionWrapper(
                         core.Protocol(
                             core.TypeAliasGroup(),
-                            core.RestTypeGroup(core.INode.as_type()),
+                            core.CountableTypeGroup(core.DefaultGroup.as_type()),
                             core.INode.as_type(),
                         ),
                         core.FunctionCall(
                             core.FunctionWrapper(
                                 core.Protocol(
                                     core.TypeAliasGroup(),
-                                    core.RestTypeGroup(core.INode.as_type()),
+                                    core.CountableTypeGroup(
+                                        core.IFunction.as_type(),
+                                        core.DefaultGroup.as_type(),
+                                    ),
                                     core.INode.as_type(),
                                 ),
                                 core.FunctionCall(
@@ -1017,7 +1120,9 @@ def test_control_flow() -> list[full_state.FullState]:
                                         core.FunctionWrapper(
                                             core.Protocol(
                                                 core.TypeAliasGroup(),
-                                                core.RestTypeGroup(core.INode.as_type()),
+                                                core.CountableTypeGroup(
+                                                    core.DefaultGroup.as_type()
+                                                ),
                                                 core.INode.as_type(),
                                             ),
                                             core.FunctionCall(

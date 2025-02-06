@@ -691,7 +691,7 @@ class TypeNode(
         return cls.default_protocol(CountableTypeGroup())
 
     def fn_protocol(self) -> Protocol:
-        return self.protocol()
+        return self.type.protocol()
 
     def __init__(self, t: type[T]):
         origin = typing.get_origin(t)
@@ -1985,8 +1985,10 @@ class FunctionType(InheritableNode, IBasicType, IInstantiable):
         # Inner function must not have aliases
         Eq(fn_alias_group, TypeAliasGroup()).raise_on_false()
 
+        base_type = my_protocol.with_new_args(alias_group=TypeAliasGroup())
+
         return IType.general_valid_type(
-            base_type=my_protocol.with_new_args(alias_group=TypeAliasGroup()),
+            base_type=base_type,
             type_to_verify=fn_protocol,
             alias_info=alias_info,
         )
