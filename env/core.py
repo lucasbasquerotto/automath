@@ -514,6 +514,9 @@ class BaseNode(IRunnable, ABC):
     def find(self, node_type: type[T]) -> set[T]:
         return self.find_until(node_type, None)
 
+    def has_node(self, node: INode) -> bool:
+        return node in self.find(node.__class__)
+
     def replace_until(
         self,
         before: INode,
@@ -636,6 +639,12 @@ class IType(INode, ABC):
                 valid, alias_info = my_type.valid_type(type_to_verify, alias_info)
                 if not valid:
                     return False, alias_info
+            elif isinstance(type_to_verify, ITypeValidated):
+                if not isinstance(my_type, IType):
+                    return False, alias_info
+                valid, alias_info = type_to_verify.validated_type(my_type, alias_info)
+                if not valid:
+                    return False, alias_info
             elif (
                 isinstance(my_type, InheritableNode)
                 and isinstance(type_to_verify, InheritableNode)
@@ -673,6 +682,15 @@ class ITypeValidator(IType, ABC):
     ) -> tuple[bool, AliasInfo]:
         raise NotImplementedError
 
+class ITypeValidated(IType, ABC):
+
+    def validated_type(
+        self,
+        type_that_verifies: IType,
+        alias_info: AliasInfo,
+    ) -> tuple[bool, AliasInfo]:
+        raise NotImplementedError
+
 class IBasicType(IType, ABC):
     pass
 
@@ -680,6 +698,7 @@ class TypeNode(
     BaseNode,
     IBasicType,
     ITypeValidator,
+    ITypeValidated,
     IFunction,
     ISpecialValue,
     typing.Generic[T],
@@ -748,8 +767,23 @@ class TypeNode(
         alias_info: AliasInfo,
     ) -> tuple[bool, AliasInfo]:
         if not isinstance(type_to_verify, TypeNode):
+            if isinstance(type_to_verify, ITypeValidated):
+                return type_to_verify.validated_type(self, alias_info)
             return False, alias_info
         if not issubclass(type_to_verify.type, self.type):
+            return False, alias_info
+        return True, alias_info
+
+    def validated_type(
+        self,
+        type_that_verifies: IType,
+        alias_info: AliasInfo,
+    ) -> tuple[bool, AliasInfo]:
+        if not isinstance(type_that_verifies, TypeNode):
+            if isinstance(type_that_verifies, ITypeValidator):
+                return type_that_verifies.valid_type(self, alias_info)
+            return False, alias_info
+        if not issubclass(self.type, type_that_verifies.type):
             return False, alias_info
         return True, alias_info
 
@@ -1553,17 +1587,6 @@ class TypeAliasOptionalGroup(
     def init(cls, origin_group: TypeAliasGroup) -> typing.Self:
         return cls(*[Optional()] * len(origin_group.args))
 
-    def define(self, type_index: BaseTypeIndex, new_type: IType) -> typing.Self:
-        old_type_opt = type_index.find_in_node(self).value_or_raise.real(IOptional)
-
-        if old_type_opt.is_empty().as_bool:
-            new_self = type_index.replace_in_target(self, Optional(new_type)).value_or_raise
-            new_self.strict_validate()
-            return new_self
-
-        Eq(Optional(new_type), old_type_opt).raise_on_false()
-        return self
-
     def replace_aliases(self, node: INode) -> INode:
         for i, actual in enumerate(self.as_tuple):
             index = TypeIndex(i + 1)
@@ -1622,7 +1645,35 @@ class AliasInfo(
         base_type = alias.child
         actual_group = self.alias_group_actual.apply().real(TypeAliasOptionalGroup)
         full_type = IntersectionType(base_type, new_type)
-        actual_group = actual_group.define(type_index=type_index, new_type=full_type)
+
+        old_type_opt = type_index.find_in_node(actual_group).value_or_raise.real(IOptional)
+        new_type_opt: Optional[INode] = Optional(full_type)
+
+        if old_type_opt.is_empty().as_bool:
+            new_group = type_index.replace_in_target(
+                actual_group,
+                Optional(full_type),
+            ).value_or_raise
+            new_group.strict_validate()
+            actual_group = new_group
+        elif isinstance(type_index, LazyTypeIndex):
+            IBoolean.from_bool(not old_type_opt.as_node.has_node(type_index)).raise_on_false()
+            IBoolean.from_bool(not new_type_opt.as_node.has_node(type_index)).raise_on_false()
+            valid, _ = IType.general_valid_type(
+                base_type=new_type_opt,
+                type_to_verify=old_type_opt,
+                alias_info=self,
+            )
+            if not valid:
+                raise InvalidNodeException(
+                    TypeAcceptExceptionInfo(
+                        old_type_opt,
+                        new_type_opt,
+                    )
+                )
+        else:
+            Eq(new_type_opt, old_type_opt).raise_on_false()
+
         return self.func(base_group, actual_group)
 
     def apply(self, protocol: Protocol) -> Protocol:
@@ -1973,11 +2024,6 @@ class FunctionType(InheritableNode, IBasicType, IInstantiable):
 
         arg_group = self.arg_group.apply().real(IBaseTypeGroup)
         result_type = self.result.apply().real(IType)
-        my_protocol = Protocol(
-            alias_info.alias_group_base.apply().real(TypeAliasGroup),
-            arg_group,
-            result_type,
-        )
 
         fn_protocol = instance.fn_protocol()
         fn_alias_group = fn_protocol.alias_group.apply().real(TypeAliasGroup)
@@ -1985,10 +2031,14 @@ class FunctionType(InheritableNode, IBasicType, IInstantiable):
         # Inner function must not have aliases
         Eq(fn_alias_group, TypeAliasGroup()).raise_on_false()
 
-        base_type = my_protocol.with_new_args(alias_group=TypeAliasGroup())
+        my_protocol = Protocol(
+            TypeAliasGroup(),
+            arg_group,
+            result_type,
+        )
 
         return IType.general_valid_type(
-            base_type=base_type,
+            base_type=my_protocol,
             type_to_verify=fn_protocol,
             alias_info=alias_info,
         )
@@ -2045,7 +2095,13 @@ class IComplexType(IType, ABC):
             return all_case
         return False
 
-class UnionType(InheritableNode, IComplexType, ITypeValidator, IInstantiable):
+class UnionType(
+    InheritableNode,
+    IComplexType,
+    ITypeValidator,
+    ITypeValidated,
+    IInstantiable,
+):
 
     @classmethod
     def protocol(cls) -> Protocol:
@@ -2084,7 +2140,29 @@ class UnionType(InheritableNode, IComplexType, ITypeValidator, IInstantiable):
                 return True, alias_info
         return False, alias_info
 
-class IntersectionType(InheritableNode, IComplexType, ITypeValidator, IInstantiable):
+    def validated_type(
+        self,
+        type_that_verifies: IType,
+        alias_info: AliasInfo,
+    ) -> tuple[bool, AliasInfo]:
+        args = [arg for arg in self.args if isinstance(arg, IType)]
+        Eq.from_ints(len(args), len(self.args)).raise_on_false()
+        for t in args:
+            valid, alias_info = IType.general_valid_type(
+                base_type=type_that_verifies,
+                type_to_verify=t,
+                alias_info=alias_info)
+            if not valid:
+                return False, alias_info
+        return True, alias_info
+
+class IntersectionType(
+    InheritableNode,
+    IComplexType,
+    ITypeValidator,
+    ITypeValidated,
+    IInstantiable,
+):
 
     @classmethod
     def protocol(cls) -> Protocol:
@@ -2122,6 +2200,22 @@ class IntersectionType(InheritableNode, IComplexType, ITypeValidator, IInstantia
             if not valid:
                 return False, alias_info
         return True, alias_info
+
+    def validated_type(
+        self,
+        type_that_verifies: IType,
+        alias_info: AliasInfo,
+    ) -> tuple[bool, AliasInfo]:
+        args = [arg for arg in self.args if isinstance(arg, IType)]
+        Eq.from_ints(len(args), len(self.args)).raise_on_false()
+        for t in args:
+            valid, alias_info = IType.general_valid_type(
+                base_type=type_that_verifies,
+                type_to_verify=t,
+                alias_info=alias_info)
+            if valid:
+                return True, alias_info
+        return False, alias_info
 
 class CompositeType(InheritableNode, IComplexType, IInstantiable):
 

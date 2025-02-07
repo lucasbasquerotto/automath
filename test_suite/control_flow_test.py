@@ -913,6 +913,107 @@ def test_control_flow() -> list[full_state.FullState]:
                 core.Var.from_int(5)
             ),
         ),
+
+        core.InstructionGroup(
+            core.Assign(
+                core.Integer(1),
+                core.FunctionExpr(
+                    core.Protocol(
+                        core.TypeAliasGroup(
+                            core.TypeAlias(core.IInt.as_type()),
+                            core.TypeAlias(core.IBoolean.as_type()),
+                        ),
+                        core.CountableTypeGroup(
+                            core.FunctionType(
+                                core.CountableTypeGroup(
+                                    core.TypeIndex(1),
+                                    core.LazyTypeIndex(1),
+                                ),
+                                core.TypeIndex(2),
+                            ),
+                            core.LazyTypeIndex(1),
+                            core.LazyTypeIndex(1),
+                        ),
+                        core.LazyTypeIndex(2),
+                    ),
+                    core.FunctionCall(
+                        core.Param.from_int(1),
+                        core.DefaultGroup(
+                            core.Param.from_int(2),
+                            core.Param.from_int(3),
+                        ),
+                    ),
+                ),
+            ),
+            core.Assign(
+                core.Integer(2),
+                core.FunctionCall(
+                    core.Var.from_int(1),
+                    core.DefaultGroup(
+                        core.GreaterThan.as_type(),
+                        core.Integer(1),
+                        core.Integer(0),
+                    ),
+                ),
+            ),
+            core.Assign(
+                core.Integer(3),
+                core.FunctionCall(
+                    core.Var.from_int(1),
+                    core.DefaultGroup(
+                        core.GreaterThan.as_type(),
+                        core.Integer(0),
+                        core.Integer(1),
+                    ),
+                ),
+            ),
+            core.Assign(
+                core.Integer(4),
+                core.FunctionCall(
+                    core.Var.from_int(1),
+                    core.DefaultGroup(
+                        core.LessThan.as_type(),
+                        core.Integer(0),
+                        core.Integer(1),
+                    ),
+                ),
+            ),
+            core.Assign(
+                core.Integer(5),
+                core.FunctionCall(
+                    core.Var.from_int(1),
+                    core.DefaultGroup(
+                        core.FunctionExpr(
+                            core.Protocol(
+                                core.TypeAliasGroup(),
+                                core.CountableTypeGroup(
+                                    core.Integer.as_type(),
+                                    core.UnionType(
+                                        core.BaseInt.as_type(),
+                                        core.Integer.as_type(),
+                                    ),
+                                ),
+                                core.IntBoolean.as_type(),
+                            ),
+                            core.LessThan(
+                                core.Param.from_int(1),
+                                core.Param.from_int(2),
+                            ),
+                        ),
+                        core.Integer(1),
+                        core.Integer(0),
+                    ),
+                ),
+            ),
+            core.Return.with_node(
+                core.DefaultGroup(
+                    core.Var.from_int(2),
+                    core.Var.from_int(3),
+                    core.Var.from_int(4),
+                    core.Var.from_int(5),
+                ),
+            ),
+        ),
     ]
     scratches = if_scratches + loop_scratches + fn_scratches + assignment_scratches
 
@@ -1170,6 +1271,19 @@ def test_control_flow() -> list[full_state.FullState]:
         args_groups=args_groups,
         scratch_idx=index+5,
         new_scratch=default_result,
+    )
+    scratches = run(
+        env=env,
+        state_meta=state_meta,
+        scratches=scratches,
+        args_groups=args_groups,
+        scratch_idx=index+6,
+        new_scratch=core.DefaultGroup(
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+        ),
     )
 
     return [env.full_state]
