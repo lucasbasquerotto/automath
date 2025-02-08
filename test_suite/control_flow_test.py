@@ -1005,12 +1005,71 @@ def test_control_flow() -> list[full_state.FullState]:
                     ),
                 ),
             ),
+            core.Assign(
+                core.Integer(6),
+                core.FunctionCall(
+                    core.Var.from_int(1),
+                    core.DefaultGroup(
+                        core.FunctionExpr(
+                            core.Protocol(
+                                core.TypeAliasGroup(),
+                                core.CountableTypeGroup(
+                                    core.IntersectionType(
+                                        core.BaseInt.as_type(),
+                                        core.Integer.as_type(),
+                                    ),
+                                    core.Integer.as_type(),
+                                ),
+                                core.IntBoolean.as_type(),
+                            ),
+                            core.GreaterThan(
+                                core.Param.from_int(1),
+                                core.Param.from_int(2),
+                            ),
+                        ),
+                        core.Integer(1),
+                        core.Integer(0),
+                    ),
+                ),
+            ),
+            core.Assign(
+                core.Integer(7),
+                core.FunctionCall(
+                    core.Var.from_int(1),
+                    core.DefaultGroup(
+                        core.FunctionExpr(
+                            core.Protocol(
+                                core.TypeAliasGroup(),
+                                core.CountableTypeGroup(
+                                    core.IntersectionType(
+                                        core.BaseInt.as_type(),
+                                        core.Integer.as_type(),
+                                    ),
+                                    core.UnionType(
+                                        core.BaseInt.as_type(),
+                                        core.Integer.as_type(),
+                                    ),
+                                ),
+                                core.IntBoolean.as_type(),
+                            ),
+                            core.GreaterThan(
+                                core.Param.from_int(1),
+                                core.Param.from_int(2),
+                            ),
+                        ),
+                        core.Integer(0),
+                        core.Integer(1),
+                    ),
+                ),
+            ),
             core.Return.with_node(
                 core.DefaultGroup(
                     core.Var.from_int(2),
                     core.Var.from_int(3),
                     core.Var.from_int(4),
                     core.Var.from_int(5),
+                    # core.Var.from_int(6),
+                    # core.Var.from_int(7),
                 ),
             ),
         ),

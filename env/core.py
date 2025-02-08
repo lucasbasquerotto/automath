@@ -2,6 +2,7 @@
 from __future__ import annotations
 from abc import ABC
 import typing
+from utils.module_utils import type_sorter_key
 
 ###########################################################
 ##################### MAIN INTERFACES #####################
@@ -656,7 +657,7 @@ class IType(INode, ABC):
                 fn_args = type_to_verify.args
                 if len(my_args) != len(fn_args):
                     return False, alias_info
-                for my_arg, fn_arg in zip(my_args, fn_args):
+                for my_arg, fn_arg in list(zip(my_args, fn_args))[::-1]:
                     type_stack.append((my_arg, fn_arg))
             elif my_type != type_to_verify:
                 return False, alias_info
@@ -1589,14 +1590,11 @@ class TypeAliasOptionalGroup(
 
     def replace_aliases(self, node: INode) -> INode:
         for i, actual in enumerate(self.as_tuple):
-            index = TypeIndex(i + 1)
-            lazy_index = LazyTypeIndex(i + 1)
             t = (
                 InvalidType()
                 if actual.is_empty().as_bool
                 else actual.value_or_raise)
-            node = node.as_node.replace(index, t)
-            node = node.as_node.replace(lazy_index, t)
+            node = TypeIndex(i + 1).replace_in_node(node, t)
         Eq(Integer(len(node.as_node.find(BaseTypeIndex))), Integer.zero()).raise_on_false()
         return node
 
@@ -1657,8 +1655,8 @@ class AliasInfo(
             new_group.strict_validate()
             actual_group = new_group
         elif isinstance(type_index, LazyTypeIndex):
-            IBoolean.from_bool(not old_type_opt.as_node.has_node(type_index)).raise_on_false()
-            IBoolean.from_bool(not new_type_opt.as_node.has_node(type_index)).raise_on_false()
+            IBoolean.from_bool(not type_index.present_in_node(old_type_opt)).raise_on_false()
+            IBoolean.from_bool(not type_index.present_in_node(new_type_opt)).raise_on_false()
             valid, _ = IType.general_valid_type(
                 base_type=new_type_opt,
                 type_to_verify=old_type_opt,
@@ -1667,8 +1665,8 @@ class AliasInfo(
             if not valid:
                 raise InvalidNodeException(
                     TypeAcceptExceptionInfo(
-                        old_type_opt,
                         new_type_opt,
+                        old_type_opt,
                     )
                 )
         else:
@@ -1748,6 +1746,23 @@ class BaseTypeIndex(NodeArgBaseIndex, ITypeValidator, ABC):
             return False, alias_info
         alias_info = alias_info.define(self, type_to_verify)
         return True, alias_info
+
+    def _occurences(self, node: INode) -> list[BaseTypeIndex]:
+        items: list[BaseTypeIndex] = sorted([
+            item
+            for item in node.as_node.find(BaseTypeIndex)
+            if item.as_int == self.as_int
+        ], key=lambda t: type_sorter_key(t.__class__))
+        return items
+
+    def present_in_node(self, node: INode) -> bool:
+        return len(self._occurences(node)) > 0
+
+    def replace_in_node(self, target: INode, new_node: INode) -> INode:
+        items = self._occurences(target)
+        for item in items:
+            target = target.as_node.replace(item, new_node)
+        return target
 
 class TypeIndex(BaseTypeIndex, IInstantiable):
 
@@ -1933,12 +1948,9 @@ class Protocol(
             if index.as_int <= 0 or index.as_int > alias_amount:
                 raise InvalidNodeException(
                     TypeIndexProtocolExceptionInfo(index, self))
-        used_idxs = self.find(BaseTypeIndex)
         for i in range(alias_amount):
             index = TypeIndex(i + 1)
-            lazy_index = LazyTypeIndex(i + 1)
-            no_index = index not in used_idxs and lazy_index not in used_idxs
-            if no_index:
+            if not index.present_in_node(self):
                 raise InvalidNodeException(
                     TypeIndexProtocolExceptionInfo(index, self))
 
