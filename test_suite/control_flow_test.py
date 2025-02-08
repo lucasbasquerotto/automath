@@ -1068,8 +1068,8 @@ def test_control_flow() -> list[full_state.FullState]:
                     core.Var.from_int(3),
                     core.Var.from_int(4),
                     core.Var.from_int(5),
-                    # core.Var.from_int(6),
-                    # core.Var.from_int(7),
+                    core.Var.from_int(7),
+                    core.Var.from_int(6),
                 ),
             ),
         ),
@@ -1342,6 +1342,8 @@ def test_control_flow() -> list[full_state.FullState]:
             core.IBoolean.false(),
             core.IBoolean.true(),
             core.IBoolean.false(),
+            core.IBoolean.false(),
+            core.IBoolean.true(),
         ),
     )
 

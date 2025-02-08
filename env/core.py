@@ -3181,6 +3181,10 @@ class ScopeDataPlaceholderItemGroup(BaseOptionalValueGroup[Placeholder], ABC):
     def is_dynamic(cls) -> IBoolean:
         raise NotImplementedError
 
+    @classmethod
+    def is_future(cls) -> bool:
+        raise NotImplementedError
+
     def add_item(self, index: Integer, value: INode) -> typing.Self:
         self.is_dynamic().raise_on_false()
         items = list(self.as_tuple)
@@ -3212,14 +3216,20 @@ class ScopeDataParamItemGroup(
     IScopeDataActualItemGroup,
     IInstantiable,
 ):
-    pass
+
+    @classmethod
+    def is_future(cls) -> bool:
+        return False
 
 class ScopeDataFutureParamItemGroup(
     ScopeDataParamBaseItemGroup,
     IScopeDataFutureItemGroup,
     IInstantiable,
 ):
-    pass
+
+    @classmethod
+    def is_future(cls) -> bool:
+        return True
 
 class ScopeDataVarBaseItemGroup(ScopeDataPlaceholderItemGroup, ABC):
 
@@ -3232,14 +3242,20 @@ class ScopeDataVarBaseItemGroup(ScopeDataPlaceholderItemGroup, ABC):
         return IBoolean.true()
 
 class ScopeDataVarItemGroup(ScopeDataVarBaseItemGroup, IScopeDataActualItemGroup, IInstantiable):
-    pass
+
+    @classmethod
+    def is_future(cls) -> bool:
+        return False
 
 class ScopeDataFutureVarItemGroup(
     ScopeDataVarBaseItemGroup,
     IScopeDataFutureItemGroup,
     IInstantiable,
 ):
-    pass
+
+    @classmethod
+    def is_future(cls) -> bool:
+        return True
 
 class ScopeDataGroup(BaseGroup[ScopeDataPlaceholderItemGroup], IInstantiable):
 
@@ -3331,10 +3347,34 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
         return group.is_future()
 
     def with_scopes(self, info_base: RunInfo) -> typing.Self:
-        base_amount = info_base.scope_data_group.apply().real(ScopeDataGroup).amount()
+        base_group = info_base.scope_data_group.apply().real(ScopeDataGroup)
+        base_amount = base_group.amount()
         group = self.scope_data_group.apply().real(ScopeDataGroup).as_tuple
         Not(LessThan(Integer(len(group)), Integer(base_amount))).raise_on_false()
-        new_group = group[:base_amount]
+        if len(base_group.as_tuple) == 0:
+            new_group = base_group
+        else:
+            last_base = base_group.as_tuple[-1]
+            last_after = group[base_amount-1]
+            Eq(
+                last_base.item_inner_type().as_type(),
+                last_after.item_inner_type().as_type(),
+            ).raise_on_false()
+            if not last_base.is_future() and last_after.is_future():
+                new_group = base_group
+            else:
+                Eq(last_base.func.as_type(), last_after.func.as_type()).raise_on_false()
+                Not(LessThan(
+                    Integer(len(last_after.as_tuple)),
+                    Integer(len(last_base.as_tuple)),
+                )).raise_on_false()
+                last_inner_group = last_base.func(
+                    *last_base.as_tuple,
+                    *last_after.as_tuple[last_base.amount():],
+                )
+                new_group = base_group.func(
+                    *list(base_group.as_tuple[:-1]) + [last_inner_group]
+                )
         return_after_scope = self.return_after_scope.apply().real(Optional[RunInfoScopeDataIndex])
         return_after_val = return_after_scope.value
         if return_after_val is not None:
@@ -3343,7 +3383,7 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
             if ret_index > base_amount:
                 return_after_scope = Optional()
         return self.with_new_args(
-            scope_data_group=ScopeDataGroup(*new_group),
+            scope_data_group=new_group,
             return_after_scope=return_after_scope)
 
     def must_return(self) -> bool:
