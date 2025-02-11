@@ -4045,6 +4045,54 @@ class GroupIterator(InheritableNode, IFromSingleNode[BaseGroup], IIterator, IIns
         result = Optional(DefaultGroup(new_iter, value))
         return info.to_result(result)
 
+    def typed(self, next_type: IType) -> TypedIterator:
+        return TypedIterator(self, next_type)
+
+class TypedIterator(InheritableNode, IIterator, IInstantiable):
+
+    idx_iterator = 1
+    idx_type = 2
+
+    @classmethod
+    def with_node(cls, node: INode) -> typing.Self:
+        return cls(node, NodeArgIndex(1))
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            IIterator.as_type(),
+            IType.as_type(),
+        ))
+
+    @property
+    def iterator(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_iterator)
+
+    @property
+    def type(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_type)
+
+    def _next(self, run_info: RunInfo):
+        info = run_info
+
+        info, node_aux = self.iterator.apply().run(info).as_tuple
+        iterator = node_aux.real(IIterator)
+
+        info, node_aux = self.type.apply().run(info).as_tuple
+        next_type = node_aux.real(IType)
+
+        result = iterator.next(info)
+        _, node = result.as_tuple
+        assert isinstance(node, IOptional)
+        group = node.value
+        if group is not None:
+            assert isinstance(group, DefaultGroup)
+            assert len(group.args) == 2
+            new_iter, value = group.as_tuple
+            assert isinstance(new_iter, IIterator)
+            next_type.verify(value, alias_info=AliasInfo.create())
+        return result
+
 class Next(ControlFlowBaseNode, IInstantiable):
 
     idx_iter = 1

@@ -76,7 +76,18 @@ Map: core.FunctionExpr = core.FunctionExpr(
                                             core.CountableTypeGroup(core.TypeIndex(1)),
                                             core.TypeIndex(2),
                                         ),
-                                        core.IIterator.as_type(),
+                                        core.CompositeType(
+                                            core.GroupIterator.as_type(),
+                                            core.CountableTypeGroup(
+                                                core.CompositeType(
+                                                    core.BaseGroup.as_type(),
+                                                    core.RestTypeGroup(
+                                                        core.LazyTypeIndex(1),
+                                                    ),
+                                                ),
+                                                core.NodeArgIndex.as_type(),
+                                            ),
+                                        ),
                                         core.CompositeType(
                                             core.DefaultGroup.as_type(),
                                             core.RestTypeGroup(
@@ -114,7 +125,7 @@ Map: core.FunctionExpr = core.FunctionExpr(
                         core.NestedArg.from_raw(
                             node=core.Param.from_int(1),
                             indices=(1, 2),
-                        )
+                        ),
                     ),
                     core.Assign(
                         core.PlaceholderIndex(2),
@@ -125,7 +136,7 @@ Map: core.FunctionExpr = core.FunctionExpr(
                         core.NestedArg.from_raw(
                             node=core.Param.from_int(1),
                             indices=(1, 3),
-                        )
+                        ),
                     ),
                     core.Return.with_node(
                         core.If(
@@ -151,9 +162,9 @@ Map: core.FunctionExpr = core.FunctionExpr(
                                                     core.NestedArg.from_raw(
                                                         node=core.Var.from_int(2),
                                                         indices=(1, 2),
-                                                    )
+                                                    ),
                                                 ),
-                                            )
+                                            ),
                                         ),
                                     ),
                                 ),
@@ -169,7 +180,7 @@ Map: core.FunctionExpr = core.FunctionExpr(
                         core.Param.from_int(2),
                     ),
                     core.DefaultGroup(),
-                )
+                ),
             ),
         ),
         core.NodeArgIndex(1),
