@@ -117,19 +117,19 @@ Map: core.FunctionExpr = core.FunctionExpr(
                         )
                     ),
                     core.Assign(
+                        core.PlaceholderIndex(2),
+                        core.Next(core.Var.from_int(2))
+                    ),
+                    core.Assign(
                         core.PlaceholderIndex(3),
                         core.NestedArg.from_raw(
                             node=core.Param.from_int(1),
                             indices=(1, 3),
                         )
                     ),
-                    core.Assign(
-                        core.PlaceholderIndex(4),
-                        core.Next(core.Var.from_int(2))
-                    ),
                     core.Return.with_node(
                         core.If(
-                            core.IsEmpty(core.Var.from_int(4)),
+                            core.IsEmpty(core.Var.from_int(2)),
                             core.LoopGuard.with_args(
                                 condition=core.IBoolean.false(),
                                 result=core.Var.from_int(3),
@@ -139,7 +139,7 @@ Map: core.FunctionExpr = core.FunctionExpr(
                                 result=core.DefaultGroup(
                                     core.Var.from_int(1),
                                     core.NestedArg.from_raw(
-                                        node=core.Var.from_int(4),
+                                        node=core.Var.from_int(2),
                                         indices=(1, 1),
                                     ),
                                     core.Add(
@@ -149,7 +149,7 @@ Map: core.FunctionExpr = core.FunctionExpr(
                                                 core.Var.from_int(1),
                                                 core.DefaultGroup(
                                                     core.NestedArg.from_raw(
-                                                        node=core.Var.from_int(4),
+                                                        node=core.Var.from_int(2),
                                                         indices=(1, 2),
                                                     )
                                                 ),

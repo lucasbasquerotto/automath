@@ -3385,17 +3385,8 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
                 new_group = base_group
             else:
                 Eq(last_base.func.as_type(), last_after.func.as_type()).raise_on_false()
-                Not(LessThan(
-                    Integer(len(last_after.as_tuple)),
-                    Integer(len(last_base.as_tuple)),
-                )).raise_on_false()
-                last_inner_group = last_base.func(
-                    *last_base.as_tuple,
-                    *last_after.as_tuple[last_base.amount():],
-                )
-                new_group = base_group.func(
-                    *list(base_group.as_tuple[:-1]) + [last_inner_group]
-                )
+                new_items = list(base_group.as_tuple[:-1]) + [last_after]
+                new_group = base_group.func(*new_items)
         return_after_scope = self.return_after_scope.apply().real(Optional[RunInfoScopeDataIndex])
         return_after_val = return_after_scope.value
         if return_after_val is not None:
