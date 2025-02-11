@@ -2673,51 +2673,65 @@ class StackExceptionInfoItem(
     def with_args(cls, node: INode, run_info: RunInfo) -> typing.Self:
         return cls(node, run_info)
 
-class StackNodeArg(
+class StackExceptionInfoRunItem(
     InheritableNode,
+    IStackExceptionInfoItem,
+    ISingleChild[INode],
     IInstantiable,
-    IFromSingleNode[INode],
 ):
 
-    idx_full_arg = 1
-    idx_arg_type = 2
+    idx_node = 1
 
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
-            Optional.as_type(),
-            CompositeType(
-                Optional.as_type(),
-                OptionalTypeGroup(IType.as_type()),
-            ),
+            INode.as_type(),
+        ))
+
+    @property
+    def node(self):
+        return self.inner_arg(self.idx_node)
+
+class IStackNodeArg(INode, ABC):
+    pass
+
+class StackNodeFullArg(
+    InheritableNode,
+    IStackNodeArg,
+    IFromSingleNode[INode],
+    IInstantiable,
+):
+
+    idx_full_arg = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            INode.as_type(),
         ))
 
     @property
     def full_arg(self):
         return self.inner_arg(self.idx_full_arg)
 
+class StackNodeSimplifiedArg(
+    InheritableNode,
+    IStackNodeArg,
+    IFromSingleNode[INode],
+    IInstantiable,
+):
+
+    idx_arg_type = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            IType.as_type(),
+        ))
+
     @property
     def arg_type(self):
         return self.inner_arg(self.idx_arg_type)
-
-    @classmethod
-    def with_full_arg(cls, arg: INode) -> typing.Self:
-        return cls(Optional(arg), Optional())
-
-    @classmethod
-    def with_arg_type(cls, arg_type: IType) -> typing.Self:
-        return cls(Optional(), Optional(arg_type))
-
-    @classmethod
-    def with_node(cls, node: INode) -> typing.Self:
-        return (
-            cls.with_full_arg(node)
-            if (
-                isinstance(node, ISpecialValue)
-                or isinstance(node, BaseIntGroup)
-            )
-            else cls.with_arg_type(node.as_node.as_type())
-        )
 
 class StackExceptionInfoSimplifiedItem(
     InheritableNode,
@@ -2745,11 +2759,22 @@ class StackExceptionInfoSimplifiedItem(
         return self.inner_arg(self.idx_node_args)
 
     @classmethod
+    def arg_wrapper(cls, arg: INode) -> IStackNodeArg:
+        return (
+            StackNodeFullArg(arg)
+            if (
+                isinstance(arg, ISpecialValue)
+                or isinstance(arg, BaseIntGroup)
+            )
+            else StackNodeSimplifiedArg(arg.as_node.as_type())
+        )
+
+    @classmethod
     def with_node(cls, node: InheritableNode) -> typing.Self:
         return cls(
             node.as_node.as_type(),
             DefaultGroup.from_items([
-                StackNodeArg.with_node(arg)
+                cls.arg_wrapper(arg)
                 for arg in node.args
             ]),
         )
@@ -2789,7 +2814,7 @@ class StackExceptionInfo(
 
     def _add_stack(self, node: INode, run_info: RunInfo) -> typing.Self:
         stack_group = self.stack_group.apply().real(StackExceptionInfoGroup)
-        new_item = (
+        new_item = node if isinstance(node, StackExceptionInfoRunItem) else (
             StackExceptionInfoItem.with_args(node=node, run_info=run_info)
             if len(stack_group.args) == 0 or not isinstance(node, InheritableNode)
             else StackExceptionInfoSimplifiedItem.with_node(node)
@@ -3741,8 +3766,19 @@ class InstructionGroup(ControlFlowBaseNode, IInnerScope, IInstantiable):
         info = info.add_scope(scope_data)
 
         run_args: list[INode] = []
-        for arg in self.args:
-            info, node = arg.as_node.run(info).as_tuple
+        for i, arg in enumerate(self.args):
+            try:
+                info, node = arg.as_node.run(info).as_tuple
+            except InvalidNodeException as e:
+                exc_info = e.info.add_stack(
+                    node=StackExceptionInfoRunItem(arg),
+                    run_info=info,
+                )
+                exc_info = exc_info.add_stack(
+                    node=InnerArg(self, NodeArgIndex(i+1)),
+                    run_info=info,
+                )
+                raise InvalidNodeException(exc_info) from e
             run_args.append(node)
 
         result = info.to_result(Void())
