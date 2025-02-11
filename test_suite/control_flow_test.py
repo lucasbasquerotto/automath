@@ -334,11 +334,11 @@ def test_control_flow() -> list[full_state.FullState]:
                                 core.IntGroup.from_ints([1, 2]),
                                 core.Param(
                                     core.FarParentScope.create(),
-                                    core.Integer(1),
+                                    core.PlaceholderIndex(1),
                                 ),
                                 core.Param(
                                     core.NearParentScope.create(),
-                                    core.Integer(1),
+                                    core.PlaceholderIndex(1),
                                 ),
                             )
                         ),
@@ -431,31 +431,31 @@ def test_control_flow() -> list[full_state.FullState]:
                                 core.IntGroup(
                                     core.Param(
                                         core.NearParentScope.create(),
-                                        core.Integer(1),
+                                        core.PlaceholderIndex(1),
                                     ),
                                     core.Param(
                                         core.FarParentScope.create(),
-                                        core.Integer(1),
-                                    ),
-                                ),
-                                core.IntGroup(
-                                    core.Param(
-                                        core.FarParentScope.create(),
-                                        core.Integer(1),
-                                    ),
-                                    core.Param(
-                                        core.FarParentScope.create(),
-                                        core.Integer(1),
+                                        core.PlaceholderIndex(1),
                                     ),
                                 ),
                                 core.IntGroup(
                                     core.Param(
                                         core.FarParentScope.create(),
-                                        core.Integer(1),
+                                        core.PlaceholderIndex(1),
+                                    ),
+                                    core.Param(
+                                        core.FarParentScope.create(),
+                                        core.PlaceholderIndex(1),
+                                    ),
+                                ),
+                                core.IntGroup(
+                                    core.Param(
+                                        core.FarParentScope.create(),
+                                        core.PlaceholderIndex(1),
                                     ),
                                     core.Param(
                                         core.NearParentScope.create(),
-                                        core.Integer(1),
+                                        core.PlaceholderIndex(1),
                                     ),
                                 ),
                             )
@@ -557,7 +557,7 @@ def test_control_flow() -> list[full_state.FullState]:
     assignment_scratches = [
         core.InstructionGroup(
             core.Assign(
-                core.Integer(1),
+                core.PlaceholderIndex(1),
                 core.DefaultGroup(
                     core.IntGroup.from_ints([1, 2]),
                     core.IntGroup.from_ints([2, 2]),
@@ -573,7 +573,7 @@ def test_control_flow() -> list[full_state.FullState]:
 
         core.InstructionGroup(
             core.Assign(
-                core.Integer(1),
+                core.PlaceholderIndex(1),
                 core.FunctionCall(
                     composite.Map,
                     core.DefaultGroup(
@@ -621,7 +621,7 @@ def test_control_flow() -> list[full_state.FullState]:
 
         core.InstructionGroup(
             core.Assign(
-                core.Integer(1),
+                core.PlaceholderIndex(1),
                 core.FunctionCall(
                     composite.Map,
                     core.DefaultGroup(
@@ -659,7 +659,7 @@ def test_control_flow() -> list[full_state.FullState]:
 
         core.InstructionGroup(
             core.Assign(
-                core.Integer(1),
+                core.PlaceholderIndex(1),
                 core.FunctionWrapper(
                     core.Protocol(
                         core.TypeAliasGroup(),
@@ -681,25 +681,24 @@ def test_control_flow() -> list[full_state.FullState]:
                                 core.FunctionCall(
                                     core.Param(
                                         core.NearParentScope.from_int(2),
-                                        core.Integer(1),
+                                        core.PlaceholderIndex(1),
                                     ),
                                     core.Param(
                                         core.NearParentScope.from_int(1),
-                                        core.Integer(1),
+                                        core.PlaceholderIndex(1),
                                     ),
                                 ),
                             ),
                             core.Param(
                                 core.NearParentScope.from_int(1),
-                                core.Integer(2),
+                                core.PlaceholderIndex(2),
                             ),
                         ),
                     ),
                 ),
             ),
-
             core.Assign(
-                core.Integer(2),
+                core.PlaceholderIndex(2),
                 core.FunctionWrapper(
                     core.Protocol(
                         core.TypeAliasGroup(),
@@ -721,23 +720,23 @@ def test_control_flow() -> list[full_state.FullState]:
                                 core.FunctionCall(
                                     core.Var(
                                         core.NearParentScope.from_int(3),
-                                        core.Integer(1),
+                                        core.PlaceholderIndex(1),
                                     ),
                                     core.DefaultGroup(
                                         core.Param(
                                             core.NearParentScope.from_int(1),
-                                            core.Integer(1),
+                                            core.PlaceholderIndex(1),
                                         ),
                                         core.Param(
                                             core.NearParentScope.from_int(2),
-                                            core.Integer(2),
+                                            core.PlaceholderIndex(2),
                                         ),
                                     ),
                                 ),
                             ),
                             core.Param(
                                 core.NearParentScope.from_int(1),
-                                core.Integer(1),
+                                core.PlaceholderIndex(1),
                             ),
                         ),
                     ),
@@ -750,7 +749,7 @@ def test_control_flow() -> list[full_state.FullState]:
 
         core.InstructionGroup(
             core.Assign(
-                core.Integer(1),
+                core.PlaceholderIndex(1),
                 core.DefaultGroup(
                     core.IntGroup.from_ints([1, 2]),
                     core.IntGroup.from_ints([2, 2]),
@@ -758,14 +757,14 @@ def test_control_flow() -> list[full_state.FullState]:
                 ),
             ),
             core.Assign(
-                core.Integer(2),
+                core.PlaceholderIndex(2),
                 core.DefaultGroup(
                     core.LessThan.as_type(),
                     core.GreaterThan.as_type(),
                 ),
             ),
             core.Assign(
-                core.Integer(3),
+                core.PlaceholderIndex(3),
                 core.FunctionWrapper(
                     core.Protocol(
                         core.TypeAliasGroup(),
@@ -809,24 +808,24 @@ def test_control_flow() -> list[full_state.FullState]:
                                 core.FunctionCall(
                                     core.Param(
                                         core.NearParentScope.from_int(2),
-                                        core.Integer(1),
+                                        core.PlaceholderIndex(1),
                                     ),
                                     core.Param(
                                         core.NearParentScope.from_int(1),
-                                        core.Integer(1),
+                                        core.PlaceholderIndex(1),
                                     ),
                                 ),
                             ),
                             core.Param(
                                 core.NearParentScope.from_int(1),
-                                core.Integer(2),
+                                core.PlaceholderIndex(2),
                             ),
                         ),
                     ),
                 ),
             ),
             core.Assign(
-                core.Integer(4),
+                core.PlaceholderIndex(4),
                 core.FunctionWrapper(
                     core.Protocol(
                         core.TypeAliasGroup(),
@@ -877,30 +876,30 @@ def test_control_flow() -> list[full_state.FullState]:
                                 core.FunctionCall(
                                     core.Var(
                                         core.NearParentScope.from_int(3),
-                                        core.Integer(3),
+                                        core.PlaceholderIndex(3),
                                     ),
                                     core.DefaultGroup(
                                         core.Param(
                                             core.NearParentScope.from_int(1),
-                                            core.Integer(1),
+                                            core.PlaceholderIndex(1),
                                         ),
                                         core.Param(
                                             core.NearParentScope.from_int(2),
-                                            core.Integer(2),
+                                            core.PlaceholderIndex(2),
                                         ),
                                     ),
                                 ),
                             ),
                             core.Param(
                                 core.NearParentScope.from_int(1),
-                                core.Integer(1),
+                                core.PlaceholderIndex(1),
                             ),
                         ),
                     ),
                 ),
             ),
             core.Assign(
-                core.Integer(5),
+                core.PlaceholderIndex(5),
                 core.FunctionCall(
                     core.Var.from_int(4),
                     core.DefaultGroup(
@@ -916,7 +915,7 @@ def test_control_flow() -> list[full_state.FullState]:
 
         core.InstructionGroup(
             core.Assign(
-                core.Integer(1),
+                core.PlaceholderIndex(1),
                 core.FunctionExpr(
                     core.Protocol(
                         core.TypeAliasGroup(
@@ -946,7 +945,7 @@ def test_control_flow() -> list[full_state.FullState]:
                 ),
             ),
             core.Assign(
-                core.Integer(2),
+                core.PlaceholderIndex(2),
                 core.FunctionCall(
                     core.Var.from_int(1),
                     core.DefaultGroup(
@@ -957,7 +956,7 @@ def test_control_flow() -> list[full_state.FullState]:
                 ),
             ),
             core.Assign(
-                core.Integer(3),
+                core.PlaceholderIndex(3),
                 core.FunctionCall(
                     core.Var.from_int(1),
                     core.DefaultGroup(
@@ -968,7 +967,7 @@ def test_control_flow() -> list[full_state.FullState]:
                 ),
             ),
             core.Assign(
-                core.Integer(4),
+                core.PlaceholderIndex(4),
                 core.FunctionCall(
                     core.Var.from_int(1),
                     core.DefaultGroup(
@@ -979,7 +978,7 @@ def test_control_flow() -> list[full_state.FullState]:
                 ),
             ),
             core.Assign(
-                core.Integer(5),
+                core.PlaceholderIndex(5),
                 core.FunctionCall(
                     core.Var.from_int(1),
                     core.DefaultGroup(
@@ -1006,7 +1005,7 @@ def test_control_flow() -> list[full_state.FullState]:
                 ),
             ),
             core.Assign(
-                core.Integer(6),
+                core.PlaceholderIndex(6),
                 core.FunctionCall(
                     core.Var.from_int(1),
                     core.DefaultGroup(
@@ -1033,7 +1032,7 @@ def test_control_flow() -> list[full_state.FullState]:
                 ),
             ),
             core.Assign(
-                core.Integer(7),
+                core.PlaceholderIndex(7),
                 core.FunctionCall(
                     core.Var.from_int(1),
                     core.DefaultGroup(
@@ -1288,17 +1287,17 @@ def test_control_flow() -> list[full_state.FullState]:
                                             core.FunctionCall(
                                                 core.Param(
                                                     core.NearParentScope.from_int(2),
-                                                    core.Integer(1),
+                                                    core.PlaceholderIndex(1),
                                                 ),
                                                 core.Param(
                                                     core.NearParentScope.from_int(1),
-                                                    core.Integer(1),
+                                                    core.PlaceholderIndex(1),
                                                 ),
                                             ),
                                         ),
                                         core.Param(
                                             core.NearParentScope.from_int(1),
-                                            core.Integer(2),
+                                            core.PlaceholderIndex(2),
                                         ),
                                     ),
                                 ),
@@ -1306,18 +1305,18 @@ def test_control_flow() -> list[full_state.FullState]:
                             core.DefaultGroup(
                                 core.Param(
                                     core.NearParentScope.from_int(1),
-                                    core.Integer(1),
+                                    core.PlaceholderIndex(1),
                                 ),
                                 core.Param(
                                     core.NearParentScope.from_int(2),
-                                    core.Integer(2),
+                                    core.PlaceholderIndex(2),
                                 ),
                             ),
                         ),
                     ),
                     core.Param(
                         core.NearParentScope.from_int(1),
-                        core.Integer(1),
+                        core.PlaceholderIndex(1),
                     ),
                 ),
             ),

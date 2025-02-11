@@ -103,28 +103,28 @@ Map: core.FunctionExpr = core.FunctionExpr(
                 ),
                 core.InstructionGroup(
                     core.Assign(
-                        core.Integer(1),
+                        core.PlaceholderIndex(1),
                         core.NestedArg.from_raw(
                             node=core.Param.from_int(1),
                             indices=(1, 1),
                         ),
                     ),
                     core.Assign(
-                        core.Integer(2),
+                        core.PlaceholderIndex(2),
                         core.NestedArg.from_raw(
                             node=core.Param.from_int(1),
                             indices=(1, 2),
                         )
                     ),
                     core.Assign(
-                        core.Integer(3),
+                        core.PlaceholderIndex(3),
                         core.NestedArg.from_raw(
                             node=core.Param.from_int(1),
                             indices=(1, 3),
                         )
                     ),
                     core.Assign(
-                        core.Integer(4),
+                        core.PlaceholderIndex(4),
                         core.Next(core.Var.from_int(2))
                     ),
                     core.Return.with_node(

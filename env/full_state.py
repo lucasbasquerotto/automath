@@ -334,6 +334,10 @@ class FullStateArgIndex(NodeArgBaseIndex, IFullStateIndex[FullState, INode], IIn
     def outer_type(cls):
         return FullState
 
+    @classmethod
+    def item_type(cls):
+        return INode
+
     def find_in_outer_node(self, node: FullState):
         return self.find_in_node(node)
 

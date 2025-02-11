@@ -1094,7 +1094,7 @@ class Placeholder(InheritableNode, IDynamic, IFromInt, typing.Generic[T], ABC):
             ),
             CountableTypeGroup(
                 RunInfoScopeDataIndex.as_type(),
-                BaseInt.as_type(),
+                PlaceholderIndex.as_type(),
             ),
             TypeIndex(1),
         )
@@ -1146,7 +1146,7 @@ class Param(Placeholder[T], IInstantiable, typing.Generic[T]):
     def from_int(cls, value: int) -> typing.Self:
         return cls(
             FarParentScope.create(),
-            Integer(value),
+            PlaceholderIndex(value),
         )
 
 class Var(Placeholder[T], IInstantiable, typing.Generic[T]):
@@ -1155,7 +1155,7 @@ class Var(Placeholder[T], IInstantiable, typing.Generic[T]):
     def from_int(cls, value: int) -> typing.Self:
         return cls(
             NearParentScope.create(),
-            Integer(value),
+            PlaceholderIndex(value),
         )
 
 ###########################################################
@@ -3185,15 +3185,36 @@ class ScopeDataPlaceholderItemGroup(BaseOptionalValueGroup[Placeholder], ABC):
     def is_future(cls) -> bool:
         raise NotImplementedError
 
-    def add_item(self, index: Integer, value: INode) -> typing.Self:
+    def define_item(self, index: PlaceholderIndex, value: INode) -> typing.Self:
         self.is_dynamic().raise_on_false()
         items = list(self.as_tuple)
         if index.as_int > len(items):
             items = items + [Optional()] * (index.as_int - len(items))
-        current = items[index.as_int - 1]
-        current.is_empty().raise_on_false()
         items[index.as_int - 1] = Optional(value)
         return self.func(*items)
+
+class PlaceholderIndex(
+    NodeArgBaseIndex,
+    ITypedIndex[ScopeDataPlaceholderItemGroup, Placeholder],
+    IInstantiable,
+):
+
+    @classmethod
+    def outer_type(cls):
+        return ScopeDataPlaceholderItemGroup
+
+    @classmethod
+    def item_type(cls):
+        return Placeholder
+
+    def find_in_outer_node(self, node: ScopeDataPlaceholderItemGroup):
+        assert isinstance(node, ScopeDataPlaceholderItemGroup)
+        return self.find_in_node(node)
+
+    def replace_in_outer_target(self, target: ScopeDataPlaceholderItemGroup, new_node: Placeholder):
+        assert isinstance(target, ScopeDataPlaceholderItemGroup)
+        assert isinstance(new_node, Placeholder)
+        return self.replace_in_target(target, new_node)
 
 class ScopeDataParamBaseItemGroup(ScopeDataPlaceholderItemGroup, ABC):
 
@@ -3324,16 +3345,16 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
     def add_scope_var(
         self,
         scope_index: RunInfoScopeDataIndex,
-        item_index: Integer,
+        item_index: PlaceholderIndex,
         value: INode,
     ) -> RunInfo:
         assert isinstance(scope_index, RunInfoScopeDataIndex)
-        assert isinstance(item_index, Integer)
+        assert isinstance(item_index, PlaceholderIndex)
 
         item = scope_index.find_in_outer_node(self).value_or_raise
         assert isinstance(item, ScopeDataVarItemGroup)
 
-        new_item = item.add_item(item_index, value)
+        new_item = item.define_item(item_index, value)
         result = scope_index.replace_in_outer_target(self, new_item).value_or_raise
 
         group_1 = self.scope_data_group.apply().real(ScopeDataGroup)
@@ -3395,6 +3416,57 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
         return RunInfoResult.with_args(
             run_info=self,
             return_value=result)
+
+class RunInfoScopeDataIndex(
+    BaseInt,
+    ITypedIntIndex[RunInfo, ScopeDataPlaceholderItemGroup],
+    IInstantiable,
+):
+
+    @classmethod
+    def outer_type(cls) -> type[RunInfo]:
+        return RunInfo
+
+    @classmethod
+    def item_type(cls):
+        return ScopeDataPlaceholderItemGroup
+
+    @classmethod
+    def _outer_group(cls, run_info: RunInfo) -> ScopeDataGroup:
+        return run_info.scope_data_group.apply().real(ScopeDataGroup)
+
+    @classmethod
+    def _update(
+        cls,
+        target: RunInfo,
+        group_opt: IOptional[ScopeDataGroup],
+    ) -> IOptional[RunInfo]:
+        group = group_opt.value
+        if group is None:
+            return Optional.create()
+        assert isinstance(group, ScopeDataGroup)
+        return Optional(target.with_new_args(
+            scope_data_group=group,
+            return_after_scope=Optional(),
+        ))
+
+    def find_in_outer_node(
+        self,
+        node: RunInfo,
+    ) -> IOptional[ScopeDataPlaceholderItemGroup]:
+        return self.find_arg(self._outer_group(node))
+
+    def replace_in_outer_target(
+        self,
+        target: RunInfo,
+        new_node: ScopeDataPlaceholderItemGroup,
+    ) -> IOptional[RunInfo]:
+        group_opt = self.replace_arg(self._outer_group(target), new_node)
+        return self._update(target, group_opt)
+
+    def remove_in_outer_target(self, target: RunInfo) -> IOptional[RunInfo]:
+        group_opt = self.remove_arg(self._outer_group(target))
+        return self._update(target, group_opt)
 
 class RunInfoResult(InheritableNode, IInstantiable):
 
@@ -3698,7 +3770,7 @@ class Assign(ControlFlowBaseNode, IInstantiable):
                 TypeAlias(INode.as_type()),
             ),
             CountableTypeGroup(
-                Integer.as_type(),
+                PlaceholderIndex.as_type(),
                 TypeIndex(1),
             ),
             TypeIndex(1),
@@ -3714,7 +3786,7 @@ class Assign(ControlFlowBaseNode, IInstantiable):
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
         info, node_aux = self.var_index.apply().run(info).as_tuple
-        var_index = node_aux.real(Integer)
+        var_index = node_aux.real(PlaceholderIndex)
 
         info, node_aux = self.value.apply().run(info).as_tuple
         value = node_aux
@@ -3870,81 +3942,6 @@ class NestedArg(ControlFlowBaseNode, IInstantiable):
             [node, arg_indices]
         )
         return RunInfoFullResult(result, arg_group)
-
-###########################################################
-##################### RUN INFO INDEX ######################
-###########################################################
-
-class IRunInfoIndex(ITypedIndex[RunInfo, T], typing.Generic[T], ABC):
-
-    @classmethod
-    def outer_type(cls) -> type[RunInfo]:
-        return RunInfo
-
-    @classmethod
-    def item_type(cls) -> type[T]:
-        raise NotImplementedError
-
-    def find_in_outer_node(self, node: RunInfo) -> IOptional[T]:
-        raise NotImplementedError
-
-    def replace_in_outer_target(self, target: RunInfo, new_node: T) -> IOptional[RunInfo]:
-        raise NotImplementedError
-
-    def remove_in_outer_target(self, target: RunInfo) -> IOptional[RunInfo]:
-        raise NotImplementedError
-
-class RunInfoIntIndex(
-    BaseInt,
-    IRunInfoIndex[T],
-    ITypedIntIndex[RunInfo, T],
-    typing.Generic[T],
-    ABC,
-):
-    pass
-
-class RunInfoScopeDataIndex(RunInfoIntIndex[ScopeDataPlaceholderItemGroup], IInstantiable):
-
-    @classmethod
-    def item_type(cls):
-        return ScopeDataPlaceholderItemGroup
-
-    @classmethod
-    def _outer_group(cls, run_info: RunInfo) -> ScopeDataGroup:
-        return run_info.scope_data_group.apply().real(ScopeDataGroup)
-
-    @classmethod
-    def _update(
-        cls,
-        target: RunInfo,
-        group_opt: IOptional[ScopeDataGroup],
-    ) -> IOptional[RunInfo]:
-        group = group_opt.value
-        if group is None:
-            return Optional.create()
-        assert isinstance(group, ScopeDataGroup)
-        return Optional(target.with_new_args(
-            scope_data_group=group,
-            return_after_scope=Optional(),
-        ))
-
-    def find_in_outer_node(
-        self,
-        node: RunInfo,
-    ) -> IOptional[ScopeDataPlaceholderItemGroup]:
-        return self.find_arg(self._outer_group(node))
-
-    def replace_in_outer_target(
-        self,
-        target: RunInfo,
-        new_node: ScopeDataPlaceholderItemGroup,
-    ) -> IOptional[RunInfo]:
-        group_opt = self.replace_arg(self._outer_group(target), new_node)
-        return self._update(target, group_opt)
-
-    def remove_in_outer_target(self, target: RunInfo) -> IOptional[RunInfo]:
-        group_opt = self.remove_arg(self._outer_group(target))
-        return self._update(target, group_opt)
 
 ###########################################################
 ######################## ITERATOR #########################
