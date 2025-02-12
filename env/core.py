@@ -53,6 +53,10 @@ class IInheritableNode(INode, ABC):
     def new(cls, *args: INode) -> typing.Self:
         raise NotImplementedError(cls)
 
+    @property
+    def node_args(self) -> tuple[INode, ...]:
+        raise NotImplementedError(self.__class__)
+
 class ISpecialValue(INode, ABC):
 
     @property
@@ -190,7 +194,7 @@ class IGroup(IWrapper, IInheritableNode, IAdditive, typing.Generic[T], ABC):
         node_2 = another_aux.real(IGroup)
 
         new_args = list(node_1.as_tuple) + list(node_2.as_tuple)
-        return info.to_result(self.__class__.from_items(new_args))
+        return info.to_result(self.from_items(new_args))
 
 class IFunction(INode, ABC):
 
@@ -199,6 +203,103 @@ class IFunction(INode, ABC):
 
     def with_arg_group(self, group: BaseGroup, info: RunInfo) -> RunInfoResult:
         raise NotImplementedError(self.__class__)
+
+# class IRunnable(INode, ABC):
+
+#     _cached_run: dict[
+#         tuple[INode, RunInfo],
+#         tuple[RunInfoResult, NodeReturnException | None, RunInfo],
+#     ] = dict()
+
+#     @classmethod
+#     def clear_cache(cls):
+#         cls._cached_run.clear()
+
+#     def run(self, info: RunInfo) -> RunInfoResult:
+#         try:
+#             cached = self._cached_run.get((self, info))
+#             if cached is not None:
+#                 result, exception, new_info = cached
+#                 if exception is not None:
+#                     raise exception
+#                 return result
+
+#             protocol = self.protocol()
+
+#             try:
+#                 outer_result = self._run(info)
+#             except NodeReturnException as e:
+#                 outer_result = e.result
+
+#             assert isinstance(outer_result, RunInfoFullResult)
+#             result, args_group = outer_result.as_tuple
+#             assert isinstance(result, RunInfoResult)
+#             new_info, new_node = result.as_tuple
+
+#             if isinstance(self, IOpaqueScope):
+#                 result = RunInfoResult.with_args(
+#                     run_info=info,
+#                     return_value=new_node,
+#                 )
+#                 new_info, new_node = result.as_tuple
+#             else:
+#                 new_info = new_info.with_scopes(info)
+#                 result = RunInfoResult.with_args(
+#                     run_info=new_info,
+#                     return_value=new_node,
+#                 )
+
+#             if (
+#                 (not isinstance(self, IDynamic))
+#                 or
+#                 (
+#                     info.is_future()
+#                     and not isinstance(self, Placeholder)
+#                     and not isinstance(self, ParentScopeBase)
+#                 )
+#             ):
+#                 Eq(self.as_type(), new_node.as_type()).raise_on_false()
+
+#             if not info.is_future():
+#                 if isinstance(self, IDynamic):
+#                     self.validate_result(result=new_node, args_group=args_group)
+#                 else:
+#                     protocol.verify(new_node)
+
+#             if new_info.must_return():
+#                 outer_result = RunInfoFullResult(result, args_group)
+#                 exception = NodeReturnException(outer_result)
+#                 self._cached_run[(self, info)] = (result, exception, new_info)
+
+#             self._cached_run[(self, info)] = (result, None, new_info)
+
+#             try:
+#                 new_result = new_node.as_node.run(info)
+#             except NodeReturnException as e:
+#                 new_outer_result = e.result
+#                 assert isinstance(new_outer_result, RunInfoFullResult)
+#                 new_result, _ = new_outer_result.as_tuple
+
+#             assert isinstance(new_result, RunInfoResult)
+#             _, node_aux = new_result.as_tuple
+#             Eq(new_node, node_aux).raise_on_false()
+
+#             cached = self._cached_run[(self, info)]
+#             result, exception, new_info = cached
+#             if exception is not None:
+#                 raise exception
+#             return result
+#         except NodeReturnException as e:
+#             raise e
+#         except InvalidNodeException as e:
+#             exc_info = e.info.add_stack(
+#                 node=self,
+#                 run_info=info,
+#             )
+#             raise InvalidNodeException(exc_info) from e
+
+#     def _run(self, info: RunInfo) -> RunInfoFullResult:
+#         raise NotImplementedError(self.__class__)
 
 class IRunnable(INode, ABC):
 
@@ -265,7 +366,7 @@ class IRunnable(INode, ABC):
 
             if not info.is_future():
                 if isinstance(self, IDynamic):
-                    self.verify_result(result=new_node, args_group=args_group)
+                    self.validate_result(result=new_node, args_group=args_group)
                 else:
                     protocol.verify(new_node)
 
@@ -288,7 +389,7 @@ class IRunnable(INode, ABC):
 
 class IDynamic(IRunnable, ABC):
 
-    def verify_result(self, result: INode, args_group: OptionalValueGroup):
+    def validate_result(self, result: INode, args_group: OptionalValueGroup):
         raise NotImplementedError(self.__class__)
 
 class IBoolean(INode):
@@ -873,6 +974,10 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
     def args(self) -> tuple[INode, ...]:
         return typing.cast(tuple[INode, ...], self._args)
 
+    @property
+    def node_args(self) -> tuple[INode, ...]:
+        return self.args
+
     def __getitem__(self, index: INodeIndex) -> INode | None:
         if isinstance(index, NodeArgIndex):
             args = self.args
@@ -1056,7 +1161,7 @@ class ParentScopeBase(BaseInt, IDynamic, IDefault, ABC):
         result = info.to_result(node)
         return RunInfoFullResult(result, OptionalValueGroup())
 
-    def verify_result(self, result: INode, args_group: OptionalValueGroup):
+    def validate_result(self, result: INode, args_group: OptionalValueGroup):
         IsInstance.verify(result, RunInfoScopeDataIndex)
 
 class NearParentScope(ParentScopeBase, IInstantiable):
@@ -1099,7 +1204,7 @@ class Placeholder(InheritableNode, IDynamic, IFromInt, typing.Generic[T], ABC):
             TypeIndex(1),
         )
 
-    def verify_result(self, result: INode, args_group: OptionalValueGroup):
+    def validate_result(self, result: INode, args_group: OptionalValueGroup):
         IsInstance.verify(result, INode)
 
     @property
@@ -1983,6 +2088,65 @@ class Type(InheritableNode, IBasicType, ISingleChild[IType], IInstantiable):
         type_to_verify = instance.real(IType)
         return IType.general_valid_type(my_type, type_to_verify, alias_info)
 
+class NotType(InheritableNode, IBasicType, ISingleChild[IType], IInstantiable):
+
+    idx_type = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(IType.as_type()))
+
+    @property
+    def type(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_type)
+
+    @property
+    def child(self) -> IType:
+        return self.type.apply().real(IType)
+
+    def _valid(
+        self,
+        instance: INode,
+        alias_info: AliasInfo,
+    ) -> tuple[bool, AliasInfo]:
+        my_type = self.type.apply().real(IType)
+        Eq.from_ints(len(my_type.as_node.find(TypeIndex)), 0).raise_on_false()
+        valid, alias_info = my_type.valid(instance, alias_info)
+        return not valid, alias_info
+
+class AliasType(InheritableNode, IBasicType, IInstantiable):
+
+    idx_type = 1
+    idx_alias = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            IType.as_type(),
+            BaseTypeIndex.as_type(),
+        ))
+
+    @property
+    def type(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_type)
+
+    @property
+    def alias(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_alias)
+
+    def _valid(
+        self,
+        instance: INode,
+        alias_info: AliasInfo,
+    ) -> tuple[bool, AliasInfo]:
+        my_type = self.type.apply().real(IType)
+        type_index = self.alias.apply().real(BaseTypeIndex)
+        valid, alias_info = my_type.valid(instance, alias_info)
+        if not valid:
+            return False, alias_info
+        alias_info = alias_info.define(type_index, my_type)
+        return valid, alias_info
+
 class InstanceType(InheritableNode, IBasicType, ISingleChild[INode], IInstantiable):
 
     idx_instance = 1
@@ -2055,6 +2219,55 @@ class FunctionType(InheritableNode, IBasicType, IInstantiable):
             alias_info=alias_info,
         )
 
+class DynamicType(InheritableNode, IBasicType, IInstantiable):
+
+    idx_transformer = 1
+    idx_type = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(
+                TypeAlias(INode.as_type()),
+                TypeAlias(INode.as_type()),
+                TypeAlias(IType.as_type()),
+            ),
+            CountableTypeGroup(
+                FunctionType(
+                    CountableTypeGroup(TypeIndex(1)),
+                    TypeIndex(2),
+                ),
+                TypeIndex(3),
+            ),
+            cls.as_type(),
+        )
+
+    @property
+    def transformer(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_transformer)
+
+    @property
+    def type(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_type)
+
+    def _valid(
+        self,
+        instance: INode,
+        alias_info: AliasInfo,
+    ) -> tuple[bool, AliasInfo]:
+        transformer = self.transformer.apply().real(IFunction)
+        t = self.type.apply().real(IType)
+
+        arg_group = DefaultGroup(instance)
+
+        run_info = RunInfo.create()
+        _, result = FunctionCall.define(
+            fn=transformer,
+            args=arg_group,
+        ).as_node.run(run_info).as_tuple
+
+        return t.valid(result, alias_info=alias_info)
+
 class TypeEnforcer(InheritableNode, IInstantiable):
 
     idx_type = 1
@@ -2126,15 +2339,11 @@ class UnionType(
     ) -> tuple[bool, AliasInfo]:
         args = [arg for arg in self.args if isinstance(arg, IType)]
         Eq.from_ints(len(args), len(self.args)).raise_on_false()
-        items: list[bool] = []
         for t in args:
             valid, alias_info = t.valid(instance, alias_info=alias_info)
-            items.append(valid)
-        return self.multi_bool(
-            items,
-            any_case=True,
-            all_case=False,
-        ), alias_info
+            if valid:
+                return True, alias_info
+        return False, alias_info
 
     def valid_type(
         self,
@@ -2187,15 +2396,11 @@ class IntersectionType(
     ) -> tuple[bool, AliasInfo]:
         args = [arg for arg in self.args if isinstance(arg, IType)]
         Eq.from_ints(len(args), len(self.args)).raise_on_false()
-        items: list[bool] = []
         for t in args:
             valid, alias_info = t.valid(instance, alias_info=alias_info)
-            items.append(valid)
-        return self.multi_bool(
-            items,
-            any_case=False,
-            all_case=True,
-        ), alias_info
+            if not valid:
+                return False, alias_info
+        return True, alias_info
 
     def valid_type(
         self,
@@ -2452,7 +2657,7 @@ class RunnableBoolean(InheritableNode, IDynamic, IBoolean, ABC):
             IntBoolean.as_type(),
         )
 
-    def verify_result(self, result: INode, args_group: OptionalValueGroup):
+    def validate_result(self, result: INode, args_group: OptionalValueGroup):
         IsInstance.verify(result, IntBoolean)
 
     @classmethod
@@ -2741,7 +2946,7 @@ class StackExceptionInfoSimplifiedItem(
 ):
 
     idx_node = 1
-    idx_node_args = 2
+    idx_inner_node_args = 2
 
     @classmethod
     def protocol(cls) -> Protocol:
@@ -2755,8 +2960,8 @@ class StackExceptionInfoSimplifiedItem(
         return self.inner_arg(self.idx_node)
 
     @property
-    def node_args(self):
-        return self.inner_arg(self.idx_node_args)
+    def inner_node_args(self):
+        return self.inner_arg(self.idx_inner_node_args)
 
     @classmethod
     def arg_wrapper(cls, arg: INode) -> IStackNodeArg:
@@ -3561,7 +3766,7 @@ class ControlFlowBaseNode(InheritableNode, IDynamic, ABC):
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
         raise NotImplementedError(self.__class__)
 
-    def verify_result(self, result: INode, args_group: OptionalValueGroup):
+    def validate_result(self, result: INode, args_group: OptionalValueGroup):
         protocol = self.protocol()
         alias_info = protocol.verify_optional_args(args_group)
         alias_group_actual = alias_info.alias_group_actual.apply().real(TypeAliasOptionalGroup)
@@ -3570,7 +3775,7 @@ class ControlFlowBaseNode(InheritableNode, IDynamic, ABC):
         for alias in p_arg_group.as_node.find(BaseTypeIndex):
             value = alias_group_actual.as_tuple[alias.as_int-1]
             if value.is_empty().as_bool:
-                p_result = p_result.as_node.replace(alias, InvalidType()).real(IType)
+                p_result = alias.replace_in_node(p_result, InvalidType()).real(IType)
         protocol = protocol.with_new_args(result_type=p_result)
         protocol.verify_result(result, alias_info=alias_info)
 
@@ -4044,54 +4249,6 @@ class GroupIterator(InheritableNode, IFromSingleNode[BaseGroup], IIterator, IIns
         )
         result = Optional(DefaultGroup(new_iter, value))
         return info.to_result(result)
-
-    def typed(self, next_type: IType) -> TypedIterator:
-        return TypedIterator(self, next_type)
-
-class TypedIterator(InheritableNode, IIterator, IInstantiable):
-
-    idx_iterator = 1
-    idx_type = 2
-
-    @classmethod
-    def with_node(cls, node: INode) -> typing.Self:
-        return cls(node, NodeArgIndex(1))
-
-    @classmethod
-    def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup(
-            IIterator.as_type(),
-            IType.as_type(),
-        ))
-
-    @property
-    def iterator(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_iterator)
-
-    @property
-    def type(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_type)
-
-    def _next(self, run_info: RunInfo):
-        info = run_info
-
-        info, node_aux = self.iterator.apply().run(info).as_tuple
-        iterator = node_aux.real(IIterator)
-
-        info, node_aux = self.type.apply().run(info).as_tuple
-        next_type = node_aux.real(IType)
-
-        result = iterator.next(info)
-        _, node = result.as_tuple
-        assert isinstance(node, IOptional)
-        group = node.value
-        if group is not None:
-            assert isinstance(group, DefaultGroup)
-            assert len(group.args) == 2
-            new_iter, value = group.as_tuple
-            assert isinstance(new_iter, IIterator)
-            next_type.verify(value, alias_info=AliasInfo.create())
-        return result
 
 class Next(ControlFlowBaseNode, IInstantiable):
 
