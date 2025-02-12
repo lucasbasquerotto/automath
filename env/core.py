@@ -204,106 +204,12 @@ class IFunction(INode, ABC):
     def with_arg_group(self, group: BaseGroup, info: RunInfo) -> RunInfoResult:
         raise NotImplementedError(self.__class__)
 
-# class IRunnable(INode, ABC):
-
-#     _cached_run: dict[
-#         tuple[INode, RunInfo],
-#         tuple[RunInfoResult, NodeReturnException | None, RunInfo],
-#     ] = dict()
-
-#     @classmethod
-#     def clear_cache(cls):
-#         cls._cached_run.clear()
-
-#     def run(self, info: RunInfo) -> RunInfoResult:
-#         try:
-#             cached = self._cached_run.get((self, info))
-#             if cached is not None:
-#                 result, exception, new_info = cached
-#                 if exception is not None:
-#                     raise exception
-#                 return result
-
-#             protocol = self.protocol()
-
-#             try:
-#                 outer_result = self._run(info)
-#             except NodeReturnException as e:
-#                 outer_result = e.result
-
-#             assert isinstance(outer_result, RunInfoFullResult)
-#             result, args_group = outer_result.as_tuple
-#             assert isinstance(result, RunInfoResult)
-#             new_info, new_node = result.as_tuple
-
-#             if isinstance(self, IOpaqueScope):
-#                 result = RunInfoResult.with_args(
-#                     run_info=info,
-#                     return_value=new_node,
-#                 )
-#                 new_info, new_node = result.as_tuple
-#             else:
-#                 new_info = new_info.with_scopes(info)
-#                 result = RunInfoResult.with_args(
-#                     run_info=new_info,
-#                     return_value=new_node,
-#                 )
-
-#             if (
-#                 (not isinstance(self, IDynamic))
-#                 or
-#                 (
-#                     info.is_future()
-#                     and not isinstance(self, Placeholder)
-#                     and not isinstance(self, ParentScopeBase)
-#                 )
-#             ):
-#                 Eq(self.as_type(), new_node.as_type()).raise_on_false()
-
-#             if not info.is_future():
-#                 if isinstance(self, IDynamic):
-#                     self.validate_result(result=new_node, args_group=args_group)
-#                 else:
-#                     protocol.verify(new_node)
-
-#             if new_info.must_return():
-#                 outer_result = RunInfoFullResult(result, args_group)
-#                 exception = NodeReturnException(outer_result)
-#                 self._cached_run[(self, info)] = (result, exception, new_info)
-
-#             self._cached_run[(self, info)] = (result, None, new_info)
-
-#             try:
-#                 new_result = new_node.as_node.run(info)
-#             except NodeReturnException as e:
-#                 new_outer_result = e.result
-#                 assert isinstance(new_outer_result, RunInfoFullResult)
-#                 new_result, _ = new_outer_result.as_tuple
-
-#             assert isinstance(new_result, RunInfoResult)
-#             _, node_aux = new_result.as_tuple
-#             Eq(new_node, node_aux).raise_on_false()
-
-#             cached = self._cached_run[(self, info)]
-#             result, exception, new_info = cached
-#             if exception is not None:
-#                 raise exception
-#             return result
-#         except NodeReturnException as e:
-#             raise e
-#         except InvalidNodeException as e:
-#             exc_info = e.info.add_stack(
-#                 node=self,
-#                 run_info=info,
-#             )
-#             raise InvalidNodeException(exc_info) from e
-
-#     def _run(self, info: RunInfo) -> RunInfoFullResult:
-#         raise NotImplementedError(self.__class__)
-
 class IRunnable(INode, ABC):
 
-    _cached_run: dict[tuple[INode, RunInfo], RunInfoResult] = dict()
+    _cached_run: dict[
+        tuple[INode, RunInfo],
+        tuple[RunInfoResult, NodeReturnException | None],
+    ] = dict()
 
     @classmethod
     def clear_cache(cls):
@@ -312,8 +218,31 @@ class IRunnable(INode, ABC):
     def run(self, info: RunInfo) -> RunInfoResult:
         cached = self._cached_run.get((self, info))
         if cached is not None:
-            return cached
+            result, exception = cached
+            if exception is not None:
+                raise exception
+            return result
 
+        cached_result = self.run_cached(info)
+        result, exception = cached_result
+        _, new_node = result.as_tuple
+
+        new_result, _ = new_node.as_node.run_cached(info)
+
+        assert isinstance(new_result, RunInfoResult)
+        _, node_aux = new_result.as_tuple
+        Eq(new_node, node_aux).raise_on_false()
+
+        self._cached_run[(self, info)] = cached_result
+
+        if exception is not None:
+            raise exception
+        return result
+
+    def run_cached(self, info: RunInfo) -> tuple[
+        RunInfoResult,
+        NodeReturnException | None,
+    ]:
         try:
             protocol = self.protocol()
 
@@ -351,19 +280,6 @@ class IRunnable(INode, ABC):
             ):
                 Eq(self.as_type(), new_node.as_type()).raise_on_false()
 
-            self._cached_run[(self, info)] = result
-
-            try:
-                new_result = new_node.as_node.run(info)
-            except NodeReturnException as e:
-                new_outer_result = e.result
-                assert isinstance(new_outer_result, RunInfoFullResult)
-                new_result, _ = new_outer_result.as_tuple
-
-            assert isinstance(new_result, RunInfoResult)
-            _, node_aux = new_result.as_tuple
-            Eq(new_node, node_aux).raise_on_false()
-
             if not info.is_future():
                 if isinstance(self, IDynamic):
                     self.validate_result(result=new_node, args_group=args_group)
@@ -372,11 +288,10 @@ class IRunnable(INode, ABC):
 
             if new_info.must_return():
                 outer_result = RunInfoFullResult(result, args_group)
-                raise NodeReturnException(outer_result)
+                exception = NodeReturnException(outer_result)
+                return result, exception
 
-            return result
-        except NodeReturnException as e:
-            raise e
+            return result, None
         except InvalidNodeException as e:
             exc_info = e.info.add_stack(
                 node=self,
