@@ -26,7 +26,7 @@ class Environment:
     def reset(self) -> full_state_module.FullState:
         self._full_state = self._initial_state
         self._current_step = 0
-        core.IRunnable.clear_cache()
+        core.INode.clear_cache()
         return self._full_state
 
     def step(

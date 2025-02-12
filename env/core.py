@@ -11,6 +11,11 @@ from utils.module_utils import type_sorter_key
 class INode(ABC):
 
     @classmethod
+    def clear_cache(cls):
+        BaseNode.clear_cache_instances()
+        IRunnable.clear_cache_run()
+
+    @classmethod
     def as_type(cls) -> TypeNode[typing.Self]:
         return TypeNode(cls)
 
@@ -212,7 +217,7 @@ class IRunnable(INode, ABC):
     ] = dict()
 
     @classmethod
-    def clear_cache(cls):
+    def clear_cache_run(cls):
         cls._cached_run.clear()
 
     def run(self, info: RunInfo) -> RunInfoResult:
@@ -451,14 +456,45 @@ class TmpNestedArg:
 ######################## BASE NODE ########################
 ###########################################################
 
+# import sys
+# def print_and_replace(text):
+#     # Print the text and flush the output
+#     sys.stdout.write(f'\r{text}')
+#     sys.stdout.flush()
+
+# _count = 0
+
 class BaseNode(IRunnable, ABC):
+
+    _instances: dict[int, BaseNode] = dict()
+
+    @staticmethod
+    def __new__(cls: type[BaseNode], *args: int | INode | typing.Type[INode]):
+        h = hash((cls, args))
+        instance = cls._instances.get(h)
+        if instance is not None:
+            # global _count
+            # _count += 1
+            # if _count % 10000 == 0:
+            #     print_and_replace(f'{_count:10.0f} - {len(cls._instances):10.0f}')
+            assert instance.__class__ == cls, (instance.__class__, cls)
+            return instance
+        instance = super().__new__(cls)
+        instance._cached_hash = h
+        cls._instances[h] = instance
+        return instance
 
     def __init__(self, *args: int | INode | typing.Type[INode]):
         if not isinstance(self, IInstantiable):
             raise NotImplementedError(self.__class__)
         self._args = args
         self._cached_length: int | None = None
+        # self._cached_hash: int | None = self._cached_hash
         self._cached_hash: int | None = None
+
+    @classmethod
+    def clear_cache_instances(cls):
+        cls._instances.clear()
 
     @classmethod
     def default_protocol(cls, args_group: IBaseTypeGroup) -> Protocol:
@@ -1028,20 +1064,6 @@ class OptionalBase(InheritableNode, IOptional[T], typing.Generic[T], ABC):
         return cls(value) if value is not None else cls()
 
 class Optional(OptionalBase[T], IInstantiable, typing.Generic[T]):
-
-    _empty: Optional[T] | None = None
-
-    @staticmethod
-    def __new__(cls: type[Optional[T]], *args: INode):
-        if len(args) == 0 and cls._empty is not None:
-            opt = cls._empty
-            if opt is not None:
-                return opt
-        instance = super().__new__(cls)
-        instance.__class__.__init__(instance, *args)
-        if len(args) == 0:
-            cls._empty = instance
-        return instance
 
     @classmethod
     def with_int(cls, value: int | None) -> Optional[Integer]:
@@ -2541,27 +2563,7 @@ class BaseIntBoolean(BaseInt, IBoolean, IDefault, ABC):
         raise InvalidNodeException(BooleanExceptionInfo(self))
 
 class IntBoolean(BaseIntBoolean, IInstantiable):
-
-    _true: IntBoolean | None = None
-    _false: IntBoolean | None = None
-
-    @staticmethod
-    def __new__(cls: type[IntBoolean], value: int) -> IntBoolean:
-        if value == 0:
-            if cls._false is None:
-                instance = super().__new__(cls)
-                instance.__class__.__init__(instance, value)
-                cls._false = instance
-            return cls._false
-        if value == 1:
-            if cls._true is None:
-                instance = super().__new__(cls)
-                instance.__class__.__init__(instance, value)
-                cls._true = instance
-            return cls._true
-        instance = super().__new__(cls)
-        instance.__class__.__init__(instance, value)
-        raise InvalidNodeException(BooleanExceptionInfo(instance))
+    pass
 
 class RunnableBoolean(InheritableNode, IDynamic, IBoolean, ABC):
 
