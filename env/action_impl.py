@@ -4,6 +4,7 @@ from abc import ABC
 from env.core import (
     INode,
     IInheritableNode,
+    InheritableNode,
     NodeArgIndex,
     DefaultGroup,
     Integer,
@@ -50,16 +51,126 @@ from env.meta_env import MetaInfo
 from env.full_state import (
     FullState,
     FullStateIntIndex,
+    HistoryGroupNode,
+    HistoryNode,
     MetaDefaultTypeIndex,
     MetaFromIntTypeIndex,
     MetaSingleChildTypeIndex,
     MetaFullStateIntIndexTypeIndex,
 )
 from env.action import (
+    BaseAction,
+    IActionOutput,
     IBasicAction,
     BasicAction,
     GeneralAction,
 )
+
+###########################################################
+###################### META ACTIONS #######################
+###########################################################
+
+class DynamicActionOutput(InheritableNode, IActionOutput[FullState], IInstantiable):
+
+    idx_action = 1
+    idx_action_output = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            BaseAction.as_type(),
+            IActionOutput.as_type(),
+        ))
+
+    def apply(self, full_state: FullState) -> State:
+        action = self.inner_arg(self.idx_action).apply().cast(BaseAction)
+        output = self.inner_arg(self.idx_action_output).apply().real(IActionOutput[FullState])
+        Eq(action.inner_run(full_state), output).raise_on_false()
+        return output.apply(full_state)
+
+class DynamicAction(
+    BasicAction[DynamicActionOutput],
+    IInstantiable,
+):
+
+    idx_scratch_index = 1
+
+    @classmethod
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+        scratch_index = StateScratchIndex(arg1)
+        Eq.from_ints(arg2, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
+        return cls(scratch_index)
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            StateScratchIndex.as_type(),
+        ))
+
+    def _run_action(self, full_state: FullState) -> DynamicActionOutput:
+        scratch_index = self.inner_arg(self.idx_scratch_index).apply()
+        assert isinstance(scratch_index, StateScratchIndex)
+
+        state = full_state.current_state.apply().real(State)
+        scratch = scratch_index.find_in_outer_node(state).value_or_raise
+        assert isinstance(scratch, Scratch)
+
+        action = scratch.value_or_raise.real(BaseAction)
+        output = action.inner_run(full_state)
+
+        return DynamicActionOutput(action, output)
+
+class GroupActionOutput(InheritableNode, IActionOutput[FullState], IInstantiable):
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.rest_protocol(CompositeType(
+            DefaultGroup.as_type(),
+            CountableTypeGroup(
+                BaseAction.as_type(),
+                IActionOutput.as_type(),
+            ),
+        ))
+
+    def apply(self, full_state: FullState) -> State:
+        new_state = full_state.current_state.apply().real(State)
+        for arg in self.args:
+            group = arg.real(DefaultGroup)
+            item1, item2 = group.as_tuple
+            action = item1.real(BaseAction)
+            output = item2.real(IActionOutput[FullState])
+            full_output = action.inner_run(full_state)
+            assert full_output.output.apply() == output
+            new_state = full_output.new_state.apply().real(State)
+            current = full_state.current.apply().real(HistoryNode)
+            full_state = FullState.with_args(
+                current=current.with_new_args(state=new_state),
+                meta=full_state.meta.apply().real(MetaInfo),
+                history=full_state.history.apply().real(HistoryGroupNode))
+        return new_state
+
+class GroupAction(BaseAction[GroupActionOutput], IInstantiable):
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.rest_protocol(BaseAction.as_type())
+
+    def _run_action(self, full_state: FullState) -> GroupActionOutput:
+        new_state = full_state.current_state.apply().real(State)
+        items: list[DefaultGroup] = []
+        for arg in self.args:
+            action = arg.real(BaseAction)
+            full_output = action.inner_run(full_state)
+            output = full_output.output.apply().real(IActionOutput[FullState])
+            new_state = output.apply(full_state)
+            current = full_state.current.apply().real(HistoryNode)
+            full_state = FullState.with_args(
+                current=current.with_new_args(state=new_state),
+                meta=full_state.meta.apply().real(MetaInfo),
+                history=full_state.history.apply().real(HistoryGroupNode))
+            items.append(DefaultGroup(action, output))
+        return GroupActionOutput(*items)
 
 ###########################################################
 ################### STATE META ACTIONS ####################
@@ -933,50 +1044,6 @@ class DefineScratchFromScratchNode(
 
         return DefineScratchOutput(scratch_index, Scratch(new_content))
 
-class RunScratch(
-    BasicAction[DefineScratchOutput],
-    IInstantiable,
-):
-
-    idx_scratch_index = 1
-    idx_source_index = 2
-
-    @classmethod
-    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
-        scratch_index = StateScratchIndex(arg1)
-        source_index = StateScratchIndex(arg2)
-        Eq.from_ints(arg3, 0).raise_on_false()
-        return cls(scratch_index, source_index)
-
-    @classmethod
-    def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup(
-            StateScratchIndex.as_type(),
-            StateScratchIndex.as_type(),
-        ))
-
-    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
-        scratch_index = self.inner_arg(self.idx_scratch_index).apply()
-        source_index = self.inner_arg(self.idx_source_index).apply()
-        assert isinstance(scratch_index, StateScratchIndex)
-        assert isinstance(source_index, StateScratchIndex)
-
-        state = full_state.current_state.apply().real(State)
-        scratch = source_index.find_in_outer_node(state).value_or_raise
-        assert isinstance(scratch, Scratch)
-        old_content = scratch.value_or_raise
-
-        info = RunInfo.with_args(
-            scope_data_group=ScopeDataGroup(),
-            return_after_scope=Optional(),
-        )
-        _, content = old_content.as_node.run(info).as_tuple
-
-        _, again = content.as_node.run(info).as_tuple
-        Eq(content, again).raise_on_false()
-
-        return DefineScratchOutput(scratch_index, Scratch(content))
-
 ###########################################################
 ##################### UPDATE SCRATCH ######################
 ###########################################################
@@ -1024,6 +1091,54 @@ class UpdateScratchFromAnother(
         ).value_or_raise
 
         return DefineScratchOutput(scratch_index, Scratch(new_content))
+
+###########################################################
+####################### RUN SCRATCH #######################
+###########################################################
+
+class RunScratch(
+    BasicAction[DefineScratchOutput],
+    IInstantiable,
+):
+
+    idx_scratch_index = 1
+    idx_source_index = 2
+
+    @classmethod
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+        scratch_index = StateScratchIndex(arg1)
+        source_index = StateScratchIndex(arg2)
+        Eq.from_ints(arg3, 0).raise_on_false()
+        return cls(scratch_index, source_index)
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            StateScratchIndex.as_type(),
+            StateScratchIndex.as_type(),
+        ))
+
+    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
+        scratch_index = self.inner_arg(self.idx_scratch_index).apply()
+        source_index = self.inner_arg(self.idx_source_index).apply()
+        assert isinstance(scratch_index, StateScratchIndex)
+        assert isinstance(source_index, StateScratchIndex)
+
+        state = full_state.current_state.apply().real(State)
+        scratch = source_index.find_in_outer_node(state).value_or_raise
+        assert isinstance(scratch, Scratch)
+        old_content = scratch.value_or_raise
+
+        info = RunInfo.with_args(
+            scope_data_group=ScopeDataGroup(),
+            return_after_scope=Optional(),
+        )
+        _, content = old_content.as_node.run(info).as_tuple
+
+        _, again = content.as_node.run(info).as_tuple
+        Eq(content, again).raise_on_false()
+
+        return DefineScratchOutput(scratch_index, Scratch(content))
 
 ###########################################################
 #################### MANAGE ARGS GROUP ####################

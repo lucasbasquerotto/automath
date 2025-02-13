@@ -273,7 +273,7 @@ class BasicAction(
 
 class GeneralAction(
     BaseAction[typing.Self], # type: ignore[misc]
-    IActionOutput,
+    IActionOutput[FullState],
     ABC,
 ):
     def _run_action(self, full_state: FullState) -> typing.Self:
