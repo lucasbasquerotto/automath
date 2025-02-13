@@ -435,26 +435,28 @@ class TmpNestedArg:
 
 class BaseNode(IRunnable, ABC):
 
+    cache_enabled = True
     _instances: dict[int, BaseNode] = dict()
-    _cached_run: dict[
-        tuple[INode, RunInfo],
-        tuple[RunInfoResult, NodeReturnException | None],
-    ] = dict()
+    _cached_run: dict[int, tuple[RunInfoResult, NodeReturnException | None]] = dict()
 
     @staticmethod
     def __new__(cls: type[BaseNode], *args: int | INode | typing.Type[INode]):
-        h = hash((cls, args))
-        instance = cls._instances.get(h)
-        if instance is not None:
-            # global _count
-            # _count += 1
-            # if _count % 10000 == 0:
-            #     print_and_replace(f'{_count:10.0f} - {len(cls._instances):10.0f}')
-            assert instance.__class__ == cls, (instance.__class__, cls)
-            return instance
+        h = hash((cls, args)) if BaseNode.cache_enabled else 0
+        if BaseNode.cache_enabled:
+            instance = cls._instances.get(h)
+            if instance is not None:
+                # global _count
+                # _count += 1
+                # if _count % 10000 == 0:
+                #     print_and_replace(f'{_count:10.0f} - {len(cls._instances):10.0f}')
+                assert instance.__class__ == cls, (instance.__class__, cls)
+                return instance
         instance = super().__new__(cls)
-        instance._cached_hash = h
-        cls._instances[h] = instance
+        if BaseNode.cache_enabled:
+            instance._cached_hash = h
+            cls._instances[h] = instance
+        else:
+            instance._cached_hash = None
         return instance
 
     def __init__(self, *args: int | INode | typing.Type[INode]):
@@ -463,10 +465,9 @@ class BaseNode(IRunnable, ABC):
         self._args = args
         self._cached_length: int | None = None
         self._cached_hash: int | None = self._cached_hash
-        self._cached_run_me: dict[
-            int,
-            tuple[RunInfoResult, NodeReturnException | None],
-        ] = dict()
+        self._cached_valid: bool | None = None
+        self._cached_valid_strict: AliasInfo | None = None
+        self._cached_result_type: IType | bool | None = None
 
     @classmethod
     def clear_actual_cache(cls):
@@ -474,13 +475,19 @@ class BaseNode(IRunnable, ABC):
         cls._cached_run.clear()
 
     def run(self, info: RunInfo) -> RunInfoResult:
-        info_hash = hash(info)
-        cached = self._cached_run_me.get(info_hash)
-        if cached is not None:
-            result, exception = cached
-            if exception is not None:
-                raise exception
-            return result
+        info_hash = hash((self, info)) if BaseNode.cache_enabled else 0
+        if BaseNode.cache_enabled:
+            cached = self._cached_run.get(info_hash)
+            if cached is not None:
+                result, exception = cached
+                if exception is not None:
+                    raise exception
+                return result
+
+        # global _count
+        # _count += 1
+        # if _count % 1000 == 0:
+        #     print_and_replace(f'{_count:10.0f} - {len(self._cached_run):10.0f}')
 
         cached_result = self.main_run(info)
         result, exception = cached_result
@@ -493,7 +500,8 @@ class BaseNode(IRunnable, ABC):
             _, node_aux = new_result.as_tuple
             Eq(new_node, node_aux).raise_on_false()
 
-        self._cached_run_me[info_hash] = cached_result
+        if BaseNode.cache_enabled:
+            self._cached_run[info_hash] = cached_result
 
         if exception is not None:
             raise exception
@@ -616,14 +624,35 @@ class BaseNode(IRunnable, ABC):
         return TmpNestedArg(self, idxs)
 
     def validate(self):
+        cached = self._cached_valid
+        if cached is True:
+            return
+        self._validate()
+        self._cached_valid = True
+
+    def _validate(self):
         for arg in self.args:
             if isinstance(arg, INode):
                 arg.as_node.validate()
 
     def strict_validate(self) -> AliasInfo:
+        cached = self._cached_valid_strict
+        if cached is not None:
+            return cached
+        alias_info = self._strict_validate()
+        self._cached_valid_strict = alias_info
+        return alias_info
+
+    def _strict_validate(self) -> AliasInfo:
         raise NotImplementedError(self.__class__)
 
     def result_type(self) -> IType:
+        cached = self._cached_result_type
+        if cached is not None:
+            if isinstance(cached, bool):
+                assert isinstance(self, IType)
+                return self
+            return cached
         instance = self.actual_instance()
         protocol = instance.as_node.protocol()
         alias_info_p = protocol.verify(instance)
@@ -634,6 +663,7 @@ class BaseNode(IRunnable, ABC):
             if isinstance(self, TypeEnforcer)
             else protocol.result.apply().real(IType))
         result_type.verify(instance, alias_info=AliasInfo.create())
+        self._cached_result_type = result_type if result_type != self else True
         return result_type
 
 ###########################################################
@@ -642,7 +672,27 @@ class BaseNode(IRunnable, ABC):
 
 class IType(INode, ABC):
 
+    _valid_cache: dict[int, tuple[bool, AliasInfo]] = dict()
+
     def valid(
+        self,
+        instance: INode,
+        alias_info: AliasInfo,
+    ) -> tuple[bool, AliasInfo]:
+        key_hash = hash((self, instance, alias_info)) if BaseNode.cache_enabled else 0
+        if BaseNode.cache_enabled:
+            cached = self._valid_cache.get(key_hash)
+            if cached is not None:
+                return cached
+
+        result = self.valid_inner(instance, alias_info)
+
+        if BaseNode.cache_enabled:
+            self._valid_cache[key_hash] = result
+
+        return result
+
+    def valid_inner(
         self,
         instance: INode,
         alias_info: AliasInfo,
@@ -803,7 +853,7 @@ class TypeNode(
     ) -> tuple[bool, AliasInfo]:
         return isinstance(instance, self.type), alias_info
 
-    def strict_validate(self) -> AliasInfo:
+    def _strict_validate(self) -> AliasInfo:
         self.validate()
         return AliasInfo.create()
 
@@ -876,7 +926,7 @@ class BaseInt(BaseNode, IInt, ISpecialValue, ABC):
         result = info.to_result(self)
         return RunInfoFullResult(result, OptionalValueGroup())
 
-    def strict_validate(self) -> AliasInfo:
+    def _strict_validate(self) -> AliasInfo:
         self.validate()
         return AliasInfo.create()
 
@@ -954,8 +1004,8 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
             return None
         return super().replace_at(index, new_node)
 
-    def validate(self):
-        super().validate()
+    def _validate(self):
+        super()._validate()
         args = self.args
         type_group = self.protocol().arg_group.apply()
         if isinstance(type_group, OptionalTypeGroup):
@@ -965,7 +1015,7 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
             assert len(args) == len(type_group.args), \
                 f'{type(self)}: {len(args)} != {len(type_group.args)}'
 
-    def strict_validate(self) -> AliasInfo:
+    def _strict_validate(self) -> AliasInfo:
         self.validate()
         alias_info = self.protocol().verify_args(DefaultGroup(*self.args))
         return alias_info
@@ -1357,8 +1407,8 @@ class BaseGroup(InheritableNode, IGroup[T], IDefault, typing.Generic[T], ABC):
     def amount_node(self) -> Integer:
         return Integer(self.amount())
 
-    def strict_validate(self):
-        super().strict_validate()
+    def _strict_validate(self):
+        super()._strict_validate()
         t = self.item_type()
         for arg in self.args:
             origin = typing.get_origin(t)
@@ -1612,8 +1662,8 @@ class TypeAliasGroup(
     def item_type(cls) -> type[TypeAlias]:
         return TypeAlias
 
-    def strict_validate(self):
-        super().strict_validate()
+    def _strict_validate(self):
+        super()._strict_validate()
         for i, arg_aux in enumerate(self.args):
             index = i + 1
             arg = arg_aux.real(TypeAlias)
@@ -1660,8 +1710,8 @@ class AliasInfo(
             TypeAliasOptionalGroup.as_type(),
         ))
 
-    def validate(self):
-        super().validate()
+    def _validate(self):
+        super()._validate()
         base_group = self.alias_group_base.apply().real(TypeAliasGroup)
         actual_group = self.alias_group_actual.apply().real(TypeAliasOptionalGroup)
         SameArgsAmount(base_group, actual_group).raise_on_false()
@@ -1750,7 +1800,7 @@ class BaseTypeIndex(NodeArgBaseIndex, ITypeValidator, ABC):
     ) -> AliasInfo:
         raise NotImplementedError
 
-    def valid(
+    def valid_inner(
         self,
         instance: INode,
         alias_info: AliasInfo,
@@ -2234,8 +2284,8 @@ class TypeEnforcer(InheritableNode, IInstantiable):
     def node(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_node)
 
-    def strict_validate(self):
-        super().strict_validate()
+    def _strict_validate(self):
+        super()._strict_validate()
         t = self.type.apply().real(IType)
         node = self.node.apply()
         t.verify(node, alias_info=AliasInfo.create())

@@ -88,6 +88,7 @@ def _main_tests() -> list[full_state.FullState]:
 
 def all_tests() -> list[full_state.FullState]:
     try:
+        # core.BaseNode.cache_enabled = False
         final_states = _run_test('main_tests', _main_tests)
         _run_test('final_verification', lambda: _final_verification(final_states))
         return final_states

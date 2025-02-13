@@ -195,8 +195,8 @@ class SubtypeOuterGroup(InheritableNode, IWrapper, IInstantiable, typing.Generic
     def subtypes(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_subtypes)
 
-    def validate(self):
-        super().validate()
+    def _validate(self):
+        super()._validate()
         common_type = self.common_type.apply()
         subtypes = self.subtypes.apply()
         if isinstance(common_type, TypeNode) and isinstance(subtypes, GeneralTypeGroup):
