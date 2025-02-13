@@ -12,8 +12,7 @@ class INode(ABC):
 
     @classmethod
     def clear_cache(cls):
-        BaseNode.clear_cache_instances()
-        IRunnable.clear_cache_run()
+        BaseNode.clear_actual_cache()
 
     @classmethod
     def as_type(cls) -> TypeNode[typing.Self]:
@@ -211,40 +210,10 @@ class IFunction(INode, ABC):
 
 class IRunnable(INode, ABC):
 
-    _cached_run: dict[
-        tuple[INode, RunInfo],
-        tuple[RunInfoResult, NodeReturnException | None],
-    ] = dict()
-
-    @classmethod
-    def clear_cache_run(cls):
-        cls._cached_run.clear()
-
     def run(self, info: RunInfo) -> RunInfoResult:
-        cached = self._cached_run.get((self, info))
-        if cached is not None:
-            result, exception = cached
-            if exception is not None:
-                raise exception
-            return result
+        raise NotImplementedError(self.__class__)
 
-        cached_result = self.run_cached(info)
-        result, exception = cached_result
-        _, new_node = result.as_tuple
-
-        new_result, _ = new_node.as_node.run_cached(info)
-
-        assert isinstance(new_result, RunInfoResult)
-        _, node_aux = new_result.as_tuple
-        Eq(new_node, node_aux).raise_on_false()
-
-        self._cached_run[(self, info)] = cached_result
-
-        if exception is not None:
-            raise exception
-        return result
-
-    def run_cached(self, info: RunInfo) -> tuple[
+    def main_run(self, info: RunInfo) -> tuple[
         RunInfoResult,
         NodeReturnException | None,
     ]:
@@ -467,6 +436,10 @@ class TmpNestedArg:
 class BaseNode(IRunnable, ABC):
 
     _instances: dict[int, BaseNode] = dict()
+    _cached_run: dict[
+        tuple[INode, RunInfo],
+        tuple[RunInfoResult, NodeReturnException | None],
+    ] = dict()
 
     @staticmethod
     def __new__(cls: type[BaseNode], *args: int | INode | typing.Type[INode]):
@@ -489,12 +462,42 @@ class BaseNode(IRunnable, ABC):
             raise NotImplementedError(self.__class__)
         self._args = args
         self._cached_length: int | None = None
-        # self._cached_hash: int | None = self._cached_hash
-        self._cached_hash: int | None = None
+        self._cached_hash: int | None = self._cached_hash
+        self._cached_run_me: dict[
+            int,
+            tuple[RunInfoResult, NodeReturnException | None],
+        ] = dict()
 
     @classmethod
-    def clear_cache_instances(cls):
+    def clear_actual_cache(cls):
         cls._instances.clear()
+        cls._cached_run.clear()
+
+    def run(self, info: RunInfo) -> RunInfoResult:
+        info_hash = hash(info)
+        cached = self._cached_run_me.get(info_hash)
+        if cached is not None:
+            result, exception = cached
+            if exception is not None:
+                raise exception
+            return result
+
+        cached_result = self.main_run(info)
+        result, exception = cached_result
+        _, new_node = result.as_tuple
+
+        if self != new_node:
+            new_result, _ = new_node.as_node.main_run(info)
+
+            assert isinstance(new_result, RunInfoResult)
+            _, node_aux = new_result.as_tuple
+            Eq(new_node, node_aux).raise_on_false()
+
+        self._cached_run_me[info_hash] = cached_result
+
+        if exception is not None:
+            raise exception
+        return result
 
     @classmethod
     def default_protocol(cls, args_group: IBaseTypeGroup) -> Protocol:
