@@ -2225,7 +2225,10 @@ class DynamicType(InheritableNode, IBasicType, IInstantiable):
 
         arg_group = DefaultGroup(instance)
 
-        run_info = RunInfo.create()
+        run_info = RunInfo.with_args(
+            scope_data_group=ScopeDataGroup(),
+            return_after_scope=Optional(),
+        )
         _, result = FunctionCall.define(
             fn=transformer,
             args=arg_group,
@@ -2477,19 +2480,21 @@ class ScopedFunctionBase(
 
     def with_arg_group(self, group: BaseGroup, info: RunInfo):
         alias_info: AliasInfo | None = None
-        protocol_arg: Protocol = self.protocol_arg.apply().real(Protocol)
+        protocol_arg: Protocol | None = None
 
         if info.is_future():
             scope_data: ScopeDataParamBaseItemGroup = ScopeDataFutureParamItemGroup()
         else:
-            info, node_aux = group.run(info).as_tuple
-            new_group = node_aux.real(BaseGroup)
-            alias_info = protocol_arg.verify_args(new_group)
-            scope_data = ScopeDataParamItemGroup.from_optional_items(new_group.as_tuple)
+            protocol_arg = self.protocol_arg.apply().real(Protocol)
+            alias_info = protocol_arg.verify_args(group)
+            scope_data = ScopeDataParamItemGroup.from_optional_items(group.as_tuple)
             scope_data.strict_validate()
 
         new_info = (
-            info.create()
+            info.with_new_args(
+                scope_data_group=ScopeDataGroup(),
+                return_after_scope=Optional(),
+            )
             if isinstance(self, IOpaqueScope)
             else info
         ).add_scope(scope_data)
@@ -2508,6 +2513,7 @@ class ScopedFunctionBase(
 
         if not info.is_future():
             assert alias_info is not None
+            assert protocol_arg is not None
             protocol_arg.verify_result(node, alias_info=alias_info)
 
         return RunInfoResult.with_args(
@@ -3468,14 +3474,10 @@ class ScopeDataGroup(BaseGroup[ScopeDataPlaceholderItemGroup], IInstantiable):
         items.append(item)
         return self.func(*items)
 
-class RunInfo(InheritableNode, IDefault, IInstantiable):
+class RunInfo(InheritableNode, IInstantiable):
 
     idx_scope_data_group = 1
     idx_return_after_scope = 2
-
-    @classmethod
-    def create(cls) -> typing.Self:
-        return cls(ScopeDataGroup(), Optional())
 
     @classmethod
     def protocol(cls) -> Protocol:
@@ -3501,6 +3503,14 @@ class RunInfo(InheritableNode, IDefault, IInstantiable):
         return self.with_new_args(
             scope_data_group=new_group,
             return_after_scope=Optional())
+
+    @classmethod
+    def with_args(
+        cls,
+        scope_data_group: ScopeDataGroup,
+        return_after_scope: Optional[RunInfoScopeDataIndex],
+    ) -> typing.Self:
+        return cls(scope_data_group, return_after_scope)
 
     def with_new_args(
         self,

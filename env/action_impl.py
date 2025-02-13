@@ -24,6 +24,7 @@ from env.core import (
     RunInfo,
     CompositeType,
     OptionalTypeGroup,
+    ScopeDataGroup,
     Eq,
     Not,
     IInstantiable,
@@ -965,7 +966,10 @@ class RunScratch(
         assert isinstance(scratch, Scratch)
         old_content = scratch.value_or_raise
 
-        info = RunInfo.create()
+        info = RunInfo.with_args(
+            scope_data_group=ScopeDataGroup(),
+            return_after_scope=Optional(),
+        )
         _, content = old_content.as_node.run(info).as_tuple
 
         _, again = content.as_node.run(info).as_tuple
