@@ -38,11 +38,7 @@ class INode(ABC):
         return self.as_node
 
     def real(self, t: typing.Type[T]) -> T:
-        origin = typing.get_origin(t)
-        t = origin if origin is not None else t
-        instance: BaseNode = self.as_node
-        if not issubclass(t, TypeEnforcer):
-            instance = instance.actual_instance()
+        instance = self.as_node.actual_instance()
         return instance.cast(t)
 
     def cast(self, t: typing.Type[T]) -> T:
@@ -528,9 +524,6 @@ class BaseNode(IRunnable, ABC):
             return False
         return hash(self) == hash(other)
 
-    def __getitem__(self, index: INodeIndex):
-        return index.find_in_node(self)
-
     def replace_at(self, index: INodeIndex, new_node: INode):
         return index.replace_in_target(self, new_node)
 
@@ -571,9 +564,6 @@ class BaseNode(IRunnable, ABC):
     def find(self, node_type: type[T]) -> set[T]:
         return self.find_until(node_type, None)
 
-    def has_node(self, node: INode) -> bool:
-        return node in self.find(node.__class__)
-
     def replace_until(
         self,
         before: INode,
@@ -605,10 +595,10 @@ class BaseNode(IRunnable, ABC):
         return node
 
     def has(self, node: INode) -> bool:
-        return node in self.as_node.find(node.__class__)
+        return node in self.find(node.__class__)
 
     def has_until(self, node: INode, until_type: type[INode] | None) -> bool:
-        return node in self.as_node.find_until(node.__class__, until_type)
+        return node in self.find_until(node.__class__, until_type)
 
     def inner_arg(self, idx: int) -> TmpInnerArg:
         return TmpInnerArg(self, idx)
@@ -974,14 +964,6 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
     @property
     def node_args(self) -> tuple[INode, ...]:
         return self.args
-
-    def __getitem__(self, index: INodeIndex) -> INode | None:
-        if isinstance(index, NodeArgIndex):
-            args = self.args
-            if index.as_int > 0 and index.as_int <= len(args):
-                return args[index.as_int - 1]
-            return None
-        return super().__getitem__(index)
 
     def replace_at(self, index: INodeIndex, new_node: INode) -> INode | None:
         assert isinstance(index, INodeIndex)
