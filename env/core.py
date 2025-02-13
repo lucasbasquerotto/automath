@@ -524,16 +524,9 @@ class BaseNode(IRunnable, ABC):
         return self
 
     def __eq__(self, other) -> bool:
-        if not isinstance(other, INode):
+        if not isinstance(other, BaseNode):
             return False
-        if not self.func == other.as_node.func:
-            return False
-        if not len(self.args) == len(other.as_node.args):
-            return False
-        for i, arg in enumerate(self.args):
-            if arg != other.as_node.args[i]:
-                return False
-        return True
+        return hash(self) == hash(other)
 
     def __getitem__(self, index: INodeIndex):
         return index.find_in_node(self)

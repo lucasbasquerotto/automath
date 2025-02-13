@@ -1,6 +1,7 @@
 # pylint: disable=too-many-lines
 from env import core, full_state, state, meta_env, action_impl, node_types, composite
 from env.goal_env import GoalEnv
+from test_suite import test_utils
 
 def get_current_state(env: GoalEnv):
     return env.full_state.nested_arg(
@@ -1092,49 +1093,52 @@ def test_control_flow() -> list[full_state.FullState]:
     )
     assert has_goal(env=env, goal=goal)
 
-    # If
-    index = 0
-    scratches = run(
-        env=env,
-        state_meta=state_meta,
-        scratches=scratches,
-        args_groups=args_groups,
-        scratch_idx=index+1,
-        new_scratch=core.Integer(1),
-    )
-    scratches = run(
-        env=env,
-        state_meta=state_meta,
-        scratches=scratches,
-        args_groups=args_groups,
-        scratch_idx=index+2,
-        new_scratch=core.IntGroup.from_ints([2, 3]),
-    )
+    def test_if():
+        nonlocal scratches
+        index = 0
+        scratches = run(
+            env=env,
+            state_meta=state_meta,
+            scratches=scratches,
+            args_groups=args_groups,
+            scratch_idx=index+1,
+            new_scratch=core.Integer(1),
+        )
+        scratches = run(
+            env=env,
+            state_meta=state_meta,
+            scratches=scratches,
+            args_groups=args_groups,
+            scratch_idx=index+2,
+            new_scratch=core.IntGroup.from_ints([2, 3]),
+        )
+    test_utils.run_test('>>test_if', test_if)
 
-    # Loop
-    index = len(if_scratches)
-    scratches = run(
-        env=env,
-        state_meta=state_meta,
-        scratches=scratches,
-        args_groups=args_groups,
-        scratch_idx=index+1,
-        new_scratch=core.Optional(
-            core.DefaultGroup(core.Integer(0), core.Optional(core.Integer(9)))
-        ),
-    )
-    scratches = run(
-        env=env,
-        state_meta=state_meta,
-        scratches=scratches,
-        args_groups=args_groups,
-        scratch_idx=index+2,
-        new_scratch=core.Optional(
-            core.DefaultGroup(core.Integer(0), core.Optional(core.Integer(9)))
-        ),
-    )
+    def test_loop():
+        nonlocal scratches
+        index = len(if_scratches)
+        scratches = run(
+            env=env,
+            state_meta=state_meta,
+            scratches=scratches,
+            args_groups=args_groups,
+            scratch_idx=index+1,
+            new_scratch=core.Optional(
+                core.DefaultGroup(core.Integer(0), core.Optional(core.Integer(9)))
+            ),
+        )
+        scratches = run(
+            env=env,
+            state_meta=state_meta,
+            scratches=scratches,
+            args_groups=args_groups,
+            scratch_idx=index+2,
+            new_scratch=core.Optional(
+                core.DefaultGroup(core.Integer(0), core.Optional(core.Integer(9)))
+            ),
+        )
+    test_utils.run_test('>>test_loop', test_loop)
 
-    # # Function Expression
     default_result = core.DefaultGroup(
         core.DefaultGroup(
             core.IBoolean.true(),
@@ -1147,204 +1151,210 @@ def test_control_flow() -> list[full_state.FullState]:
             core.IBoolean.true(),
         ),
     )
-    index = len(if_scratches + loop_scratches)
-    scratches = run(
-        env=env,
-        state_meta=state_meta,
-        scratches=scratches,
-        args_groups=args_groups,
-        scratch_idx=index+1,
-        new_scratch=default_result,
-    )
-    scratches = run(
-        env=env,
-        state_meta=state_meta,
-        scratches=scratches,
-        args_groups=args_groups,
-        scratch_idx=index+2,
-        new_scratch=default_result,
-    )
-    scratches = run(
-        env=env,
-        state_meta=state_meta,
-        scratches=scratches,
-        args_groups=args_groups,
-        scratch_idx=index+3,
-        new_scratch=core.DefaultGroup(
-            core.TypeEnforcer(
-                core.BaseInt.as_type(),
-                core.Integer(2),
-            ),
-            core.TypeEnforcer(
-                core.BaseInt.as_type(),
-                core.NodeArgIndex(5),
-            ),
-            core.TypeEnforcer(
-                core.BaseInt.as_type(),
-                core.TypeIndex(9),
-            ),
-            core.NodeMainIndex(7),
-            core.TypeEnforcer(
-                core.BaseInt.as_type(),
-                core.Integer(2),
-            ),
-        ),
-    )
 
-    # Assignments
-    index = len(if_scratches + loop_scratches + fn_scratches)
-    scratches = run(
-        env=env,
-        state_meta=state_meta,
-        scratches=scratches,
-        args_groups=args_groups,
-        scratch_idx=index+1,
-        new_scratch=state.Scratch(core.DefaultGroup(
-            core.IntGroup.from_ints([1, 2]),
-            core.IntGroup.from_ints([2, 2]),
-            core.IntGroup.from_ints([2, 1]),
-        )),
-    )
-    scratches = run(
-        env=env,
-        state_meta=state_meta,
-        scratches=scratches,
-        args_groups=args_groups,
-        scratch_idx=index+2,
-        new_scratch=core.DefaultGroup(
-            core.DefaultGroup(
-                core.IBoolean.true(),
-                core.IBoolean.false(),
-            ),
-        ),
-    )
-    scratches = run(
-        env=env,
-        state_meta=state_meta,
-        scratches=scratches,
-        args_groups=args_groups,
-        scratch_idx=index+3,
-        new_scratch=core.DefaultGroup(
-            core.DefaultGroup(
-                core.IBoolean.true(),
-                core.IBoolean.false(),
-            ),
-            core.DefaultGroup(
-                core.IBoolean.false(),
-                core.IBoolean.false(),
-            ),
-            core.DefaultGroup(
-                core.IBoolean.false(),
-                core.IBoolean.true(),
-            ),
-        ),
-    )
-    scratches = run(
-        env=env,
-        state_meta=state_meta,
-        scratches=scratches,
-        args_groups=args_groups,
-        scratch_idx=index+4,
-        new_scratch=core.FunctionWrapper(
-            core.Protocol(
-                core.TypeAliasGroup(),
-                core.CountableTypeGroup(
-                    core.DefaultGroup.as_type(),
-                    core.IFunction.as_type(),
+    def test_fn():
+        nonlocal scratches
+        index = len(if_scratches + loop_scratches)
+        scratches = run(
+            env=env,
+            state_meta=state_meta,
+            scratches=scratches,
+            args_groups=args_groups,
+            scratch_idx=index+1,
+            new_scratch=default_result,
+        )
+        scratches = run(
+            env=env,
+            state_meta=state_meta,
+            scratches=scratches,
+            args_groups=args_groups,
+            scratch_idx=index+2,
+            new_scratch=default_result,
+        )
+        scratches = run(
+            env=env,
+            state_meta=state_meta,
+            scratches=scratches,
+            args_groups=args_groups,
+            scratch_idx=index+3,
+            new_scratch=core.DefaultGroup(
+                core.TypeEnforcer(
+                    core.BaseInt.as_type(),
+                    core.Integer(2),
                 ),
-                core.INode.as_type(),
+                core.TypeEnforcer(
+                    core.BaseInt.as_type(),
+                    core.NodeArgIndex(5),
+                ),
+                core.TypeEnforcer(
+                    core.BaseInt.as_type(),
+                    core.TypeIndex(9),
+                ),
+                core.NodeMainIndex(7),
+                core.TypeEnforcer(
+                    core.BaseInt.as_type(),
+                    core.Integer(2),
+                ),
             ),
-            core.FunctionCall(
-                composite.Map,
+        )
+    test_utils.run_test('>>test_fn', test_fn)
+
+    def test_assignments():
+        nonlocal scratches
+        index = len(if_scratches + loop_scratches + fn_scratches)
+        scratches = run(
+            env=env,
+            state_meta=state_meta,
+            scratches=scratches,
+            args_groups=args_groups,
+            scratch_idx=index+1,
+            new_scratch=state.Scratch(core.DefaultGroup(
+                core.IntGroup.from_ints([1, 2]),
+                core.IntGroup.from_ints([2, 2]),
+                core.IntGroup.from_ints([2, 1]),
+            )),
+        )
+        scratches = run(
+            env=env,
+            state_meta=state_meta,
+            scratches=scratches,
+            args_groups=args_groups,
+            scratch_idx=index+2,
+            new_scratch=core.DefaultGroup(
                 core.DefaultGroup(
-                    core.FunctionWrapper(
-                        core.Protocol(
-                            core.TypeAliasGroup(),
-                            core.CountableTypeGroup(core.DefaultGroup.as_type()),
-                            core.INode.as_type(),
-                        ),
-                        core.FunctionCall(
-                            core.FunctionWrapper(
-                                core.Protocol(
-                                    core.TypeAliasGroup(),
-                                    core.CountableTypeGroup(
-                                        core.IFunction.as_type(),
-                                        core.DefaultGroup.as_type(),
-                                    ),
-                                    core.INode.as_type(),
-                                ),
-                                core.FunctionCall(
-                                    composite.Map,
-                                    core.DefaultGroup(
-                                        core.FunctionWrapper(
-                                            core.Protocol(
-                                                core.TypeAliasGroup(),
-                                                core.CountableTypeGroup(
-                                                    core.DefaultGroup.as_type()
-                                                ),
-                                                core.INode.as_type(),
-                                            ),
-                                            core.FunctionCall(
-                                                core.Param(
-                                                    core.NearParentScope.from_int(2),
-                                                    core.PlaceholderIndex(1),
-                                                ),
-                                                core.Param(
-                                                    core.NearParentScope.from_int(1),
-                                                    core.PlaceholderIndex(1),
-                                                ),
-                                            ),
-                                        ),
-                                        core.Param(
-                                            core.NearParentScope.from_int(1),
-                                            core.PlaceholderIndex(2),
-                                        ),
-                                    ),
-                                ),
-                            ),
-                            core.DefaultGroup(
-                                core.Param(
-                                    core.NearParentScope.from_int(1),
-                                    core.PlaceholderIndex(1),
-                                ),
-                                core.Param(
-                                    core.NearParentScope.from_int(2),
-                                    core.PlaceholderIndex(2),
-                                ),
-                            ),
-                        ),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        )
+        scratches = run(
+            env=env,
+            state_meta=state_meta,
+            scratches=scratches,
+            args_groups=args_groups,
+            scratch_idx=index+3,
+            new_scratch=core.DefaultGroup(
+                core.DefaultGroup(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+                core.DefaultGroup(
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+                core.DefaultGroup(
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+        )
+        scratches = run(
+            env=env,
+            state_meta=state_meta,
+            scratches=scratches,
+            args_groups=args_groups,
+            scratch_idx=index+4,
+            new_scratch=core.FunctionWrapper(
+                core.Protocol(
+                    core.TypeAliasGroup(),
+                    core.CountableTypeGroup(
+                        core.DefaultGroup.as_type(),
+                        core.IFunction.as_type(),
                     ),
-                    core.Param(
-                        core.NearParentScope.from_int(1),
-                        core.PlaceholderIndex(1),
+                    core.INode.as_type(),
+                ),
+                core.FunctionCall(
+                    composite.Map,
+                    core.DefaultGroup(
+                        core.FunctionWrapper(
+                            core.Protocol(
+                                core.TypeAliasGroup(),
+                                core.CountableTypeGroup(core.DefaultGroup.as_type()),
+                                core.INode.as_type(),
+                            ),
+                            core.FunctionCall(
+                                core.FunctionWrapper(
+                                    core.Protocol(
+                                        core.TypeAliasGroup(),
+                                        core.CountableTypeGroup(
+                                            core.IFunction.as_type(),
+                                            core.DefaultGroup.as_type(),
+                                        ),
+                                        core.INode.as_type(),
+                                    ),
+                                    core.FunctionCall(
+                                        composite.Map,
+                                        core.DefaultGroup(
+                                            core.FunctionWrapper(
+                                                core.Protocol(
+                                                    core.TypeAliasGroup(),
+                                                    core.CountableTypeGroup(
+                                                        core.DefaultGroup.as_type()
+                                                    ),
+                                                    core.INode.as_type(),
+                                                ),
+                                                core.FunctionCall(
+                                                    core.Param(
+                                                        core.NearParentScope.from_int(2),
+                                                        core.PlaceholderIndex(1),
+                                                    ),
+                                                    core.Param(
+                                                        core.NearParentScope.from_int(1),
+                                                        core.PlaceholderIndex(1),
+                                                    ),
+                                                ),
+                                            ),
+                                            core.Param(
+                                                core.NearParentScope.from_int(1),
+                                                core.PlaceholderIndex(2),
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                                core.DefaultGroup(
+                                    core.Param(
+                                        core.NearParentScope.from_int(1),
+                                        core.PlaceholderIndex(1),
+                                    ),
+                                    core.Param(
+                                        core.NearParentScope.from_int(2),
+                                        core.PlaceholderIndex(2),
+                                    ),
+                                ),
+                            ),
+                        ),
+                        core.Param(
+                            core.NearParentScope.from_int(1),
+                            core.PlaceholderIndex(1),
+                        ),
                     ),
                 ),
             ),
-        ),
-    )
-    scratches = run(
-        env=env,
-        state_meta=state_meta,
-        scratches=scratches,
-        args_groups=args_groups,
-        scratch_idx=index+5,
-        new_scratch=default_result,
-    )
-    scratches = run(
-        env=env,
-        state_meta=state_meta,
-        scratches=scratches,
-        args_groups=args_groups,
-        scratch_idx=index+6,
-        new_scratch=core.DefaultGroup(
-            core.IBoolean.true(),
-            core.IBoolean.false(),
-            core.IBoolean.true(),
-            core.IBoolean.false(),
-            core.IBoolean.false(),
-            core.IBoolean.true(),
-        ),
-    )
+        )
+        scratches = run(
+            env=env,
+            state_meta=state_meta,
+            scratches=scratches,
+            args_groups=args_groups,
+            scratch_idx=index+5,
+            new_scratch=default_result,
+        )
+        scratches = run(
+            env=env,
+            state_meta=state_meta,
+            scratches=scratches,
+            args_groups=args_groups,
+            scratch_idx=index+6,
+            new_scratch=core.DefaultGroup(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        )
+    test_utils.run_test('>>test_assignments', test_assignments)
 
     return [env.full_state]
 

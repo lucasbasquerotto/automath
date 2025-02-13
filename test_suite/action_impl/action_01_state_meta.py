@@ -6,6 +6,7 @@ from env import meta_env
 from env import full_state
 from env import node_types as node_types_module
 from env.goal_env import GoalEnv
+from test_suite import test_utils
 
 def get_current_state(env: GoalEnv):
     return env.full_state.nested_arg(
@@ -655,6 +656,6 @@ def dynamic_goal_test():
 
 def test() -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
-    final_states += goal_test()
-    final_states += dynamic_goal_test()
+    final_states += test_utils.run_test('>>goal_test', goal_test)
+    final_states += test_utils.run_test('>>dynamic_goal_test', dynamic_goal_test)
     return final_states
