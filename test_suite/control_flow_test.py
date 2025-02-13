@@ -1204,193 +1204,183 @@ def test_control_flow() -> list[full_state.FullState]:
     test_utils.run_test('>>test_fn', test_fn)
 
     def test_assignments():
-        import time
-        start = time.time()
-
         nonlocal scratches
         index = len(if_scratches + loop_scratches + fn_scratches)
-        scratches = run(
-            env=env,
-            state_meta=state_meta,
-            scratches=scratches,
-            args_groups=args_groups,
-            scratch_idx=index+1,
-            new_scratch=state.Scratch(core.DefaultGroup(
-                core.IntGroup.from_ints([1, 2]),
-                core.IntGroup.from_ints([2, 2]),
-                core.IntGroup.from_ints([2, 1]),
-            )),
-        )
-
-        end = time.time()
-        print(f'<assign-1> Time taken: {end-start:.3f} seconds')
-        start = end
-
-        scratches = run(
-            env=env,
-            state_meta=state_meta,
-            scratches=scratches,
-            args_groups=args_groups,
-            scratch_idx=index+2,
-            new_scratch=core.DefaultGroup(
-                core.DefaultGroup(
-                    core.IBoolean.true(),
-                    core.IBoolean.false(),
-                ),
+        scratches = test_utils.run_test(
+            name='>>>test_assignments-1',
+            fn=lambda: run(
+                env=env,
+                state_meta=state_meta,
+                scratches=scratches,
+                args_groups=args_groups,
+                scratch_idx=index+1,
+                new_scratch=state.Scratch(core.DefaultGroup(
+                    core.IntGroup.from_ints([1, 2]),
+                    core.IntGroup.from_ints([2, 2]),
+                    core.IntGroup.from_ints([2, 1]),
+                )),
             ),
         )
 
-        end = time.time()
-        print(f'<assign-2> Time taken: {end-start:.3f} seconds')
-        start = end
-
-        scratches = run(
-            env=env,
-            state_meta=state_meta,
-            scratches=scratches,
-            args_groups=args_groups,
-            scratch_idx=index+3,
-            new_scratch=core.DefaultGroup(
-                core.DefaultGroup(
-                    core.IBoolean.true(),
-                    core.IBoolean.false(),
-                ),
-                core.DefaultGroup(
-                    core.IBoolean.false(),
-                    core.IBoolean.false(),
-                ),
-                core.DefaultGroup(
-                    core.IBoolean.false(),
-                    core.IBoolean.true(),
-                ),
-            ),
-        )
-
-        end = time.time()
-        print(f'<assign-3> Time taken: {end-start:.3f} seconds')
-        start = end
-
-        scratches = run(
-            env=env,
-            state_meta=state_meta,
-            scratches=scratches,
-            args_groups=args_groups,
-            scratch_idx=index+4,
-            new_scratch=core.FunctionWrapper(
-                core.Protocol(
-                    core.TypeAliasGroup(),
-                    core.CountableTypeGroup(
-                        core.DefaultGroup.as_type(),
-                        core.IFunction.as_type(),
-                    ),
-                    core.INode.as_type(),
-                ),
-                core.FunctionCall(
-                    composite.Map,
+        scratches = test_utils.run_test(
+            name='>>>test_assignments-2',
+            fn=lambda: run(
+                env=env,
+                state_meta=state_meta,
+                scratches=scratches,
+                args_groups=args_groups,
+                scratch_idx=index+2,
+                new_scratch=core.DefaultGroup(
                     core.DefaultGroup(
-                        core.FunctionWrapper(
-                            core.Protocol(
-                                core.TypeAliasGroup(),
-                                core.CountableTypeGroup(core.DefaultGroup.as_type()),
-                                core.INode.as_type(),
-                            ),
-                            core.FunctionCall(
-                                core.FunctionWrapper(
-                                    core.Protocol(
-                                        core.TypeAliasGroup(),
-                                        core.CountableTypeGroup(
-                                            core.IFunction.as_type(),
-                                            core.DefaultGroup.as_type(),
-                                        ),
-                                        core.INode.as_type(),
-                                    ),
-                                    core.FunctionCall(
-                                        composite.Map,
-                                        core.DefaultGroup(
-                                            core.FunctionWrapper(
-                                                core.Protocol(
-                                                    core.TypeAliasGroup(),
-                                                    core.CountableTypeGroup(
-                                                        core.DefaultGroup.as_type()
-                                                    ),
-                                                    core.INode.as_type(),
-                                                ),
-                                                core.FunctionCall(
-                                                    core.Param(
-                                                        core.NearParentScope.from_int(2),
-                                                        core.PlaceholderIndex(1),
-                                                    ),
-                                                    core.Param(
-                                                        core.NearParentScope.from_int(1),
-                                                        core.PlaceholderIndex(1),
-                                                    ),
-                                                ),
-                                            ),
-                                            core.Param(
-                                                core.NearParentScope.from_int(1),
-                                                core.PlaceholderIndex(2),
-                                            ),
-                                        ),
-                                    ),
-                                ),
-                                core.DefaultGroup(
-                                    core.Param(
-                                        core.NearParentScope.from_int(1),
-                                        core.PlaceholderIndex(1),
-                                    ),
-                                    core.Param(
-                                        core.NearParentScope.from_int(2),
-                                        core.PlaceholderIndex(2),
-                                    ),
-                                ),
-                            ),
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                    ),
+                ),
+            ),
+        )
+
+        scratches = test_utils.run_test(
+            name='>>>test_assignments-3',
+            fn=lambda: run(
+                env=env,
+                state_meta=state_meta,
+                scratches=scratches,
+                args_groups=args_groups,
+                scratch_idx=index+3,
+                new_scratch=core.DefaultGroup(
+                    core.DefaultGroup(
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                    ),
+                    core.DefaultGroup(
+                        core.IBoolean.false(),
+                        core.IBoolean.false(),
+                    ),
+                    core.DefaultGroup(
+                        core.IBoolean.false(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+            ),
+        )
+
+        scratches = test_utils.run_test(
+            name='>>>test_assignments-4',
+            fn=lambda: run(
+                env=env,
+                state_meta=state_meta,
+                scratches=scratches,
+                args_groups=args_groups,
+                scratch_idx=index+4,
+                new_scratch=core.FunctionWrapper(
+                    core.Protocol(
+                        core.TypeAliasGroup(),
+                        core.CountableTypeGroup(
+                            core.DefaultGroup.as_type(),
+                            core.IFunction.as_type(),
                         ),
-                        core.Param(
-                            core.NearParentScope.from_int(1),
-                            core.PlaceholderIndex(1),
+                        core.INode.as_type(),
+                    ),
+                    core.FunctionCall(
+                        composite.Map,
+                        core.DefaultGroup(
+                            core.FunctionWrapper(
+                                core.Protocol(
+                                    core.TypeAliasGroup(),
+                                    core.CountableTypeGroup(core.DefaultGroup.as_type()),
+                                    core.INode.as_type(),
+                                ),
+                                core.FunctionCall(
+                                    core.FunctionWrapper(
+                                        core.Protocol(
+                                            core.TypeAliasGroup(),
+                                            core.CountableTypeGroup(
+                                                core.IFunction.as_type(),
+                                                core.DefaultGroup.as_type(),
+                                            ),
+                                            core.INode.as_type(),
+                                        ),
+                                        core.FunctionCall(
+                                            composite.Map,
+                                            core.DefaultGroup(
+                                                core.FunctionWrapper(
+                                                    core.Protocol(
+                                                        core.TypeAliasGroup(),
+                                                        core.CountableTypeGroup(
+                                                            core.DefaultGroup.as_type()
+                                                        ),
+                                                        core.INode.as_type(),
+                                                    ),
+                                                    core.FunctionCall(
+                                                        core.Param(
+                                                            core.NearParentScope.from_int(2),
+                                                            core.PlaceholderIndex(1),
+                                                        ),
+                                                        core.Param(
+                                                            core.NearParentScope.from_int(1),
+                                                            core.PlaceholderIndex(1),
+                                                        ),
+                                                    ),
+                                                ),
+                                                core.Param(
+                                                    core.NearParentScope.from_int(1),
+                                                    core.PlaceholderIndex(2),
+                                                ),
+                                            ),
+                                        ),
+                                    ),
+                                    core.DefaultGroup(
+                                        core.Param(
+                                            core.NearParentScope.from_int(1),
+                                            core.PlaceholderIndex(1),
+                                        ),
+                                        core.Param(
+                                            core.NearParentScope.from_int(2),
+                                            core.PlaceholderIndex(2),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                            core.Param(
+                                core.NearParentScope.from_int(1),
+                                core.PlaceholderIndex(1),
+                            ),
                         ),
                     ),
                 ),
             ),
         )
 
-        end = time.time()
-        print(f'<assign-4> Time taken: {end-start:.3f} seconds')
-        start = end
-
-        scratches = run(
-            env=env,
-            state_meta=state_meta,
-            scratches=scratches,
-            args_groups=args_groups,
-            scratch_idx=index+5,
-            new_scratch=default_result,
-        )
-
-        end = time.time()
-        print(f'<assign-5> Time taken: {end-start:.3f} seconds')
-        start = end
-
-        scratches = run(
-            env=env,
-            state_meta=state_meta,
-            scratches=scratches,
-            args_groups=args_groups,
-            scratch_idx=index+6,
-            new_scratch=core.DefaultGroup(
-                core.IBoolean.true(),
-                core.IBoolean.false(),
-                core.IBoolean.true(),
-                core.IBoolean.false(),
-                core.IBoolean.false(),
-                core.IBoolean.true(),
+        scratches = test_utils.run_test(
+            name='>>>test_assignments-5',
+            fn=lambda: run(
+                env=env,
+                state_meta=state_meta,
+                scratches=scratches,
+                args_groups=args_groups,
+                scratch_idx=index+5,
+                new_scratch=default_result,
             ),
         )
 
-        end = time.time()
-        print(f'<assign-6> Time taken: {end-start:.3f} seconds')
-        start = end
-
+        scratches = test_utils.run_test(
+            name='>>>test_assignments-6',
+            fn=lambda: run(
+                env=env,
+                state_meta=state_meta,
+                scratches=scratches,
+                args_groups=args_groups,
+                scratch_idx=index+6,
+                new_scratch=core.DefaultGroup(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+        )
     test_utils.run_test('>>test_assignments', test_assignments)
 
     return [env.full_state]
