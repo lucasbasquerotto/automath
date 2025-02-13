@@ -124,6 +124,7 @@ def test_indices() -> list[full_state.FullState]:
             core.Optional(state.PartialArgsGroup.from_int(2)),
         ),
     ]
+
     env = GoalEnv(
         goal=goal,
         fn_initial_state=lambda meta: full_state.FullState.with_args(
@@ -138,6 +139,7 @@ def test_indices() -> list[full_state.FullState]:
             )
         ),
     )
+
     assert has_goal(env=env, goal=goal)
 
     current_state = get_current_state(env)

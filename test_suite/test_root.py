@@ -4,6 +4,8 @@ from env import action
 from env import meta_env
 from env import full_state
 from env.symbol import Symbol
+from env.goal_env import GoalEnv
+from env.node_types import HaveScratch
 from test_suite import test_utils, basic_test, control_flow_test, indices_test
 from test_suite.action_impl import (
     action_01_state_meta,
@@ -68,9 +70,13 @@ def _main_tests() -> list[full_state.FullState]:
     final_states += test_utils.run_module_test(action_05_manage_args_group.test)
     return final_states
 
+def initialize_cache() -> None:
+    GoalEnv(HaveScratch.with_goal(core.Void()))
+
 def all_tests() -> list[full_state.FullState]:
     try:
         # core.BaseNode.cache_enabled = False
+        test_utils.run_test('initialize_cache', initialize_cache)
         final_states = test_utils.run_test('main_tests', _main_tests)
         test_utils.run_test('final_verification', lambda: _final_verification(final_states))
         return final_states

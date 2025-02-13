@@ -68,6 +68,7 @@ def test_update_scratch() -> list[full_state.FullState]:
         core.And(core.Void(), core.Void()),
         core.Or(goal_1, goal_2),
     ]
+
     env = GoalEnv(
         goal=goal,
         fn_initial_state=lambda meta: full_state.FullState.with_args(
@@ -85,6 +86,7 @@ def test_update_scratch() -> list[full_state.FullState]:
         max_steps=5000,
     )
     assert has_goal(env=env, goal=goal)
+
     env.full_state.validate()
 
     current_state = get_current_state(env)

@@ -1,4 +1,5 @@
 import typing
+import functools
 from env import meta_env
 from env import full_state
 from env import reward
@@ -7,6 +8,27 @@ from env.environment import Environment
 from env.env_utils import load_all_subclasses_sorted
 
 T = typing.TypeVar("T")
+
+@functools.cache
+def _get_meta(
+    goal: meta_env.IGoal,
+    allowed_actions: tuple[action.IAction, ...] | None,
+    max_history_state_size: int | None = None,
+    max_steps: int | None = None,
+):
+    all_types = tuple([t.as_type() for t in load_all_subclasses_sorted()])
+    allowed_actions_typed = tuple([
+        t.as_type()
+        for t in allowed_actions
+    ]) if allowed_actions is not None else None
+    meta = meta_env.MetaInfo.with_defaults(
+        goal=goal,
+        all_types=all_types,
+        allowed_actions=allowed_actions_typed,
+        max_history_state_size=max_history_state_size,
+        max_steps=max_steps,
+    )
+    return meta
 
 class GoalEnv(Environment):
     def __init__(
@@ -17,22 +39,17 @@ class GoalEnv(Environment):
             full_state.FullState,
         ] | None = None,
         reward_evaluator: reward.IRewardEvaluator | None = None,
-        allowed_actions: typing.Sequence[action.IAction] | None = None,
+        allowed_actions: tuple[action.IAction, ...] | None = None,
         max_history_state_size: int | None = None,
         max_steps: int | None = None,
     ):
-        all_types = [t.as_type() for t in load_all_subclasses_sorted()]
-        allowed_actions_typed = [
-            t.as_type()
-            for t in allowed_actions
-        ] if allowed_actions is not None else None
-        meta = meta_env.MetaInfo.with_defaults(
+        meta = _get_meta(
             goal=goal,
-            all_types=all_types,
-            allowed_actions=allowed_actions_typed,
+            allowed_actions=allowed_actions,
             max_history_state_size=max_history_state_size,
             max_steps=max_steps,
         )
+
         initial_state = (
             fn_initial_state(meta)
             if fn_initial_state

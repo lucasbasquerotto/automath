@@ -1,5 +1,6 @@
 import typing
 from abc import ABC
+import functools
 from env.core import (
     IDefault,
     IFromInt,
@@ -355,6 +356,96 @@ class IBasicAction(IAction[S], typing.Generic[S], ABC):
 ######################## META INFO ########################
 ###########################################################
 
+class MetaMainArgs:
+
+    def __init__(
+        self,
+        all_types_group: GeneralTypeGroup,
+        allowed_basic_actions_group: GeneralTypeGroup,
+        all_types_details: DetailedTypeGroup,
+        default_group: SubtypeOuterGroup[IDefault],
+        from_int_group: SubtypeOuterGroup[IFromInt],
+        int_group: SubtypeOuterGroup[IInt],
+        node_index_group: SubtypeOuterGroup[INodeIndex],
+        full_state_index_group: SubtypeOuterGroup[IFullStateIndex],
+        full_state_int_index_group: SubtypeOuterGroup[FullStateIntBaseIndex],
+        single_child_group: SubtypeOuterGroup[IFromSingleNode],
+        group_outer_group: SubtypeOuterGroup[IGroup],
+        function_group: SubtypeOuterGroup[IFunction],
+        boolean_group: SubtypeOuterGroup[IBoolean],
+        instantiable_group: SubtypeOuterGroup[IInstantiable],
+        basic_actions: SubtypeOuterGroup[IBasicAction],
+        all_actions: SubtypeOuterGroup[IAction],
+    ):
+        self.all_types_group = all_types_group
+        self.allowed_basic_actions_group = allowed_basic_actions_group
+        self.all_types_details = all_types_details
+        self.default_group = default_group
+        self.from_int_group = from_int_group
+        self.int_group = int_group
+        self.node_index_group = node_index_group
+        self.full_state_index_group = full_state_index_group
+        self.full_state_int_index_group = full_state_int_index_group
+        self.single_child_group = single_child_group
+        self.group_outer_group = group_outer_group
+        self.function_group = function_group
+        self.boolean_group = boolean_group
+        self.instantiable_group = instantiable_group
+        self.basic_actions = basic_actions
+        self.all_actions = all_actions
+
+@functools.cache
+def _meta_main_args(all_types: tuple[TypeNode, ...]) -> MetaMainArgs:
+    for t in all_types:
+        if issubclass(t.type, IInstantiable):
+            for st in t.type.__bases__:
+                if st != IInstantiable:
+                    assert not issubclass(st, IInstantiable), \
+                        f"Instantiable class {t.type} has subclass {st}"
+
+            if t.type != IInstantiable:
+                protocol = t.type.protocol()
+                protocol.valid_protocol()
+
+    all_types_group = GeneralTypeGroup.from_items(all_types)
+    allowed_basic_actions_group = GeneralTypeGroup.from_items(
+        [
+            t for t in all_types
+            if issubclass(t.type, IBasicAction) and issubclass(t.type, IInstantiable)
+        ]
+    )
+    return MetaMainArgs(
+        all_types_group=all_types_group,
+        allowed_basic_actions_group=allowed_basic_actions_group,
+        all_types_details=DetailedTypeGroup.from_types(
+            all_types),
+        default_group=SubtypeOuterGroup.from_all_types(
+            TypeNode(IDefault), all_types_group),
+        from_int_group=SubtypeOuterGroup.from_all_types(
+            TypeNode(IFromInt), all_types_group),
+        int_group=SubtypeOuterGroup.from_all_types(
+            TypeNode(IInt), all_types_group),
+        node_index_group=SubtypeOuterGroup.from_all_types(
+            TypeNode(INodeIndex), all_types_group),
+        full_state_index_group=SubtypeOuterGroup.from_all_types(
+            TypeNode(IFullStateIndex), all_types_group),
+        full_state_int_index_group=SubtypeOuterGroup.from_all_types(
+            TypeNode(FullStateIntBaseIndex), all_types_group),
+        single_child_group=SubtypeOuterGroup.from_all_types(
+            TypeNode(IFromSingleNode), all_types_group),
+        group_outer_group=SubtypeOuterGroup.from_all_types(
+            TypeNode(IGroup), all_types_group),
+        function_group=SubtypeOuterGroup.from_all_types(
+            TypeNode(IFunction), all_types_group),
+        boolean_group=SubtypeOuterGroup.from_all_types(
+            TypeNode(IBoolean), all_types_group),
+        instantiable_group=SubtypeOuterGroup.from_all_types(
+            TypeNode(IInstantiable), all_types_group),
+        basic_actions=SubtypeOuterGroup.from_all_types(
+            TypeNode(IBasicAction), all_types_group),
+        all_actions=SubtypeOuterGroup.from_all_types(
+            TypeNode(IAction), all_types_group),
+    )
 class MetaInfo(InheritableNode, IWrapper, IInstantiable):
     idx_goal = 1
     idx_options = 2
@@ -446,27 +537,17 @@ class MetaInfo(InheritableNode, IWrapper, IInstantiable):
         ))
 
     @classmethod
+    @functools.cache
     def with_defaults(
         cls,
         goal: IGoal,
-        all_types: typing.Sequence[TypeNode],
-        allowed_actions: typing.Sequence[TypeNode[IAction]] | None = None,
+        all_types: tuple[TypeNode, ...],
+        allowed_actions: tuple[TypeNode[IAction], ...] | None = None,
         max_history_state_size: int | None = None,
         max_steps: int | None = None,
     ) -> typing.Self:
-        for t in all_types:
-            if issubclass(t.type, IInstantiable):
-                for st in t.type.__bases__:
-                    if st != IInstantiable:
-                        assert not issubclass(st, IInstantiable), \
-                            f"Instantiable class {t.type} has subclass {st}"
-
-                if t.type != IInstantiable:
-                    protocol = t.type.protocol()
-                    protocol.valid_protocol()
-
-        all_types_group = GeneralTypeGroup.from_items(all_types)
-        allowed_actions = [
+        main_args = _meta_main_args(all_types)
+        allowed_actions_list = [
             t
             for t in all_types
             if (
@@ -475,36 +556,31 @@ class MetaInfo(InheritableNode, IWrapper, IInstantiable):
                 and (allowed_actions is None or t in allowed_actions)
             )
         ]
-        allowed_actions_group = GeneralTypeGroup.from_items(allowed_actions)
-        allowed_basic_actions_group = GeneralTypeGroup.from_items(
-            [
-                t for t in all_types
-                if issubclass(t.type, IBasicAction) and issubclass(t.type, IInstantiable)
-            ]
-        )
+        allowed_actions_group = GeneralTypeGroup.from_items(allowed_actions_list)
+
         return cls(
             goal,
             MetaInfoOptions.with_args(
                 max_history_state_size=max_history_state_size,
                 max_steps=max_steps,
             ),
-            all_types_group,
-            allowed_basic_actions_group,
+            main_args.all_types_group,
+            main_args.allowed_basic_actions_group,
             allowed_actions_group,
-            DetailedTypeGroup.from_types(all_types),
-            SubtypeOuterGroup.from_all_types(TypeNode(IDefault), all_types_group),
-            SubtypeOuterGroup.from_all_types(TypeNode(IFromInt), all_types_group),
-            SubtypeOuterGroup.from_all_types(TypeNode(IInt), all_types_group),
-            SubtypeOuterGroup.from_all_types(TypeNode(INodeIndex), all_types_group),
-            SubtypeOuterGroup.from_all_types(TypeNode(IFullStateIndex), all_types_group),
-            SubtypeOuterGroup.from_all_types(TypeNode(FullStateIntBaseIndex), all_types_group),
-            SubtypeOuterGroup.from_all_types(TypeNode(IFromSingleNode), all_types_group),
-            SubtypeOuterGroup.from_all_types(TypeNode(IGroup), all_types_group),
-            SubtypeOuterGroup.from_all_types(TypeNode(IFunction), all_types_group),
-            SubtypeOuterGroup.from_all_types(TypeNode(IBoolean), all_types_group),
-            SubtypeOuterGroup.from_all_types(TypeNode(IInstantiable), all_types_group),
-            SubtypeOuterGroup.from_all_types(TypeNode(IBasicAction), all_types_group),
-            SubtypeOuterGroup.from_all_types(TypeNode(IAction), all_types_group),
+            main_args.all_types_details,
+            main_args.default_group,
+            main_args.from_int_group,
+            main_args.int_group,
+            main_args.node_index_group,
+            main_args.full_state_index_group,
+            main_args.full_state_int_index_group,
+            main_args.single_child_group,
+            main_args.group_outer_group,
+            main_args.function_group,
+            main_args.boolean_group,
+            main_args.instantiable_group,
+            main_args.basic_actions,
+            main_args.all_actions,
         )
 
     @property
