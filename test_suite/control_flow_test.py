@@ -97,6 +97,7 @@ def test_control_flow() -> list[full_state.FullState]:
             core.IntGroup.from_ints([2, 3]),
         ),
     ]
+
     loop_scratches: list[core.INode | None] = [
         core.Loop.with_node(
             core.FunctionExpr(
@@ -203,6 +204,7 @@ def test_control_flow() -> list[full_state.FullState]:
             ),
         ),
     ]
+
     default_fn_result = core.CompositeType(
         core.DefaultGroup.as_type(),
         core.CountableTypeGroup(
@@ -224,6 +226,7 @@ def test_control_flow() -> list[full_state.FullState]:
             ),
         ),
     )
+
     fn_scratches: list[core.INode | None] = [
         core.FunctionCall(
             core.FunctionExpr(
@@ -555,6 +558,7 @@ def test_control_flow() -> list[full_state.FullState]:
             ),
         ),
     ]
+
     assignment_scratches = [
         core.InstructionGroup(
             core.Assign(
@@ -1200,6 +1204,9 @@ def test_control_flow() -> list[full_state.FullState]:
     test_utils.run_test('>>test_fn', test_fn)
 
     def test_assignments():
+        import time
+        start = time.time()
+
         nonlocal scratches
         index = len(if_scratches + loop_scratches + fn_scratches)
         scratches = run(
@@ -1214,6 +1221,11 @@ def test_control_flow() -> list[full_state.FullState]:
                 core.IntGroup.from_ints([2, 1]),
             )),
         )
+
+        end = time.time()
+        print(f'<assign-1> Time taken: {end-start:.3f} seconds')
+        start = end
+
         scratches = run(
             env=env,
             state_meta=state_meta,
@@ -1227,6 +1239,11 @@ def test_control_flow() -> list[full_state.FullState]:
                 ),
             ),
         )
+
+        end = time.time()
+        print(f'<assign-2> Time taken: {end-start:.3f} seconds')
+        start = end
+
         scratches = run(
             env=env,
             state_meta=state_meta,
@@ -1248,6 +1265,11 @@ def test_control_flow() -> list[full_state.FullState]:
                 ),
             ),
         )
+
+        end = time.time()
+        print(f'<assign-3> Time taken: {end-start:.3f} seconds')
+        start = end
+
         scratches = run(
             env=env,
             state_meta=state_meta,
@@ -1331,6 +1353,11 @@ def test_control_flow() -> list[full_state.FullState]:
                 ),
             ),
         )
+
+        end = time.time()
+        print(f'<assign-4> Time taken: {end-start:.3f} seconds')
+        start = end
+
         scratches = run(
             env=env,
             state_meta=state_meta,
@@ -1339,6 +1366,11 @@ def test_control_flow() -> list[full_state.FullState]:
             scratch_idx=index+5,
             new_scratch=default_result,
         )
+
+        end = time.time()
+        print(f'<assign-5> Time taken: {end-start:.3f} seconds')
+        start = end
+
         scratches = run(
             env=env,
             state_meta=state_meta,
@@ -1354,6 +1386,11 @@ def test_control_flow() -> list[full_state.FullState]:
                 core.IBoolean.true(),
             ),
         )
+
+        end = time.time()
+        print(f'<assign-6> Time taken: {end-start:.3f} seconds')
+        start = end
+
     test_utils.run_test('>>test_assignments', test_assignments)
 
     return [env.full_state]

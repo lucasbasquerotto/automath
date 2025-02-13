@@ -82,26 +82,26 @@ class VerifyGoalOutput(GeneralAction, IInstantiable):
     def apply(self, full_state: FullState) -> State:
         nested_args_wrapper = self.inner_arg(
             self.idx_nested_args_indices
-        ).apply().cast(Optional[NestedArgIndexGroup])
+        ).apply().real(Optional[NestedArgIndexGroup])
         node = self.inner_arg(self.idx_node).apply()
 
-        goal = full_state.nested_arg((FullState.idx_meta, MetaInfo.idx_goal)).apply().cast(IGoal)
+        goal = full_state.nested_arg((FullState.idx_meta, MetaInfo.idx_goal)).apply().real(IGoal)
         nested_args_indices = nested_args_wrapper.value
 
         if nested_args_indices is not None:
             assert isinstance(nested_args_indices, NestedArgIndexGroup)
-            goal = nested_args_indices.apply(goal.as_node).cast(IGoal)
+            goal = nested_args_indices.apply(goal.as_node).real(IGoal)
 
         assert isinstance(goal, Goal)
 
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
         assert isinstance(node, goal.eval_param_type())
 
-        meta_info = state.meta_info.apply().cast(StateMetaInfo)
-        goal_achieved = meta_info.goal_achieved.apply().cast(IGoalAchieved)
+        meta_info = state.meta_info.apply().real(StateMetaInfo)
+        goal_achieved = meta_info.goal_achieved.apply().real(IGoalAchieved)
         if nested_args_indices is not None:
             assert isinstance(nested_args_indices, NestedArgIndexGroup)
-            goal_achieved = nested_args_indices.apply(goal_achieved.as_node).cast(IGoalAchieved)
+            goal_achieved = nested_args_indices.apply(goal_achieved.as_node).real(IGoalAchieved)
         Not(goal_achieved).raise_on_false()
 
         goal.evaluate(state, node).raise_on_false()
@@ -144,14 +144,14 @@ class VerifyGoal(
     def _run_action(self, full_state: FullState) -> VerifyGoalOutput:
         scratch_index_nested_indices = self.inner_arg(
             self.idx_scratch_index_nested_indices
-        ).apply().cast(Optional[StateScratchIndex])
+        ).apply().real(Optional[StateScratchIndex])
         type_index = self.inner_arg(self.idx_type_index).apply()
         index_value = self.inner_arg(self.idx_index_value).apply()
         assert isinstance(scratch_index_nested_indices, Optional)
         assert isinstance(type_index, MetaFromIntTypeIndex)
         assert isinstance(index_value, Integer)
 
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
         scratch_index = scratch_index_nested_indices.value
         nested = Optional[NestedArgIndexGroup]()
         if scratch_index is not None:
@@ -182,12 +182,12 @@ class CreateDynamicGoalOutput(GeneralAction, IInstantiable):
         ))
 
     def apply(self, full_state: FullState) -> State:
-        index = self.inner_arg(self.idx_dynamic_goal_index).apply().cast(StateDynamicGoalIndex)
-        goal_expr = self.inner_arg(self.idx_goal_expr).apply().cast(IGoal)
+        index = self.inner_arg(self.idx_dynamic_goal_index).apply().real(StateDynamicGoalIndex)
+        goal_expr = self.inner_arg(self.idx_goal_expr).apply().real(IGoal)
 
-        state = full_state.current_state.apply().cast(State)
-        state_meta = state.meta_info.apply().cast(StateMetaInfo)
-        dynamic_goal_group = state_meta.dynamic_goal_group.apply().cast(DynamicGoalGroup)
+        state = full_state.current_state.apply().real(State)
+        state_meta = state.meta_info.apply().real(StateMetaInfo)
+        dynamic_goal_group = state_meta.dynamic_goal_group.apply().real(DynamicGoalGroup)
 
         items = [item for item in dynamic_goal_group.as_tuple]
         Eq.from_ints(index.as_int, len(items) + 1).raise_on_false()
@@ -222,9 +222,9 @@ class CreateDynamicGoal(
     def _run_action(self, full_state: FullState) -> CreateDynamicGoalOutput:
         scratch_index_goal = self.inner_arg(
             self.idx_scratch_index_goal
-        ).apply().cast(StateScratchIndex)
+        ).apply().real(StateScratchIndex)
 
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
         scratch = scratch_index_goal.find_in_outer_node(state).value_or_raise
         assert isinstance(scratch, Scratch)
         scratch.validate()
@@ -232,9 +232,9 @@ class CreateDynamicGoal(
         goal_expr = scratch.value_or_raise
         assert isinstance(goal_expr, IGoal)
 
-        dynamic_goal_group = state.meta_info.apply().cast(
+        dynamic_goal_group = state.meta_info.apply().real(
             StateMetaInfo
-        ).dynamic_goal_group.apply().cast(DynamicGoalGroup)
+        ).dynamic_goal_group.apply().real(DynamicGoalGroup)
         dynamic_goal_index = StateDynamicGoalIndex(len(dynamic_goal_group.as_tuple) + 1)
 
         return CreateDynamicGoalOutput(dynamic_goal_index, goal_expr)
@@ -259,29 +259,29 @@ class VerifyDynamicGoalOutput(GeneralAction, IInstantiable):
     def apply(self, full_state: FullState) -> State:
         dynamic_goal_index = self.inner_arg(
             self.idx_dynamic_goal
-        ).apply().cast(StateDynamicGoalIndex)
+        ).apply().real(StateDynamicGoalIndex)
         nested_args_wrapper = self.inner_arg(
             self.idx_nested_args_indices
-        ).apply().cast(Optional[NestedArgIndexGroup])
+        ).apply().real(Optional[NestedArgIndexGroup])
         node = self.inner_arg(self.idx_node).apply()
 
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
         dynamic_goal = dynamic_goal_index.find_in_outer_node(state).value_or_raise
 
-        goal = dynamic_goal.goal_expr.apply().cast(IGoal)
+        goal = dynamic_goal.goal_expr.apply().real(IGoal)
         nested_args_indices = nested_args_wrapper.value
 
         if nested_args_indices is not None:
             assert isinstance(nested_args_indices, NestedArgIndexGroup)
-            goal = nested_args_indices.apply(goal.as_node).cast(IGoal)
+            goal = nested_args_indices.apply(goal.as_node).real(IGoal)
 
         assert isinstance(goal, Goal)
         assert isinstance(node, goal.eval_param_type())
 
-        goal_achieved = dynamic_goal.goal_achieved.apply().cast(IGoalAchieved)
+        goal_achieved = dynamic_goal.goal_achieved.apply().real(IGoalAchieved)
         if nested_args_indices is not None:
             assert isinstance(nested_args_indices, NestedArgIndexGroup)
-            goal_achieved = nested_args_indices.apply(goal_achieved.as_node).cast(IGoalAchieved)
+            goal_achieved = nested_args_indices.apply(goal_achieved.as_node).real(IGoalAchieved)
         Not(goal_achieved).raise_on_false()
 
         goal.evaluate(state, node).raise_on_false()
@@ -327,15 +327,15 @@ class VerifyDynamicGoal(
     def _run_action(self, full_state: FullState) -> VerifyDynamicGoalOutput:
         dynamic_node_index = self.inner_arg(
             self.idx_dynamic_node_index
-        ).apply().cast(StateDynamicGoalIndex)
+        ).apply().real(StateDynamicGoalIndex)
         scratch_index_nested_indices = self.inner_arg(
             self.idx_scratch_index_nested_indices
-        ).apply().cast(Optional[StateScratchIndex])
+        ).apply().real(Optional[StateScratchIndex])
         scratch_content_index = self.inner_arg(
             self.idx_scratch_index_content
-        ).apply().cast(StateScratchIndex)
+        ).apply().real(StateScratchIndex)
 
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
         nest_scratch_index = scratch_index_nested_indices.value
         nested = Optional[NestedArgIndexGroup]()
         if nest_scratch_index is not None:
@@ -370,7 +370,7 @@ class DeleteDynamicGoalOutput(GeneralAction, IBasicAction[FullState], IInstantia
     def apply(self, full_state: FullState) -> State:
         dynamic_goal_index = self.inner_arg(self.idx_dynamic_goal_index).apply()
         assert isinstance(dynamic_goal_index, StateDynamicGoalIndex)
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
         new_state = dynamic_goal_index.remove_in_outer_target(state).value_or_raise
         return new_state
 
@@ -428,8 +428,8 @@ class CreateScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
         assert isinstance(index, StateScratchIndex)
         assert isinstance(new_node, Scratch)
 
-        state = full_state.current_state.apply().cast(State)
-        scratch_group = state.scratch_group.apply().cast(ScratchGroup)
+        state = full_state.current_state.apply().real(State)
+        scratch_group = state.scratch_group.apply().real(ScratchGroup)
         Eq.from_ints(index.as_int, len(scratch_group.as_tuple) + 1).raise_on_false()
         new_args = list(scratch_group.as_tuple) + [new_node]
 
@@ -476,10 +476,10 @@ class CreateScratch(
     def _run_action(self, full_state: FullState) -> CreateScratchOutput:
         clone_index = self.inner_arg(
             self.idx_clone_index
-        ).apply().cast(Optional[StateScratchIndex])
+        ).apply().real(Optional[StateScratchIndex])
 
-        state = full_state.current_state.apply().cast(State)
-        scratch_group = state.scratch_group.apply().cast(ScratchGroup)
+        state = full_state.current_state.apply().real(State)
+        scratch_group = state.scratch_group.apply().real(ScratchGroup)
         index = StateScratchIndex(len(scratch_group.as_tuple) + 1)
         if clone_index.value is None:
             return CreateScratchOutput(index, Scratch.create())
@@ -501,7 +501,7 @@ class DeleteScratchOutput(ScratchBaseActionOutput, IBasicAction[FullState], IIns
     def apply(self, full_state: FullState) -> State:
         index = self.inner_arg(self.idx_index).apply()
         assert isinstance(index, StateScratchIndex)
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
         new_state = index.remove_in_outer_target(state).value_or_raise
         return new_state
 
@@ -517,7 +517,7 @@ class DefineScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
         assert isinstance(index, StateScratchIndex)
         assert isinstance(scratch, Scratch)
 
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
         new_state = index.replace_in_outer_target(state, scratch).value_or_raise
 
         return new_state
@@ -649,7 +649,7 @@ class DefineScratchFromSingleArg(
         node_type = type_index.find_in_outer_node(full_state).value_or_raise
         assert isinstance(node_type, TypeNode) and issubclass(node_type.type, IFromSingleNode)
 
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
         scratch = arg_index.find_in_outer_node(state).value_or_raise
         arg = scratch.value_or_raise
 
@@ -731,7 +731,7 @@ class DefineScratchFromFunctionWithIntArg(
         assert isinstance(source_index, StateScratchIndex)
         assert isinstance(int_arg, Integer)
 
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
         source_scratch = source_index.find_in_outer_node(state).value_or_raise
         assert isinstance(source_scratch, Scratch)
         source_scratch.validate()
@@ -788,7 +788,7 @@ class DefineScratchFromFunctionWithSingleArg(
         assert isinstance(source_index, StateScratchIndex)
         assert isinstance(single_arg_index, StateScratchIndex)
 
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
         source_scratch = source_index.find_in_outer_node(state).value_or_raise
         assert isinstance(source_scratch, Scratch)
         source_scratch.validate()
@@ -855,7 +855,7 @@ class DefineScratchFromFunctionWithArgs(
         assert isinstance(source_index, StateScratchIndex)
         assert isinstance(args_group_index, Optional)
 
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
         source_scratch = source_index.find_in_outer_node(state).value_or_raise
         assert isinstance(source_scratch, Scratch)
         source_scratch.validate()
@@ -923,7 +923,7 @@ class DefineScratchFromScratchNode(
         assert isinstance(source_index, StateScratchIndex)
         assert isinstance(source_inner_index, ScratchNodeIndex)
 
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
         source_scratch = source_index.find_in_outer_node(state).value_or_raise
         assert isinstance(source_scratch, Scratch)
         source_scratch.validate()
@@ -960,7 +960,7 @@ class RunScratch(
         assert isinstance(scratch_index, StateScratchIndex)
         assert isinstance(source_index, StateScratchIndex)
 
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
         scratch = source_index.find_in_outer_node(state).value_or_raise
         assert isinstance(scratch, Scratch)
         old_content = scratch.value_or_raise
@@ -1009,7 +1009,7 @@ class UpdateScratchFromAnother(
         assert isinstance(scratch_inner_index, ScratchNodeIndex)
         assert isinstance(source_index, StateScratchIndex)
 
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
         scratch = scratch_index.find_in_outer_node(state).value_or_raise
         source_scratch = source_index.find_in_outer_node(state).value_or_raise
         inner_content = source_scratch.value_or_raise
@@ -1043,13 +1043,13 @@ class CreateArgsGroupOutput(GeneralAction, IInstantiable):
         assert isinstance(index, StateArgsGroupIndex)
         assert isinstance(new_args_group, PartialArgsGroup)
 
-        state = full_state.current_state.apply().cast(State)
-        args_outer_group = state.args_outer_group.apply().cast(PartialArgsOuterGroup)
+        state = full_state.current_state.apply().real(State)
+        args_outer_group = state.args_outer_group.apply().real(PartialArgsOuterGroup)
         Eq.from_ints(index.as_int, len(args_outer_group.as_tuple) + 1).raise_on_false()
         for arg in new_args_group.as_tuple:
             arg.as_node.validate()
 
-        args_outer_group = state.args_outer_group.apply().cast(PartialArgsOuterGroup)
+        args_outer_group = state.args_outer_group.apply().real(PartialArgsOuterGroup)
         new_args = list(args_outer_group.as_tuple) + [new_args_group]
 
         return state.with_new_args(
@@ -1085,12 +1085,12 @@ class CreateArgsGroup(
         ))
 
     def _run_action(self, full_state: FullState) -> CreateArgsGroupOutput:
-        args_amount = self.inner_arg(self.idx_args_amount).apply().cast(Integer)
+        args_amount = self.inner_arg(self.idx_args_amount).apply().real(Integer)
         args_group_source_index = self.inner_arg(
             self.idx_args_group_source_index
-        ).apply().cast(Optional[StateArgsGroupIndex])
+        ).apply().real(Optional[StateArgsGroupIndex])
 
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
 
         if args_group_source_index.value is not None:
             source = args_group_source_index.value.find_in_outer_node(state).value_or_raise
@@ -1103,7 +1103,7 @@ class CreateArgsGroup(
             new_args_group = PartialArgsGroup.from_int(args_amount.as_int)
 
         index = StateArgsGroupIndex(
-            len(state.args_outer_group.apply().cast(PartialArgsOuterGroup).as_tuple) + 1
+            len(state.args_outer_group.apply().real(PartialArgsOuterGroup).as_tuple) + 1
         )
 
         return CreateArgsGroupOutput(index, new_args_group)
@@ -1126,7 +1126,7 @@ class DeleteArgsGroupOutput(GeneralAction, IBasicAction[FullState], IInstantiabl
     def apply(self, full_state: FullState) -> State:
         args_group_index = self.inner_arg(self.idx_args_group_index).apply()
         assert isinstance(args_group_index, StateArgsGroupIndex)
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
         new_state = args_group_index.remove_in_outer_target(state).value_or_raise
         return new_state
 
@@ -1152,7 +1152,7 @@ class DefineArgsGroupArgOutput(GeneralAction, IInstantiable):
         assert isinstance(arg_index, NodeArgIndex)
         assert isinstance(new_arg, IOptional)
 
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
         new_arg.as_node.validate()
         args_group = group_index.find_in_outer_node(state).value_or_raise
         assert isinstance(args_group, PartialArgsGroup)
@@ -1199,7 +1199,7 @@ class DefineArgsGroup(
         assert isinstance(arg_index, NodeArgIndex)
         assert isinstance(scratch_index, StateScratchIndex)
 
-        state = full_state.current_state.apply().cast(State)
+        state = full_state.current_state.apply().real(State)
         args_group_index.find_in_outer_node(state).raise_if_empty()
         scratch = scratch_index.find_in_outer_node(state).value_or_raise
         assert isinstance(scratch, Scratch)

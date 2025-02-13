@@ -75,7 +75,6 @@ def initialize_cache() -> None:
 
 def all_tests() -> list[full_state.FullState]:
     try:
-        # core.BaseNode.cache_enabled = False
         test_utils.run_test('initialize_cache', initialize_cache)
         final_states = test_utils.run_test('main_tests', _main_tests)
         test_utils.run_test('final_verification', lambda: _final_verification(final_states))
@@ -84,6 +83,10 @@ def all_tests() -> list[full_state.FullState]:
         symbol = Symbol.default(e.info.as_node)
         env_logger.debug(str(symbol), exc_info=e)
         raise e
+
+def test_no_cache() -> list[full_state.FullState]:
+    core.BaseNode.cache_enabled = False
+    return test()
 
 def test() -> list[full_state.FullState]:
     return test_utils.run_test('all_tests', all_tests)
