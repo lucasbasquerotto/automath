@@ -27,7 +27,16 @@ from env.meta_env import (
     IBasicAction,
     GeneralTypeGroup,
     MetaInfoOptions)
-from env.full_state import FullState, HistoryNode, HistoryGroupNode, ActionData
+from env.full_state import (
+    FullState,
+    HistoryNode,
+    HistoryGroupNode,
+    BaseActionData,
+    EmptyErrorActionData,
+    ErrorActionData,
+    FullErrorActionData,
+    SuccessActionData,
+)
 from env.symbol import Symbol
 
 ###########################################################
@@ -62,7 +71,7 @@ class FullActionOutput(InheritableNode, IWrapper, IInstantiable):
 
 class IActionExceptionInfo(IExceptionInfo, ABC):
 
-    def to_action_data(self) -> ActionData:
+    def to_action_data(self) -> BaseActionData:
         raise NotImplementedError
 
     def as_exception(self):
@@ -75,7 +84,7 @@ class InvalidActionException(InvalidNodeException):
         info = self.args[0]
         return typing.cast(IActionExceptionInfo, info)
 
-    def to_action_data(self) -> ActionData:
+    def to_action_data(self) -> BaseActionData:
         return self.info.to_action_data()
 
 class ActionTypeExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiable):
@@ -90,8 +99,8 @@ class ActionTypeExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiab
             IExceptionInfo.as_type(),
         ))
 
-    def to_action_data(self) -> ActionData:
-        return ActionData.from_args(
+    def to_action_data(self) -> EmptyErrorActionData:
+        return EmptyErrorActionData.from_args(
             action=Optional.create(),
             output=Optional.create(),
             exception=Optional(self),
@@ -117,8 +126,8 @@ class ActionInputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantia
     def exception(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_exception)
 
-    def to_action_data(self) -> ActionData:
-        return ActionData.from_args(
+    def to_action_data(self) -> ErrorActionData:
+        return ErrorActionData.from_args(
             action=Optional(self.action.apply().cast(BaseAction)),
             output=Optional.create(),
             exception=Optional(self.exception.apply().cast(IExceptionInfo)),
@@ -150,8 +159,8 @@ class ActionOutputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstanti
     def exception(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_exception)
 
-    def to_action_data(self) -> ActionData:
-        return ActionData.from_args(
+    def to_action_data(self) -> FullErrorActionData:
+        return FullErrorActionData.from_args(
             action=Optional(self.action.apply().cast(BaseAction)),
             output=Optional(self.output.apply().cast(IActionOutput)),
             exception=Optional(self.exception.apply().cast(IExceptionInfo)),
@@ -171,6 +180,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
 
     def inner_run(self, full_state: FullState) -> FullActionOutput:
         try:
+            self.strict_validate()
             meta = full_state.meta.apply().cast(MetaInfo)
             allowed_actions = meta.allowed_actions.apply().cast(GeneralTypeGroup[IAction])
             min_index = 1
@@ -192,9 +202,10 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
 
         try:
             new_state = output.apply(full_state)
-            return FullActionOutput(output, new_state)
+            result = FullActionOutput(output, new_state)
+            result.strict_validate()
+            return result
         except InvalidNodeException as e:
-            # make a new exception from the above, following the comment bellow
             raise ActionOutputExceptionInfo(self, output, e.info).as_exception() from e
 
 
@@ -218,13 +229,12 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             full_output = self.inner_run(full_state)
             output = full_output.output.apply().cast(IActionOutput)
             next_state = full_output.new_state.apply().cast(State)
-            next_state.validate()
-            action_data = ActionData.from_args(
+            next_state.strict_validate()
+            action_data: BaseActionData = SuccessActionData.from_args(
                 action=Optional(self),
                 output=Optional(output),
                 exception=Optional.create(),
             )
-            action_data.validate()
         except InvalidActionException as e:
             symbol = Symbol(
                 node=e.info.as_node,
@@ -234,6 +244,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             next_state = current.state.apply().cast(State)
             action_data = e.to_action_data()
 
+        action_data.strict_validate()
         remaining_steps = (
             remaining_steps - 1
             if remaining_steps is not None

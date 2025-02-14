@@ -13,7 +13,7 @@ def get_last_history_action(env: GoalEnv):
     last = history.as_tuple[-1]
     return last.action_data.apply().inner_arg(
         core.Optional.idx_value
-    ).apply().cast(full_state.ActionData)
+    ).apply().cast(full_state.BaseActionData)
 
 def get_meta_subgroup_type_index(meta_idx: int, node_type: type[core.INode], env: GoalEnv):
     selected_types = env.full_state.meta.apply().nested_arg((
@@ -51,7 +51,7 @@ def run(
         for i, s in enumerate(scratches)
     ]
 
-    expected_history = full_state.ActionData.from_args(
+    expected_history = full_state.SuccessActionData.from_args(
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),

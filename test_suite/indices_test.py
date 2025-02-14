@@ -11,7 +11,7 @@ def get_last_history_action(env: GoalEnv):
     last = history.as_tuple[-1]
     return last.action_data.apply().inner_arg(
         core.Optional.idx_value
-    ).apply().cast(full_state.ActionData)
+    ).apply().cast(full_state.BaseActionData)
 
 def get_meta_group_type_index(meta_idx: int, node_type: type[core.INode], env: GoalEnv):
     selected_types = env.full_state.meta.apply().inner_arg(
@@ -76,7 +76,7 @@ def run(
         scratches=scratches,
         args_groups=args_groups,
     )
-    assert last_history_action == full_state.ActionData.from_args(
+    assert last_history_action == full_state.SuccessActionData.from_args(
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),
@@ -864,9 +864,9 @@ def test_indices() -> list[full_state.FullState]:
     history = env.full_state.history.apply().cast(full_state.HistoryGroupNode)
     for h in history.as_tuple:
         action_data = h.action_data.apply().cast(
-            full_state.Optional[full_state.ActionData]
+            full_state.Optional[full_state.BaseActionData]
         ).value_or_raise
-        assert isinstance(action_data, full_state.ActionData)
+        assert isinstance(action_data, full_state.BaseActionData)
         act = action_data.action.apply().cast(core.IOptional[meta_env.IAction]).value_or_raise
         if isinstance(act, action_impl.DefineScratchFromIntIndex):
             full_state_int_index = act.inner_arg(

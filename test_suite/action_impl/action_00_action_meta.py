@@ -16,7 +16,9 @@ from env.full_state import (
     MetaAllTypesTypeIndex,
     HistoryGroupNode,
     HistoryNode,
-    ActionData,
+    BaseActionData,
+    ErrorActionData,
+    SuccessActionData,
 )
 from env.meta_env import MetaInfo, SubtypeOuterGroup, GeneralTypeGroup, MetaData
 from env.goal_env import GoalEnv
@@ -88,7 +90,7 @@ def get_info_type_index(
     return meta_idx, node_idx
 
 def get_empty_exception(action: IAction):
-    return ActionData.from_args(
+    return ErrorActionData.from_args(
         action=Optional(action),
         output=Optional(),
         exception=Optional(BooleanExceptionInfo(IsEmpty(Optional()))),
@@ -383,7 +385,7 @@ def action_meta_test():
     current_state = get_current_state(env)
     last_history_action = get_last_history_action(env)
 
-    expected_history = ActionData.from_args(
+    expected_history = SuccessActionData.from_args(
         action=Optional(DynamicAction(StateScratchIndex(1))),
         output=Optional(DynamicActionOutput(
             group_action,
@@ -418,7 +420,7 @@ def action_meta_test():
         print('current_state:', env.symbol(current_state))
         print('expected_state:', env.symbol(expected_state))
 
-    actual_action = last_history_action.real(ActionData).action.apply()
+    actual_action = last_history_action.real(BaseActionData).action.apply()
     expected_action = Optional(DynamicAction(StateScratchIndex(1)))
 
     assert actual_action == expected_action

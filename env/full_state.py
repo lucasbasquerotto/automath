@@ -57,7 +57,7 @@ T = typing.TypeVar('T', bound=INode)
 ####################### ACTION DATA #######################
 ###########################################################
 
-class ActionData(InheritableNode, IInstantiable):
+class BaseActionData(InheritableNode, ABC):
 
     idx_action = 1
     idx_output = 2
@@ -68,7 +68,7 @@ class ActionData(InheritableNode, IInstantiable):
         return cls.default_protocol(CountableTypeGroup(
             CompositeType(
                 Optional.as_type(),
-                OptionalTypeGroup(IActionOutput.as_type()),
+                OptionalTypeGroup(IAction.as_type()),
             ),
             CompositeType(
                 Optional.as_type(),
@@ -101,6 +101,120 @@ class ActionData(InheritableNode, IInstantiable):
     ) -> typing.Self:
         return cls(action, output, exception)
 
+class EmptyActionData(BaseActionData, IInstantiable):
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(),
+            ),
+        ))
+
+class PendingActionData(BaseActionData, IInstantiable):
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(IAction.as_type()),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(),
+            ),
+        ))
+
+class SuccessActionData(BaseActionData, IInstantiable):
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(IAction.as_type()),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(IActionOutput.as_type()),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(),
+            ),
+        ))
+
+class EmptyErrorActionData(BaseActionData, IInstantiable):
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(IExceptionInfo.as_type()),
+            ),
+        ))
+
+class ErrorActionData(BaseActionData, IInstantiable):
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(IAction.as_type()),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(IExceptionInfo.as_type()),
+            ),
+        ))
+
+class FullErrorActionData(BaseActionData, IInstantiable):
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(IAction.as_type()),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(IActionOutput.as_type()),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(IExceptionInfo.as_type()),
+            ),
+        ))
+
 ###########################################################
 ################# FULL STATE DEFINITIONS ##################
 ###########################################################
@@ -118,7 +232,7 @@ class HistoryNode(InheritableNode, IDefault, IWrapper, IInstantiable):
             MetaData.as_type(),
             CompositeType(
                 Optional.as_type(),
-                OptionalTypeGroup(ActionData.as_type()),
+                OptionalTypeGroup(BaseActionData.as_type()),
             ),
         ))
 
@@ -144,7 +258,7 @@ class HistoryNode(InheritableNode, IDefault, IWrapper, IInstantiable):
         cls,
         state: State,
         meta_data: MetaData,
-        action_data: Optional[ActionData] | None = None,
+        action_data: Optional[BaseActionData] | None = None,
     ):
         action_data = action_data if action_data is not None else Optional.create()
         return cls(state, meta_data, action_data)
@@ -153,7 +267,7 @@ class HistoryNode(InheritableNode, IDefault, IWrapper, IInstantiable):
         self,
         state: State | None = None,
         meta_data: MetaData | None = None,
-        action_data: Optional[ActionData] | None = None,
+        action_data: Optional[BaseActionData] | None = None,
     ) -> typing.Self:
         state = (
             state
@@ -166,7 +280,7 @@ class HistoryNode(InheritableNode, IDefault, IWrapper, IInstantiable):
         action_data = (
             action_data
             if action_data is not None
-            else self.action_data.apply().cast(Optional[ActionData]))
+            else self.action_data.apply().cast(Optional[BaseActionData]))
         return self.with_args(
             state=state,
             meta_data=meta_data,
@@ -256,14 +370,14 @@ class FullState(
         )
 
     @property
-    def last_action_data(self) -> IOptional[ActionData]:
+    def last_action_data(self) -> IOptional[BaseActionData]:
         history_group = self.history.apply().cast(HistoryGroupNode)
         history = history_group.as_tuple
         if len(history) == 0:
             return Optional.create()
         last_item = history_group.as_tuple[-1]
         assert isinstance(last_item, HistoryNode)
-        action_data_opt = last_item.action_data.apply().cast(IOptional[ActionData])
+        action_data_opt = last_item.action_data.apply().cast(IOptional[BaseActionData])
         return action_data_opt
 
     def goal_achieved(self) -> bool:
@@ -279,7 +393,7 @@ class FullState(
     def history_amount(self) -> int:
         return len(self.history.apply().cast(HistoryGroupNode).as_tuple)
 
-    def at_history(self, index: int) -> tuple[typing.Self, IOptional[ActionData]]:
+    def at_history(self, index: int) -> tuple[typing.Self, IOptional[BaseActionData]]:
         history = self.history.apply().cast(HistoryGroupNode).as_tuple
         assert index > 0
         assert index <= len(history)
@@ -288,7 +402,7 @@ class FullState(
             state=item.state.apply().cast(State),
             meta_data=item.meta_data.apply().cast(MetaData),
         )
-        action_data_opt = item.action_data.apply().cast(IOptional[ActionData])
+        action_data_opt = item.action_data.apply().cast(IOptional[BaseActionData])
         new_history_group = HistoryGroupNode.from_items(
             history[:index-1]
         )

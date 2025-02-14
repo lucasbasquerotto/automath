@@ -28,7 +28,7 @@ def get_last_history_action(env: GoalEnv):
     last = history.as_tuple[-1]
     return last.action_data.apply().inner_arg(
         core.Optional.idx_value
-    ).apply().cast(full_state.ActionData)
+    ).apply().cast(full_state.BaseActionData)
 
 def get_from_int_type_index(node_type: type[core.INode], env: GoalEnv):
     selected_types = env.full_state.meta.apply().nested_arg((
@@ -157,7 +157,7 @@ def goal_test():
                 meta_info=state_meta,
                 scratches=[scratch_goal],
             )
-            assert last_history_action == full_state.ActionData.from_args(
+            assert last_history_action == full_state.SuccessActionData.from_args(
                 action=core.Optional(output if direct else full_action),
                 output=core.Optional(output),
                 exception=core.Optional(),
@@ -260,7 +260,7 @@ def goal_test():
             meta_info=state_meta,
             scratches=scratches,
         )
-        assert last_history_action == full_state.ActionData.from_args(
+        assert last_history_action == full_state.SuccessActionData.from_args(
             action=core.Optional(full_action),
             output=core.Optional(output),
             exception=core.Optional(),
@@ -293,7 +293,7 @@ def goal_test():
             meta_info=state_meta,
             scratches=scratches,
         )
-        assert last_history_action == full_state.ActionData.from_args(
+        assert last_history_action == full_state.SuccessActionData.from_args(
             action=core.Optional(output),
             output=core.Optional(output),
             exception=core.Optional(),
@@ -335,7 +335,7 @@ def goal_test():
                 meta_info=state_meta,
                 scratches=scratches,
             )
-            assert last_history_action == full_state.ActionData.from_args(
+            assert last_history_action == full_state.SuccessActionData.from_args(
                 action=core.Optional(full_action),
                 output=core.Optional(output),
                 exception=core.Optional(),
@@ -493,7 +493,7 @@ def dynamic_goal_test():
         meta_info=state_meta,
         scratches=scratches,
     )
-    assert last_history_action == full_state.ActionData.from_args(
+    assert last_history_action == full_state.SuccessActionData.from_args(
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),
@@ -532,7 +532,7 @@ def dynamic_goal_test():
         meta_info=state_meta,
         scratches=scratches,
     )
-    assert last_history_action == full_state.ActionData.from_args(
+    assert last_history_action == full_state.SuccessActionData.from_args(
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),
@@ -565,7 +565,7 @@ def dynamic_goal_test():
         meta_info=state_meta,
         scratches=scratches,
     )
-    assert last_history_action == full_state.ActionData.from_args(
+    assert last_history_action == full_state.SuccessActionData.from_args(
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),
@@ -606,7 +606,7 @@ def dynamic_goal_test():
         meta_info=state_meta,
         scratches=scratches,
     )
-    assert last_history_action == full_state.ActionData.from_args(
+    assert last_history_action == full_state.SuccessActionData.from_args(
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),
@@ -645,7 +645,7 @@ def dynamic_goal_test():
         meta_info=state_meta,
         scratches=scratches,
     )
-    assert last_history_action == full_state.ActionData.from_args(
+    assert last_history_action == full_state.SuccessActionData.from_args(
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),
