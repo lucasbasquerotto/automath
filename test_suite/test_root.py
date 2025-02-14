@@ -86,9 +86,5 @@ def all_tests() -> list[full_state.FullState]:
         env_logger.debug(str(symbol), exc_info=e)
         raise e
 
-def test_no_cache() -> list[full_state.FullState]:
-    core.BaseNode.cache_enabled = False
-    return test()
-
 def test() -> list[full_state.FullState]:
     return test_utils.run_test('all_tests', all_tests)
