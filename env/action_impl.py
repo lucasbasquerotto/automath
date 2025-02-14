@@ -46,6 +46,7 @@ from env.state import (
     StateDynamicGoalIndex,
     DynamicGoalGroup,
     DynamicGoal,
+    StateMetaHiddenInfo,
 )
 from env.meta_env import MetaInfo
 from env.full_state import (
@@ -495,6 +496,86 @@ class DeleteDynamicGoalOutput(GeneralAction, IBasicAction[FullState], IInstantia
         state = full_state.current_state.apply().real(State)
         new_state = dynamic_goal_index.remove_in_outer_target(state).value_or_raise
         return new_state
+
+class DefineStateHiddenInfoOutput(GeneralAction, IInstantiable):
+
+    idx_hidden_info = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            StateMetaHiddenInfo.as_type(),
+        ))
+
+    def apply(self, full_state: FullState) -> State:
+        hidden_info = self.inner_arg(
+            self.idx_hidden_info
+        ).apply().real(StateMetaHiddenInfo)
+
+        state = full_state.current_state.apply().real(State)
+        meta_info = state.meta_info.apply().real(StateMetaInfo)
+
+        new_meta_info = meta_info.with_new_args(hidden_info=hidden_info)
+        new_state = state.with_new_args(meta_info=new_meta_info)
+
+        return new_state
+
+class ResetStateHiddenInfo(BasicAction[DefineStateHiddenInfoOutput], IInstantiable):
+
+    @classmethod
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+        Eq.from_ints(arg1, 0).raise_on_false()
+        Eq.from_ints(arg2, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
+        return cls()
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup())
+
+    def _run_action(self, full_state: FullState) -> DefineStateHiddenInfoOutput:
+        hidden_info = StateMetaHiddenInfo.create()
+        return DefineStateHiddenInfoOutput(hidden_info)
+
+class DefineStateHiddenInfo(BasicAction[DefineStateHiddenInfoOutput], IInstantiable):
+
+    idx_hidden_index = 1
+    idx_type_index = 2
+    idx_index_value = 3
+
+    @classmethod
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+        hidden_index = NodeArgIndex(arg1)
+        type_index = MetaFromIntTypeIndex(arg2)
+        index_value = Integer(arg3)
+        return cls(hidden_index, type_index, index_value)
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            NodeArgIndex.as_type(),
+            MetaFromIntTypeIndex.as_type(),
+            Integer.as_type(),
+        ))
+
+    def _run_action(self, full_state: FullState) -> DefineStateHiddenInfoOutput:
+        hidden_index = self.inner_arg(self.idx_hidden_index).apply()
+        type_index = self.inner_arg(self.idx_type_index).apply()
+        index_value = self.inner_arg(self.idx_index_value).apply()
+        assert isinstance(hidden_index, NodeArgIndex)
+        assert isinstance(type_index, MetaFromIntTypeIndex)
+        assert isinstance(index_value, Integer)
+
+        node_type = type_index.find_in_outer_node(full_state).value_or_raise
+        assert isinstance(node_type, TypeNode) and issubclass(node_type.type, IFromInt)
+        hidden_value = node_type.type.from_int(index_value.as_int)
+
+        state = full_state.current_state.apply().real(State)
+        meta_info = state.meta_info.apply().real(StateMetaInfo)
+        hidden_info = meta_info.hidden_info.apply().real(StateMetaHiddenInfo)
+        hidden_info = hidden_index.replace_in_target(hidden_info, hidden_value).value_or_raise
+
+        return DefineStateHiddenInfoOutput(hidden_info)
 
 ###########################################################
 ################## SCRATCH BASE ACTIONS ###################

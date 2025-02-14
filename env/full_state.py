@@ -101,6 +101,19 @@ class BaseActionData(InheritableNode, ABC):
     ) -> typing.Self:
         return cls(action, output, exception)
 
+    def _strict_validate(self):
+        alias_info = self._thin_strict_validate()
+        action = self.action.apply().cast(Optional[IAction]).value
+        if action is not None:
+            action.as_node.strict_validate()
+        output = self.output.apply().cast(Optional[IActionOutput]).value
+        if output is not None:
+            output.as_node.strict_validate()
+        exception = self.exception.apply().cast(Optional[IExceptionInfo]).value
+        if exception is not None:
+            exception.as_node.validate()
+        return alias_info
+
 class SuccessActionData(BaseActionData, IInstantiable):
 
     @classmethod

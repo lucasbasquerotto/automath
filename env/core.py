@@ -992,9 +992,17 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
             assert len(args) == len(type_group.args), \
                 f'{type(self)}: {len(args)} != {len(type_group.args)}'
 
-    def _strict_validate(self) -> AliasInfo:
+    def _thin_strict_validate(self) -> AliasInfo:
         self.validate()
         alias_info = self.protocol().verify_args(DefaultGroup(*self.args))
+        for arg in self.args:
+            arg.as_node.validate()
+        return alias_info
+
+    def _strict_validate(self) -> AliasInfo:
+        alias_info = self._thin_strict_validate()
+        for arg in self.args:
+            arg.as_node.strict_validate()
         return alias_info
 
     def full_strict_validate(self):
@@ -1726,7 +1734,6 @@ class AliasInfo(
                 actual_group,
                 Optional(full_type),
             ).value_or_raise
-            new_group.strict_validate()
             actual_group = new_group
         elif isinstance(type_index, LazyTypeIndex):
             IBoolean.from_bool(not type_index.present_in_node(old_type_opt)).raise_on_false()
@@ -2480,6 +2487,9 @@ class ScopedFunctionBase(
     def expr(self) -> TmpInnerArg:
         return self.as_node.inner_arg(self.idx_expr)
 
+    def _strict_validate(self):
+        return self._thin_strict_validate()
+
     def fn_protocol(self) -> Protocol:
         return self.protocol_arg.apply().real(Protocol)
 
@@ -2603,7 +2613,7 @@ class BaseIntBoolean(BaseInt, IBoolean, IDefault, ABC):
 
     def _strict_validate(self):
         alias_info = super()._strict_validate()
-        Or(Eq(self, IntBoolean(0)), Eq(self, IntBoolean(1))).raise_on_false()
+        Or(Eq(self, self.func(0)), Eq(self, self.func(1))).raise_on_false()
         return alias_info
 
 class IntBoolean(BaseIntBoolean, IInstantiable):
@@ -2691,11 +2701,22 @@ class IExceptionInfo(INode, ABC):
         )
 
 class BooleanExceptionInfo(
-    BooleanWrapper,
+    InheritableNode,
     IExceptionInfo,
     IInstantiable,
 ):
-    pass
+
+    idx_value = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(
+            CountableTypeGroup(IBoolean.as_type()),
+        )
+
+    @property
+    def value(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_value)
 
 class TypeExceptionInfo(
     InheritableNode,

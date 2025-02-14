@@ -12,6 +12,8 @@ from env.core import (
     OptionalTypeGroup,
     Integer,
     Optional,
+    AliasInfo,
+    Type,
     InheritableNode,
     BaseGroup,
     NodeIntBaseIndex,
@@ -62,7 +64,7 @@ class Goal(InheritableNode, IGoal, typing.Generic[T, K], ABC):
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
             cls.goal_type().as_type(),
-            cls.eval_param_type().as_type(),
+            Type(cls.eval_param_type().as_type()),
         ))
 
     @property
@@ -340,7 +342,10 @@ class IContext(IWrapper, ABC):
     pass
 
 class Scratch(OptionalBase[INode], IContext, IOpaqueScope, IInstantiable):
-    pass
+
+    def _strict_validate(self):
+        self.validate()
+        return AliasInfo.create()
 
 class ScratchGroup(BaseGroup[Scratch], IInstantiable):
 
@@ -356,7 +361,9 @@ class ScratchGroup(BaseGroup[Scratch], IInstantiable):
         return tuple(s.value for s in self.as_tuple)
 
 class PartialArgsGroup(BaseOptionalValueGroup[INode], IOpaqueScope, IInstantiable):
-    pass
+
+    def _strict_validate(self):
+        return self._thin_strict_validate()
 
 class PartialArgsOuterGroup(BaseGroup[PartialArgsGroup], IInstantiable):
 
