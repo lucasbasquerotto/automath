@@ -59,6 +59,7 @@ from env.full_state import (
     MetaFullStateIntIndexTypeIndex,
 )
 from env.action import (
+    IAction,
     BaseAction,
     IActionOutput,
     IBasicAction,
@@ -70,7 +71,13 @@ from env.action import (
 ###################### META ACTIONS #######################
 ###########################################################
 
-class DynamicActionOutput(InheritableNode, IActionOutput[FullState], IInstantiable):
+class IMetaAction(IAction[FullState], ABC):
+    pass
+
+class IMetaActionOutput(IActionOutput[FullState], ABC):
+    pass
+
+class DynamicActionOutput(InheritableNode, IMetaActionOutput, IInstantiable):
 
     idx_action = 1
     idx_action_output = 2
@@ -85,11 +92,13 @@ class DynamicActionOutput(InheritableNode, IActionOutput[FullState], IInstantiab
     def apply(self, full_state: FullState) -> State:
         action = self.inner_arg(self.idx_action).apply().cast(BaseAction)
         output = self.inner_arg(self.idx_action_output).apply().real(IActionOutput[FullState])
-        Eq(action.inner_run(full_state), output).raise_on_false()
-        return output.apply(full_state)
+        full_output = action.inner_run(full_state)
+        Eq(full_output.output.apply(), output).raise_on_false()
+        return full_output.new_state.apply().real(State)
 
 class DynamicAction(
     BasicAction[DynamicActionOutput],
+    IMetaAction,
     IInstantiable,
 ):
 
@@ -117,11 +126,12 @@ class DynamicAction(
         assert isinstance(scratch, Scratch)
 
         action = scratch.value_or_raise.real(BaseAction)
-        output = action.inner_run(full_state)
+        full_output = action.inner_run(full_state)
+        output = full_output.output.apply().real(IActionOutput[FullState])
 
         return DynamicActionOutput(action, output)
 
-class GroupActionOutput(InheritableNode, IActionOutput[FullState], IInstantiable):
+class GroupActionOutput(InheritableNode, IMetaActionOutput, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
@@ -141,7 +151,7 @@ class GroupActionOutput(InheritableNode, IActionOutput[FullState], IInstantiable
             action = item1.real(BaseAction)
             output = item2.real(IActionOutput[FullState])
             full_output = action.inner_run(full_state)
-            assert full_output.output.apply() == output
+            Eq(full_output.output.apply(), output).raise_on_false()
             new_state = full_output.new_state.apply().real(State)
             current = full_state.current.apply().real(HistoryNode)
             full_state = FullState.with_args(
@@ -150,7 +160,7 @@ class GroupActionOutput(InheritableNode, IActionOutput[FullState], IInstantiable
                 history=full_state.history.apply().real(HistoryGroupNode))
         return new_state
 
-class GroupAction(BaseAction[GroupActionOutput], IInstantiable):
+class GroupAction(BaseAction[GroupActionOutput], IMetaAction, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:

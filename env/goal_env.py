@@ -31,6 +31,7 @@ def _get_meta(
     return meta
 
 class GoalEnv(Environment):
+
     def __init__(
         self,
         goal: meta_env.IGoal,
@@ -60,3 +61,7 @@ class GoalEnv(Environment):
             reward_evaluator=reward_evaluator,
             max_steps=max_steps,
         )
+
+    @classmethod
+    def default_node_types(cls):
+        return tuple(load_all_subclasses_sorted())

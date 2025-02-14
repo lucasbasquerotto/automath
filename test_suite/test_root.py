@@ -8,6 +8,7 @@ from env.goal_env import GoalEnv
 from env.node_types import HaveScratch
 from test_suite import test_utils, basic_test, control_flow_test, indices_test
 from test_suite.action_impl import (
+    action_00_action_meta,
     action_01_state_meta,
     action_02_manage_scratch,
     action_03_define_scratch,
@@ -63,6 +64,7 @@ def _main_tests() -> list[full_state.FullState]:
     final_states += test_utils.run_module_test(basic_test.test)
     final_states += test_utils.run_module_test(control_flow_test.test)
     final_states += test_utils.run_module_test(indices_test.test)
+    final_states += test_utils.run_module_test(action_00_action_meta.test)
     final_states += test_utils.run_module_test(action_01_state_meta.test)
     final_states += test_utils.run_module_test(action_02_manage_scratch.test)
     final_states += test_utils.run_module_test(action_03_define_scratch.test)
