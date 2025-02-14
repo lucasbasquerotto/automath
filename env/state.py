@@ -6,7 +6,11 @@ from env.core import (
     BaseNode,
     IFunction,
     IOptional,
+    CompositeType,
+    IntBoolean,
     OptionalBase,
+    OptionalTypeGroup,
+    Integer,
     Optional,
     InheritableNode,
     BaseGroup,
@@ -176,10 +180,110 @@ class DynamicGoalGroup(BaseGroup[DynamicGoal], IInstantiable):
     def item_type(cls):
         return DynamicGoal
 
+class StateMetaHiddenInfo(InheritableNode, IDefault, IInstantiable):
+
+    idx_meta_hidden = 1
+    idx_history_amount_to_show = 2
+    idx_history_state_hidden = 3
+    idx_history_meta_hidden = 4
+    idx_history_action_hidden = 5
+    idx_history_action_output_hidden = 6
+    idx_history_action_exception_hidden = 7
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            IntBoolean.as_type(),
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(Integer.as_type())
+            ),
+            IntBoolean.as_type(),
+            IntBoolean.as_type(),
+            IntBoolean.as_type(),
+            IntBoolean.as_type(),
+            IntBoolean.as_type(),
+        ))
+
+    @property
+    def meta_hidden(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_meta_hidden)
+
+    @property
+    def history_amount_to_show(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_history_amount_to_show)
+
+    @property
+    def history_state_hidden(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_history_state_hidden)
+
+    @property
+    def history_meta_hidden(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_history_meta_hidden)
+
+    @property
+    def history_action_hidden(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_history_action_hidden)
+
+    @property
+    def history_action_output_hidden(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_history_action_output_hidden)
+
+    @property
+    def history_action_exception_hidden(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_history_action_exception_hidden)
+
+    @classmethod
+    def create(cls) -> typing.Self:
+        return cls.with_args()
+
+    @classmethod
+    def with_args(
+        cls,
+        meta_hidden: IntBoolean | None = None,
+        history_amount_to_show: Optional[Integer] | None = None,
+        history_state_hidden: IntBoolean | None = None,
+        history_meta_hidden: IntBoolean | None = None,
+        history_action_hidden: IntBoolean | None = None,
+        history_action_output_hidden: IntBoolean | None = None,
+        history_action_exception_hidden: IntBoolean | None = None,
+    ) -> typing.Self:
+        return cls(
+            meta_hidden or IBoolean.false(),
+            history_amount_to_show or Optional.create(),
+            history_state_hidden or IBoolean.false(),
+            history_meta_hidden or IBoolean.false(),
+            history_action_hidden or IBoolean.false(),
+            history_action_output_hidden or IBoolean.false(),
+            history_action_exception_hidden or IBoolean.false(),
+        )
+
+
 class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
 
     idx_goal_achieved = 1
     idx_dynamic_goal_group = 2
+    idx_hidden_info = 3
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            IGoalAchieved.as_type(),
+            DynamicGoalGroup.as_type(),
+            StateMetaHiddenInfo.as_type(),
+        ))
+
+    @property
+    def goal_achieved(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_goal_achieved)
+
+    @property
+    def dynamic_goal_group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_dynamic_goal_group)
+
+    @property
+    def hidden_info(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_hidden_info)
 
     @classmethod
     def create(cls) -> typing.Self:
@@ -194,43 +298,33 @@ class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
         return cls.with_goal_achieved(IGoalAchieved.from_goal_expr(goal))
 
     @classmethod
-    def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup(
-            IGoalAchieved.as_type(),
-            DynamicGoalGroup.as_type(),
-        ))
-
-    @property
-    def goal_achieved(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_goal_achieved)
-
-    @property
-    def dynamic_goal_group(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_dynamic_goal_group)
-
-    @classmethod
     def with_args(
         cls,
         goal_achieved: IGoalAchieved | None = None,
         dynamic_goal_group: DynamicGoalGroup | None = None,
+        hidden_info: StateMetaHiddenInfo | None = None,
     ) -> typing.Self:
         return cls(
             goal_achieved or GoalAchieved.create(),
             dynamic_goal_group or DynamicGoalGroup(),
+            hidden_info or StateMetaHiddenInfo.create(),
         )
 
     def with_new_args(
         self,
         goal_achieved: IGoalAchieved | None = None,
         dynamic_goal_group: DynamicGoalGroup | None = None,
+        hidden_info: StateMetaHiddenInfo | None = None,
     ) -> typing.Self:
         goal_achieved = goal_achieved or self.goal_achieved.apply().cast(IGoalAchieved)
         dynamic_goal_group = (
             dynamic_goal_group
             or self.dynamic_goal_group.apply().cast(DynamicGoalGroup))
+        hidden_info = hidden_info or self.hidden_info.apply().cast(StateMetaHiddenInfo)
         return self.with_args(
             goal_achieved=goal_achieved,
             dynamic_goal_group=dynamic_goal_group,
+            hidden_info=hidden_info,
         )
 
     def apply_goal_achieved(

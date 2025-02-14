@@ -17,7 +17,7 @@ from env.full_state import (
     HistoryGroupNode,
     HistoryNode,
     BaseActionData,
-    ErrorActionData,
+    ActionErrorActionData,
     SuccessActionData,
 )
 from env.meta_env import MetaInfo, SubtypeOuterGroup, GeneralTypeGroup, MetaData
@@ -90,7 +90,7 @@ def get_info_type_index(
     return meta_idx, node_idx
 
 def get_empty_exception(action: IAction):
-    return ErrorActionData.from_args(
+    return ActionErrorActionData.from_args(
         action=Optional(action),
         output=Optional(),
         exception=Optional(BooleanExceptionInfo(IsEmpty(Optional()))),

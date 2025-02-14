@@ -623,6 +623,7 @@ class BaseNode(IRunnable, ABC):
         if cached is not None:
             return cached
         alias_info = self._strict_validate()
+        assert alias_info is not None
         self._cached_valid_strict = alias_info
         return alias_info
 
@@ -909,8 +910,9 @@ class BaseInt(BaseNode, IInt, ISpecialValue, ABC):
         result = info.to_result(self)
         return RunInfoFullResult(result, OptionalValueGroup())
 
-    def _strict_validate(self) -> AliasInfo:
+    def _strict_validate(self):
         self.validate()
+        GreaterOrEqual(self, self.func(0)).raise_on_false()
         return AliasInfo.create()
 
 class Integer(BaseInt, IInstantiable):
@@ -1383,12 +1385,13 @@ class BaseGroup(InheritableNode, IGroup[T], IDefault, typing.Generic[T], ABC):
         return Integer(self.amount())
 
     def _strict_validate(self):
-        super()._strict_validate()
+        alias_info = super()._strict_validate()
         t = self.item_type()
         for arg in self.args:
             origin = typing.get_origin(t)
             t = origin if origin is not None else t
             assert isinstance(arg, t), f'{type(arg)} != {t}'
+        return alias_info
 
     def to_optional_group(self) -> OptionalValueGroup[T]:
         return OptionalValueGroup.from_optional_items(self.args)
@@ -1638,7 +1641,7 @@ class TypeAliasGroup(
         return TypeAlias
 
     def _strict_validate(self):
-        super()._strict_validate()
+        alias_info = super()._strict_validate()
         for i, arg_aux in enumerate(self.args):
             index = i + 1
             arg = arg_aux.real(TypeAlias)
@@ -1648,6 +1651,7 @@ class TypeAliasGroup(
                 invalid_group = DefaultGroup(*invalid_idxs)
                 raise InvalidNodeException(
                     TypeAliasIndexExceptionInfo(TypeIndex(index), arg, invalid_group))
+        return alias_info
 
 class TypeAliasOptionalGroup(
     BaseOptionalValueGroup[IType],
@@ -2263,10 +2267,11 @@ class TypeEnforcer(InheritableNode, IInstantiable):
         return self.inner_arg(self.idx_node)
 
     def _strict_validate(self):
-        super()._strict_validate()
+        alias_info = super()._strict_validate()
         t = self.type.apply().real(IType)
         node = self.node.apply()
         t.verify(node, alias_info=AliasInfo.create())
+        return alias_info
 
     def actual_instance(self) -> BaseNode:
         instance: BaseNode = self
@@ -2595,6 +2600,11 @@ class BaseIntBoolean(BaseInt, IBoolean, IDefault, ABC):
         if self.as_int == 1:
             return True
         raise InvalidNodeException(BooleanExceptionInfo(self))
+
+    def _strict_validate(self):
+        alias_info = super()._strict_validate()
+        Or(Eq(self, IntBoolean(0)), Eq(self, IntBoolean(1))).raise_on_false()
+        return alias_info
 
 class IntBoolean(BaseIntBoolean, IInstantiable):
     pass
@@ -3306,6 +3316,24 @@ class LessThan(DoubleIntBooleanNode, IInstantiable):
         assert isinstance(a, IInt)
         assert isinstance(b, IInt)
         return a.as_int < b.as_int
+
+class GreaterOrEqual(DoubleIntBooleanNode, IInstantiable):
+
+    @property
+    def as_bool(self) -> bool:
+        args = self.args
+        assert len(args) == 2
+        a, b = args
+        return Or(Eq(a, b), GreaterThan(a, b)).as_bool
+
+class LessOrEqual(DoubleIntBooleanNode, IInstantiable):
+
+    @property
+    def as_bool(self) -> bool:
+        args = self.args
+        assert len(args) == 2
+        a, b = args
+        return Or(Eq(a, b), LessThan(a, b)).as_bool
 
 class IsInsideRange(RunnableBoolean, IInstantiable):
 

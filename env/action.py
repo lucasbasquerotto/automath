@@ -32,9 +32,9 @@ from env.full_state import (
     HistoryNode,
     HistoryGroupNode,
     BaseActionData,
-    EmptyErrorActionData,
-    ErrorActionData,
-    FullErrorActionData,
+    ActionTypeErrorActionData,
+    ActionErrorActionData,
+    ActionOutputErrorActionData,
     SuccessActionData,
 )
 from env.symbol import Symbol
@@ -99,8 +99,8 @@ class ActionTypeExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiab
             IExceptionInfo.as_type(),
         ))
 
-    def to_action_data(self) -> EmptyErrorActionData:
-        return EmptyErrorActionData.from_args(
+    def to_action_data(self) -> ActionTypeErrorActionData:
+        return ActionTypeErrorActionData.from_args(
             action=Optional.create(),
             output=Optional.create(),
             exception=Optional(self),
@@ -126,8 +126,8 @@ class ActionInputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantia
     def exception(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_exception)
 
-    def to_action_data(self) -> ErrorActionData:
-        return ErrorActionData.from_args(
+    def to_action_data(self) -> ActionErrorActionData:
+        return ActionErrorActionData.from_args(
             action=Optional(self.action.apply().cast(BaseAction)),
             output=Optional.create(),
             exception=Optional(self.exception.apply().cast(IExceptionInfo)),
@@ -159,8 +159,8 @@ class ActionOutputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstanti
     def exception(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_exception)
 
-    def to_action_data(self) -> FullErrorActionData:
-        return FullErrorActionData.from_args(
+    def to_action_data(self) -> ActionOutputErrorActionData:
+        return ActionOutputErrorActionData.from_args(
             action=Optional(self.action.apply().cast(BaseAction)),
             output=Optional(self.output.apply().cast(IActionOutput)),
             exception=Optional(self.exception.apply().cast(IExceptionInfo)),

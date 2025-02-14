@@ -101,44 +101,6 @@ class BaseActionData(InheritableNode, ABC):
     ) -> typing.Self:
         return cls(action, output, exception)
 
-class EmptyActionData(BaseActionData, IInstantiable):
-
-    @classmethod
-    def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup(
-            CompositeType(
-                Optional.as_type(),
-                CountableTypeGroup(),
-            ),
-            CompositeType(
-                Optional.as_type(),
-                CountableTypeGroup(),
-            ),
-            CompositeType(
-                Optional.as_type(),
-                CountableTypeGroup(),
-            ),
-        ))
-
-class PendingActionData(BaseActionData, IInstantiable):
-
-    @classmethod
-    def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup(
-            CompositeType(
-                Optional.as_type(),
-                CountableTypeGroup(IAction.as_type()),
-            ),
-            CompositeType(
-                Optional.as_type(),
-                CountableTypeGroup(),
-            ),
-            CompositeType(
-                Optional.as_type(),
-                CountableTypeGroup(),
-            ),
-        ))
-
 class SuccessActionData(BaseActionData, IInstantiable):
 
     @classmethod
@@ -158,7 +120,7 @@ class SuccessActionData(BaseActionData, IInstantiable):
             ),
         ))
 
-class EmptyErrorActionData(BaseActionData, IInstantiable):
+class ActionTypeErrorActionData(BaseActionData, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
@@ -177,7 +139,7 @@ class EmptyErrorActionData(BaseActionData, IInstantiable):
             ),
         ))
 
-class ErrorActionData(BaseActionData, IInstantiable):
+class ActionErrorActionData(BaseActionData, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
@@ -196,7 +158,7 @@ class ErrorActionData(BaseActionData, IInstantiable):
             ),
         ))
 
-class FullErrorActionData(BaseActionData, IInstantiable):
+class ActionOutputErrorActionData(BaseActionData, IInstantiable):
 
     @classmethod
     def protocol(cls) -> Protocol:
