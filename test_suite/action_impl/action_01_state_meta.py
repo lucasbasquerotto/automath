@@ -654,8 +654,202 @@ def dynamic_goal_test():
 
     return [env.full_state]
 
+def state_hidden_info_test():
+    scratch_goal_1 = core.RestTypeGroup(core.INode.as_type())
+    goal = node_types_module.HaveScratch.with_goal(scratch_goal_1)
+
+    def has_goal(env: GoalEnv, goal: meta_env.IGoal):
+        selected_goal = env.full_state.nested_arg(
+            (full_state.FullState.idx_meta, meta_env.MetaInfo.idx_goal)
+        ).apply()
+        return selected_goal == goal
+
+    def fn_before_final_state(
+        meta: meta_env.MetaInfo,
+        goal: node_types_module.HaveScratch,
+        scratches: typing.Sequence[core.INode | None],
+    ) -> full_state.FullState:
+        state_meta = state.StateMetaInfo.with_goal_expr(goal)
+        return full_state.FullState.with_args(
+            meta=meta,
+            current=full_state.HistoryNode.with_args(
+                state=state.State.from_raw(
+                    meta_info=state_meta,
+                    scratches=scratches,
+                ),
+                meta_data=meta_env.MetaData.create(),
+            )
+        )
+
+    def run_boolean_state_hidden(env: GoalEnv, hidden_idx: int):
+        original_state = get_current_state(env)
+        original_meta_info = original_state.meta_info.apply().cast(state.StateMetaInfo)
+
+        # Run Action
+        meta_idx = get_from_int_type_index(core.IntBoolean, env)
+        raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
+        full_action = action_impl.DefineStateHiddenInfo(
+            core.NodeArgIndex(hidden_idx),
+            full_state.MetaFromIntTypeIndex(meta_idx),
+            core.Integer(1),
+        )
+        args_list = list(state.StateMetaHiddenInfo.create().node_args)
+        args_list[hidden_idx-1] = core.IntBoolean(1)
+        hidden_info = state.StateMetaHiddenInfo(*args_list)
+        output = action_impl.DefineStateHiddenInfoOutput(hidden_info)
+        env.step(raw_action)
+        current_state = get_current_state(env)
+        last_history_action = get_last_history_action(env)
+
+        # Verify
+        expected_history = full_state.SuccessActionData.from_args(
+            action=core.Optional(full_action),
+            output=core.Optional(output),
+            exception=core.Optional(),
+        )
+        if last_history_action != expected_history:
+            print('last_history_action:', env.symbol(last_history_action))
+            print('expected_history:', env.symbol(expected_history))
+        assert last_history_action == expected_history
+
+        meta_info = original_meta_info.with_new_args(hidden_info=hidden_info)
+        expected_state = original_state.with_new_args(meta_info=meta_info)
+        if current_state != expected_state:
+            print('current_state:', env.symbol(current_state))
+            print('expected_state:', env.symbol(expected_state))
+        assert current_state == expected_state
+
+        assert env.full_state.goal_achieved() is False
+
+        # Run Action
+        meta_idx = get_from_int_type_index(core.IntBoolean, env)
+        raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 0)
+        full_action = action_impl.DefineStateHiddenInfo(
+            core.NodeArgIndex(hidden_idx),
+            full_state.MetaFromIntTypeIndex(meta_idx),
+            core.Integer(0),
+        )
+        args_list = list(state.StateMetaHiddenInfo.create().node_args)
+        args_list[hidden_idx-1] = core.IntBoolean(0)
+        hidden_info = state.StateMetaHiddenInfo(*args_list)
+        output = action_impl.DefineStateHiddenInfoOutput(hidden_info)
+        env.step(raw_action)
+        current_state = get_current_state(env)
+        last_history_action = get_last_history_action(env)
+
+        # Verify
+        expected_history = full_state.SuccessActionData.from_args(
+            action=core.Optional(full_action),
+            output=core.Optional(output),
+            exception=core.Optional(),
+        )
+        if last_history_action != expected_history:
+            print('last_history_action:', env.symbol(last_history_action))
+            print('expected_history:', env.symbol(expected_history))
+        assert last_history_action == expected_history
+
+        expected_state = original_state
+        if current_state != expected_state:
+            print('current_state:', env.symbol(current_state))
+            print('expected_state:', env.symbol(expected_state))
+        assert current_state == expected_state
+
+        assert env.full_state.goal_achieved() is False
+
+    def run_history_amount_state_hidden(env: GoalEnv, amount: int):
+        original_state = get_current_state(env)
+        original_meta_info = original_state.meta_info.apply().cast(state.StateMetaInfo)
+
+        # Run Action
+        hidden_idx = state.StateMetaHiddenInfo.idx_history_amount_to_show
+        meta_idx = get_from_int_type_index(core.Integer, env)
+        raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, amount)
+        full_action = action_impl.DefineStateHiddenInfo(
+            core.NodeArgIndex(hidden_idx),
+            full_state.MetaFromIntTypeIndex(meta_idx),
+            core.Integer(amount),
+        )
+        args_list = list(state.StateMetaHiddenInfo.create().node_args)
+        args_list[hidden_idx-1] = core.Optional(core.Integer(amount))
+        hidden_info = state.StateMetaHiddenInfo(*args_list)
+        output = action_impl.DefineStateHiddenInfoOutput(hidden_info)
+        env.step(raw_action)
+        current_state = get_current_state(env)
+        last_history_action = get_last_history_action(env)
+
+        # Verify
+        expected_history = full_state.SuccessActionData.from_args(
+            action=core.Optional(full_action),
+            output=core.Optional(output),
+            exception=core.Optional(),
+        )
+        if last_history_action != expected_history:
+            print('last_history_action:', env.symbol(last_history_action))
+            print('expected_history:', env.symbol(expected_history))
+        assert last_history_action == expected_history
+
+        meta_info = original_meta_info.with_new_args(hidden_info=hidden_info)
+        expected_state = original_state.with_new_args(meta_info=meta_info)
+        if current_state != expected_state:
+            print('current_state:', env.symbol(current_state))
+            print('expected_state:', env.symbol(expected_state))
+        assert current_state == expected_state
+
+        assert env.full_state.goal_achieved() is False
+
+    env = GoalEnv(
+        goal=goal,
+        fn_initial_state=lambda meta: fn_before_final_state(
+            meta=meta,
+            goal=goal,
+            scratches=[scratch_goal_1],
+        ),
+    )
+    assert has_goal(env=env, goal=goal)
+    env.full_state.validate()
+
+    original_state = get_current_state(env)
+
+    run_boolean_state_hidden(env, state.StateMetaHiddenInfo.idx_meta_hidden)
+    run_boolean_state_hidden(env, state.StateMetaHiddenInfo.idx_history_state_hidden)
+    run_boolean_state_hidden(env, state.StateMetaHiddenInfo.idx_history_meta_hidden)
+    run_boolean_state_hidden(env, state.StateMetaHiddenInfo.idx_history_action_hidden)
+    run_boolean_state_hidden(env, state.StateMetaHiddenInfo.idx_history_action_output_hidden)
+    run_boolean_state_hidden(env, state.StateMetaHiddenInfo.idx_history_action_exception_hidden)
+
+    run_history_amount_state_hidden(env, 9)
+    run_history_amount_state_hidden(env, 5)
+    run_history_amount_state_hidden(env, 3)
+    run_history_amount_state_hidden(env, 2)
+    run_history_amount_state_hidden(env, 1)
+    run_history_amount_state_hidden(env, 9)
+
+    current_state = get_current_state(env)
+    assert current_state != original_state
+
+    # Run Action
+    raw_action = action_impl.ResetStateHiddenInfo.from_raw(0, 0, 0)
+    full_action = action_impl.ResetStateHiddenInfo()
+    output = action_impl.DefineStateHiddenInfoOutput(
+        state.StateMetaHiddenInfo.create()
+    )
+    env.step(raw_action)
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    assert current_state == original_state
+    assert last_history_action == full_state.SuccessActionData.from_args(
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+
+    return [env.full_state]
+
 def test() -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
     final_states += test_utils.run_test('>>goal_test', goal_test)
     final_states += test_utils.run_test('>>dynamic_goal_test', dynamic_goal_test)
+    final_states += test_utils.run_test('>>state_hidden_info_test', state_hidden_info_test)
     return final_states

@@ -8,6 +8,7 @@ from env.core import (
     NodeArgIndex,
     DefaultGroup,
     Integer,
+    BaseIntBoolean,
     Optional,
     Protocol,
     ISingleChild,
@@ -568,7 +569,9 @@ class DefineStateHiddenInfo(BasicAction[DefineStateHiddenInfoOutput], IInstantia
 
         node_type = type_index.find_in_outer_node(full_state).value_or_raise
         assert isinstance(node_type, TypeNode) and issubclass(node_type.type, IFromInt)
-        hidden_value = node_type.type.from_int(index_value.as_int)
+        hidden_value: INode = node_type.type.from_int(index_value.as_int)
+        if not issubclass(node_type.type, BaseIntBoolean):
+            hidden_value = Optional(hidden_value)
 
         state = full_state.current_state.apply().real(State)
         meta_info = state.meta_info.apply().real(StateMetaInfo)
