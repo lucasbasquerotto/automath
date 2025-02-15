@@ -797,6 +797,25 @@ def state_hidden_info_test():
 
         assert env.full_state.goal_achieved() is False
 
+    def reset_hidden_info(env: GoalEnv, original_state: state.State):
+        # Run Action
+        raw_action = action_impl.ResetStateHiddenInfo.from_raw(0, 0, 0)
+        full_action = action_impl.ResetStateHiddenInfo()
+        output = action_impl.DefineStateHiddenInfoOutput(
+            state.StateMetaHiddenInfo.create()
+        )
+        env.step(raw_action)
+        current_state = get_current_state(env)
+        last_history_action = get_last_history_action(env)
+
+        # Verify
+        assert current_state == original_state
+        assert last_history_action == full_state.SuccessActionData.from_args(
+            action=core.Optional(full_action),
+            output=core.Optional(output),
+            exception=core.Optional(),
+        )
+
     env = GoalEnv(
         goal=goal,
         fn_initial_state=lambda meta: fn_before_final_state(
@@ -824,26 +843,35 @@ def state_hidden_info_test():
     run_history_amount_state_hidden(env, 1)
     run_history_amount_state_hidden(env, 9)
 
+    prev_current_state = get_current_state(env)
+    assert prev_current_state != original_state
+
+    reset_hidden_info(env, original_state)
+
+    current_state = get_current_state(env)
+    assert current_state == original_state
+
+    meta_idx = get_from_int_type_index(core.IntBoolean, env)
+    hidden_idxs = [
+        state.StateMetaHiddenInfo.idx_meta_hidden,
+        state.StateMetaHiddenInfo.idx_history_state_hidden,
+        state.StateMetaHiddenInfo.idx_history_meta_hidden,
+        state.StateMetaHiddenInfo.idx_history_action_hidden,
+        state.StateMetaHiddenInfo.idx_history_action_output_hidden,
+        state.StateMetaHiddenInfo.idx_history_action_exception_hidden,
+    ]
+    for hidden_idx in hidden_idxs:
+        raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
+        env.step(raw_action)
+
     current_state = get_current_state(env)
     assert current_state != original_state
+    assert current_state != prev_current_state
 
-    # Run Action
-    raw_action = action_impl.ResetStateHiddenInfo.from_raw(0, 0, 0)
-    full_action = action_impl.ResetStateHiddenInfo()
-    output = action_impl.DefineStateHiddenInfoOutput(
-        state.StateMetaHiddenInfo.create()
-    )
-    env.step(raw_action)
+    reset_hidden_info(env, original_state)
+
     current_state = get_current_state(env)
-    last_history_action = get_last_history_action(env)
-
-    # Verify
     assert current_state == original_state
-    assert last_history_action == full_state.SuccessActionData.from_args(
-        action=core.Optional(full_action),
-        output=core.Optional(output),
-        exception=core.Optional(),
-    )
 
     return [env.full_state]
 
