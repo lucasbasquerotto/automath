@@ -1,5 +1,125 @@
+from __future__ import annotations
 import numpy as np
-from env import core, state
+from env import core, state, meta_env, full_state
+
+class MainNodeData:
+
+    def __init__(
+        self,
+        node_type: core.TypeNode,
+        hidden_index: int | None,
+        args: MainNodeData | tuple[MainNodeData, ...] | None,
+    ):
+        self.node_type = node_type
+        self.hidden_index = hidden_index
+        self.args = args
+
+_meta_hidden = state.StateMetaHiddenInfo.idx_meta_hidden
+_history_amount_to_show = state.StateMetaHiddenInfo.idx_history_amount_to_show
+_history_state_hidden = state.StateMetaHiddenInfo.idx_history_state_hidden
+_history_meta_hidden = state.StateMetaHiddenInfo.idx_history_meta_hidden
+_history_action_hidden = state.StateMetaHiddenInfo.idx_history_action_hidden
+_history_action_output_hidden = state.StateMetaHiddenInfo.idx_history_action_output_hidden
+_history_action_exception_hidden = state.StateMetaHiddenInfo.idx_history_action_exception_hidden
+
+_main_root_node = MainNodeData(
+    node_type=full_state.FullState.as_type(),
+    hidden_index=None,
+    args=(
+        MainNodeData(
+            node_type=meta_env.MetaInfo.as_type(),
+            hidden_index=_meta_hidden,
+            args=None,
+        ),
+        MainNodeData(
+            node_type=full_state.HistoryNode.as_type(),
+            hidden_index=None,
+            args=((
+                MainNodeData(
+                    node_type=state.State.as_type(),
+                    hidden_index=None,
+                    args=None,
+                ),
+                MainNodeData(
+                    node_type=meta_env.MetaData.as_type(),
+                    hidden_index=None,
+                    args=None,
+                ),
+                MainNodeData(
+                    node_type=meta_env.Optional.as_type(),
+                    hidden_index=None,
+                    args=None,
+                ),
+
+            )),
+        ),
+        MainNodeData(
+            node_type=full_state.HistoryGroupNode.as_type(),
+            hidden_index=_history_amount_to_show,
+            args=MainNodeData(
+                node_type=full_state.HistoryNode.as_type(),
+                hidden_index=None,
+                args=((
+                    MainNodeData(
+                        node_type=state.State.as_type(),
+                        hidden_index=_history_state_hidden,
+                        args=None,
+                    ),
+                    MainNodeData(
+                        node_type=meta_env.MetaData.as_type(),
+                        hidden_index=_history_meta_hidden,
+                        args=None,
+                    ),
+                    MainNodeData(
+                        node_type=meta_env.Optional.as_type(),
+                        hidden_index=None,
+                        args=((
+                            MainNodeData(
+                                node_type=full_state.BaseActionData.as_type(),
+                                hidden_index=None,
+                                args=((
+                                    MainNodeData(
+                                        node_type=meta_env.Optional.as_type(),
+                                        hidden_index=_history_action_hidden,
+                                        args=((
+                                            MainNodeData(
+                                                node_type=full_state.IAction.as_type(),
+                                                hidden_index=None,
+                                                args=None,
+                                            ),
+                                        )),
+                                    ),
+                                    MainNodeData(
+                                        node_type=meta_env.Optional.as_type(),
+                                        hidden_index=_history_action_output_hidden,
+                                        args=((
+                                            MainNodeData(
+                                                node_type=full_state.IActionOutput.as_type(),
+                                                hidden_index=None,
+                                                args=None,
+                                            ),
+                                        )),
+                                    ),
+                                    MainNodeData(
+                                        node_type=meta_env.Optional.as_type(),
+                                        hidden_index=_history_action_exception_hidden,
+                                        args=((
+                                            MainNodeData(
+                                                node_type=full_state.IExceptionInfo.as_type(),
+                                                hidden_index=None,
+                                                args=None,
+                                            ),
+                                        )),
+                                    ),
+                                )),
+                            ),
+                        )),
+                    ),
+                )),
+            ),
+        ),
+    ),
+)
 
 class NodeData:
 
@@ -15,14 +135,64 @@ class NodeData:
         root_node = self.node
         node_types = self.node_types
 
+        main_node = _main_root_node if isinstance(root_node, full_state.FullState) else None
+        current_state = (
+            root_node.current_state.apply().real(state.State)
+            if isinstance(root_node, full_state.FullState)
+            else None)
+        state_meta = (
+            current_state.meta_info.apply().real(state.StateMetaInfo)
+            if current_state is not None
+            else None)
+        hidden_info = (
+            state_meta.hidden_info.apply().real(state.StateMetaHiddenInfo)
+            if state_meta is not None
+            else None)
+
         size = len(root_node.as_node)
-        result = np.zeros((size, 8), dtype=np.int_)
-        pending_stack: list[tuple[int, int, int, int, core.INode]] = [(0, 0, 0, 0, root_node)]
+        result = np.zeros((size, 9), dtype=np.int_)
+        pending_stack: list[
+            tuple[int, int, int, int, core.INode, MainNodeData | None, bool]
+        ] = [(0, 0, 0, 0, root_node, main_node, False)]
         node_id = 0
+        hidden = 0
 
         while pending_stack:
-            current: tuple[int, int, int, int, core.INode] = pending_stack.pop()
-            parent_id, arg_id, parent_scope_id, context_parent_node_id, node = current
+            current: tuple[
+                int, int, int, int, core.INode, MainNodeData | None, bool
+            ] = pending_stack.pop()
+            (
+                parent_id,
+                arg_id,
+                parent_scope_id,
+                context_parent_node_id,
+                node,
+                main_node,
+                force_hidden,
+            ) = current
+
+            hidden_index: int | None = None
+            args_to_show: int | None = None
+            if main_node is not None:
+                assert isinstance(node, main_node.node_type.type)
+                hidden_index = main_node.hidden_index
+                if (
+                    hidden_index is not None
+                    and hidden_info is not None
+                ):
+                    if hidden_index == _history_amount_to_show:
+                        hidden_value_opt = hidden_info.inner_arg(
+                            hidden_index
+                        ).apply().real(core.Optional[core.BaseInt])
+                        if not hidden_value_opt.is_empty().as_bool:
+                            args_to_show = hidden_value_opt.value_or_raise.as_int
+                    else:
+                        hidden_value = hidden_info.inner_arg(
+                            hidden_index
+                        ).apply().real(core.BaseIntBoolean)
+                        if hidden_value.as_bool:
+                            hidden = 1
+
             node_id += 1
             idx = node_id - 1
             node_type_id = node_types.index(type(node)) + 1
@@ -68,12 +238,26 @@ class NodeData:
                     inner_arg_id = args_amount - i
                     arg = args[inner_arg_id - 1]
                     assert isinstance(arg, core.INode)
+                    arg_main_node: MainNodeData | None = None
+                    if main_node is not None and main_node.args is not None:
+                        if isinstance(main_node.args, MainNodeData):
+                            arg_main_node = main_node.args
+                        elif isinstance(main_node.args, tuple):
+                            arg_idx = inner_arg_id-1
+                            arg_main_node = main_node.args[arg_idx]
+                    arg_force_hidden = (
+                        args_to_show is not None and inner_arg_id > args_to_show
+                    )
                     pending_stack.append((
                         node_id,
                         inner_arg_id,
                         scope_id,
                         next_context_node_id,
                         arg,
+                        arg_main_node,
+                        arg_force_hidden,
                     ))
+
+            result[idx][8] = force_hidden or hidden
 
         return result

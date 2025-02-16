@@ -66,7 +66,7 @@ class Environment:
             node_types=node_types)
         return result
 
-    def to_node_data(self, node: core.INode) -> node_data.NodeData:
+    def node_data(self, node: core.INode) -> node_data.NodeData:
         node_types = self.full_state.node_types()
         result = node_data.NodeData(
             node=node,
