@@ -1,8 +1,10 @@
-from env import core
-from env import state
-from env import action
-from env import meta_env
-from env import full_state
+from env import (
+    core,
+    state,
+    action,
+    meta_env,
+full_state,
+)
 from env.symbol import Symbol
 from env.goal_env import GoalEnv
 from env.node_types import HaveScratch
@@ -40,6 +42,9 @@ def _final_verification(final_states: list[full_state.FullState]):
 
             expected_next_state = next_fs.current_state.apply()
             actual_next_state = actual_next_fs.current_state.apply()
+            if expected_next_state != actual_next_state:
+                print('actual_next_state:', Symbol.default(actual_next_state))
+                print('expected_next_state:', Symbol.default(expected_next_state))
             assert expected_next_state == actual_next_state, f'{i_case}-{i}'
             assert next_fs == actual_next_fs, f'{i_case}-{i}'
             last_action_data_opt = actual_next_fs.last_action_data

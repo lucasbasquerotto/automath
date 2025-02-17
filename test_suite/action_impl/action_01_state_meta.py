@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 import typing
 import numpy as np
 from env import (
@@ -682,7 +683,137 @@ def state_hidden_info_test():
                     scratches=scratches,
                 ),
                 meta_data=meta_env.MetaData.create(),
-            )
+            ),
+            history=full_state.HistoryGroupNode(
+                full_state.HistoryNode.with_args(
+                    state=state.State.from_raw(
+                        meta_info=state_meta,
+                        scratches=list(scratches) + [core.Void()]*6,
+                    ),
+                    meta_data=meta_env.MetaData.create(),
+                    action_data=core.Optional(
+                        full_state.SuccessActionData.from_args(
+                            action=core.Optional(action_impl.DeleteScratchOutput(
+                                state.StateScratchIndex(len(scratches)+2),
+                            )),
+                            output=core.Optional(action_impl.DeleteScratchOutput(
+                                state.StateScratchIndex(len(scratches)+2),
+                            )),
+                            exception=core.Optional(),
+                        ),
+                    ),
+                ),
+                full_state.HistoryNode.with_args(
+                    state=state.State.from_raw(
+                        meta_info=state_meta,
+                        scratches=list(scratches) + [core.Void()]*5,
+                    ),
+                    meta_data=meta_env.MetaData.create(),
+                    action_data=core.Optional(
+                        full_state.SuccessActionData.from_args(
+                            action=core.Optional(action_impl.DeleteScratchOutput(
+                                state.StateScratchIndex(len(scratches)+2),
+                            )),
+                            output=core.Optional(action_impl.DeleteScratchOutput(
+                                state.StateScratchIndex(len(scratches)+2),
+                            )),
+                            exception=core.Optional(),
+                        ),
+                    ),
+                ),
+                full_state.HistoryNode.with_args(
+                    state=state.State.from_raw(
+                        meta_info=state_meta,
+                        scratches=list(scratches) + [core.Void()]*4,
+                    ),
+                    meta_data=meta_env.MetaData.create(),
+                    action_data=core.Optional(
+                        full_state.SuccessActionData.from_args(
+                            action=core.Optional(action_impl.DeleteScratchOutput(
+                                state.StateScratchIndex(len(scratches)+2),
+                            )),
+                            output=core.Optional(action_impl.DeleteScratchOutput(
+                                state.StateScratchIndex(len(scratches)+2),
+                            )),
+                            exception=core.Optional(),
+                        ),
+                    ),
+                ),
+                full_state.HistoryNode.with_args(
+                    state=state.State.from_raw(
+                        meta_info=state_meta,
+                        scratches=list(scratches) + [core.Void()]*3,
+                    ),
+                    meta_data=meta_env.MetaData.create(),
+                    action_data=core.Optional(
+                        full_state.SuccessActionData.from_args(
+                            action=core.Optional(action_impl.DeleteScratchOutput(
+                                state.StateScratchIndex(len(scratches)+2),
+                            )),
+                            output=core.Optional(action_impl.DeleteScratchOutput(
+                                state.StateScratchIndex(len(scratches)+2),
+                            )),
+                            exception=core.Optional(),
+                        ),
+                    ),
+                ),
+                full_state.HistoryNode.with_args(
+                    state=state.State.from_raw(
+                        meta_info=state_meta,
+                        scratches=list(scratches) + [core.Void()]*2,
+                    ),
+                    meta_data=meta_env.MetaData.create(),
+                    action_data=core.Optional(
+                        full_state.SuccessActionData.from_args(
+                            action=core.Optional(action_impl.DeleteScratchOutput(
+                                state.StateScratchIndex(len(scratches)+2),
+                            )),
+                            output=core.Optional(action_impl.DeleteScratchOutput(
+                                state.StateScratchIndex(len(scratches)+2),
+                            )),
+                            exception=core.Optional(),
+                        ),
+                    ),
+                ),
+                full_state.HistoryNode.with_args(
+                    state=state.State.from_raw(
+                        meta_info=state_meta,
+                        scratches=list(scratches) + [core.Void()],
+                    ),
+                    meta_data=meta_env.MetaData.create(),
+                    action_data=core.Optional(
+                        full_state.ActionOutputErrorActionData.from_args(
+                            action=core.Optional(action_impl.DeleteScratchOutput(
+                                state.StateScratchIndex(len(scratches)+2),
+                            )),
+                            output=core.Optional(action_impl.DeleteScratchOutput(
+                                state.StateScratchIndex(len(scratches)+2),
+                            )),
+                            exception=core.Optional(
+                                core.BooleanExceptionInfo(core.IsEmpty(core.Optional()))
+                            ),
+                        ),
+                    ),
+                ),
+                full_state.HistoryNode.with_args(
+                    state=state.State.from_raw(
+                        meta_info=state_meta,
+                        scratches=list(scratches) + [core.Void()],
+                    ),
+                    meta_data=meta_env.MetaData.create(),
+                    action_data=core.Optional(
+                        full_state.SuccessActionData.from_args(
+                            action=core.Optional(action_impl.DeleteScratchOutput(
+                                state.StateScratchIndex(len(scratches)+1),
+                            )),
+                            output=core.Optional(action_impl.DeleteScratchOutput(
+                                state.StateScratchIndex(len(scratches)+1),
+                            )),
+                            exception=core.Optional(),
+                        ),
+                    ),
+                ),
+            ),
         )
 
     def run_boolean_state_hidden(env: GoalEnv, hidden_idx: int):
@@ -838,6 +969,7 @@ def state_hidden_info_test():
     env.full_state.validate()
 
     original_state = get_current_state(env)
+    initial_history = env.full_state.history.apply().real(full_state.HistoryGroupNode)
 
     run_boolean_state_hidden(env, state.StateMetaHiddenInfo.idx_meta_hidden)
     run_boolean_state_hidden(env, state.StateMetaHiddenInfo.idx_history_state_hidden)
@@ -996,6 +1128,211 @@ def state_hidden_info_test():
         + len(env.full_state.current.apply())
         + len(env.full_state.history.apply()))
     assert len(full_data_array) == current_len
+    assert current_len < prev_len
+    assert main_len < current_len
+
+    def get_history_to_show() -> full_state.HistoryGroupNode:
+        history_items = env.full_state.history.apply().real(full_state.HistoryGroupNode).as_tuple
+        items_to_show = history_items[len(history_items)-history_amount:len(history_items)]
+        assert len(items_to_show) == history_amount
+        history = full_state.HistoryGroupNode(*items_to_show)
+        return history
+
+    hidden_idx = state.StateMetaHiddenInfo.idx_history_amount_to_show
+    meta_idx = get_from_int_type_index(core.Integer, env)
+    history_amount = len(
+        env.full_state.history.apply().real(full_state.HistoryGroupNode).as_tuple
+    ) - 1
+    raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, history_amount)
+    env.step(raw_action)
+
+    full_data_array = node_data.NodeData(
+        node=env.full_state,
+        node_types=node_types,
+    ).to_data_array()
+    history = get_history_to_show()
+    for i in range(len(initial_history.as_tuple)-2):
+        assert history.as_tuple[i] == initial_history.as_tuple[i+2]
+    prev_len = current_len
+    current_len = (
+        1
+        + len(env.full_state.current.apply())
+        + len(history))
+    assert len(full_data_array) == current_len, (len(full_data_array), current_len)
+    assert current_len < prev_len
+    assert main_len < current_len
+
+    def get_partial_action_data(
+        item: full_state.HistoryNode,
+        hide_action=False,
+        hide_output=False,
+        hide_exception=False,
+    ):
+        action_data_opt = item.action_data.apply().cast(core.IOptional)
+        action_data = action_data_opt.value_or_raise
+        assert isinstance(action_data, full_state.BaseActionData)
+        items = [
+            action_data.action.apply() if not hide_action else None,
+            action_data.output.apply() if not hide_output else None,
+            action_data.exception.apply() if not hide_exception else None,
+        ]
+        return core.Optional(core.DefaultGroup(*[item for item in items if item is not None]))
+
+    hidden_idx = state.StateMetaHiddenInfo.idx_history_action_exception_hidden
+    meta_idx = get_from_int_type_index(core.IntBoolean, env)
+    raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
+    env.step(raw_action)
+
+    full_data_array = node_data.NodeData(
+        node=env.full_state,
+        node_types=node_types,
+    ).to_data_array()
+    history = get_history_to_show()
+    prev_history = history
+    partial_history = full_state.HistoryGroupNode(*[
+        core.DefaultGroup(
+            item.state.apply(),
+            item.meta_data.apply(),
+            get_partial_action_data(item, hide_exception=True),
+        )
+        for item in history.as_tuple
+    ])
+    assert len(partial_history) < len(prev_history)
+    prev_history = partial_history
+    prev_len = current_len
+    current_len = (
+        1
+        + len(env.full_state.current.apply())
+        + len(partial_history))
+    assert len(full_data_array) == current_len, (len(full_data_array), current_len)
+    assert current_len < prev_len
+    assert main_len < current_len
+
+    hidden_idx = state.StateMetaHiddenInfo.idx_history_action_hidden
+    meta_idx = get_from_int_type_index(core.IntBoolean, env)
+    raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
+    env.step(raw_action)
+
+    full_data_array = node_data.NodeData(
+        node=env.full_state,
+        node_types=node_types,
+    ).to_data_array()
+    history = get_history_to_show()
+    partial_history = full_state.HistoryGroupNode(*[
+        core.DefaultGroup(
+            item.state.apply(),
+            item.meta_data.apply(),
+            get_partial_action_data(item, hide_action=True, hide_exception=True),
+        )
+        for item in history.as_tuple
+    ])
+    assert len(partial_history) < len(prev_history)
+    prev_history = partial_history
+    prev_len = current_len
+    current_len = (
+        1
+        + len(env.full_state.current.apply())
+        + len(partial_history))
+    assert len(full_data_array) == current_len, (len(full_data_array), current_len)
+    assert current_len < prev_len
+    assert main_len < current_len
+
+    hidden_idx = state.StateMetaHiddenInfo.idx_history_action_output_hidden
+    meta_idx = get_from_int_type_index(core.IntBoolean, env)
+    raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
+    env.step(raw_action)
+
+    full_data_array = node_data.NodeData(
+        node=env.full_state,
+        node_types=node_types,
+    ).to_data_array()
+    history = get_history_to_show()
+    partial_history = full_state.HistoryGroupNode(*[
+        core.DefaultGroup(
+            item.state.apply(),
+            item.meta_data.apply(),
+            get_partial_action_data(
+                item,
+                hide_action=True,
+                hide_output=True,
+                hide_exception=True,
+            ),
+        )
+        for item in history.as_tuple
+    ])
+    assert len(partial_history) < len(prev_history)
+    prev_history = partial_history
+    prev_len = current_len
+    current_len = (
+        1
+        + len(env.full_state.current.apply())
+        + len(partial_history))
+    assert len(full_data_array) == current_len, (len(full_data_array), current_len)
+    assert current_len < prev_len
+    assert main_len < current_len
+
+    hidden_idx = state.StateMetaHiddenInfo.idx_history_state_hidden
+    meta_idx = get_from_int_type_index(core.IntBoolean, env)
+    raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
+    env.step(raw_action)
+
+    full_data_array = node_data.NodeData(
+        node=env.full_state,
+        node_types=node_types,
+    ).to_data_array()
+    history = get_history_to_show()
+    partial_history = full_state.HistoryGroupNode(*[
+        core.DefaultGroup(
+            item.meta_data.apply(),
+            get_partial_action_data(
+                item,
+                hide_action=True,
+                hide_output=True,
+                hide_exception=True,
+            ),
+        )
+        for item in history.as_tuple
+    ])
+    assert len(partial_history) < len(prev_history)
+    prev_history = partial_history
+    prev_len = current_len
+    current_len = (
+        1
+        + len(env.full_state.current.apply())
+        + len(partial_history))
+    assert len(full_data_array) == current_len, (len(full_data_array), current_len)
+    assert current_len < prev_len
+    assert main_len < current_len
+
+    hidden_idx = state.StateMetaHiddenInfo.idx_history_meta_hidden
+    meta_idx = get_from_int_type_index(core.IntBoolean, env)
+    raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
+    env.step(raw_action)
+
+    full_data_array = node_data.NodeData(
+        node=env.full_state,
+        node_types=node_types,
+    ).to_data_array()
+    history = get_history_to_show()
+    partial_history = full_state.HistoryGroupNode(*[
+        core.DefaultGroup(
+            get_partial_action_data(
+                item,
+                hide_action=True,
+                hide_output=True,
+                hide_exception=True,
+            ),
+        )
+        for item in history.as_tuple
+    ])
+    assert len(partial_history) < len(prev_history)
+    prev_history = partial_history
+    prev_len = current_len
+    current_len = (
+        1
+        + len(env.full_state.current.apply())
+        + len(partial_history))
+    assert len(full_data_array) == current_len, (len(full_data_array), current_len)
     assert current_len < prev_len
     assert main_len < current_len
 

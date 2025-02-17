@@ -267,7 +267,7 @@ class NodeData:
                             arg_idx = inner_arg_id-1
                             arg_main_node = main_node.args[arg_idx]
                     arg_force_hidden = hidden or (
-                        args_to_show is not None and inner_arg_id > args_to_show
+                        args_to_show is not None and inner_arg_id <= args_amount - args_to_show
                     )
                     pending_stack.append((
                         node_id,
