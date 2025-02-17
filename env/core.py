@@ -1316,18 +1316,37 @@ class NodeMainIndex(NodeMainBaseIndex, IInstantiable):
 class NodeArgBaseIndex(NodeIntBaseIndex, ABC):
 
     def find_in_node(self, node: INode) -> IOptional[INode]:
-        index = self.as_int
+        return self._find_in_node_general(node, reverse=False)
+
+    def replace_in_target(self, target_node: T, new_node: INode) -> IOptional[T]:
+        return self._replace_in_target_general(target_node, new_node, reverse=False)
+
+    def remove_in_target(self, target_node: T) -> Optional[T]:
+        return self._remove_in_target_general(target_node, reverse=False)
+
+    def _index_value(self, node: InheritableNode, reverse: bool) -> int:
+        base_index = self.as_int
+        args = node.args
+        return len(args) - base_index if reverse else base_index
+
+    def _find_in_node_general(self, node: INode, reverse: bool) -> IOptional[INode]:
         if not isinstance(node, InheritableNode):
             return Optional()
+        index = self._index_value(node, reverse)
         args = node.args
         if 0 < index <= len(args):
             return Optional(args[index - 1])
         return Optional()
 
-    def replace_in_target(self, target_node: T, new_node: INode) -> IOptional[T]:
+    def _replace_in_target_general(
+        self,
+        target_node: T,
+        new_node: INode,
+        reverse: bool,
+    ) -> IOptional[T]:
         if not isinstance(target_node, InheritableNode):
             return Optional()
-        index = self.as_int
+        index = self._index_value(target_node, reverse)
         args = target_node.args
         if 0 < index <= len(args):
             new_target = target_node.func(*[
@@ -1338,10 +1357,10 @@ class NodeArgBaseIndex(NodeIntBaseIndex, ABC):
             return Optional(new_target).real(IOptional[T])
         return Optional()
 
-    def remove_in_target(self, target_node: T) -> Optional[T]:
+    def _remove_in_target_general(self, target_node: T, reverse: bool) -> Optional[T]:
         if not isinstance(target_node, InheritableNode):
             return Optional()
-        index = self.as_int
+        index = self._index_value(target_node, reverse)
         args = target_node.args
         if 0 < index <= len(args):
             new_args = [
@@ -1356,6 +1375,17 @@ class NodeArgBaseIndex(NodeIntBaseIndex, ABC):
 
 class NodeArgIndex(NodeArgBaseIndex, IInstantiable):
     pass
+
+class NodeArgReverseIndex(NodeArgBaseIndex, IInstantiable):
+
+    def find_in_node(self, node: INode) -> IOptional[INode]:
+        return self._find_in_node_general(node, reverse=True)
+
+    def replace_in_target(self, target_node: T, new_node: INode) -> IOptional[T]:
+        return self._replace_in_target_general(target_node, new_node, reverse=True)
+
+    def remove_in_target(self, target_node: T) -> Optional[T]:
+        return self._remove_in_target_general(target_node, reverse=True)
 
 ###########################################################
 ####################### ITEMS GROUP #######################

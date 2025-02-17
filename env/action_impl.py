@@ -6,6 +6,7 @@ from env.core import (
     IInheritableNode,
     InheritableNode,
     NodeArgIndex,
+    NodeArgReverseIndex,
     DefaultGroup,
     Integer,
     BaseIntBoolean,
@@ -183,6 +184,31 @@ class GroupAction(BaseAction[GroupActionOutput], IMetaAction, IInstantiable):
                 history=full_state.history.apply().real(HistoryGroupNode))
             items.append(DefaultGroup(action, output))
         return GroupActionOutput(*items)
+
+class RestoreHistoryStateOutput(GeneralAction, IInstantiable):
+
+    idx_recent_history_index = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            NodeArgReverseIndex.as_type(),
+        ))
+
+    @classmethod
+    def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
+        index = NodeArgReverseIndex(arg1)
+        Eq.from_ints(arg2, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
+        return cls(index)
+
+    def apply(self, full_state: FullState) -> State:
+        index = self.inner_arg(self.idx_recent_history_index).apply()
+        assert isinstance(index, NodeArgReverseIndex)
+        history = full_state.history.apply().real(HistoryGroupNode)
+        history_item = index.find_in_node(history).value_or_raise.real(HistoryNode)
+        new_state = history_item.state.apply().real(State)
+        return new_state
 
 ###########################################################
 ################### STATE META ACTIONS ####################
