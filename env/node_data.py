@@ -132,19 +132,14 @@ class NodeData:
         self.node_types = node_types
 
     def to_data_array(self) -> np.ndarray[np.int_, np.dtype]:
-        return self.to_data_array_with_specs(
-            root_node_id=1,
-            initial_parent_id=0,
-            initial_arg_id=0,
-            initial_scope_id=0,
-        )
+        return self.to_data_array_with_specs(root_node_id=1)
 
     def to_data_array_with_specs(
         self,
         root_node_id: int,
-        initial_parent_id: int,
-        initial_arg_id: int,
-        initial_scope_id: int,
+        initial_parent_id: int = 0,
+        initial_arg_id: int = 0,
+        initial_scope_id: int = 0,
     ) -> np.ndarray[np.int_, np.dtype]:
         root_node = self.node
         node_types = self.node_types

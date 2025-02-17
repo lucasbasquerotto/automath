@@ -925,6 +925,85 @@ def state_hidden_info_test():
     current_state = get_current_state(env)
     assert current_state == original_state
 
+    hidden_idx = state.StateMetaHiddenInfo.idx_meta_hidden
+    meta_idx = get_from_int_type_index(core.IntBoolean, env)
+    raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
+    env.step(raw_action)
+
+    node_types = env.full_state.node_types()
+    full_data_array = node_data.NodeData(
+        node=env.full_state,
+        node_types=node_types,
+    ).to_data_array()
+    # Remove FullState root node
+    # (will remain only the "current" state node, and its children,
+    # because the other FullState children will be hidden)
+    actual_data_array = full_data_array[1:]
+    initial_parent_id = int(actual_data_array[0, 0]) - 2
+    expected_data_array_aux = node_data.NodeData(
+        node=core.DefaultGroup(
+            core.Void(),
+            env.full_state.current.apply(),
+            env.full_state.history.apply(),
+        ),
+        node_types=node_types,
+    ).to_data_array_with_specs(
+        root_node_id=initial_parent_id,
+        initial_scope_id=1,
+    )
+    expected_data_array = expected_data_array_aux[2:]
+    # in each row, if the 2nd element is equal to initial_parent_id, change to 1
+    expected_data_array[:, 1] = np.where(
+        expected_data_array[:, 1] == initial_parent_id,
+        1,
+        expected_data_array[:, 1]
+    )
+    same_array = np.array_equal(actual_data_array, expected_data_array)
+    if not same_array:
+        print('actual_data_array:', actual_data_array.shape)
+        print(actual_data_array)
+        print('expected_data_array:', expected_data_array.shape)
+        print(expected_data_array)
+    assert same_array
+
+    reset_hidden_info(env, original_state)
+
+    current_state = get_current_state(env)
+    assert current_state == original_state
+
+    full_data_array = node_data.NodeData(
+        node=env.full_state,
+        node_types=node_types,
+    ).to_data_array()
+    current_len = len(env.full_state)
+    assert len(full_data_array) == current_len
+    main_len = len(env.full_state.current.apply())
+    assert main_len > 0
+    assert main_len < current_len
+
+    hidden_idx = state.StateMetaHiddenInfo.idx_meta_hidden
+    meta_idx = get_from_int_type_index(core.IntBoolean, env)
+    raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
+    env.step(raw_action)
+
+    full_data_array = node_data.NodeData(
+        node=env.full_state,
+        node_types=node_types,
+    ).to_data_array()
+    prev_len = current_len
+    current_len = (
+        1
+        + len(env.full_state.current.apply())
+        + len(env.full_state.history.apply()))
+    assert len(full_data_array) == current_len
+    assert current_len < prev_len
+    assert main_len < current_len
+
+    reset_hidden_info(env, original_state)
+
+    current_state = get_current_state(env)
+    assert current_state == original_state
+
     return [env.full_state]
 
 def test() -> list[full_state.FullState]:
