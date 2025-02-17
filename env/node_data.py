@@ -132,6 +132,20 @@ class NodeData:
         self.node_types = node_types
 
     def to_data_array(self) -> np.ndarray[np.int_, np.dtype]:
+        return self.to_data_array_with_specs(
+            root_node_id=1,
+            initial_parent_id=0,
+            initial_arg_id=0,
+            initial_scope_id=0,
+        )
+
+    def to_data_array_with_specs(
+        self,
+        root_node_id: int,
+        initial_parent_id: int,
+        initial_arg_id: int,
+        initial_scope_id: int,
+    ) -> np.ndarray[np.int_, np.dtype]:
         root_node = self.node
         node_types = self.node_types
 
@@ -153,9 +167,17 @@ class NodeData:
         result = np.zeros((size, 9), dtype=np.int_)
         pending_stack: list[
             tuple[int, int, int, int, core.INode, MainNodeData | None, bool]
-        ] = [(0, 0, 0, 0, root_node, main_node, False)]
-        node_id = 0
-        hidden = 0
+        ] = [(
+            initial_parent_id,
+            initial_arg_id,
+            initial_scope_id,
+            0,
+            root_node,
+            main_node,
+            False,
+        )]
+        offset = root_node_id - 1
+        node_id = offset
 
         while pending_stack:
             current: tuple[
@@ -173,7 +195,8 @@ class NodeData:
 
             hidden_index: int | None = None
             args_to_show: int | None = None
-            if main_node is not None:
+            hidden = force_hidden
+            if main_node is not None and not hidden:
                 assert isinstance(node, main_node.node_type.type)
                 hidden_index = main_node.hidden_index
                 if (
@@ -186,18 +209,21 @@ class NodeData:
                         ).apply().real(core.Optional[core.BaseInt])
                         if not hidden_value_opt.is_empty().as_bool:
                             args_to_show = hidden_value_opt.value_or_raise.as_int
+                            if args_to_show == 0:
+                                hidden = True
                     else:
                         hidden_value = hidden_info.inner_arg(
                             hidden_index
                         ).apply().real(core.BaseIntBoolean)
                         if hidden_value.as_bool:
-                            hidden = 1
+                            hidden = True
 
             node_id += 1
-            idx = node_id - 1
+            idx = node_id - 1 - offset
             node_type_id = node_types.index(type(node)) + 1
+            next_context_node_id_offset = offset if parent_id == initial_parent_id else 0
             next_context_node_id = (
-                (context_parent_node_id + (node_id - parent_id))
+                (context_parent_node_id + (node_id - parent_id - next_context_node_id_offset))
                 if context_parent_node_id > 0
                 else (1 if isinstance(node, state.IContext) else 0)
             )
@@ -245,7 +271,7 @@ class NodeData:
                         elif isinstance(main_node.args, tuple):
                             arg_idx = inner_arg_id-1
                             arg_main_node = main_node.args[arg_idx]
-                    arg_force_hidden = (
+                    arg_force_hidden = hidden or (
                         args_to_show is not None and inner_arg_id > args_to_show
                     )
                     pending_stack.append((
@@ -258,6 +284,10 @@ class NodeData:
                         arg_force_hidden,
                     ))
 
-            result[idx][8] = force_hidden or hidden
+            result[idx][8] = 1 if force_hidden or hidden else 0
+
+        # remove the hidden nodes
+        result = result[result[:, -1] == 0][:, :-1]
 
         return result
+

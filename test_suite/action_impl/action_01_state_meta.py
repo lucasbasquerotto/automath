@@ -1,10 +1,14 @@
 import typing
-from env import core
-from env import action_impl
-from env import state
-from env import meta_env
-from env import full_state
-from env import node_types as node_types_module
+import numpy as np
+from env import (
+    core,
+    action_impl,
+    state,
+    meta_env,
+    full_state,
+    node_types as node_types_module,
+    node_data,
+)
 from env.goal_env import GoalEnv
 from test_suite import test_utils
 
@@ -756,9 +760,11 @@ def state_hidden_info_test():
 
         assert env.full_state.goal_achieved() is False
 
-    def run_history_amount_state_hidden(env: GoalEnv, amount: int):
+    def run_history_amount_state_hidden(env: GoalEnv, amount: int, changed_hidden_info=False):
         original_state = get_current_state(env)
         original_meta_info = original_state.meta_info.apply().cast(state.StateMetaInfo)
+        original_hidden_info = original_meta_info.hidden_info.apply().cast(
+            state.StateMetaHiddenInfo)
 
         # Run Action
         hidden_idx = state.StateMetaHiddenInfo.idx_history_amount_to_show
@@ -769,7 +775,11 @@ def state_hidden_info_test():
             full_state.MetaFromIntTypeIndex(meta_idx),
             core.Integer(amount),
         )
-        args_list = list(state.StateMetaHiddenInfo.create().node_args)
+        args_list = list((
+            original_hidden_info
+            if changed_hidden_info
+            else state.StateMetaHiddenInfo.create()
+        ).node_args)
         args_list[hidden_idx-1] = core.Optional(core.Integer(amount))
         hidden_info = state.StateMetaHiddenInfo(*args_list)
         output = action_impl.DefineStateHiddenInfoOutput(hidden_info)
@@ -841,7 +851,7 @@ def state_hidden_info_test():
     run_history_amount_state_hidden(env, 3)
     run_history_amount_state_hidden(env, 2)
     run_history_amount_state_hidden(env, 1)
-    run_history_amount_state_hidden(env, 9)
+    run_history_amount_state_hidden(env, 0)
 
     prev_current_state = get_current_state(env)
     assert prev_current_state != original_state
@@ -867,6 +877,44 @@ def state_hidden_info_test():
     current_state = get_current_state(env)
     assert current_state != original_state
     assert current_state != prev_current_state
+
+    reset_hidden_info(env, original_state)
+
+    current_state = get_current_state(env)
+    assert current_state == original_state
+
+    hidden_idx = state.StateMetaHiddenInfo.idx_meta_hidden
+    meta_idx = get_from_int_type_index(core.IntBoolean, env)
+    raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
+    env.step(raw_action)
+    run_history_amount_state_hidden(env, 0, changed_hidden_info=True)
+
+    current_state = get_current_state(env)
+    assert current_state != original_state
+
+    node_types = env.full_state.node_types()
+    full_data_array = node_data.NodeData(
+        node=env.full_state,
+        node_types=node_types,
+    ).to_data_array()
+    actual_data_array = full_data_array[1:]
+    initial_node_id = int(actual_data_array[0, 0])
+    expected_data_array = node_data.NodeData(
+        node=env.full_state.current.apply(),
+        node_types=node_types,
+    ).to_data_array_with_specs(
+        root_node_id=initial_node_id,
+        initial_parent_id=1,
+        initial_arg_id=env.full_state.idx_current,
+        initial_scope_id=1,
+    )
+    same_array = np.array_equal(actual_data_array, expected_data_array)
+    if not same_array:
+        print('actual_data_array:', actual_data_array.shape)
+        print(actual_data_array)
+        print('expected_data_array:', expected_data_array.shape)
+        print(expected_data_array)
+    assert same_array
 
     reset_hidden_info(env, original_state)
 
