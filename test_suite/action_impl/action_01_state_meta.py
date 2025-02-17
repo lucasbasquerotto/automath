@@ -897,7 +897,11 @@ def state_hidden_info_test():
         node=env.full_state,
         node_types=node_types,
     ).to_data_array()
+    # Remove FullState root node
+    # (will remain only the "current" state node, and its children,
+    # because the other FullState children will be hidden)
     actual_data_array = full_data_array[1:]
+    # node_id of the "current" state node
     initial_node_id = int(actual_data_array[0, 0])
     expected_data_array = node_data.NodeData(
         node=env.full_state.current.apply(),

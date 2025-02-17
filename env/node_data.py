@@ -290,4 +290,3 @@ class NodeData:
         result = result[result[:, -1] == 0][:, :-1]
 
         return result
-
