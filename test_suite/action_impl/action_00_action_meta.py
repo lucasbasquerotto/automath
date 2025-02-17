@@ -3,12 +3,15 @@ from env.core import (
     Param,
     And,
     Or,
+    Integer,
     IntBoolean,
     BooleanExceptionInfo,
     IsEmpty,
     NodeArgIndex,
+    NodeArgReverseIndex,
     InstanceType,
     IOptional,
+    Add,
     IInt,
 )
 from env.full_state import (
@@ -19,6 +22,7 @@ from env.full_state import (
     BaseActionData,
     ActionErrorActionData,
     SuccessActionData,
+    MetaFromIntTypeIndex,
 )
 from env.meta_env import MetaInfo, SubtypeOuterGroup, GeneralTypeGroup, MetaData
 from env.goal_env import GoalEnv
@@ -52,6 +56,7 @@ from env.action_impl import (
     DeleteArgsGroupOutput,
     DeleteScratchOutput,
     DefineScratchFromSingleArg,
+    RestoreHistoryStateOutput,
 )
 from env.action import IAction, BaseAction, IActionOutput
 from env.core import Optional
@@ -114,7 +119,7 @@ def get_remaining_steps(env: GoalEnv) -> int | None:
     ).apply().cast(IOptional[IInt]).value
     return value.as_int if value is not None else None
 
-def action_meta_test():
+def dynamic_action_test():
     params = (Param.from_int(1), Param.from_int(2), Param.from_int(3))
     p1, p2, p3 = params
     goal = HaveScratch.with_goal(
@@ -434,6 +439,223 @@ def action_meta_test():
 
     return [env.full_state]
 
+def restore_history_single_test(history_amount: int, delete_goal_after: int, history_index: int):
+    assert 0 <= delete_goal_after < history_amount
+
+    scratch_goal = Add(
+        Integer(history_amount*2),
+        Integer(1+history_amount*3),
+        Integer(3+delete_goal_after),
+    )
+    goal = HaveScratch.with_goal(scratch_goal)
+
+    initial_scratches = [
+        (
+            Integer(i+1)
+            if i != delete_goal_after
+            else scratch_goal
+        )
+        for i in range(history_amount)
+    ]
+    single_restore = history_amount - history_index <= delete_goal_after
+    original_remaining_steps = 2 if single_restore else 3
+
+    env = GoalEnv(
+        goal=goal,
+        max_steps=original_remaining_steps + history_amount,
+        fn_initial_state=lambda meta: FullState.with_args(
+            meta=meta,
+            current=HistoryNode.with_args(
+                state=State.from_raw(
+                    meta_info=StateMetaInfo.with_goal_expr(goal),
+                    scratches= [],
+                ),
+                meta_data=MetaData.with_args(
+                    remaining_steps=original_remaining_steps,
+                ),
+            ),
+            history=HistoryGroupNode(*[
+                HistoryNode.with_args(
+                    state=State.from_raw(
+                        meta_info=StateMetaInfo.with_goal_expr(goal),
+                        scratches=initial_scratches[i:],
+                    ),
+                    meta_data=MetaData.with_args(
+                        remaining_steps=original_remaining_steps + history_amount - i,
+                    ),
+                    action_data=Optional(
+                        SuccessActionData.from_args(
+                            action=Optional(DeleteScratchOutput(
+                                StateScratchIndex(1),
+                            )),
+                            output=Optional(DeleteScratchOutput(
+                                StateScratchIndex(1),
+                            )),
+                            exception=Optional(),
+                        ),
+                    ),
+                )
+                for i in range(history_amount)
+            ]),
+        ),
+    )
+    env.full_state.validate()
+
+    selected_goal = env.full_state.nested_arg((FullState.idx_meta, MetaInfo.idx_goal)).apply()
+    assert selected_goal == goal
+
+    meta = env.full_state.meta.apply().cast(MetaInfo)
+    state_meta = StateMetaInfo.with_goal_expr(goal)
+    prev_remaining_steps = get_remaining_steps(env)
+
+    # Run Action
+    raw_action: BaseAction = RestoreHistoryStateOutput.from_raw(history_index, 0, 0)
+    full_action: BaseAction = RestoreHistoryStateOutput(NodeArgReverseIndex(history_index))
+    output: BaseAction = full_action
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    truncate_scratch_at = history_amount-history_index
+    scratches = initial_scratches[truncate_scratch_at:]
+
+    expected_history = SuccessActionData.from_args(
+        action=Optional(full_action),
+        output=Optional(output),
+        exception=Optional(),
+    )
+    if last_history_action != expected_history:
+        print('last_history_action:', env.symbol(last_history_action))
+        print('expected_history:', env.symbol(expected_history))
+    assert last_history_action == expected_history
+
+    expected_state = State.from_raw(
+        meta_info=state_meta,
+        scratches=scratches,
+    )
+    if current_state != expected_state:
+        print('current_state:', env.symbol(current_state))
+        print('expected_state:', env.symbol(expected_state))
+    assert current_state == expected_state
+
+    assert env.full_state.goal_achieved() is False
+
+    if single_restore:
+        assert delete_goal_after - truncate_scratch_at >= 0
+        assert scratches[delete_goal_after - truncate_scratch_at] == scratch_goal
+    else:
+        # Add 1 because the previous action increased the history items
+        new_history_index = history_amount+1
+
+        # Run Action
+        raw_action = RestoreHistoryStateOutput.from_raw(new_history_index, 0, 0)
+        full_action = RestoreHistoryStateOutput(NodeArgReverseIndex(new_history_index))
+        output = full_action
+        env.step(raw_action)
+        if prev_remaining_steps is not None:
+            remaining_steps = get_remaining_steps(env)
+            assert remaining_steps == prev_remaining_steps - 1
+            prev_remaining_steps = remaining_steps
+        current_state = get_current_state(env)
+        last_history_action = get_last_history_action(env)
+
+        # Verify
+        scratches = initial_scratches
+
+        expected_history = SuccessActionData.from_args(
+            action=Optional(full_action),
+            output=Optional(output),
+            exception=Optional(),
+        )
+        if last_history_action != expected_history:
+            print('last_history_action:', env.symbol(last_history_action))
+            print('expected_history:', env.symbol(expected_history))
+        assert last_history_action == expected_history
+
+        expected_state = State.from_raw(
+            meta_info=state_meta,
+            scratches=scratches,
+        )
+        if current_state != expected_state:
+            print('current_state:', env.symbol(current_state))
+            print('expected_state:', env.symbol(expected_state))
+        assert current_state == expected_state
+
+        assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    meta_idx = get_from_int_type_index(StateScratchIndex, meta)
+    scratch_index = 1 + (
+        (delete_goal_after - truncate_scratch_at)
+        if single_restore
+        else delete_goal_after
+    )
+    raw_action = VerifyGoal.from_raw(0, meta_idx, scratch_index)
+    full_action = VerifyGoal(
+        Optional(),
+        MetaFromIntTypeIndex(meta_idx),
+        Integer(scratch_index),
+    )
+    output = VerifyGoalOutput(
+        Optional(),
+        StateScratchIndex(scratch_index),
+    )
+    env.step(raw_action)
+    if prev_remaining_steps is not None:
+        remaining_steps = get_remaining_steps(env)
+        assert remaining_steps == prev_remaining_steps - 1
+        prev_remaining_steps = remaining_steps
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    state_meta = state_meta.with_new_args(
+        goal_achieved=GoalAchieved.achieved(),
+    )
+
+    expected_history = SuccessActionData.from_args(
+        action=Optional(full_action),
+        output=Optional(output),
+        exception=Optional(),
+    )
+    if last_history_action != expected_history:
+        print('last_history_action:', env.symbol(last_history_action))
+        print('expected_history:', env.symbol(expected_history))
+    assert last_history_action == expected_history
+
+    expected_state = State.from_raw(
+        meta_info=state_meta,
+        scratches=scratches,
+    )
+    if current_state != expected_state:
+        print('current_state:', env.symbol(current_state))
+        print('expected_state:', env.symbol(expected_state))
+    assert current_state == expected_state
+
+    assert env.full_state.goal_achieved() is True
+
+    assert remaining_steps == 0, remaining_steps
+
+    return [env.full_state]
+
+def restore_history_test() -> list[FullState]:
+    final_states: list[FullState] = []
+    final_states += restore_history_single_test(1, 0, 1)
+    final_states += restore_history_single_test(3, 2, 1)
+    final_states += restore_history_single_test(3, 0, 3)
+    final_states += restore_history_single_test(3, 0, 1)
+    final_states += restore_history_single_test(7, 4, 2)
+    final_states += restore_history_single_test(9, 7, 8)
+    final_states += restore_history_single_test(9, 7, 1)
+    return final_states
 
 def test() -> list[FullState]:
-    return action_meta_test()
+    final_states: list[FullState] = []
+    final_states += dynamic_action_test()
+    final_states += restore_history_test()
+    return final_states

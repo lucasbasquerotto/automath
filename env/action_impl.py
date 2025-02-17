@@ -185,7 +185,7 @@ class GroupAction(BaseAction[GroupActionOutput], IMetaAction, IInstantiable):
             items.append(DefaultGroup(action, output))
         return GroupActionOutput(*items)
 
-class RestoreHistoryStateOutput(GeneralAction, IInstantiable):
+class RestoreHistoryStateOutput(GeneralAction, IBasicAction[FullState], IInstantiable):
 
     idx_recent_history_index = 1
 

@@ -1327,7 +1327,7 @@ class NodeArgBaseIndex(NodeIntBaseIndex, ABC):
     def _index_value(self, node: InheritableNode, reverse: bool) -> int:
         base_index = self.as_int
         args = node.args
-        return len(args) - base_index if reverse else base_index
+        return len(args) - base_index + 1 if reverse else base_index
 
     def _find_in_node_general(self, node: INode, reverse: bool) -> IOptional[INode]:
         if not isinstance(node, InheritableNode):
