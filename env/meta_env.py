@@ -278,7 +278,7 @@ class FullStateIntBaseIndex(
 
 class IActionOutput(INode, typing.Generic[S], ABC):
 
-    def apply(self, full_state: S) -> State:
+    def run_output(self, full_state: S) -> State:
         raise NotImplementedError
 
 class IAction(INode, typing.Generic[S], ABC):

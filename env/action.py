@@ -201,13 +201,12 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             raise ActionInputExceptionInfo(self, e.info).as_exception() from e
 
         try:
-            new_state = output.apply(full_state)
+            new_state = output.run_output(full_state)
             result = FullActionOutput(output, new_state)
             result.strict_validate()
             return result
         except InvalidNodeException as e:
             raise ActionOutputExceptionInfo(self, output, e.info).as_exception() from e
-
 
     def run_action(self, full_state: FullState) -> FullState:
         meta = full_state.meta.apply().cast(MetaInfo)

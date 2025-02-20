@@ -92,7 +92,7 @@ class DynamicActionOutput(InheritableNode, IMetaActionOutput, IInstantiable):
             IActionOutput.as_type(),
         ))
 
-    def apply(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> State:
         action = self.inner_arg(self.idx_action).apply().cast(BaseAction)
         output = self.inner_arg(self.idx_action_output).apply().real(IActionOutput[FullState])
         full_output = action.inner_run(full_state)
@@ -146,7 +146,7 @@ class GroupActionOutput(InheritableNode, IMetaActionOutput, IInstantiable):
             ),
         ))
 
-    def apply(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> State:
         new_state = full_state.current_state.apply().real(State)
         for arg in self.args:
             group = arg.real(DefaultGroup)
@@ -176,7 +176,7 @@ class GroupAction(BaseAction[GroupActionOutput], IMetaAction, IInstantiable):
             action = arg.real(BaseAction)
             full_output = action.inner_run(full_state)
             output = full_output.output.apply().real(IActionOutput[FullState])
-            new_state = output.apply(full_state)
+            new_state = output.run_output(full_state)
             current = full_state.current.apply().real(HistoryNode)
             full_state = FullState.with_args(
                 current=current.with_new_args(state=new_state),
@@ -202,7 +202,7 @@ class RestoreHistoryStateOutput(GeneralAction, IBasicAction[FullState], IInstant
         Eq.from_ints(arg3, 0).raise_on_false()
         return cls(index)
 
-    def apply(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> State:
         index = self.inner_arg(self.idx_recent_history_index).apply()
         assert isinstance(index, NodeArgReverseIndex)
         history = full_state.history.apply().real(HistoryGroupNode)
@@ -229,7 +229,7 @@ class VerifyGoalOutput(GeneralAction, IInstantiable):
             INode.as_type(),
         ))
 
-    def apply(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> State:
         nested_args_wrapper = self.inner_arg(
             self.idx_nested_args_indices
         ).apply().real(Optional[NestedArgIndexGroup])
@@ -331,7 +331,7 @@ class CreateDynamicGoalOutput(GeneralAction, IInstantiable):
             IGoal.as_type(),
         ))
 
-    def apply(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> State:
         index = self.inner_arg(self.idx_dynamic_goal_index).apply().real(StateDynamicGoalIndex)
         goal_expr = self.inner_arg(self.idx_goal_expr).apply().real(IGoal)
 
@@ -406,7 +406,7 @@ class VerifyDynamicGoalOutput(GeneralAction, IInstantiable):
             INode.as_type(),
         ))
 
-    def apply(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> State:
         dynamic_goal_index = self.inner_arg(
             self.idx_dynamic_goal
         ).apply().real(StateDynamicGoalIndex)
@@ -517,7 +517,7 @@ class DeleteDynamicGoalOutput(GeneralAction, IBasicAction[FullState], IInstantia
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(StateDynamicGoalIndex.as_type()))
 
-    def apply(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> State:
         dynamic_goal_index = self.inner_arg(self.idx_dynamic_goal_index).apply()
         assert isinstance(dynamic_goal_index, StateDynamicGoalIndex)
         state = full_state.current_state.apply().real(State)
@@ -534,7 +534,7 @@ class DefineStateHiddenInfoOutput(GeneralAction, IInstantiable):
             StateMetaHiddenInfo.as_type(),
         ))
 
-    def apply(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> State:
         hidden_info = self.inner_arg(
             self.idx_hidden_info
         ).apply().real(StateMetaHiddenInfo)
@@ -626,7 +626,7 @@ class ScratchBaseActionOutput(GeneralAction, ISingleChild[StateScratchIndex], AB
     def child(self):
         return self.inner_arg(self.idx_index).apply()
 
-    def apply(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> State:
         raise NotImplementedError
 
 class ScratchWithNodeBaseActionOutput(GeneralAction, ABC):
@@ -645,7 +645,7 @@ class ScratchWithNodeBaseActionOutput(GeneralAction, ABC):
     def child(self):
         return self.inner_arg(self.idx_index).apply()
 
-    def apply(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> State:
         raise NotImplementedError
 
 ###########################################################
@@ -654,7 +654,7 @@ class ScratchWithNodeBaseActionOutput(GeneralAction, ABC):
 
 class CreateScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
 
-    def apply(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> State:
         index = self.inner_arg(self.idx_index).apply()
         new_node = self.inner_arg(self.idx_node).apply()
         assert isinstance(index, StateScratchIndex)
@@ -730,7 +730,7 @@ class DeleteScratchOutput(ScratchBaseActionOutput, IBasicAction[FullState], IIns
         Eq.from_ints(arg3, 0).raise_on_false()
         return cls(index)
 
-    def apply(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> State:
         index = self.inner_arg(self.idx_index).apply()
         assert isinstance(index, StateScratchIndex)
         state = full_state.current_state.apply().real(State)
@@ -743,7 +743,7 @@ class DeleteScratchOutput(ScratchBaseActionOutput, IBasicAction[FullState], IIns
 
 class DefineScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
 
-    def apply(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> State:
         index = self.inner_arg(self.idx_index).apply()
         scratch = self.inner_arg(self.idx_node).apply()
         assert isinstance(index, StateScratchIndex)
@@ -1276,7 +1276,7 @@ class CreateArgsGroupOutput(GeneralAction, IInstantiable):
             PartialArgsGroup.as_type(),
         ))
 
-    def apply(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> State:
         index = self.inner_arg(self.idx_index).apply()
         new_args_group = self.inner_arg(self.idx_new_args_group).apply()
         assert isinstance(index, StateArgsGroupIndex)
@@ -1362,7 +1362,7 @@ class DeleteArgsGroupOutput(GeneralAction, IBasicAction[FullState], IInstantiabl
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(StateArgsGroupIndex.as_type()))
 
-    def apply(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> State:
         args_group_index = self.inner_arg(self.idx_args_group_index).apply()
         assert isinstance(args_group_index, StateArgsGroupIndex)
         state = full_state.current_state.apply().real(State)
@@ -1383,7 +1383,7 @@ class DefineArgsGroupArgOutput(GeneralAction, IInstantiable):
             IOptional.as_type(),
         ))
 
-    def apply(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> State:
         group_index = self.inner_arg(self.idx_group_index).apply()
         arg_index = self.inner_arg(self.idx_arg_index).apply()
         new_arg = self.inner_arg(self.idx_new_arg).apply()
