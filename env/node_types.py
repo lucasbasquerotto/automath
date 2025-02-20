@@ -15,6 +15,7 @@ from env.core import (
     CountableTypeGroup,
     RunInfoFullResult,
     Integer,
+    IntBoolean,
     TypeNode,
     IInstantiable,
 )
@@ -26,7 +27,7 @@ from env.state import (
     StateDynamicGoalIndex,
 )
 from env.action import IBasicAction, IActionOutput, BaseAction
-from env.full_state import FullState
+from env.full_state import FullState, SuccessActionData
 
 class HaveScratch(Goal[INode, StateScratchIndex], IInstantiable):
 
@@ -142,6 +143,39 @@ class ActionFromBasicArgs(ControlFlowBaseNode, IInstantiable):
         action = action_type.from_raw(arg1, arg2, arg3)
 
         return RunInfoFullResult(info.to_result(action), arg_group)
+
+class CorrectActionValidator(ControlFlowBaseNode, IInstantiable):
+
+    idx_action = 1
+    idx_full_state = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(),
+            CountableTypeGroup(
+                BaseAction.as_type(),
+                FullState.as_type(),
+            ),
+            IntBoolean.as_type(),
+        )
+
+    def _run_control(self, info: RunInfo) -> RunInfoFullResult:
+        base_result, arg_group = super()._run(info).as_tuple
+        info, inner_result = base_result.as_tuple
+
+        final_self = inner_result.real(ActionOutputFromAction)
+
+        action = final_self.inner_arg(self.idx_action).apply().real(BaseAction)
+        full_state = final_self.inner_arg(self.idx_full_state).apply().real(FullState)
+
+        _, action_data = action.run_action_details(full_state)
+
+        info, result = IBoolean.from_bool(
+            isinstance(action_data, SuccessActionData)
+        ).as_node.run(info).as_tuple
+
+        return RunInfoFullResult(info.to_result(result), arg_group)
 
 class ActionOutputFromAction(ControlFlowBaseNode, IInstantiable):
 

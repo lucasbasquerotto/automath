@@ -208,7 +208,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
         except InvalidNodeException as e:
             raise ActionOutputExceptionInfo(self, output, e.info).as_exception() from e
 
-    def run_action(self, full_state: FullState) -> FullState:
+    def run_action_details(self, full_state: FullState) -> tuple[FullState, BaseActionData]:
         meta = full_state.meta.apply().cast(MetaInfo)
         options = meta.options.apply().cast(MetaInfoOptions)
         max_history_state_size = options.max_history_state_size.apply().cast(
@@ -271,7 +271,11 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             meta=meta,
             current=current,
             history=HistoryGroupNode.from_items(history),
-        )
+        ), action_data
+
+    def run_action(self, full_state: FullState) -> FullState:
+        full_state, _ = self.run_action_details(full_state)
+        return full_state
 
 class BasicAction(
     BaseAction[O],
