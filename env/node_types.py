@@ -141,7 +141,7 @@ class ActionFromBasicArgs(ControlFlowBaseNode, IInstantiable):
 
         action = action_type.from_raw(arg1, arg2, arg3)
 
-        return RunInfoFullResult(action, arg_group)
+        return RunInfoFullResult(info.to_result(action), arg_group)
 
 class ActionOutputFromAction(ControlFlowBaseNode, IInstantiable):
 
@@ -170,7 +170,7 @@ class ActionOutputFromAction(ControlFlowBaseNode, IInstantiable):
 
         output = action.inner_run(full_state).output.apply().cast(IActionOutput)
 
-        return RunInfoFullResult(output, arg_group)
+        return RunInfoFullResult(info.to_result(output), arg_group)
 
 class NewStateFromActionOutput(ControlFlowBaseNode, IInstantiable):
 
@@ -199,4 +199,33 @@ class NewStateFromActionOutput(ControlFlowBaseNode, IInstantiable):
 
         new_state = action_output.run_output(full_state)
 
-        return RunInfoFullResult(new_state, arg_group)
+        return RunInfoFullResult(info.to_result(new_state), arg_group)
+
+class NewStateFromAction(ControlFlowBaseNode, IInstantiable):
+
+    idx_action = 1
+    idx_full_state = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(),
+            CountableTypeGroup(
+                BaseAction.as_type(),
+                FullState.as_type(),
+            ),
+            State.as_type(),
+        )
+
+    def _run_control(self, info: RunInfo) -> RunInfoFullResult:
+        base_result, arg_group = super()._run(info).as_tuple
+        info, inner_result = base_result.as_tuple
+
+        final_self = inner_result.real(ActionOutputFromAction)
+
+        action = final_self.inner_arg(self.idx_action).apply().real(BaseAction)
+        full_state = final_self.inner_arg(self.idx_full_state).apply().real(FullState)
+
+        new_state = action.inner_run(full_state).new_state.apply().real(State)
+
+        return RunInfoFullResult(info.to_result(new_state), arg_group)
