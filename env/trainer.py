@@ -1,4 +1,3 @@
-from typing import List, Tuple
 from env.core import Optional, IExceptionInfo, IRunnable
 from env.goal_env import GoalEnv
 from env.base_agent import BaseAgent
@@ -23,7 +22,7 @@ class Trainer:
         self.inception_level = inception_level
         self.max_inception_level = max_inception_level
 
-    def train_episode(self) -> Tuple[float, int, bool]:
+    def train_episode(self) -> tuple[float, int, bool]:
         """Run a single training episode.
 
         Returns:
@@ -68,7 +67,7 @@ class Trainer:
 
         return total_reward, steps, terminated
 
-    def train(self) -> List[Tuple[float, int, bool]]:
+    def train(self) -> list[tuple[float, int, bool]]:
         """Run the full training process for max_episodes.
 
         Returns:
