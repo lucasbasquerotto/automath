@@ -96,6 +96,7 @@ def get_info_type_index(
 
 def get_empty_exception(action: IAction):
     return ActionErrorActionData.from_args(
+        raw_action=Optional(),
         action=Optional(action),
         output=Optional(),
         exception=Optional(BooleanExceptionInfo(IsEmpty(Optional()))),
@@ -391,6 +392,7 @@ def dynamic_action_test():
     last_history_action = get_last_history_action(env)
 
     expected_history = SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DynamicAction(StateScratchIndex(1))),
         output=Optional(DynamicActionOutput(
             group_action,
@@ -485,6 +487,7 @@ def restore_history_single_test(history_amount: int, delete_goal_after: int, his
                     ),
                     action_data=Optional(
                         SuccessActionData.from_args(
+                            raw_action=Optional(),
                             action=Optional(DeleteScratchOutput(
                                 StateScratchIndex(1),
                             )),
@@ -525,6 +528,7 @@ def restore_history_single_test(history_amount: int, delete_goal_after: int, his
     scratches = initial_scratches[truncate_scratch_at:]
 
     expected_history = SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(full_action),
         output=Optional(output),
         exception=Optional(),
@@ -568,6 +572,7 @@ def restore_history_single_test(history_amount: int, delete_goal_after: int, his
         scratches = initial_scratches
 
         expected_history = SuccessActionData.from_args(
+            raw_action=Optional(),
             action=Optional(full_action),
             output=Optional(output),
             exception=Optional(),
@@ -619,6 +624,7 @@ def restore_history_single_test(history_amount: int, delete_goal_after: int, his
     )
 
     expected_history = SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(full_action),
         output=Optional(output),
         exception=Optional(),

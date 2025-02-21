@@ -52,6 +52,7 @@ def run(
     ]
 
     expected_history = full_state.SuccessActionData.from_args(
+        raw_action=core.Optional(),
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),

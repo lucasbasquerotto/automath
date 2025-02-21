@@ -163,6 +163,7 @@ def goal_test():
                 scratches=[scratch_goal],
             )
             assert last_history_action == full_state.SuccessActionData.from_args(
+                raw_action=core.Optional(),
                 action=core.Optional(output if direct else full_action),
                 output=core.Optional(output),
                 exception=core.Optional(),
@@ -266,6 +267,7 @@ def goal_test():
             scratches=scratches,
         )
         assert last_history_action == full_state.SuccessActionData.from_args(
+            raw_action=core.Optional(),
             action=core.Optional(full_action),
             output=core.Optional(output),
             exception=core.Optional(),
@@ -299,6 +301,7 @@ def goal_test():
             scratches=scratches,
         )
         assert last_history_action == full_state.SuccessActionData.from_args(
+            raw_action=core.Optional(),
             action=core.Optional(output),
             output=core.Optional(output),
             exception=core.Optional(),
@@ -341,6 +344,7 @@ def goal_test():
                 scratches=scratches,
             )
             assert last_history_action == full_state.SuccessActionData.from_args(
+                raw_action=core.Optional(),
                 action=core.Optional(full_action),
                 output=core.Optional(output),
                 exception=core.Optional(),
@@ -499,6 +503,7 @@ def dynamic_goal_test():
         scratches=scratches,
     )
     assert last_history_action == full_state.SuccessActionData.from_args(
+        raw_action=core.Optional(),
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),
@@ -538,6 +543,7 @@ def dynamic_goal_test():
         scratches=scratches,
     )
     assert last_history_action == full_state.SuccessActionData.from_args(
+        raw_action=core.Optional(),
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),
@@ -571,6 +577,7 @@ def dynamic_goal_test():
         scratches=scratches,
     )
     assert last_history_action == full_state.SuccessActionData.from_args(
+        raw_action=core.Optional(),
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),
@@ -612,6 +619,7 @@ def dynamic_goal_test():
         scratches=scratches,
     )
     assert last_history_action == full_state.SuccessActionData.from_args(
+        raw_action=core.Optional(),
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),
@@ -651,6 +659,7 @@ def dynamic_goal_test():
         scratches=scratches,
     )
     assert last_history_action == full_state.SuccessActionData.from_args(
+        raw_action=core.Optional(),
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),
@@ -693,6 +702,7 @@ def state_hidden_info_test():
                     meta_data=meta_env.MetaData.create(),
                     action_data=core.Optional(
                         full_state.SuccessActionData.from_args(
+                            raw_action=core.Optional(),
                             action=core.Optional(action_impl.DeleteScratchOutput(
                                 state.StateScratchIndex(len(scratches)+2),
                             )),
@@ -711,6 +721,7 @@ def state_hidden_info_test():
                     meta_data=meta_env.MetaData.create(),
                     action_data=core.Optional(
                         full_state.SuccessActionData.from_args(
+                            raw_action=core.Optional(),
                             action=core.Optional(action_impl.DeleteScratchOutput(
                                 state.StateScratchIndex(len(scratches)+2),
                             )),
@@ -729,6 +740,7 @@ def state_hidden_info_test():
                     meta_data=meta_env.MetaData.create(),
                     action_data=core.Optional(
                         full_state.SuccessActionData.from_args(
+                            raw_action=core.Optional(),
                             action=core.Optional(action_impl.DeleteScratchOutput(
                                 state.StateScratchIndex(len(scratches)+2),
                             )),
@@ -747,6 +759,7 @@ def state_hidden_info_test():
                     meta_data=meta_env.MetaData.create(),
                     action_data=core.Optional(
                         full_state.SuccessActionData.from_args(
+                            raw_action=core.Optional(),
                             action=core.Optional(action_impl.DeleteScratchOutput(
                                 state.StateScratchIndex(len(scratches)+2),
                             )),
@@ -765,6 +778,7 @@ def state_hidden_info_test():
                     meta_data=meta_env.MetaData.create(),
                     action_data=core.Optional(
                         full_state.SuccessActionData.from_args(
+                            raw_action=core.Optional(),
                             action=core.Optional(action_impl.DeleteScratchOutput(
                                 state.StateScratchIndex(len(scratches)+2),
                             )),
@@ -783,6 +797,7 @@ def state_hidden_info_test():
                     meta_data=meta_env.MetaData.create(),
                     action_data=core.Optional(
                         full_state.ActionOutputErrorActionData.from_args(
+                            raw_action=core.Optional(),
                             action=core.Optional(action_impl.DeleteScratchOutput(
                                 state.StateScratchIndex(len(scratches)+2),
                             )),
@@ -803,6 +818,7 @@ def state_hidden_info_test():
                     meta_data=meta_env.MetaData.create(),
                     action_data=core.Optional(
                         full_state.SuccessActionData.from_args(
+                            raw_action=core.Optional(),
                             action=core.Optional(action_impl.DeleteScratchOutput(
                                 state.StateScratchIndex(len(scratches)+1),
                             )),
@@ -838,6 +854,7 @@ def state_hidden_info_test():
 
         # Verify
         expected_history = full_state.SuccessActionData.from_args(
+            raw_action=core.Optional(),
             action=core.Optional(full_action),
             output=core.Optional(output),
             exception=core.Optional(),
@@ -874,6 +891,7 @@ def state_hidden_info_test():
 
         # Verify
         expected_history = full_state.SuccessActionData.from_args(
+            raw_action=core.Optional(),
             action=core.Optional(full_action),
             output=core.Optional(output),
             exception=core.Optional(),
@@ -920,6 +938,7 @@ def state_hidden_info_test():
 
         # Verify
         expected_history = full_state.SuccessActionData.from_args(
+            raw_action=core.Optional(),
             action=core.Optional(full_action),
             output=core.Optional(output),
             exception=core.Optional(),
@@ -952,6 +971,7 @@ def state_hidden_info_test():
         # Verify
         assert current_state == original_state
         assert last_history_action == full_state.SuccessActionData.from_args(
+            raw_action=core.Optional(),
             action=core.Optional(full_action),
             output=core.Optional(output),
             exception=core.Optional(),
@@ -974,6 +994,7 @@ def state_hidden_info_test():
     run_boolean_state_hidden(env, state.StateMetaHiddenInfo.idx_meta_hidden)
     run_boolean_state_hidden(env, state.StateMetaHiddenInfo.idx_history_state_hidden)
     run_boolean_state_hidden(env, state.StateMetaHiddenInfo.idx_history_meta_hidden)
+    run_boolean_state_hidden(env, state.StateMetaHiddenInfo.idx_history_raw_action_hidden)
     run_boolean_state_hidden(env, state.StateMetaHiddenInfo.idx_history_action_hidden)
     run_boolean_state_hidden(env, state.StateMetaHiddenInfo.idx_history_action_output_hidden)
     run_boolean_state_hidden(env, state.StateMetaHiddenInfo.idx_history_action_exception_hidden)
@@ -998,6 +1019,7 @@ def state_hidden_info_test():
         state.StateMetaHiddenInfo.idx_meta_hidden,
         state.StateMetaHiddenInfo.idx_history_state_hidden,
         state.StateMetaHiddenInfo.idx_history_meta_hidden,
+        state.StateMetaHiddenInfo.idx_history_raw_action_hidden,
         state.StateMetaHiddenInfo.idx_history_action_hidden,
         state.StateMetaHiddenInfo.idx_history_action_output_hidden,
         state.StateMetaHiddenInfo.idx_history_action_exception_hidden,
@@ -1164,6 +1186,7 @@ def state_hidden_info_test():
 
     def get_partial_action_data(
         item: full_state.HistoryNode,
+        hide_raw_action=False,
         hide_action=False,
         hide_output=False,
         hide_exception=False,
@@ -1172,6 +1195,7 @@ def state_hidden_info_test():
         action_data = action_data_opt.value_or_raise
         assert isinstance(action_data, full_state.BaseActionData)
         items = [
+            action_data.raw_action.apply() if not hide_raw_action else None,
             action_data.action.apply() if not hide_action else None,
             action_data.output.apply() if not hide_output else None,
             action_data.exception.apply() if not hide_exception else None,
@@ -1208,6 +1232,38 @@ def state_hidden_info_test():
     assert current_len < prev_len
     assert main_len < current_len
 
+    hidden_idx = state.StateMetaHiddenInfo.idx_history_raw_action_hidden
+    meta_idx = get_from_int_type_index(core.IntBoolean, env)
+    raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
+    env.step(raw_action)
+
+    full_data_array = node_data.NodeData(
+        node=env.full_state,
+        node_types=node_types,
+    ).to_data_array()
+    history = get_history_to_show()
+    partial_history = full_state.HistoryGroupNode(*[
+        core.DefaultGroup(
+            item.state.apply(),
+            item.meta_data.apply(),
+            get_partial_action_data(
+                item,
+                hide_raw_action=True,
+                hide_exception=True),
+        )
+        for item in history.as_tuple
+    ])
+    assert len(partial_history) < len(prev_history)
+    prev_history = partial_history
+    prev_len = current_len
+    current_len = (
+        1
+        + len(env.full_state.current.apply())
+        + len(partial_history))
+    assert len(full_data_array) == current_len, (len(full_data_array), current_len)
+    assert current_len < prev_len
+    assert main_len < current_len
+
     hidden_idx = state.StateMetaHiddenInfo.idx_history_action_hidden
     meta_idx = get_from_int_type_index(core.IntBoolean, env)
     raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
@@ -1222,7 +1278,11 @@ def state_hidden_info_test():
         core.DefaultGroup(
             item.state.apply(),
             item.meta_data.apply(),
-            get_partial_action_data(item, hide_action=True, hide_exception=True),
+            get_partial_action_data(
+                item,
+                hide_raw_action=True,
+                hide_action=True,
+                hide_exception=True),
         )
         for item in history.as_tuple
     ])
@@ -1253,6 +1313,7 @@ def state_hidden_info_test():
             item.meta_data.apply(),
             get_partial_action_data(
                 item,
+                hide_raw_action=True,
                 hide_action=True,
                 hide_output=True,
                 hide_exception=True,
@@ -1286,6 +1347,7 @@ def state_hidden_info_test():
             item.meta_data.apply(),
             get_partial_action_data(
                 item,
+                hide_raw_action=True,
                 hide_action=True,
                 hide_output=True,
                 hide_exception=True,
@@ -1318,6 +1380,7 @@ def state_hidden_info_test():
         core.DefaultGroup(
             get_partial_action_data(
                 item,
+                hide_raw_action=True,
                 hide_action=True,
                 hide_output=True,
                 hide_exception=True,

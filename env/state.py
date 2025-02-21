@@ -188,9 +188,10 @@ class StateMetaHiddenInfo(InheritableNode, IDefault, IInstantiable):
     idx_history_amount_to_show = 2
     idx_history_state_hidden = 3
     idx_history_meta_hidden = 4
-    idx_history_action_hidden = 5
-    idx_history_action_output_hidden = 6
-    idx_history_action_exception_hidden = 7
+    idx_history_raw_action_hidden = 5
+    idx_history_action_hidden = 6
+    idx_history_action_output_hidden = 7
+    idx_history_action_exception_hidden = 8
 
     @classmethod
     def protocol(cls) -> Protocol:
@@ -200,6 +201,7 @@ class StateMetaHiddenInfo(InheritableNode, IDefault, IInstantiable):
                 Optional.as_type(),
                 OptionalTypeGroup(Integer.as_type())
             ),
+            IntBoolean.as_type(),
             IntBoolean.as_type(),
             IntBoolean.as_type(),
             IntBoolean.as_type(),
@@ -224,6 +226,10 @@ class StateMetaHiddenInfo(InheritableNode, IDefault, IInstantiable):
         return self.inner_arg(self.idx_history_meta_hidden)
 
     @property
+    def history_raw_action_hidden(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_history_raw_action_hidden)
+
+    @property
     def history_action_hidden(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_history_action_hidden)
 
@@ -246,6 +252,7 @@ class StateMetaHiddenInfo(InheritableNode, IDefault, IInstantiable):
         history_amount_to_show: Optional[Integer] | None = None,
         history_state_hidden: IntBoolean | None = None,
         history_meta_hidden: IntBoolean | None = None,
+        history_raw_action_hidden: IntBoolean | None = None,
         history_action_hidden: IntBoolean | None = None,
         history_action_output_hidden: IntBoolean | None = None,
         history_action_exception_hidden: IntBoolean | None = None,
@@ -255,6 +262,7 @@ class StateMetaHiddenInfo(InheritableNode, IDefault, IInstantiable):
             history_amount_to_show or Optional.create(),
             history_state_hidden or IBoolean.false(),
             history_meta_hidden or IBoolean.false(),
+            history_raw_action_hidden or IBoolean.false(),
             history_action_hidden or IBoolean.false(),
             history_action_output_hidden or IBoolean.false(),
             history_action_exception_hidden or IBoolean.false(),

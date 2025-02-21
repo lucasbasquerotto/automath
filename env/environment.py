@@ -20,6 +20,14 @@ class Environment:
     def full_state(self) -> full_state_module.FullState:
         return self._full_state
 
+    @property
+    def reward_evaluator(self) -> reward_module.IRewardEvaluator | None:
+        return self._reward_evaluator
+
+    @property
+    def max_steps(self) -> int | None:
+        return self._max_steps
+
     def reset(self) -> full_state_module.FullState:
         self._full_state = self._initial_state
         self._current_step = 0

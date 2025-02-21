@@ -12,7 +12,7 @@ T = typing.TypeVar("T")
 @functools.cache
 def _get_meta(
     goal: meta_env.IGoal,
-    allowed_actions: tuple[action.IAction, ...] | None,
+    allowed_actions: tuple[type[action.IAction], ...] | None,
     max_history_state_size: int | None = None,
     max_steps: int | None = None,
 ):
@@ -40,7 +40,7 @@ class GoalEnv(Environment):
             full_state.FullState,
         ] | None = None,
         reward_evaluator: reward.IRewardEvaluator | None = None,
-        allowed_actions: tuple[action.IAction, ...] | None = None,
+        allowed_actions: tuple[type[action.IAction], ...] | None = None,
         max_history_state_size: int | None = None,
         max_steps: int | None = None,
     ):
@@ -62,6 +62,12 @@ class GoalEnv(Environment):
             max_steps=max_steps,
         )
 
+        self._max_history_state_size = max_history_state_size
+
     @classmethod
     def default_node_types(cls):
         return tuple(load_all_subclasses_sorted())
+
+    @property
+    def max_history_state_size(self) -> int | None:
+        return self._max_history_state_size

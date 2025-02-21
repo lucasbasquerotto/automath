@@ -18,6 +18,7 @@ _meta_hidden = state.StateMetaHiddenInfo.idx_meta_hidden
 _history_amount_to_show = state.StateMetaHiddenInfo.idx_history_amount_to_show
 _history_state_hidden = state.StateMetaHiddenInfo.idx_history_state_hidden
 _history_meta_hidden = state.StateMetaHiddenInfo.idx_history_meta_hidden
+_history_raw_action_hidden = state.StateMetaHiddenInfo.idx_history_raw_action_hidden
 _history_action_hidden = state.StateMetaHiddenInfo.idx_history_action_hidden
 _history_action_output_hidden = state.StateMetaHiddenInfo.idx_history_action_output_hidden
 _history_action_exception_hidden = state.StateMetaHiddenInfo.idx_history_action_exception_hidden
@@ -78,6 +79,17 @@ _main_root_node = MainNodeData(
                                 node_type=full_state.BaseActionData.as_type(),
                                 hidden_index=None,
                                 args=((
+                                    MainNodeData(
+                                        node_type=meta_env.Optional.as_type(),
+                                        hidden_index=_history_raw_action_hidden,
+                                        args=((
+                                            MainNodeData(
+                                                node_type=full_state.IRawAction.as_type(),
+                                                hidden_index=None,
+                                                args=None,
+                                            ),
+                                        )),
+                                    ),
                                     MainNodeData(
                                         node_type=meta_env.Optional.as_type(),
                                         hidden_index=_history_action_hidden,

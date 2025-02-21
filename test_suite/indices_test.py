@@ -77,6 +77,7 @@ def run(
         args_groups=args_groups,
     )
     assert last_history_action == full_state.SuccessActionData.from_args(
+        raw_action=core.Optional(),
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),

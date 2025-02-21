@@ -351,6 +351,10 @@ class IBasicAction(IAction[S], typing.Generic[S], ABC):
     def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         raise NotImplementedError
 
+class IRawAction(IAction[S], typing.Generic[S], ABC):
+
+    def to_action(self, full_state: S) -> IBasicAction[S]:
+        raise NotImplementedError
 
 ###########################################################
 ######################## META INFO ########################

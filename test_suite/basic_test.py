@@ -82,6 +82,7 @@ def get_info_type_index(node_type: type[INode], env: GoalEnv, node_types: tuple[
 
 def get_empty_exception(action: IAction):
     return ActionErrorActionData.from_args(
+        raw_action=Optional(),
         action=Optional(action),
         output=Optional(),
         exception=Optional(BooleanExceptionInfo(IsEmpty(Optional()))),
@@ -129,6 +130,7 @@ def basic_test():
     assert env.full_state.goal_achieved() is False
     last_history_action = get_last_history_action(env)
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(CreateScratch(Optional())),
         output=Optional(CreateScratchOutput(
             StateScratchIndex(1),
@@ -148,6 +150,7 @@ def basic_test():
     )
     assert env.full_state.goal_achieved() is False
     last_history_action = get_last_history_action(env)
+    print(env.symbol(last_history_action))
     assert last_history_action == get_empty_exception(action)
 
     meta_idx, type_idx = get_info_type_index(And, env, node_types)
@@ -161,6 +164,7 @@ def basic_test():
     assert env.full_state.goal_achieved() is False
     last_history_action = get_last_history_action(env)
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DefineScratchFromIntIndex(
             StateScratchIndex(1),
             MetaFullStateIntIndexTypeIndex(meta_idx),
@@ -183,6 +187,7 @@ def basic_test():
         args_groups=tuple(),
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(CreateScratch(Optional())),
         output=Optional(CreateScratchOutput(
             StateScratchIndex(2),
@@ -203,6 +208,7 @@ def basic_test():
         args_groups=tuple(),
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DefineScratchFromIntIndex(
             StateScratchIndex(2),
             MetaFullStateIntIndexTypeIndex(meta_idx),
@@ -226,6 +232,7 @@ def basic_test():
         args_groups=tuple(),
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(CreateScratch(Optional())),
         output=Optional(CreateScratchOutput(
             StateScratchIndex(3),
@@ -246,6 +253,7 @@ def basic_test():
         args_groups=tuple([args_group]),
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(CreateArgsGroup(
             Integer(3),
             Optional(),
@@ -269,6 +277,7 @@ def basic_test():
         args_groups=tuple([args_group]),
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DefineScratchFromInt(
             StateScratchIndex(3),
             MetaFromIntTypeIndex(meta_idx),
@@ -297,6 +306,7 @@ def basic_test():
         args_groups=tuple([args_group]),
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DefineArgsGroup(
             StateArgsGroupIndex(1),
             NodeArgIndex(1),
@@ -322,6 +332,7 @@ def basic_test():
         args_groups=tuple([args_group]),
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DefineScratchFromInt(
             StateScratchIndex(3),
             MetaFromIntTypeIndex(meta_idx),
@@ -350,6 +361,7 @@ def basic_test():
         args_groups=tuple([args_group]),
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DefineArgsGroup(
             StateArgsGroupIndex(1),
             NodeArgIndex(2),
@@ -375,6 +387,7 @@ def basic_test():
         args_groups=tuple([args_group]),
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DefineScratchFromInt(
             StateScratchIndex(3),
             MetaFromIntTypeIndex(meta_idx),
@@ -405,6 +418,7 @@ def basic_test():
         args_groups=args_groups,
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DefineArgsGroup(
             StateArgsGroupIndex(1),
             NodeArgIndex(3),
@@ -434,6 +448,7 @@ def basic_test():
         args_groups=args_groups,
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(CreateArgsGroup(
             Integer(2),
             Optional(),
@@ -458,6 +473,7 @@ def basic_test():
         args_groups=args_groups,
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DefineScratchFromInt(
             StateScratchIndex(3),
             MetaFromIntTypeIndex(meta_idx),
@@ -486,6 +502,7 @@ def basic_test():
         args_groups=args_groups,
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DefineArgsGroup(
             StateArgsGroupIndex(2),
             NodeArgIndex(1),
@@ -512,6 +529,7 @@ def basic_test():
         args_groups=args_groups,
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DefineScratchFromInt(
             StateScratchIndex(3),
             MetaFromIntTypeIndex(meta_idx),
@@ -540,6 +558,7 @@ def basic_test():
         args_groups=args_groups,
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DefineArgsGroup(
             StateArgsGroupIndex(2),
             NodeArgIndex(2),
@@ -570,6 +589,7 @@ def basic_test():
         args_groups=args_groups,
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DefineScratchFromFunctionWithArgs(
             StateScratchIndex(3),
             StateScratchIndex(1),
@@ -598,6 +618,7 @@ def basic_test():
         args_groups=args_groups,
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DefineScratchFromFunctionWithArgs(
             StateScratchIndex(1),
             StateScratchIndex(1),
@@ -626,6 +647,7 @@ def basic_test():
         args_groups=args_groups
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DefineArgsGroup(
             StateArgsGroupIndex(2),
             NodeArgIndex(1),
@@ -655,6 +677,7 @@ def basic_test():
         args_groups=args_groups,
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DefineArgsGroup(
             StateArgsGroupIndex(2),
             NodeArgIndex(2),
@@ -685,6 +708,7 @@ def basic_test():
         args_groups=args_groups,
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DefineScratchFromFunctionWithArgs(
             StateScratchIndex(1),
             StateScratchIndex(2),
@@ -709,6 +733,7 @@ def basic_test():
         args_groups=args_groups,
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DeleteArgsGroupOutput(
             StateArgsGroupIndex(1),
         )),
@@ -730,6 +755,7 @@ def basic_test():
         args_groups=args_groups
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DeleteArgsGroupOutput(
             StateArgsGroupIndex(1),
         )),
@@ -751,6 +777,7 @@ def basic_test():
         args_groups=args_groups,
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DeleteScratchOutput(
             StateScratchIndex(3),
         )),
@@ -772,6 +799,7 @@ def basic_test():
         args_groups=args_groups,
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(DeleteScratchOutput(
             StateScratchIndex(2),
         )),
@@ -825,6 +853,7 @@ def basic_test():
         args_groups=args_groups,
     )
     assert last_history_action == SuccessActionData.from_args(
+        raw_action=Optional(),
         action=Optional(VerifyGoal(
             Optional(),
             MetaFromIntTypeIndex(meta_idx),

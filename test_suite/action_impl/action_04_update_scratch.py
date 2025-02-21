@@ -121,6 +121,7 @@ def test_update_scratch() -> list[full_state.FullState]:
         scratches=scratches,
     )
     assert last_history_action == full_state.SuccessActionData.from_args(
+        raw_action=core.Optional(),
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),
@@ -154,6 +155,7 @@ def test_update_scratch() -> list[full_state.FullState]:
         scratches=scratches,
     )
     assert last_history_action == full_state.SuccessActionData.from_args(
+        raw_action=core.Optional(),
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),
@@ -187,6 +189,7 @@ def test_update_scratch() -> list[full_state.FullState]:
         scratches=scratches,
     )
     assert last_history_action == full_state.SuccessActionData.from_args(
+        raw_action=core.Optional(),
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),
@@ -220,6 +223,7 @@ def test_update_scratch() -> list[full_state.FullState]:
         scratches=scratches,
     )
     assert last_history_action == full_state.SuccessActionData.from_args(
+        raw_action=core.Optional(),
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),
@@ -253,6 +257,7 @@ def test_update_scratch() -> list[full_state.FullState]:
         scratches=scratches,
     )
     assert last_history_action == full_state.SuccessActionData.from_args(
+        raw_action=core.Optional(),
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),
@@ -289,6 +294,7 @@ def test_update_scratch() -> list[full_state.FullState]:
         scratches=scratches,
     )
     assert last_history_action == full_state.SuccessActionData.from_args(
+        raw_action=core.Optional(),
         action=core.Optional(full_action),
         output=core.Optional(output),
         exception=core.Optional(),

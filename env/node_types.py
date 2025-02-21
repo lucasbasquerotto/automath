@@ -9,14 +9,11 @@ from env.core import (
     IBoolean,
     IDefault,
     Protocol,
-    Type,
     ControlFlowBaseNode,
     TypeAliasGroup,
     CountableTypeGroup,
     RunInfoFullResult,
-    Integer,
     IntBoolean,
-    TypeNode,
     IInstantiable,
 )
 from env.state import (
@@ -26,7 +23,7 @@ from env.state import (
     Goal,
     StateDynamicGoalIndex,
 )
-from env.action import IBasicAction, IActionOutput, BaseAction
+from env.action import IBasicAction, IActionOutput, BaseAction, RawAction
 from env.full_state import FullState, SuccessActionData
 
 class HaveScratch(Goal[INode, StateScratchIndex], IInstantiable):
@@ -105,45 +102,6 @@ class HaveDynamicGoalAchieved(Goal[Void, StateDynamicGoalIndex], IDefault, IInst
         content = dynamic_goal.goal_achieved.apply().cast(IBoolean)
         return content
 
-class ActionFromBasicArgs(ControlFlowBaseNode, IInstantiable):
-
-    idx_action_type = 1
-    idx_arg1 = 2
-    idx_arg2 = 3
-    idx_arg3 = 4
-
-    @classmethod
-    def protocol(cls) -> Protocol:
-        return Protocol(
-            TypeAliasGroup(),
-            CountableTypeGroup(
-                Type(IBasicAction.as_type()),
-                Integer.as_type(),
-                Integer.as_type(),
-                Integer.as_type(),
-            ),
-            IBasicAction.as_type(),
-        )
-
-    def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        base_result, arg_group = super()._run(info).as_tuple
-        info, inner_result = base_result.as_tuple
-
-        final_self = inner_result.real(ActionFromBasicArgs)
-
-        action_type = final_self.inner_arg(
-            self.idx_action_type
-        ).apply().real(TypeNode[IBasicAction]).type
-        assert issubclass(action_type, IBasicAction)
-
-        arg1 = final_self.inner_arg(self.idx_arg1).apply().real(Integer)
-        arg2 = final_self.inner_arg(self.idx_arg2).apply().real(Integer)
-        arg3 = final_self.inner_arg(self.idx_arg3).apply().real(Integer)
-
-        action = action_type.from_raw(arg1, arg2, arg3)
-
-        return RunInfoFullResult(info.to_result(action), arg_group)
-
 class CorrectActionValidator(ControlFlowBaseNode, IInstantiable):
 
     idx_action = 1
@@ -177,6 +135,35 @@ class CorrectActionValidator(ControlFlowBaseNode, IInstantiable):
 
         return RunInfoFullResult(info.to_result(result), arg_group)
 
+class ActionFromRawAction(ControlFlowBaseNode, IInstantiable):
+
+    idx_raw_action = 1
+    idx_full_state = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(),
+            CountableTypeGroup(
+                RawAction.as_type(),
+                FullState.as_type(),
+            ),
+            IBasicAction.as_type(),
+        )
+
+    def _run_control(self, info: RunInfo) -> RunInfoFullResult:
+        base_result, arg_group = super()._run(info).as_tuple
+        info, inner_result = base_result.as_tuple
+
+        final_self = inner_result.real(ActionFromRawAction)
+
+        raw_action = final_self.inner_arg(self.idx_raw_action).apply().real(RawAction)
+        full_state = final_self.inner_arg(self.idx_full_state).apply().real(FullState)
+
+        action = raw_action.to_action(full_state)
+
+        return RunInfoFullResult(info.to_result(action), arg_group)
+
 class ActionOutputFromAction(ControlFlowBaseNode, IInstantiable):
 
     idx_action = 1
@@ -200,6 +187,35 @@ class ActionOutputFromAction(ControlFlowBaseNode, IInstantiable):
         final_self = inner_result.real(ActionOutputFromAction)
 
         action = final_self.inner_arg(self.idx_action).apply().real(BaseAction)
+        full_state = final_self.inner_arg(self.idx_full_state).apply().real(FullState)
+
+        output = action.inner_run(full_state).output.apply().cast(IActionOutput)
+
+        return RunInfoFullResult(info.to_result(output), arg_group)
+
+class ActionOutputFromRawAction(ControlFlowBaseNode, IInstantiable):
+
+    idx_raw_action = 1
+    idx_full_state = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(),
+            CountableTypeGroup(
+                RawAction.as_type(),
+                FullState.as_type(),
+            ),
+            IActionOutput.as_type(),
+        )
+
+    def _run_control(self, info: RunInfo) -> RunInfoFullResult:
+        base_result, arg_group = super()._run(info).as_tuple
+        info, inner_result = base_result.as_tuple
+
+        final_self = inner_result.real(ActionOutputFromAction)
+
+        action = final_self.inner_arg(self.idx_raw_action).apply().real(RawAction)
         full_state = final_self.inner_arg(self.idx_full_state).apply().real(FullState)
 
         output = action.inner_run(full_state).output.apply().cast(IActionOutput)
@@ -258,6 +274,35 @@ class NewStateFromAction(ControlFlowBaseNode, IInstantiable):
         final_self = inner_result.real(ActionOutputFromAction)
 
         action = final_self.inner_arg(self.idx_action).apply().real(BaseAction)
+        full_state = final_self.inner_arg(self.idx_full_state).apply().real(FullState)
+
+        new_state = action.inner_run(full_state).new_state.apply().real(State)
+
+        return RunInfoFullResult(info.to_result(new_state), arg_group)
+
+class NewStateFromRawAction(ControlFlowBaseNode, IInstantiable):
+
+    idx_raw_action = 1
+    idx_full_state = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(),
+            CountableTypeGroup(
+                RawAction.as_type(),
+                FullState.as_type(),
+            ),
+            State.as_type(),
+        )
+
+    def _run_control(self, info: RunInfo) -> RunInfoFullResult:
+        base_result, arg_group = super()._run(info).as_tuple
+        info, inner_result = base_result.as_tuple
+
+        final_self = inner_result.real(ActionOutputFromAction)
+
+        action = final_self.inner_arg(self.idx_raw_action).apply().real(RawAction)
         full_state = final_self.inner_arg(self.idx_full_state).apply().real(FullState)
 
         new_state = action.inner_run(full_state).new_state.apply().real(State)

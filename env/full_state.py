@@ -44,10 +44,11 @@ from env.meta_env import (
     FullStateIntBaseIndex,
     IAction,
     IBasicAction,
+    IRawAction,
+    IActionOutput,
     SubtypeOuterGroup,
     DetailedType,
     GeneralTypeGroup,
-    IActionOutput,
     MetaInfoOptions,
 )
 
@@ -59,13 +60,18 @@ T = typing.TypeVar('T', bound=INode)
 
 class BaseActionData(InheritableNode, ABC):
 
-    idx_action = 1
-    idx_output = 2
-    idx_exception = 3
+    idx_raw_action = 1
+    idx_action = 2
+    idx_output = 3
+    idx_exception = 4
 
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(IRawAction.as_type()),
+            ),
             CompositeType(
                 Optional.as_type(),
                 OptionalTypeGroup(IAction.as_type()),
@@ -79,6 +85,10 @@ class BaseActionData(InheritableNode, ABC):
                 OptionalTypeGroup(IExceptionInfo.as_type()),
             ),
         ))
+
+    @property
+    def raw_action(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_raw_action)
 
     @property
     def action(self) -> TmpInnerArg:
@@ -95,23 +105,44 @@ class BaseActionData(InheritableNode, ABC):
     @classmethod
     def from_args(
         cls,
+        raw_action: Optional[IRawAction],
         action: Optional[IAction],
         output: Optional[IActionOutput],
         exception: Optional[IExceptionInfo],
     ) -> typing.Self:
-        return cls(action, output, exception)
+        return cls(raw_action, action, output, exception)
 
     def _strict_validate(self):
         alias_info = self._thin_strict_validate()
+
+        raw_action = self.raw_action.apply().cast(Optional[IRawAction]).value
         action = self.action.apply().cast(Optional[IAction]).value
-        if action is not None:
-            action.as_node.strict_validate()
         output = self.output.apply().cast(Optional[IActionOutput]).value
-        if output is not None:
-            output.as_node.strict_validate()
         exception = self.exception.apply().cast(Optional[IExceptionInfo]).value
+
+        if raw_action is not None:
+            raw_action_typed = raw_action.real(IRawAction).as_node
+            if action is not None:
+                raw_action_typed.strict_validate()
+            else:
+                raw_action_typed.validate()
+
+        if action is not None:
+            action_typed = action.real(IAction).as_node
+            if output is not None:
+                action_typed.strict_validate()
+            else:
+                action_typed.validate()
+        if output is not None:
+            output_typed = output.real(IActionOutput).as_node
+            if exception is not None:
+                output_typed.strict_validate()
+            else:
+                output_typed.validate()
+
         if exception is not None:
-            exception.as_node.validate()
+            exception.real(IExceptionInfo).as_node.validate()
+
         return alias_info
 
 class SuccessActionData(BaseActionData, IInstantiable):
@@ -119,6 +150,10 @@ class SuccessActionData(BaseActionData, IInstantiable):
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(IRawAction.as_type()),
+            ),
             CompositeType(
                 Optional.as_type(),
                 CountableTypeGroup(IAction.as_type()),
@@ -133,6 +168,29 @@ class SuccessActionData(BaseActionData, IInstantiable):
             ),
         ))
 
+class RawActionErrorActionData(BaseActionData, IInstantiable):
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(IRawAction.as_type()),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(IExceptionInfo.as_type()),
+            ),
+        ))
+
 class ActionTypeErrorActionData(BaseActionData, IInstantiable):
 
     @classmethod
@@ -140,7 +198,11 @@ class ActionTypeErrorActionData(BaseActionData, IInstantiable):
         return cls.default_protocol(CountableTypeGroup(
             CompositeType(
                 Optional.as_type(),
-                CountableTypeGroup(),
+                OptionalTypeGroup(IRawAction.as_type()),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(IAction.as_type()),
             ),
             CompositeType(
                 Optional.as_type(),
@@ -157,6 +219,10 @@ class ActionErrorActionData(BaseActionData, IInstantiable):
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(IRawAction.as_type()),
+            ),
             CompositeType(
                 Optional.as_type(),
                 CountableTypeGroup(IAction.as_type()),
@@ -176,6 +242,10 @@ class ActionOutputErrorActionData(BaseActionData, IInstantiable):
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(IRawAction.as_type()),
+            ),
             CompositeType(
                 Optional.as_type(),
                 CountableTypeGroup(IAction.as_type()),
