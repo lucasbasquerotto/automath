@@ -4406,6 +4406,44 @@ class BinaryInt(BaseGroup[IntBoolean], INumber, IInstantiable):
             return self.add(another_aux.inner_value.apply(), run_info=info)
         other_bits: tuple[IntBoolean, ...] = another_aux.real(BinaryInt).as_tuple
 
+        new_bits_reverse: list[IntBoolean] = []
+        one_to_subtract = False
+
+        for i in range(max(len(my_bits), len(other_bits))):
+            my_idx = len(my_bits) - i - 1
+            my_bit = my_bits[my_idx] if my_idx >= 0 else IBoolean.false()
+            other_idx = len(other_bits) - i - 1
+            other_bit = other_bits[other_idx] if other_idx >= 0 else IBoolean.false()
+
+            if one_to_subtract:
+                if my_bit == IBoolean.true():
+                    one_to_subtract = False
+                    my_bit = IBoolean.false()
+                else:
+                    my_bit = IBoolean.true()
+
+            if my_bit == other_bit:
+                new_bits_reverse.append(IBoolean.false())
+            elif my_bit == IBoolean.true():
+                new_bits_reverse.append(IBoolean.true())
+            else:
+                assert not one_to_subtract
+                assert my_bit == IBoolean.false()
+                assert other_bit == IBoolean.true()
+                one_to_subtract = True
+                new_bits_reverse.append(IBoolean.true())
+
+        new_bits: BinaryInt | NegativeBinaryInt = BinaryInt.from_items(new_bits_reverse[::-1])
+
+        if one_to_subtract:
+            new_bits = NegativeBinaryInt(
+                BinaryInt
+                    .from_items([IBoolean.true()] + ([IBoolean.false()] * len(new_bits_reverse)))
+                    .subtract(new_bits, run_info=info)
+            )
+
+        return info.to_result(new_bits)
+
 class NegativeBinaryInt(ControlFlowBaseNode, INumber, IInstantiable):
 
     idx_inner_value = 1
@@ -4457,7 +4495,15 @@ class NegativeBinaryInt(ControlFlowBaseNode, INumber, IInstantiable):
         info = run_info
 
         info, node_aux = self.as_node.run(info).as_tuple
-        my_bits: tuple[IntBoolean, ...] = node_aux.real(BinaryInt).as_tuple
+        me = node_aux.real(NegativeBinaryInt)
+        my_inner_value = me.inner_value.apply().real(BinaryInt)
 
         info, another_aux = another.as_node.run(info).as_tuple
-        other_bits: tuple[IntBoolean, ...] = another_aux.real(BinaryInt).as_tuple
+        if isinstance(another_aux, NegativeBinaryInt):
+            other_inner_value = another_aux.inner_value.apply().real(BinaryInt)
+            return NegativeBinaryInt(
+                my_inner_value.add(other_inner_value, run_info=info)
+            )
+
+        assert isinstance(another_aux, BinaryInt)
+        return another_aux.subtract(my_inner_value, run_info=info)
