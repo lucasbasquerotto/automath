@@ -25,6 +25,32 @@ from env.state import (
 )
 from env.action import IBasicAction, IActionOutput, BaseAction, RawAction
 from env.full_state import FullState, SuccessActionData
+from env import action_impl
+
+ESSENTIAL_ACTIONS = (
+    action_impl.RestoreHistoryStateOutput,
+    action_impl.VerifyGoal,
+    action_impl.CreateDynamicGoal,
+    action_impl.VerifyDynamicGoal,
+    action_impl.DeleteDynamicGoalOutput,
+    action_impl.ResetStateHiddenInfo,
+    action_impl.DefineStateHiddenInfo,
+    action_impl.CreateScratch,
+    action_impl.DeleteScratchOutput,
+    action_impl.ClearScratch,
+    action_impl.DefineScratchFromDefault,
+    action_impl.DefineScratchFromInt,
+    action_impl.DefineScratchFromSingleArg,
+    action_impl.DefineScratchFromIntIndex,
+    action_impl.DefineScratchFromFunctionWithIntArg,
+    action_impl.DefineScratchFromFunctionWithSingleArg,
+    action_impl.DefineScratchFromFunctionWithArgs,
+    action_impl.DefineScratchFromScratchNode,
+    action_impl.UpdateScratchFromAnother,
+    action_impl.CreateArgsGroup,
+    action_impl.DeleteArgsGroupOutput,
+    action_impl.DefineArgsGroup,
+)
 
 class HaveScratch(Goal[INode, StateScratchIndex], IInstantiable):
 

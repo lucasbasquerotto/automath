@@ -33,30 +33,7 @@ def run(goal_expr: core.IRunnable, result: bool):
     env = GoalEnv(
         goal=goal,
         max_steps=3,
-        allowed_actions=(
-            action_impl.RestoreHistoryStateOutput,
-            action_impl.VerifyGoal,
-            action_impl.CreateDynamicGoal,
-            action_impl.VerifyDynamicGoal,
-            action_impl.DeleteDynamicGoalOutput,
-            action_impl.ResetStateHiddenInfo,
-            action_impl.DefineStateHiddenInfo,
-            action_impl.CreateScratch,
-            action_impl.DeleteScratchOutput,
-            action_impl.ClearScratch,
-            action_impl.DefineScratchFromDefault,
-            action_impl.DefineScratchFromInt,
-            action_impl.DefineScratchFromSingleArg,
-            action_impl.DefineScratchFromIntIndex,
-            action_impl.DefineScratchFromFunctionWithIntArg,
-            action_impl.DefineScratchFromFunctionWithSingleArg,
-            action_impl.DefineScratchFromFunctionWithArgs,
-            action_impl.DefineScratchFromScratchNode,
-            action_impl.UpdateScratchFromAnother,
-            action_impl.CreateArgsGroup,
-            action_impl.DeleteArgsGroupOutput,
-            action_impl.DefineArgsGroup,
-        ),
+        allowed_actions=node_types.ESSENTIAL_ACTIONS,
     )
     assert has_goal(env=env, goal=goal)
 

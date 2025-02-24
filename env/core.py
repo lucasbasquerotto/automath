@@ -301,11 +301,11 @@ class IBoolean(INode):
         return InvalidNodeException(self.to_exception_info())
 
     @classmethod
-    def true(cls) -> IBoolean:
+    def true(cls) -> 'IntBoolean':
         return IntBoolean.create_true()
 
     @classmethod
-    def false(cls) -> IBoolean:
+    def false(cls) -> 'IntBoolean':
         return IntBoolean.create()
 
     @classmethod
@@ -4340,3 +4340,124 @@ class Add(ControlFlowBaseNode, IInstantiable):
 ###########################################################
 #################### ARITHMETIC NODES #####################
 ###########################################################
+
+class INumber(IAdditive, ABC):
+    pass
+
+class BinaryInt(BaseGroup[IntBoolean], INumber, IInstantiable):
+
+    @classmethod
+    def item_type(cls):
+        return IntBoolean
+
+    def add(self, another: INode, run_info: RunInfo):
+        info = run_info
+
+        info, node_aux = self.as_node.run(info).as_tuple
+        my_bits: tuple[IntBoolean, ...] = node_aux.real(BinaryInt).as_tuple
+
+        info, another_aux = another.as_node.run(info).as_tuple
+        if isinstance(another_aux, NegativeBinaryInt):
+            return another_aux.add(self, run_info=info)
+        other_bits: tuple[IntBoolean, ...] = another_aux.real(BinaryInt).as_tuple
+
+        new_bits_reverse: list[IntBoolean] = []
+        one_to_add = False
+
+        for i in range(max(len(my_bits), len(other_bits))):
+            my_idx = len(my_bits) - i - 1
+            my_bit = my_bits[my_idx] if my_idx >= 0 else IBoolean.false()
+            other_idx = len(other_bits) - i - 1
+            other_bit = other_bits[other_idx] if other_idx >= 0 else IBoolean.false()
+            prev_one_to_add = one_to_add
+            one_to_add = False
+            current = IBoolean.false()
+            if my_bit.as_bool:
+                current = IBoolean.true()
+            if other_bit.as_bool:
+                if current.as_bool:
+                    current = IBoolean.false()
+                    one_to_add = True
+                else:
+                    current = IBoolean.true()
+            if prev_one_to_add:
+                if current.as_bool:
+                    current = IBoolean.false()
+                    one_to_add = True
+                else:
+                    current = IBoolean.true()
+            new_bits_reverse.append(current)
+
+        if one_to_add:
+            new_bits_reverse.append(IBoolean.true())
+
+        new_bits = BinaryInt.from_items(new_bits_reverse[::-1])
+
+        return info.to_result(new_bits)
+
+    def subtract(self, another: INode, run_info: RunInfo):
+        info = run_info
+
+        info, node_aux = self.as_node.run(info).as_tuple
+        my_bits: tuple[IntBoolean, ...] = node_aux.real(BinaryInt).as_tuple
+
+        info, another_aux = another.as_node.run(info).as_tuple
+        if isinstance(another_aux, NegativeBinaryInt):
+            return self.add(another_aux.inner_value.apply(), run_info=info)
+        other_bits: tuple[IntBoolean, ...] = another_aux.real(BinaryInt).as_tuple
+
+class NegativeBinaryInt(ControlFlowBaseNode, INumber, IInstantiable):
+
+    idx_inner_value = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol.with_args(
+            CountableTypeGroup(
+                UnionType(
+                    BinaryInt.as_type(),
+                    NegativeBinaryInt.as_type(),
+                ),
+            ),
+            UnionType(
+                BinaryInt.as_type(),
+                CompositeType(
+                    NegativeBinaryInt.as_type(),
+                    CountableTypeGroup(BinaryInt.as_type()),
+                ),
+            ),
+        )
+
+    @property
+    def inner_value(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_inner_value)
+
+    def _run_control(self, info: RunInfo) -> RunInfoFullResult:
+        inner_value = self.inner_value.apply().run(info)
+        node: INode | None = None
+        if isinstance(inner_value, NegativeBinaryInt):
+            node = inner_value.inner_value.apply()
+        elif isinstance(inner_value, BinaryInt):
+            if inner_value == BinaryInt(IBoolean.false()):
+                node = inner_value
+            else:
+                node = self.func(inner_value)
+        else:
+            And(
+                Not(IsInstance(inner_value, NegativeBinaryInt.as_type())),
+                Not(IsInstance(inner_value, BinaryInt.as_type())),
+            ).raise_on_false()
+        assert node is not None
+        result = info.to_result(node)
+        arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
+            [inner_value])
+        return RunInfoFullResult(result, arg_group)
+
+    def add(self, another: INode, run_info: RunInfo):
+        info = run_info
+
+        info, node_aux = self.as_node.run(info).as_tuple
+        my_bits: tuple[IntBoolean, ...] = node_aux.real(BinaryInt).as_tuple
+
+        info, another_aux = another.as_node.run(info).as_tuple
+        other_bits: tuple[IntBoolean, ...] = another_aux.real(BinaryInt).as_tuple

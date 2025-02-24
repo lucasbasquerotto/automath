@@ -3,7 +3,7 @@ from env.goal_env import GoalEnv
 from env.base_agent import BaseAgent
 from env.full_state import BaseActionData
 from env.action import BaseAction, IActionOutput, RawAction
-from env import node_types, action_impl
+from env import node_types
 
 class Trainer:
     def __init__(
@@ -143,30 +143,7 @@ class Trainer:
             reward_evaluator=self.env.reward_evaluator,
             max_history_state_size=self.env.max_history_state_size,
             max_steps=self.env.max_steps,
-            allowed_actions=(
-                action_impl.RestoreHistoryStateOutput,
-                action_impl.VerifyGoal,
-                action_impl.CreateDynamicGoal,
-                action_impl.VerifyDynamicGoal,
-                action_impl.DeleteDynamicGoalOutput,
-                action_impl.ResetStateHiddenInfo,
-                action_impl.DefineStateHiddenInfo,
-                action_impl.CreateScratch,
-                action_impl.DeleteScratchOutput,
-                action_impl.ClearScratch,
-                action_impl.DefineScratchFromDefault,
-                action_impl.DefineScratchFromInt,
-                action_impl.DefineScratchFromSingleArg,
-                action_impl.DefineScratchFromIntIndex,
-                action_impl.DefineScratchFromFunctionWithIntArg,
-                action_impl.DefineScratchFromFunctionWithSingleArg,
-                action_impl.DefineScratchFromFunctionWithArgs,
-                action_impl.DefineScratchFromScratchNode,
-                action_impl.UpdateScratchFromAnother,
-                action_impl.CreateArgsGroup,
-                action_impl.DeleteArgsGroupOutput,
-                action_impl.DefineArgsGroup,
-            ),
+            allowed_actions=node_types.ESSENTIAL_ACTIONS,
         )
         sub_trainer = Trainer(
             env=sub_env,
