@@ -4336,3 +4336,7 @@ class Add(ControlFlowBaseNode, IInstantiable):
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             run_args)
         return RunInfoFullResult(result, arg_group)
+
+###########################################################
+#################### ARITHMETIC NODES #####################
+###########################################################

@@ -150,7 +150,6 @@ def basic_test():
     )
     assert env.full_state.goal_achieved() is False
     last_history_action = get_last_history_action(env)
-    print(env.symbol(last_history_action))
     assert last_history_action == get_empty_exception(action)
 
     meta_idx, type_idx = get_info_type_index(And, env, node_types)

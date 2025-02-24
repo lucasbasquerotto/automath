@@ -8,7 +8,13 @@ full_state,
 from env.symbol import Symbol
 from env.goal_env import GoalEnv
 from env.node_types import HaveScratch
-from test_suite import test_utils, basic_test, control_flow_test, indices_test
+from test_suite import (
+    test_utils,
+    basic_test,
+    boolean_test,
+    control_flow_test,
+    indices_test,
+)
 from test_suite.action_impl import (
     action_00_action_meta,
     action_01_state_meta,
@@ -28,8 +34,11 @@ def _final_verification(final_states: list[full_state.FullState]):
             action_data = action_data_opt.value
             assert current_fs is not None
             assert action_data is not None
+            raw_action_opt = action_data.raw_action.apply().cast(
+                core.IOptional[meta_env.IRawAction])
             action_opt = action_data.action.apply().cast(core.IOptional[meta_env.IAction])
-            act = action_opt.value
+            raw_action = raw_action_opt.value
+            act = raw_action if raw_action is not None else action_opt.value
             assert act is not None
             assert isinstance(act, action.BaseAction)
 
@@ -46,6 +55,9 @@ def _final_verification(final_states: list[full_state.FullState]):
                 print('actual_next_state:', Symbol.default(actual_next_state))
                 print('expected_next_state:', Symbol.default(expected_next_state))
             assert expected_next_state == actual_next_state, f'{i_case}-{i}'
+            if next_fs != actual_next_fs:
+                print('actual_next_fs:', Symbol.default(actual_next_fs))
+                print('expected_next_fs:', Symbol.default(next_fs))
             assert next_fs == actual_next_fs, f'{i_case}-{i}'
             last_action_data_opt = actual_next_fs.last_action_data
             assert last_action_data_opt == action_data_opt, f'{i_case}-{i}'
@@ -67,6 +79,7 @@ def _final_verification(final_states: list[full_state.FullState]):
 def _main_tests() -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
     final_states += test_utils.run_module_test(basic_test.test)
+    final_states += test_utils.run_module_test(boolean_test.test)
     final_states += test_utils.run_module_test(control_flow_test.test)
     final_states += test_utils.run_module_test(indices_test.test)
     final_states += test_utils.run_module_test(action_00_action_meta.test)

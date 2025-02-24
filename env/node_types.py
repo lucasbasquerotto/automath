@@ -59,7 +59,8 @@ class HaveResultScratch(Goal[IRunnable, StateScratchIndex], IInstantiable):
             scope_data_group=ScopeDataGroup(),
             return_after_scope=Optional(),
         )
-        goal_inner_expr = runnable.run(run_info)
+        eval_result = runnable.run(run_info)
+        _, goal_inner_expr = eval_result.as_tuple
         assert isinstance(eval_param, StateScratchIndex)
         scratch = eval_param.find_in_node(state).value_or_raise
         content = scratch.value_or_raise

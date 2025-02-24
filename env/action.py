@@ -468,6 +468,6 @@ class RawAction(BaseAction[IActionOutput], IRawAction[FullState], IInstantiable)
 
         action_type = action_index.find_in_outer_node(full_state).value_or_raise
 
-        basic_action = action_type.type.from_raw(arg1, arg2, arg3)
+        basic_action = action_type.type.from_raw(arg1.as_int, arg2.as_int, arg3.as_int)
 
         return basic_action
