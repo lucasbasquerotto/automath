@@ -293,6 +293,21 @@ class IDynamic(IRunnable, ABC):
     def validate_result(self, result: INode, args_group: OptionalValueGroup):
         raise NotImplementedError(self.__class__)
 
+class INormalizer(IDynamic, ABC):
+
+    def _run(self, info: RunInfo):
+        default_result = super()._run(info)
+        if info.is_future():
+            return default_result
+        result_aux, arg_group = default_result.as_tuple
+        info, node_aux = result_aux.as_tuple
+        node = node_aux.real(self.__class__)
+        result = info.to_result(node.normalize())
+        return RunInfoFullResult(result, arg_group)
+
+    def normalize(self) -> INode:
+        raise NotImplementedError(self.__class__)
+
 class IBoolean(INode):
 
     @property
@@ -325,7 +340,7 @@ class IBoolean(INode):
         return IntBoolean.create()
 
     @classmethod
-    def from_bool(cls, value: bool) -> IBoolean:
+    def from_bool(cls, value: bool) -> IntBoolean:
         if value:
             return cls.true()
         return cls.false()
@@ -2641,11 +2656,6 @@ class BaseIntBoolean(BaseInt, IBoolean, IDefault, ABC):
         return cls(0)
 
     @classmethod
-    def from_bool(cls, value: bool) -> typing.Self:
-        assert value in (True, False)
-        return cls.from_int(1 if value else 0)
-
-    @classmethod
     def create_true(cls) -> typing.Self:
         return cls(1)
 
@@ -4457,7 +4467,7 @@ class NegativeSign(InheritableNode, IComparableSign, IInstantiable):
     def negative(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_negative)
 
-class ISignedInt(IComparableSignedNumber, ABC):
+class ISignedInt(INormalizer, IComparableSignedNumber, ABC):
 
     @property
     def abs(self) -> BinaryInt:
@@ -4467,7 +4477,13 @@ class ISignedInt(IComparableSignedNumber, ABC):
     def sign(self) -> NegativeSign:
         raise NotImplementedError
 
-class BinaryInt(BaseGroup[IntBoolean], IDynamic, ISignedInt, IInstantiable):
+    def with_new_abs(self, abs_value: BinaryInt) -> ISignedInt:
+        raise NotImplementedError
+
+    def normalize(self) -> ISignedInt:
+        raise NotImplementedError
+
+class BinaryInt(BaseGroup[IntBoolean], ISignedInt, IInstantiable):
 
     @classmethod
     def item_type(cls):
@@ -4481,33 +4497,28 @@ class BinaryInt(BaseGroup[IntBoolean], IDynamic, ISignedInt, IInstantiable):
     def sign(self):
         return NegativeSign(IBoolean.false())
 
-    def _run(self, info: RunInfo) -> RunInfoFullResult:
-        base_result, arg_group = super()._run(info).as_tuple
-        info, node_aux = base_result.as_tuple
-        if info.is_future():
-            return base_result
+    def with_new_abs(self, abs_value: BinaryInt) -> ISignedInt:
+        return abs_value
 
-        node = node_aux.real(self.__class__)
+    def normalize(self) -> typing.Self:
+        if self == BinaryInt(IBoolean.false()):
+            return self
 
-        if node == BinaryInt(IBoolean.false()):
-            return RunInfoFullResult(info.to_result(node), arg_group)
-
-        bits = node.as_tuple
+        bits = self.as_tuple
         assert len(bits) > 0
         if bits[0] == IBoolean.true():
-            return RunInfoFullResult(info.to_result(node), arg_group)
+            return self
 
         new_bits_list: list[IntBoolean] = []
         for i, bit in enumerate(bits):
             if bit == IBoolean.true():
-                new_bits_list += bits[i:]
+                new_bits_list = list(bits[i:])
                 break
 
         if len(new_bits_list) == 0:
             new_bits_list.append(IBoolean.false())
 
-        node = BinaryInt.from_items(new_bits_list)
-        return RunInfoFullResult(info.to_result(node), arg_group)
+        return self.from_items(new_bits_list)
 
     def add(self, another: INode):
         if isinstance(another, BinaryInt):
@@ -4589,9 +4600,13 @@ class BinaryInt(BaseGroup[IntBoolean], IDynamic, ISignedInt, IInstantiable):
                 new_bits = SignedInt(
                     NegativeSign(IBoolean.true()),
                     BinaryInt
-                        .from_items([IBoolean.true()] + ([IBoolean.false()] * len(new_bits_reverse)))
+                        .from_items(
+                            [IBoolean.true()]
+                            + ([IBoolean.false()] * len(new_bits_reverse))
+                        )
+                        .normalize()
                         .subtract(new_bits)
-                )
+                ).normalize()
 
             return new_bits
 
@@ -4642,7 +4657,7 @@ class BinaryInt(BaseGroup[IntBoolean], IDynamic, ISignedInt, IInstantiable):
             return IntBoolean.false()
         return IntBoolean.false()
 
-class SignedInt(ControlFlowBaseNode, ISignedInt, IInstantiable):
+class SignedInt(InheritableNode, ISignedInt, IInstantiable):
 
     idx_sign = 1
     idx_abs = 2
@@ -4683,18 +4698,20 @@ class SignedInt(ControlFlowBaseNode, ISignedInt, IInstantiable):
     def abs(self):
         return self.raw_abs.apply().real(BinaryInt)
 
-    def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        sign = self.raw_sign.apply().run(info).real(NegativeSign)
-        abs_value = self.raw_abs.apply().run(info).real(BinaryInt)
-        arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
-            [sign, abs_value])
-        if abs_value == BinaryInt(IBoolean.false()):
-            return RunInfoFullResult(info.to_result(abs_value), arg_group)
+    def with_new_abs(self, abs_value: BinaryInt) -> ISignedInt:
+        return self.func(self.sign, abs_value).normalize()
+
+    def normalize(self) -> ISignedInt:
+        sign = self.raw_sign.apply().real(NegativeSign)
+        abs_value = self.raw_abs.apply().real(BinaryInt)
+        zero = BinaryInt(IBoolean.false())
+        if abs_value == zero:
+            return zero
         node = (
             self.func(sign, abs_value)
             if sign == NegativeSign(IBoolean.true())
             else abs_value)
-        return RunInfoFullResult(info.to_result(node), arg_group)
+        return node
 
     def add(self, another: INode):
         my_abs = self.abs
@@ -4723,6 +4740,59 @@ class SignedInt(ControlFlowBaseNode, ISignedInt, IInstantiable):
         other_abs = node_2.abs
         return my_abs.lt(other_abs)
 
+class BinaryToInt(InheritableNode, INormalizer, IInstantiable):
+
+    idx_binary = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(),
+            CountableTypeGroup(BinaryInt.as_type()),
+            Integer.as_type(),
+        )
+
+    @property
+    def binary(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_binary)
+
+    def normalize(self) -> Integer:
+        binary = self.binary.apply().real(BinaryInt)
+        exp = 0
+        value = 0
+        for bit in binary.as_tuple[::-1]:
+            if bit == IBoolean.true():
+                value += 2 ** exp
+            exp += 1
+        return Integer(value)
+
+class IntToBinary(InheritableNode, INormalizer, IInstantiable):
+
+    idx_integer = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(),
+            CountableTypeGroup(Integer.as_type()),
+            BinaryInt.as_type(),
+        )
+
+    @property
+    def integer(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_integer)
+
+    def normalize(self) -> BinaryInt:
+        integer = self.integer.apply().real(Integer)
+        value = integer.as_int
+        bits: list[IntBoolean] = []
+        while value > 0:
+            bits.append(IBoolean.from_bool(value % 2 == 1))
+            value //= 2
+        if len(bits) == 0:
+            bits.append(IBoolean.false())
+        return BinaryInt.from_items(bits)
+
 class Float(InheritableNode, IComparableNumber, IInstantiable):
 
     idx_base = 1
@@ -4745,16 +4815,61 @@ class Float(InheritableNode, IComparableNumber, IInstantiable):
     def exponent(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_exponent)
 
-    # def add(self, another: INode):
-    #     other = another.real(Float)
-    #     my_base = self.base.apply().real(ISignedInt)
-    #     my_exponent = self.exponent.apply().real(ISignedInt)
-    #     other_base = other.base.apply().real(ISignedInt)
-    #     other_exponent = other.exponent.apply().real(ISignedInt)
-    #     my_sign = my_base.sign.real(NegativeSign)
-    #     other_sign = other_base.sign.real(NegativeSign)
-    #     my_abs = my_base.abs.real(BinaryInt)
-    #     other_abs = other_base.abs.real(BinaryInt)
+    def add(self, another: INode):
+        other = another.real(Float)
+        my_base = self.base.apply().real(ISignedInt)
+        my_exponent = self.exponent.apply().real(ISignedInt)
+        other_base = other.base.apply().real(ISignedInt)
+        other_exponent = other.exponent.apply().real(ISignedInt)
+        if my_base == BinaryInt(IBoolean.false()):
+            return other
+        if other_base == BinaryInt(IBoolean.false()):
+            return self
+        if my_exponent.lt(other_exponent):
+            higher_exp = other_exponent
+            higher_base = other_base
+            lower_exp = my_exponent
+            lower_base = my_base
+        else:
+            higher_exp = my_exponent
+            higher_base = my_base
+            lower_exp = other_exponent
+            lower_base = other_base
+        diff_base = len(higher_base.abs.as_tuple) - len(lower_base.abs.as_tuple)
+        if diff_base > 0:
+            lower_bits = list(lower_base.abs.as_tuple)
+            lower_bits = lower_bits + [IBoolean.false()] * diff_base
+            lower_base = lower_base.with_new_abs(BinaryInt.from_items(lower_bits))
+        elif diff_base < 0:
+            higher_bits = list(higher_base.abs.as_tuple)
+            higher_bits = higher_bits + [IBoolean.false()] * -diff_base
+            higher_base = higher_base.with_new_abs(BinaryInt.from_items(higher_bits))
+        higher_bits = list(higher_base.abs.as_tuple)
+        current_exp = higher_exp
+        minus_one: SignedInt = SignedInt(
+            NegativeSign(IBoolean.true()),
+            BinaryInt.from_items([IBoolean.true()])
+        )
+        while lower_exp.lt(current_exp):
+            higher_bits.append(IBoolean.false())
+            current_exp = current_exp.add(minus_one).real(ISignedInt)
+        higher_base = SignedInt(
+            higher_base.sign,
+            BinaryInt.from_items(higher_bits)
+        ).normalize()
+        higher_exp = current_exp
+        assert higher_exp == lower_exp
+        assert isinstance(higher_base, ISignedInt)
+        new_base = higher_base.add(lower_base).normalize()
+        diff = len(new_base.abs.as_tuple) - len(lower_base.abs.as_tuple)
+        one = BinaryInt.from_items([IBoolean.true()])
+        while diff > 0:
+            current_exp = current_exp.add(one).real(ISignedInt)
+            diff -= 1
+        while diff < 0:
+            current_exp = current_exp.add(minus_one).real(ISignedInt)
+            diff += 1
+        return Float(new_base, higher_exp)
 
     def lt(self, another: INode):
         other = another.real(Float)
@@ -4779,3 +4894,32 @@ class Float(InheritableNode, IComparableNumber, IInstantiable):
     def gt(self, another: INode):
         node_2 = another.real(Float)
         return node_2.lt(self)
+
+class AsFloat(InheritableNode, INormalizer, IInstantiable):
+
+    idx_binary = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(),
+            CountableTypeGroup(ISignedInt.as_type()),
+            Float.as_type(),
+        )
+
+    @property
+    def binary(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_binary)
+
+    def normalize(self) -> Float:
+        binary = self.binary.apply().real(ISignedInt)
+        zero = BinaryInt(IBoolean.false())
+        if binary == zero:
+            return Float(zero, zero)
+        bits_amount = len(binary.abs.as_tuple)
+        return Float(
+            binary,
+            BinaryInt.from_items([IBoolean.true()] + (
+                [IBoolean.false()] * (bits_amount-1)
+            )).normalize()
+        )
