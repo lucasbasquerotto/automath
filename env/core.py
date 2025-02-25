@@ -4411,100 +4411,182 @@ class Add(ControlFlowBaseNode, IInstantiable):
 #################### ARITHMETIC NODES #####################
 ###########################################################
 
-class INumber(IAdditive, IComparable, ABC):
+class INumber(IAdditive, ABC):
     pass
 
-class BinaryInt(BaseGroup[IntBoolean], INumber, IInstantiable):
+class IComparableNumber(INumber, IComparable, ABC):
+    pass
+
+class ISign(INode, ABC):
+    pass
+
+class IComparableSign(ISign, ABC):
+    pass
+
+class ISignedNumber(INumber, ABC):
+
+    @property
+    def abs(self) -> BinaryInt:
+        raise NotImplementedError
+
+    @property
+    def sign(self) -> ISign:
+        raise NotImplementedError
+
+class IComparableSignedNumber(ISignedNumber, IComparableNumber, ABC):
+
+    @property
+    def abs(self) -> BinaryInt:
+        raise NotImplementedError
+
+    @property
+    def sign(self) -> IComparableSign:
+        raise NotImplementedError
+
+class NegativeSign(InheritableNode, IComparableSign, IInstantiable):
+
+    idx_negative = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            IntBoolean.as_type(),
+        ))
+
+    @property
+    def negative(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_negative)
+
+class BinaryInt(BaseGroup[IntBoolean], IDynamic, IComparableSignedNumber, IInstantiable):
 
     @classmethod
     def item_type(cls):
         return IntBoolean
 
+    @property
+    def abs(self):
+        return self
+
+    @property
+    def sign(self):
+        return NegativeSign(IBoolean.false())
+
+    def _run(self, info: RunInfo) -> RunInfoFullResult:
+        base_result, arg_group = super()._run(info).as_tuple
+        info, node_aux = base_result.as_tuple
+        if info.is_future():
+            return base_result
+
+        node = node_aux.real(self.__class__)
+
+        if node == BinaryInt(IBoolean.false()):
+            return RunInfoFullResult(info.to_result(node), arg_group)
+
+        bits = node.as_tuple
+        assert len(bits) > 0
+        if bits[0] == IBoolean.true():
+            return RunInfoFullResult(info.to_result(node), arg_group)
+
+        new_bits_list: list[IntBoolean] = []
+        for i, bit in enumerate(bits):
+            if bit == IBoolean.true():
+                new_bits_list += bits[i:]
+                break
+
+        if len(new_bits_list) == 0:
+            new_bits_list.append(IBoolean.false())
+
+        node = BinaryInt.from_items(new_bits_list)
+        return RunInfoFullResult(info.to_result(node), arg_group)
+
     def add(self, another: INode):
-        if isinstance(another, NegativeBinaryInt):
-            return another.add(self)
+        if isinstance(another, BinaryInt):
+            my_bits: tuple[IntBoolean, ...] = self.as_tuple
+            other_bits: tuple[IntBoolean, ...] = another.real(BinaryInt).as_tuple
 
-        my_bits: tuple[IntBoolean, ...] = self.real(BinaryInt).as_tuple
-        other_bits: tuple[IntBoolean, ...] = another.real(BinaryInt).as_tuple
-
-        new_bits_reverse: list[IntBoolean] = []
-        one_to_add = False
-
-        for i in range(max(len(my_bits), len(other_bits))):
-            my_idx = len(my_bits) - i - 1
-            my_bit = my_bits[my_idx] if my_idx >= 0 else IBoolean.false()
-            other_idx = len(other_bits) - i - 1
-            other_bit = other_bits[other_idx] if other_idx >= 0 else IBoolean.false()
-            prev_one_to_add = one_to_add
+            new_bits_reverse: list[IntBoolean] = []
             one_to_add = False
-            current = IBoolean.false()
-            if my_bit.as_bool:
-                current = IBoolean.true()
-            if other_bit.as_bool:
-                if current.as_bool:
-                    current = IBoolean.false()
-                    one_to_add = True
-                else:
+
+            for i in range(max(len(my_bits), len(other_bits))):
+                my_idx = len(my_bits) - i - 1
+                my_bit = my_bits[my_idx] if my_idx >= 0 else IBoolean.false()
+                other_idx = len(other_bits) - i - 1
+                other_bit = other_bits[other_idx] if other_idx >= 0 else IBoolean.false()
+                prev_one_to_add = one_to_add
+                one_to_add = False
+                current = IBoolean.false()
+                if my_bit.as_bool:
                     current = IBoolean.true()
-            if prev_one_to_add:
-                if current.as_bool:
-                    current = IBoolean.false()
-                    one_to_add = True
-                else:
-                    current = IBoolean.true()
-            new_bits_reverse.append(current)
+                if other_bit.as_bool:
+                    if current.as_bool:
+                        current = IBoolean.false()
+                        one_to_add = True
+                    else:
+                        current = IBoolean.true()
+                if prev_one_to_add:
+                    if current.as_bool:
+                        current = IBoolean.false()
+                        one_to_add = True
+                    else:
+                        current = IBoolean.true()
+                new_bits_reverse.append(current)
 
-        if one_to_add:
-            new_bits_reverse.append(IBoolean.true())
+            if one_to_add:
+                new_bits_reverse.append(IBoolean.true())
 
-        new_bits = BinaryInt.from_items(new_bits_reverse[::-1])
+            new_bits = BinaryInt.from_items(new_bits_reverse[::-1])
 
-        return new_bits
+            return new_bits
+
+        other = another.real(INumber)
+        return other.add(self)
 
     def subtract(self, another: INode):
-        if isinstance(another, NegativeBinaryInt):
-            return self.add(another.inner_value.apply())
+        if isinstance(another, BinaryInt):
+            my_bits: tuple[IntBoolean, ...] = self.as_tuple
+            other_bits: tuple[IntBoolean, ...] = another.as_tuple
 
-        my_bits: tuple[IntBoolean, ...] = self.real(BinaryInt).as_tuple
-        other_bits: tuple[IntBoolean, ...] = another.real(BinaryInt).as_tuple
+            new_bits_reverse: list[IntBoolean] = []
+            one_to_subtract = False
 
-        new_bits_reverse: list[IntBoolean] = []
-        one_to_subtract = False
+            for i in range(max(len(my_bits), len(other_bits))):
+                my_idx = len(my_bits) - i - 1
+                my_bit = my_bits[my_idx] if my_idx >= 0 else IBoolean.false()
+                other_idx = len(other_bits) - i - 1
+                other_bit = other_bits[other_idx] if other_idx >= 0 else IBoolean.false()
 
-        for i in range(max(len(my_bits), len(other_bits))):
-            my_idx = len(my_bits) - i - 1
-            my_bit = my_bits[my_idx] if my_idx >= 0 else IBoolean.false()
-            other_idx = len(other_bits) - i - 1
-            other_bit = other_bits[other_idx] if other_idx >= 0 else IBoolean.false()
+                if one_to_subtract:
+                    if my_bit == IBoolean.true():
+                        one_to_subtract = False
+                        my_bit = IBoolean.false()
+                    else:
+                        my_bit = IBoolean.true()
+
+                if my_bit == other_bit:
+                    new_bits_reverse.append(IBoolean.false())
+                elif my_bit == IBoolean.true():
+                    new_bits_reverse.append(IBoolean.true())
+                else:
+                    assert not one_to_subtract
+                    assert my_bit == IBoolean.false()
+                    assert other_bit == IBoolean.true()
+                    one_to_subtract = True
+                    new_bits_reverse.append(IBoolean.true())
+
+            new_bits: BinaryInt | SignedInt = BinaryInt.from_items(new_bits_reverse[::-1])
 
             if one_to_subtract:
-                if my_bit == IBoolean.true():
-                    one_to_subtract = False
-                    my_bit = IBoolean.false()
-                else:
-                    my_bit = IBoolean.true()
+                new_bits = SignedInt(
+                    NegativeSign(IBoolean.true()),
+                    BinaryInt
+                        .from_items([IBoolean.true()] + ([IBoolean.false()] * len(new_bits_reverse)))
+                        .subtract(new_bits)
+                )
 
-            if my_bit == other_bit:
-                new_bits_reverse.append(IBoolean.false())
-            elif my_bit == IBoolean.true():
-                new_bits_reverse.append(IBoolean.true())
-            else:
-                assert not one_to_subtract
-                assert my_bit == IBoolean.false()
-                assert other_bit == IBoolean.true()
-                one_to_subtract = True
-                new_bits_reverse.append(IBoolean.true())
+            return new_bits
 
-        new_bits: BinaryInt | NegativeBinaryInt = BinaryInt.from_items(new_bits_reverse[::-1])
-
-        if one_to_subtract:
-            new_bits = NegativeBinaryInt(
-                BinaryInt
-                    .from_items([IBoolean.true()] + ([IBoolean.false()] * len(new_bits_reverse)))
-                    .subtract(new_bits)
-            )
-
-        return new_bits
+        other = another.real(SignedInt)
+        return self.add(other.abs)
 
     def lt(self, another: INode):
         if not isinstance(another, BinaryInt):
@@ -4550,75 +4632,82 @@ class BinaryInt(BaseGroup[IntBoolean], INumber, IInstantiable):
             return IntBoolean.false()
         return IntBoolean.false()
 
-class NegativeBinaryInt(ControlFlowBaseNode, INumber, IInstantiable):
+class SignedInt(ControlFlowBaseNode, IComparableSignedNumber, IInstantiable):
 
-    idx_inner_value = 1
+    idx_sign = 1
+    idx_abs = 2
 
     @classmethod
     def protocol(cls) -> Protocol:
         return Protocol.with_args(
             CountableTypeGroup(
-                UnionType(
-                    BinaryInt.as_type(),
-                    NegativeBinaryInt.as_type(),
-                ),
+                NegativeSign.as_type(),
+                BinaryInt.as_type(),
             ),
             UnionType(
                 BinaryInt.as_type(),
                 CompositeType(
-                    NegativeBinaryInt.as_type(),
-                    CountableTypeGroup(BinaryInt.as_type()),
+                    SignedInt.as_type(),
+                    CountableTypeGroup(
+                        InstanceType(NegativeSign(IBoolean.true())),
+                        BinaryInt.as_type(),
+                    ),
                 ),
             ),
         )
 
     @property
-    def inner_value(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_inner_value)
+    def raw_sign(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_sign)
+
+    @property
+    def raw_abs(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_abs)
+
+    @property
+    def sign(self):
+        return self.raw_sign.apply().real(NegativeSign)
+
+    @property
+    def abs(self):
+        return self.raw_abs.apply().real(BinaryInt)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        inner_value = self.inner_value.apply().run(info)
-        node: INode | None = None
-        if isinstance(inner_value, NegativeBinaryInt):
-            node = inner_value.inner_value.apply()
-        elif isinstance(inner_value, BinaryInt):
-            if inner_value == BinaryInt(IBoolean.false()):
-                node = inner_value
-            else:
-                node = self.func(inner_value)
-        else:
-            And(
-                Not(IsInstance(inner_value, NegativeBinaryInt.as_type())),
-                Not(IsInstance(inner_value, BinaryInt.as_type())),
-            ).raise_on_false()
-        assert node is not None
-        result = info.to_result(node)
+        sign = self.raw_sign.apply().run(info).real(NegativeSign)
+        abs_value = self.raw_abs.apply().run(info).real(BinaryInt)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
-            [inner_value])
-        return RunInfoFullResult(result, arg_group)
+            [sign, abs_value])
+        if abs_value == BinaryInt(IBoolean.false()):
+            return RunInfoFullResult(info.to_result(abs_value), arg_group)
+        node = (
+            self.func(sign, abs_value)
+            if sign == NegativeSign(IBoolean.true())
+            else abs_value)
+        return RunInfoFullResult(info.to_result(node), arg_group)
 
     def add(self, another: INode):
-        my_inner_value = self.inner_value.apply().real(BinaryInt)
+        my_abs = self.abs
 
-        if isinstance(another, NegativeBinaryInt):
-            other_inner_value = another.inner_value.apply().real(BinaryInt)
-            return NegativeBinaryInt(my_inner_value.add(other_inner_value))
+        if isinstance(another, SignedInt):
+            other_abs = another.abs
+            Eq(self.sign, another.sign).raise_on_false()
+            return self.func(self.sign, my_abs.add(other_abs))
 
         node_2 = another.real(BinaryInt)
-        return node_2.subtract(my_inner_value)
+        return node_2.subtract(my_abs)
 
     def lt(self, another: INode):
         if isinstance(another, BinaryInt):
             return IBoolean.true()
-        node_2 = another.real(NegativeBinaryInt)
-        my_inner_value = self.inner_value.apply().real(BinaryInt)
-        other_inner_value = node_2.inner_value.apply().real(BinaryInt)
-        return my_inner_value.gt(other_inner_value)
+        node_2 = another.real(SignedInt)
+        my_abs = self.abs
+        other_abs = node_2.abs
+        return my_abs.gt(other_abs)
 
     def gt(self, another: INode):
         if isinstance(another, BinaryInt):
             return IBoolean.false()
-        node_2 = another.real(NegativeBinaryInt)
-        my_inner_value = self.inner_value.apply().real(BinaryInt)
-        other_inner_value = node_2.inner_value.apply().real(BinaryInt)
-        return my_inner_value.lt(other_inner_value)
+        node_2 = another.real(SignedInt)
+        my_abs = self.abs
+        other_abs = node_2.abs
+        return my_abs.lt(other_abs)
