@@ -777,8 +777,8 @@ def test_control_flow() -> list[full_state.FullState]:
                         core.CountableTypeGroup(
                             core.FunctionType(
                                 core.CountableTypeGroup(
-                                    core.IInt.as_type(),
-                                    core.IInt.as_type(),
+                                    core.IComparable.as_type(),
+                                    core.IComparable.as_type(),
                                 ),
                                 core.IntBoolean.as_type(),
                             ),
@@ -841,8 +841,8 @@ def test_control_flow() -> list[full_state.FullState]:
                                 core.RestTypeGroup(
                                     core.FunctionType(
                                         core.CountableTypeGroup(
-                                            core.IInt.as_type(),
-                                            core.IInt.as_type(),
+                                            core.IComparable.as_type(),
+                                            core.IComparable.as_type(),
                                         ),
                                         core.IntBoolean.as_type(),
                                     ),
@@ -870,7 +870,7 @@ def test_control_flow() -> list[full_state.FullState]:
                                 core.Protocol(
                                     core.TypeAliasGroup(),
                                     core.CountableTypeGroup(
-                                        core.Type(core.DoubleIntBooleanNode.as_type()),
+                                        core.Type(core.RunnableBoolean.as_type()),
                                     ),
                                     core.CompositeType(
                                         core.DefaultGroup.as_type(),

@@ -75,49 +75,32 @@ class IDefault(INode, ABC):
 
 class IAdditive(INode, ABC):
 
-    def add(self, another: INode, run_info: RunInfo) -> RunInfoResult:
+    def add(self, another: INode) -> typing.Self:
         raise NotImplementedError(self.__class__)
 
 class IComparable(INode, ABC):
 
-    def _run_with_another(self, another: INode, run_info: RunInfo):
-        info = run_info
+    def eq(self, another: INode) -> IntBoolean:
+        return IntBoolean.from_bool(self == another)
 
-        info, node_aux = self.as_node.run(info).as_tuple
-        node_1 = node_aux.real(self.__class__)
+    def ne(self, another: INode) -> IntBoolean:
+        return IntBoolean.from_bool(self != another)
 
-        info, another_aux = another.as_node.run(info).as_tuple
-        node_2 = another_aux.real(IComparable)
-
-        return info, node_1, node_2
-
-    def eq(self, another: INode, run_info: RunInfo):
-        info, node_1, node_2 = self._run_with_another(another, run_info)
-        new_value = node_1 == node_2
-        return info.to_result(IntBoolean.from_bool(new_value))
-
-    def ne(self, another: INode, run_info: RunInfo):
-        info, node_1, node_2 = self._run_with_another(another, run_info)
-        new_value = node_1 != node_2
-        return info.to_result(IntBoolean.from_bool(new_value))
-
-    def lt(self, another: INode, run_info: RunInfo):
+    def lt(self, another: INode) -> IntBoolean:
         raise NotImplementedError(self.__class__)
 
-    def le(self, another: INode, run_info: RunInfo):
-        info, node_1, node_2 = self._run_with_another(another, run_info)
-        if node_1 == node_2:
-            return info.to_result(IntBoolean.true())
-        return node_1.lt(node_2, run_info=info)
+    def le(self, another: INode) -> IntBoolean:
+        if self == another:
+            return IntBoolean.true()
+        return self.lt(another)
 
-    def gt(self, another: INode, run_info: RunInfo):
+    def gt(self, another: INode) -> IntBoolean:
         raise NotImplementedError(self.__class__)
 
-    def ge(self, another: INode, run_info: RunInfo):
-        info, node_1, node_2 = self._run_with_another(another, run_info)
-        if node_1 == node_2:
-            return info.to_result(IntBoolean.true())
-        return node_1.gt(node_2, run_info=info)
+    def ge(self, another: INode) -> IntBoolean:
+        if self == another:
+            return IntBoolean.true()
+        return self.gt(another)
 
 class IFromInt(INode, ABC):
 
@@ -131,25 +114,17 @@ class IInt(IFromInt, IAdditive, IComparable, ABC):
     def as_int(self) -> int:
         raise NotImplementedError(self.__class__)
 
-    def _run_with_another(self, another: INode, run_info: RunInfo):
-        info, node_1, node_2_aux = super()._run_with_another(another, run_info)
-        node_2 = node_2_aux.real(IInt)
-        return info, node_1, node_2
+    def add(self, another: INode):
+        new_value = self.as_int + another.real(IInt).as_int
+        return self.__class__.from_int(new_value)
 
-    def add(self, another: INode, run_info: RunInfo):
-        info, node_1, node_2 = self._run_with_another(another, run_info)
-        new_value = node_1.as_int + node_2.as_int
-        return info.to_result(self.__class__.from_int(new_value))
+    def lt(self, another: INode):
+        new_value = self.as_int < another.real(IInt).as_int
+        return IntBoolean.from_bool(new_value)
 
-    def lt(self, another: INode, run_info: RunInfo):
-        info, node_1, node_2 = self._run_with_another(another, run_info)
-        new_value = node_1.as_int < node_2.as_int
-        return info.to_result(IntBoolean.from_bool(new_value))
-
-    def gt(self, another: INode, run_info: RunInfo):
-        info, node_1, node_2 = self._run_with_another(another, run_info)
-        new_value = node_1.as_int > node_2.as_int
-        return info.to_result(IntBoolean.from_bool(new_value))
+    def gt(self, another: INode):
+        new_value = self.as_int > another.real(IInt).as_int
+        return IntBoolean.from_bool(new_value)
 
 class INodeIndex(INode, ABC):
 
@@ -233,17 +208,9 @@ class IGroup(IWrapper, IInheritableNode, IAdditive, typing.Generic[T], ABC):
     def from_items(cls, items: typing.Sequence[T]) -> typing.Self:
         return cls(*items)
 
-    def add(self, another: INode, run_info: RunInfo):
-        info = run_info
-
-        info, node_aux = self.as_node.run(info).as_tuple
-        node_1 = node_aux.real(IGroup)
-
-        info, another_aux = another.as_node.run(info).as_tuple
-        node_2 = another_aux.real(IGroup)
-
-        new_args = list(node_1.as_tuple) + list(node_2.as_tuple)
-        return info.to_result(self.from_items(new_args))
+    def add(self, another: INode):
+        new_args = list(self.as_tuple) + list(another.real(IGroup).as_tuple)
+        return self.from_items(new_args)
 
 class IFunction(INode, ABC):
 
@@ -3395,45 +3362,99 @@ class Or(MultiArgBooleanNode, IInstantiable):
 
         return fn_return(result)
 
-class GreaterThan(DoubleIntBooleanNode, IInstantiable):
+class GreaterThan(RunnableBoolean, IInstantiable):
+
+    @classmethod
+    def args_type_group(cls):
+        return CountableTypeGroup(
+            IComparable.as_type(),
+            IComparable.as_type(),
+        )
 
     @property
     def as_bool(self) -> bool:
         args = self.args
         assert len(args) == 2
         a, b = args
-        assert isinstance(a, IInt)
-        assert isinstance(b, IInt)
-        return a.as_int > b.as_int
+        assert isinstance(a, IComparable)
+        assert isinstance(b, IComparable)
+        return a.gt(b).as_bool
 
-class LessThan(DoubleIntBooleanNode, IInstantiable):
+    @classmethod
+    def with_ints(cls, value1: int, value2: int) -> typing.Self:
+        return cls(Integer(value1), Integer(value2))
 
-    @property
-    def as_bool(self) -> bool:
-        args = self.args
-        assert len(args) == 2
-        a, b = args
-        assert isinstance(a, IInt)
-        assert isinstance(b, IInt)
-        return a.as_int < b.as_int
+class LessThan(RunnableBoolean, IInstantiable):
 
-class GreaterOrEqual(DoubleIntBooleanNode, IInstantiable):
-
-    @property
-    def as_bool(self) -> bool:
-        args = self.args
-        assert len(args) == 2
-        a, b = args
-        return Or(Eq(a, b), GreaterThan(a, b)).as_bool
-
-class LessOrEqual(DoubleIntBooleanNode, IInstantiable):
+    @classmethod
+    def args_type_group(cls):
+        return CountableTypeGroup(
+            IComparable.as_type(),
+            IComparable.as_type(),
+        )
 
     @property
     def as_bool(self) -> bool:
         args = self.args
         assert len(args) == 2
         a, b = args
-        return Or(Eq(a, b), LessThan(a, b)).as_bool
+        assert isinstance(a, IComparable)
+        assert isinstance(b, IComparable)
+        return a.lt(b).as_bool
+
+    @classmethod
+    def with_ints(cls, value1: int, value2: int) -> typing.Self:
+        return cls(Integer(value1), Integer(value2))
+
+class GreaterOrEqual(RunnableBoolean, IInstantiable):
+
+    @classmethod
+    def args_type_group(cls):
+        return CountableTypeGroup(
+            IComparable.as_type(),
+            IComparable.as_type(),
+        )
+
+    @property
+    def as_bool(self) -> bool:
+        args = self.args
+        assert len(args) == 2
+        a, b = args
+        assert isinstance(a, IComparable)
+        assert isinstance(b, IComparable)
+        return Or(
+            Eq(a, b),
+            a.gt(b),
+        ).as_bool
+
+    @classmethod
+    def with_ints(cls, value1: int, value2: int) -> typing.Self:
+        return cls(Integer(value1), Integer(value2))
+
+class LessOrEqual(RunnableBoolean, IInstantiable):
+
+    @classmethod
+    def args_type_group(cls):
+        return CountableTypeGroup(
+            IComparable.as_type(),
+            IComparable.as_type(),
+        )
+
+    @property
+    def as_bool(self) -> bool:
+        args = self.args
+        assert len(args) == 2
+        a, b = args
+        assert isinstance(a, IComparable)
+        assert isinstance(b, IComparable)
+        return Or(
+            Eq(a, b),
+            a.lt(b),
+        ).as_bool
+
+    @classmethod
+    def with_ints(cls, value1: int, value2: int) -> typing.Self:
+        return cls(Integer(value1), Integer(value2))
 
 class IsInsideRange(RunnableBoolean, IInstantiable):
 
@@ -3682,7 +3703,7 @@ class RunInfo(InheritableNode, IInstantiable):
 
     def with_scopes(self, info_base: RunInfo) -> typing.Self:
         base_group = info_base.scope_data_group.apply().real(ScopeDataGroup)
-        base_amount = base_group.amount()
+        base_amount = len(base_group.as_tuple)
         group = self.scope_data_group.apply().real(ScopeDataGroup).as_tuple
         Not(LessThan(Integer(len(group)), Integer(base_amount))).raise_on_false()
         if len(base_group.as_tuple) == 0:
@@ -4379,7 +4400,7 @@ class Add(ControlFlowBaseNode, IInstantiable):
                 arg_node = node_aux.real(IAdditive)
                 node = arg_node
             else:
-                info, node = node.add(node_aux, run_info=info).as_tuple
+                node = node.add(node_aux)
         assert node is not None
         result = info.to_result(node)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
@@ -4399,14 +4420,12 @@ class BinaryInt(BaseGroup[IntBoolean], INumber, IInstantiable):
     def item_type(cls):
         return IntBoolean
 
-    def add(self, another: INode, run_info: RunInfo):
-        info, node_1, node_2 = self._run_with_another(another, run_info)
+    def add(self, another: INode):
+        if isinstance(another, NegativeBinaryInt):
+            return another.add(self)
 
-        if isinstance(node_2, NegativeBinaryInt):
-            return node_2.add(self, run_info=info)
-
-        my_bits: tuple[IntBoolean, ...] = node_1.real(BinaryInt).as_tuple
-        other_bits: tuple[IntBoolean, ...] = node_2.real(BinaryInt).as_tuple
+        my_bits: tuple[IntBoolean, ...] = self.real(BinaryInt).as_tuple
+        other_bits: tuple[IntBoolean, ...] = another.real(BinaryInt).as_tuple
 
         new_bits_reverse: list[IntBoolean] = []
         one_to_add = False
@@ -4440,16 +4459,14 @@ class BinaryInt(BaseGroup[IntBoolean], INumber, IInstantiable):
 
         new_bits = BinaryInt.from_items(new_bits_reverse[::-1])
 
-        return info.to_result(new_bits)
+        return new_bits
 
-    def subtract(self, another: INode, run_info: RunInfo):
-        info, node_1, node_2 = self._run_with_another(another, run_info)
+    def subtract(self, another: INode):
+        if isinstance(another, NegativeBinaryInt):
+            return self.add(another.inner_value.apply())
 
-        if isinstance(node_2, NegativeBinaryInt):
-            return self.add(node_2.inner_value.apply(), run_info=info)
-
-        my_bits: tuple[IntBoolean, ...] = node_1.real(BinaryInt).as_tuple
-        other_bits: tuple[IntBoolean, ...] = node_2.real(BinaryInt).as_tuple
+        my_bits: tuple[IntBoolean, ...] = self.real(BinaryInt).as_tuple
+        other_bits: tuple[IntBoolean, ...] = another.real(BinaryInt).as_tuple
 
         new_bits_reverse: list[IntBoolean] = []
         one_to_subtract = False
@@ -4484,17 +4501,17 @@ class BinaryInt(BaseGroup[IntBoolean], INumber, IInstantiable):
             new_bits = NegativeBinaryInt(
                 BinaryInt
                     .from_items([IBoolean.true()] + ([IBoolean.false()] * len(new_bits_reverse)))
-                    .subtract(new_bits, run_info=info)
+                    .subtract(new_bits)
             )
 
-        return info.to_result(new_bits)
+        return new_bits
 
-    def lt(self, another: INode, run_info: RunInfo):
-        info, node_1, node_2 = self._run_with_another(another, run_info)
-        if not isinstance(node_2, BinaryInt):
-            return node_2.gt(node_1, run_info=info)
-        my_bits = node_1.as_tuple
-        other_bits = node_2.as_tuple
+    def lt(self, another: INode):
+        if not isinstance(another, BinaryInt):
+            assert isinstance(another, IComparable)
+            return another.gt(self)
+        my_bits = self.as_tuple
+        other_bits = another.as_tuple
         max_len = max(len(my_bits), len(other_bits))
         for i in range(max_len):
             my_idx = len(my_bits) - max_len + i
@@ -4505,18 +4522,18 @@ class BinaryInt(BaseGroup[IntBoolean], INumber, IInstantiable):
                 continue
             if my_bit == IBoolean.true():
                 assert other_bit == IBoolean.false()
-                return info.to_result(IntBoolean.false())
+                return IntBoolean.false()
             assert my_bit == IBoolean.false()
             assert other_bit == IBoolean.true()
-            return info.to_result(IntBoolean.true())
-        return info.to_result(IntBoolean.false())
+            return IntBoolean.true()
+        return IntBoolean.false()
 
-    def gt(self, another: INode, run_info: RunInfo):
-        info, node_1, node_2 = self._run_with_another(another, run_info)
-        if not isinstance(node_2, BinaryInt):
-            return node_2.lt(node_1, run_info=info)
-        my_bits = node_1.as_tuple
-        other_bits = node_2.as_tuple
+    def gt(self, another: INode):
+        if not isinstance(another, BinaryInt):
+            assert isinstance(another, IComparable)
+            return another.lt(self)
+        my_bits = self.as_tuple
+        other_bits = another.as_tuple
         max_len = max(len(my_bits), len(other_bits))
         for i in range(max_len):
             my_idx = len(my_bits) - max_len + i
@@ -4527,11 +4544,11 @@ class BinaryInt(BaseGroup[IntBoolean], INumber, IInstantiable):
                 continue
             if my_bit == IBoolean.true():
                 assert other_bit == IBoolean.false()
-                return info.to_result(IntBoolean.true())
+                return IntBoolean.true()
             assert my_bit == IBoolean.false()
             assert other_bit == IBoolean.true()
-            return info.to_result(IntBoolean.false())
-        return info.to_result(IntBoolean.false())
+            return IntBoolean.false()
+        return IntBoolean.false()
 
 class NegativeBinaryInt(ControlFlowBaseNode, INumber, IInstantiable):
 
@@ -4580,41 +4597,28 @@ class NegativeBinaryInt(ControlFlowBaseNode, INumber, IInstantiable):
             [inner_value])
         return RunInfoFullResult(result, arg_group)
 
-    def add(self, another: INode, run_info: RunInfo):
-        info, node_1, node_2_aux = self._run_with_another(another, run_info)
-        if self != node_1:
-            return node_1.add(node_2_aux, run_info=info)
+    def add(self, another: INode):
+        my_inner_value = self.inner_value.apply().real(BinaryInt)
 
-        me = node_1.real(NegativeBinaryInt)
-        my_inner_value = me.inner_value.apply().real(BinaryInt)
+        if isinstance(another, NegativeBinaryInt):
+            other_inner_value = another.inner_value.apply().real(BinaryInt)
+            return NegativeBinaryInt(my_inner_value.add(other_inner_value))
 
-        if isinstance(node_2_aux, NegativeBinaryInt):
-            other_inner_value = node_2_aux.inner_value.apply().real(BinaryInt)
-            return NegativeBinaryInt(
-                my_inner_value.add(other_inner_value, run_info=info)
-            )
+        node_2 = another.real(BinaryInt)
+        return node_2.subtract(my_inner_value)
 
-        node_2 = node_2_aux.real(BinaryInt)
-        return node_2.subtract(my_inner_value, run_info=info)
-
-    def lt(self, another: INode, run_info: RunInfo):
-        info, node_1, node_2_aux = self._run_with_another(another, run_info)
-        if self != node_1:
-            return node_1.lt(node_2_aux, run_info=info)
-        if isinstance(node_2_aux, BinaryInt):
-            return info.to_result(IBoolean.true())
-        node_2 = node_2_aux.real(NegativeBinaryInt)
-        my_inner_value = node_1.inner_value.apply().real(BinaryInt)
+    def lt(self, another: INode):
+        if isinstance(another, BinaryInt):
+            return IBoolean.true()
+        node_2 = another.real(NegativeBinaryInt)
+        my_inner_value = self.inner_value.apply().real(BinaryInt)
         other_inner_value = node_2.inner_value.apply().real(BinaryInt)
-        return my_inner_value.gt(other_inner_value, run_info=info)
+        return my_inner_value.gt(other_inner_value)
 
-    def gt(self, another: INode, run_info: RunInfo):
-        info, node_1, node_2_aux = self._run_with_another(another, run_info)
-        if self != node_1:
-            return node_1.gt(node_2_aux, run_info=info)
-        if isinstance(node_2_aux, BinaryInt):
-            return info.to_result(IBoolean.false())
-        node_2 = node_2_aux.real(NegativeBinaryInt)
-        my_inner_value = node_1.inner_value.apply().real(BinaryInt)
+    def gt(self, another: INode):
+        if isinstance(another, BinaryInt):
+            return IBoolean.false()
+        node_2 = another.real(NegativeBinaryInt)
+        my_inner_value = self.inner_value.apply().real(BinaryInt)
         other_inner_value = node_2.inner_value.apply().real(BinaryInt)
-        return my_inner_value.lt(other_inner_value, run_info=info)
+        return my_inner_value.lt(other_inner_value)

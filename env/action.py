@@ -356,7 +356,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
 
         try:
             if remaining_steps is not None:
-                GreaterThan.with_args(remaining_steps, 0).raise_on_false()
+                GreaterThan.with_ints(remaining_steps, 0).raise_on_false()
             full_output = self.inner_run(full_state)
             raw_action_opt = full_output.raw_action.apply().cast(Optional[IRawAction])
             actual_action = full_output.action.apply().cast(BaseAction)
