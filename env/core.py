@@ -4457,7 +4457,17 @@ class NegativeSign(InheritableNode, IComparableSign, IInstantiable):
     def negative(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_negative)
 
-class BinaryInt(BaseGroup[IntBoolean], IDynamic, IComparableSignedNumber, IInstantiable):
+class ISignedInt(IComparableSignedNumber, ABC):
+
+    @property
+    def abs(self) -> BinaryInt:
+        raise NotImplementedError
+
+    @property
+    def sign(self) -> NegativeSign:
+        raise NotImplementedError
+
+class BinaryInt(BaseGroup[IntBoolean], IDynamic, ISignedInt, IInstantiable):
 
     @classmethod
     def item_type(cls):
@@ -4573,7 +4583,7 @@ class BinaryInt(BaseGroup[IntBoolean], IDynamic, IComparableSignedNumber, IInsta
                     one_to_subtract = True
                     new_bits_reverse.append(IBoolean.true())
 
-            new_bits: BinaryInt | SignedInt = BinaryInt.from_items(new_bits_reverse[::-1])
+            new_bits: ISignedInt = BinaryInt.from_items(new_bits_reverse[::-1])
 
             if one_to_subtract:
                 new_bits = SignedInt(
@@ -4632,14 +4642,15 @@ class BinaryInt(BaseGroup[IntBoolean], IDynamic, IComparableSignedNumber, IInsta
             return IntBoolean.false()
         return IntBoolean.false()
 
-class SignedInt(ControlFlowBaseNode, IComparableSignedNumber, IInstantiable):
+class SignedInt(ControlFlowBaseNode, ISignedInt, IInstantiable):
 
     idx_sign = 1
     idx_abs = 2
 
     @classmethod
     def protocol(cls) -> Protocol:
-        return Protocol.with_args(
+        return Protocol(
+            TypeAliasGroup(),
             CountableTypeGroup(
                 NegativeSign.as_type(),
                 BinaryInt.as_type(),
@@ -4711,3 +4722,60 @@ class SignedInt(ControlFlowBaseNode, IComparableSignedNumber, IInstantiable):
         my_abs = self.abs
         other_abs = node_2.abs
         return my_abs.lt(other_abs)
+
+class Float(InheritableNode, IComparableNumber, IInstantiable):
+
+    idx_base = 1
+    idx_exponent = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(
+            CountableTypeGroup(
+                ISignedInt.as_type(),
+                ISignedInt.as_type(),
+            ),
+        )
+
+    @property
+    def base(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_base)
+
+    @property
+    def exponent(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_exponent)
+
+    # def add(self, another: INode):
+    #     other = another.real(Float)
+    #     my_base = self.base.apply().real(ISignedInt)
+    #     my_exponent = self.exponent.apply().real(ISignedInt)
+    #     other_base = other.base.apply().real(ISignedInt)
+    #     other_exponent = other.exponent.apply().real(ISignedInt)
+    #     my_sign = my_base.sign.real(NegativeSign)
+    #     other_sign = other_base.sign.real(NegativeSign)
+    #     my_abs = my_base.abs.real(BinaryInt)
+    #     other_abs = other_base.abs.real(BinaryInt)
+
+    def lt(self, another: INode):
+        other = another.real(Float)
+        my_base = self.base.apply().real(ISignedInt)
+        my_exponent = self.exponent.apply().real(ISignedInt)
+        other_base = other.base.apply().real(ISignedInt)
+        other_exponent = other.exponent.apply().real(ISignedInt)
+        my_sign = my_base.sign.real(NegativeSign)
+        other_sign = other_base.sign.real(NegativeSign)
+        my_abs = my_base.abs.real(BinaryInt)
+        other_abs = other_base.abs.real(BinaryInt)
+        if my_sign != other_sign:
+            return my_sign == NegativeSign(IBoolean.true())
+        if my_exponent != other_exponent:
+            if my_sign == NegativeSign(IBoolean.true()):
+                return my_exponent.gt(other_exponent)
+            return my_exponent.lt(other_exponent)
+        if my_sign == NegativeSign(IBoolean.true()):
+            return my_abs.gt(other_abs)
+        return my_abs.lt(other_abs)
+
+    def gt(self, another: INode):
+        node_2 = another.real(Float)
+        return node_2.lt(self)
