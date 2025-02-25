@@ -12,8 +12,9 @@ from test_suite import (
     test_utils,
     basic_test,
     boolean_test,
-    control_flow_test,
+    arithmetic_test,
     indices_test,
+    control_flow_test,
 )
 from test_suite.action_impl import (
     action_00_action_meta,
@@ -78,16 +79,22 @@ def _final_verification(final_states: list[full_state.FullState]):
 
 def _main_tests() -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
+
     final_states += test_utils.run_module_test(basic_test.test)
+
     final_states += test_utils.run_module_test(boolean_test.test)
-    final_states += test_utils.run_module_test(control_flow_test.test)
+    final_states += test_utils.run_module_test(arithmetic_test.test)
     final_states += test_utils.run_module_test(indices_test.test)
+
     final_states += test_utils.run_module_test(action_00_action_meta.test)
     final_states += test_utils.run_module_test(action_01_state_meta.test)
     final_states += test_utils.run_module_test(action_02_manage_scratch.test)
     final_states += test_utils.run_module_test(action_03_define_scratch.test)
     final_states += test_utils.run_module_test(action_04_update_scratch.test)
     final_states += test_utils.run_module_test(action_05_manage_args_group.test)
+
+    final_states += test_utils.run_module_test(control_flow_test.test)
+
     return final_states
 
 def initialize_cache() -> None:
