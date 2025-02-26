@@ -3006,7 +3006,7 @@ class StackExceptionInfoSimplifiedItem(
             node.as_node.as_type(),
             DefaultGroup.from_items([
                 cls.arg_wrapper(arg)
-                for arg in node.args
+            for arg in node.args
             ]),
         )
 
@@ -4444,6 +4444,15 @@ class INumber(IAdditive, ABC):
     def subtract(self, value: INumber) -> INumber:
         raise NotImplementedError
 
+    def multiply(self, value: INumber) -> INumber:
+        raise NotImplementedError
+
+    def divide(self, value: INumber) -> INumber:
+        raise NotImplementedError
+
+    def modulo(self, value: INumber) -> INumber:
+        raise NotImplementedError
+
 class IComparableNumber(INumber, IComparable, ABC):
     pass
 
@@ -4518,6 +4527,15 @@ class BaseSignedInt(BaseNormalizer, IComparableSignedNumber, ABC):
                 value.abs,
             ).normalize()
         ).normalize()
+
+    def multiply(self, value: BaseSignedInt) -> BaseSignedInt:
+        raise NotImplementedError
+
+    def divide(self, value: BaseSignedInt) -> BaseSignedInt:
+        raise NotImplementedError
+
+    def modulo(self, value: BaseSignedInt) -> BaseSignedInt:
+        raise NotImplementedError
 
 class BinaryInt(BaseSignedInt, IInstantiable):
 
@@ -4703,6 +4721,38 @@ class BinaryInt(BaseSignedInt, IInstantiable):
             return IntBoolean.false()
         return IntBoolean.false()
 
+    def multiply(self, another: INumber) -> BaseSignedInt:
+        assert isinstance(another, BaseSignedInt)
+        sign = another.sign
+        me = BinaryToInt(self).normalize()
+        other = BinaryToInt(another.abs).normalize()
+        assert isinstance(me, Integer)
+        assert isinstance(other, Integer)
+        product = Integer(me.as_int * other.as_int)
+        new_abs = IntToBinary(product).normalize()
+        return SignedInt(sign, new_abs).normalize()
+
+    def divide(self, another: INumber) -> BaseSignedInt:
+        assert isinstance(another, BaseSignedInt)
+        sign = another.sign
+        me = BinaryToInt(self).normalize()
+        other = BinaryToInt(another.abs).normalize()
+        assert isinstance(me, Integer)
+        assert isinstance(other, Integer)
+        quotient = Integer(me.as_int // other.as_int)
+        new_abs = IntToBinary(quotient).normalize()
+        return SignedInt(sign, new_abs).normalize()
+
+    def modulo(self, another: INumber) -> BaseSignedInt:
+        assert isinstance(another, BaseSignedInt)
+        me = BinaryToInt(self).normalize()
+        other = BinaryToInt(another.abs).normalize()
+        assert isinstance(me, Integer)
+        assert isinstance(other, Integer)
+        remainder = Integer(me.as_int % other.as_int)
+        new_abs = IntToBinary(remainder).normalize()
+        return new_abs
+
 class SignedInt(BaseSignedInt, IInstantiable):
 
     idx_sign = 1
@@ -4799,6 +4849,33 @@ class SignedInt(BaseSignedInt, IInstantiable):
         other_abs = node_2.abs
         return my_abs.lt(other_abs)
 
+    def _mul_sign(self, another: BaseSignedInt) -> NegativeSign:
+        my_sign = self.sign
+        other_sign = another.sign
+        sign = (
+            NegativeSign.create()
+            if my_sign != other_sign
+            else NegativeSign(IBoolean.false())
+        )
+        return sign
+
+    def multiply(self, another: INumber) -> BaseSignedInt:
+        assert isinstance(another, BaseSignedInt)
+        sign = self._mul_sign(another)
+        product = self.abs.multiply(another.abs)
+        return SignedInt(sign, product).normalize()
+
+    def divide(self, another: INumber) -> BaseSignedInt:
+        assert isinstance(another, BaseSignedInt)
+        sign = self._mul_sign(another)
+        quotient = self.abs.divide(another.abs)
+        return SignedInt(sign, quotient).normalize()
+
+    def modulo(self, another: INumber) -> BaseSignedInt:
+        assert isinstance(another, BaseSignedInt)
+        remainder = self.abs.modulo(another.abs)
+        return remainder
+
 class BinaryToInt(BaseNormalizer, IInstantiable):
 
     idx_binary = 1
@@ -4874,6 +4951,19 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
     @property
     def exponent(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_exponent)
+
+    def numeric(self) -> float:
+        base = self.base.apply().real(BaseSignedInt)
+        exponent = self.exponent.apply().real(BaseSignedInt)
+        sign = base.sign
+        abs_value = base.abs
+        precision = len(abs_value.as_tuple)
+        abs_int = BinaryToInt(abs_value).normalize()
+        exp_int = BinaryToInt(exponent).normalize()
+        value = abs_int * (2 ** (exp_int - precision))
+        if sign == NegativeSign(IBoolean.true()):
+            value = -value
+        return float(value)
 
     def normalize(self) -> Float:
         base = self.base.apply().real(BaseSignedInt)
@@ -4973,6 +5063,18 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
             )
         ).normalize()
 
+    # def multiply(self, another: INumber) -> Float:
+    #     product = float(self) * float(another)
+    #     return type(self).from_float(product)
+
+    # def divide(self, another: INumber) -> Float:
+    #     quotient = float(self) / float(another)
+    #     return type(self).from_float(quotient)
+
+    # def modulo(self, another: INumber) -> Float:
+    #     remainder = float(self) % float(another)
+    #     return type(self).from_float(remainder)
+
 class AsFloat(BaseNormalizer, IInstantiable):
 
     idx_binary = 1
@@ -4997,9 +5099,7 @@ class AsFloat(BaseNormalizer, IInstantiable):
         bits_amount = len(binary.abs.as_tuple)
         return Float(
             binary,
-            BinaryInt.from_items([IBoolean.true()] + (
-                [IBoolean.false()] * (bits_amount-1)
-            )).normalize()
+            IntToBinary(Integer(bits_amount)).normalize()
         ).normalize()
 
 ###########################################################
@@ -5042,4 +5142,118 @@ class Subtract(ControlFlowBaseNode, IInstantiable):
         node = minuend.subtract(subtrahend)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [minuend, subtrahend])
+        return RunInfoFullResult(info.to_result(node), arg_group)
+
+class Multiply(ControlFlowBaseNode, IInstantiable):
+
+    idx_factor_1 = 1
+    idx_factor_2 = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(
+                TypeAlias(INumber.as_type()),
+            ),
+            CountableTypeGroup(
+                INumber.as_type(),
+                INumber.as_type(),
+            ),
+            TypeIndex(1),
+        )
+
+    @property
+    def factor_1(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_factor_1)
+
+    @property
+    def factor_2(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_factor_2)
+
+    def _run_control(self, info: RunInfo) -> RunInfoFullResult:
+        info, node_aux = self.factor_1.apply().run(info).as_tuple
+        factor_1 = node_aux.real(INumber)
+
+        info, node_aux = self.factor_2.apply().run(info).as_tuple
+        factor_2 = node_aux.real(INumber)
+
+        node = factor_1.multiply(factor_2)
+        arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
+            [factor_1, factor_2])
+        return RunInfoFullResult(info.to_result(node), arg_group)
+
+class Divide(ControlFlowBaseNode, IInstantiable):
+
+    idx_dividend = 1
+    idx_divisor = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(
+                TypeAlias(INumber.as_type()),
+            ),
+            CountableTypeGroup(
+                INumber.as_type(),
+                INumber.as_type(),
+            ),
+            TypeIndex(1),
+        )
+
+    @property
+    def dividend(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_dividend)
+
+    @property
+    def divisor(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_divisor)
+
+    def _run_control(self, info: RunInfo) -> RunInfoFullResult:
+        info, node_aux = self.dividend.apply().run(info).as_tuple
+        dividend = node_aux.real(INumber)
+
+        info, node_aux = self.divisor.apply().run(info).as_tuple
+        divisor = node_aux.real(INumber)
+
+        node = dividend.divide(divisor)
+        arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
+            [dividend, divisor])
+        return RunInfoFullResult(info.to_result(node), arg_group)
+
+class Modulo(ControlFlowBaseNode, IInstantiable):
+
+    idx_dividend = 1
+    idx_divisor = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(
+                TypeAlias(INumber.as_type()),
+            ),
+            CountableTypeGroup(
+                INumber.as_type(),
+                INumber.as_type(),
+            ),
+            TypeIndex(1),
+        )
+
+    @property
+    def dividend(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_dividend)
+
+    @property
+    def divisor(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_divisor)
+
+    def _run_control(self, info: RunInfo) -> RunInfoFullResult:
+        info, node_aux = self.dividend.apply().run(info).as_tuple
+        dividend = node_aux.real(INumber)
+
+        info, node_aux = self.divisor.apply().run(info).as_tuple
+        divisor = node_aux.real(INumber)
+
+        node = dividend.modulo(divisor)
+        arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
+            [dividend, divisor])
         return RunInfoFullResult(info.to_result(node), arg_group)
