@@ -4441,6 +4441,9 @@ class INumber(IAdditive, ABC):
     def minus_one(cls) -> SignedInt:
         return SignedInt(NegativeSign(IBoolean.true()), cls.one())
 
+    def subtract(self, value: INumber) -> INumber:
+        raise NotImplementedError
+
 class IComparableNumber(INumber, IComparable, ABC):
     pass
 
@@ -4507,6 +4510,15 @@ class BaseSignedInt(BaseNormalizer, IComparableSignedNumber, ABC):
     def validate_result(self, result: INode, args_group: OptionalValueGroup):
         IsInstance.verify(result, BaseSignedInt)
 
+    def subtract(self, value: INumber) -> BaseSignedInt:
+        assert isinstance(value, BaseSignedInt)
+        return self.add(
+            SignedInt(
+                NegativeSign.create(),
+                value.abs,
+            ).normalize()
+        ).normalize()
+
 class BinaryInt(BaseSignedInt, IInstantiable):
 
     @classmethod
@@ -4526,7 +4538,7 @@ class BinaryInt(BaseSignedInt, IInstantiable):
 
     @classmethod
     def from_items(cls, items: typing.Sequence[IntBoolean]) -> BinaryInt:
-        return cls(*items)
+        return cls(*items).normalize()
 
     @property
     def as_tuple(self) -> tuple[IntBoolean, ...]:
@@ -4587,14 +4599,15 @@ class BinaryInt(BaseSignedInt, IInstantiable):
             if one_to_add:
                 new_bits_reverse.append(IBoolean.true())
 
-            new_bits = BinaryInt.from_items(new_bits_reverse[::-1])
+            new_bits = BinaryInt.from_items(new_bits_reverse[::-1]).normalize()
 
             return new_bits
 
         other = another.real(INumber)
         return other.add(self)
 
-    def subtract(self, another: INode):
+    def subtract(self, value: INumber):
+        another = value
         if isinstance(another, BinaryInt):
             my_bits: tuple[IntBoolean, ...] = self.as_tuple
             other_bits: tuple[IntBoolean, ...] = another.as_tuple
@@ -4626,7 +4639,9 @@ class BinaryInt(BaseSignedInt, IInstantiable):
                     one_to_subtract = True
                     new_bits_reverse.append(IBoolean.true())
 
-            new_bits: BaseSignedInt = BinaryInt.from_items(new_bits_reverse[::-1])
+            new_bits: BaseSignedInt = BinaryInt.from_items(
+                new_bits_reverse[::-1]
+            ).normalize()
 
             if one_to_subtract:
                 new_bits = SignedInt(
@@ -4636,9 +4651,8 @@ class BinaryInt(BaseSignedInt, IInstantiable):
                             [IBoolean.true()]
                             + ([IBoolean.false()] * len(new_bits_reverse))
                         )
-                        .normalize()
                         .subtract(new_bits)
-                ).normalize()
+                )
 
             return new_bits
 
@@ -4700,7 +4714,7 @@ class SignedInt(BaseSignedInt, IInstantiable):
             TypeAliasGroup(),
             CountableTypeGroup(
                 NegativeSign.as_type(),
-                BinaryInt.as_type(),
+                BaseSignedInt.as_type(),
             ),
             UnionType(
                 BinaryInt.as_type(),
@@ -4735,10 +4749,20 @@ class SignedInt(BaseSignedInt, IInstantiable):
 
     def normalize(self) -> BaseSignedInt:
         sign = self.raw_sign.apply().real(NegativeSign)
-        abs_value = self.raw_abs.apply().real(BinaryInt).normalize()
+        abs_value = self.raw_abs.apply().real(BaseSignedInt).normalize()
         zero = INumber.zero()
         if abs_value == zero:
             return zero
+        if isinstance(abs_value, SignedInt):
+            inner_sign = abs_value.sign
+            assert inner_sign == NegativeSign(IBoolean.true())
+            inner_abs_value = abs_value.abs
+            assert isinstance(inner_abs_value, BinaryInt)
+            if sign == NegativeSign(IBoolean.true()):
+                return inner_abs_value
+            else:
+                return abs_value
+        assert isinstance(abs_value, BinaryInt)
         node = (
             self.func(sign, abs_value)
             if sign == NegativeSign(IBoolean.true())
@@ -4751,10 +4775,13 @@ class SignedInt(BaseSignedInt, IInstantiable):
         if isinstance(another, SignedInt):
             other_abs = another.abs
             Eq(self.sign, another.sign).raise_on_false()
-            return self.func(self.sign, my_abs.add(other_abs).normalize())
+            return self.func(
+                self.sign,
+                my_abs.add(other_abs),
+            ).normalize()
 
         node_2 = another.real(BinaryInt)
-        return node_2.subtract(my_abs).normalize()
+        return node_2.subtract(my_abs)
 
     def lt(self, another: INode):
         if isinstance(another, BinaryInt):
@@ -4850,7 +4877,6 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
 
     def normalize(self) -> Float:
         base = self.base.apply().real(BaseSignedInt)
-        exponent = self.exponent.apply().real(BaseSignedInt)
         zero = INumber.zero()
         if base == zero:
             return self.func(zero, zero)
@@ -4933,6 +4959,20 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
         node_2 = another.real(Float)
         return node_2.lt(self)
 
+    def subtract(self, value: INumber) -> Float:
+        if isinstance(value, BaseSignedInt):
+            value = AsFloat(value).normalize()
+        assert isinstance(value, Float)
+        return self.add(
+            Float(
+                SignedInt(
+                    NegativeSign.create(),
+                    value.base.apply().real(BaseSignedInt),
+                ).normalize(),
+                value.exponent.apply()
+            )
+        ).normalize()
+
 class AsFloat(BaseNormalizer, IInstantiable):
 
     idx_binary = 1
@@ -4961,3 +5001,45 @@ class AsFloat(BaseNormalizer, IInstantiable):
                 [IBoolean.false()] * (bits_amount-1)
             )).normalize()
         ).normalize()
+
+###########################################################
+################## ARITHMETIC OPERATIONS ##################
+###########################################################
+
+class Subtract(ControlFlowBaseNode, IInstantiable):
+
+    idx_minuend = 1
+    idx_subtrahend = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(
+                TypeAlias(INumber.as_type()),
+            ),
+            CountableTypeGroup(
+                INumber.as_type(),
+                INumber.as_type(),
+            ),
+            TypeIndex(1),
+        )
+
+    @property
+    def minuend(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_minuend)
+
+    @property
+    def subtrahend(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_subtrahend)
+
+    def _run_control(self, info: RunInfo) -> RunInfoFullResult:
+        info, node_aux = self.minuend.apply().run(info).as_tuple
+        minuend = node_aux.real(INumber)
+
+        info, node_aux = self.subtrahend.apply().run(info).as_tuple
+        subtrahend = node_aux.real(INumber)
+
+        node = minuend.subtract(subtrahend)
+        arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
+            [minuend, subtrahend])
+        return RunInfoFullResult(info.to_result(node), arg_group)

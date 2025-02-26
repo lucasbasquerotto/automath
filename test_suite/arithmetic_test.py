@@ -407,6 +407,90 @@ def test_arithmetic() -> list[full_state.FullState]:
             ),
         ],
     )
+    final_states += run(
+        raw_expr=core.SignedInt(
+            core.NegativeSign.create(),
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.BinaryInt(
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+        ),
+        wrong_exprs=[
+            core.INumber.one(),
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.SignedInt(
+            core.NegativeSign(core.IBoolean.false()),
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.SignedInt(
+            core.NegativeSign.create(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+        ),
+        wrong_exprs=[
+            core.INumber.one(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.SignedInt(
+            core.NegativeSign.create(),
+            core.SignedInt(
+                core.NegativeSign(core.IBoolean.false()),
+                core.BinaryInt(
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.SignedInt(
+            core.NegativeSign.create(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+        ),
+        wrong_exprs=[
+            core.INumber.one(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+        ],
+    )
 
     final_states += run(
         raw_expr=core.IntToBinary(core.Integer(0)),
@@ -669,8 +753,100 @@ def test_arithmetic() -> list[full_state.FullState]:
         ],
     )
 
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+            ),
+        ),
+        correct_expr=core.BinaryInt(
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+        ),
+        wrong_exprs=[
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+            core.SignedInt(
+                core.NegativeSign(core.IBoolean.false()),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.SignedInt(
+            core.NegativeSign.create(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+        ),
+        wrong_exprs=[
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.BinaryInt(
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.BinaryInt(
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+        ),
+        wrong_exprs=[
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ],
+    )
+
     #TODO: Add tests for remaining Operations
-    # (other than Add, done above: Subtract, Multiply, Divide, Modulo)
+    # (other than Add and Subtract, done above: Multiply, Divide, Modulo)
     # over BinaryInts/SignedInts
 
     final_states += run(
