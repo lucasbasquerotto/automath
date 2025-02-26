@@ -28,7 +28,7 @@ def get_basic_action_index(node_type: type[action.IBasicAction], env: GoalEnv):
     meta_idx = selected_types.as_tuple.index(node_type.as_type()) + 1
     return meta_idx
 
-def run(left_expr: core.INode, right_expr: core.INode, result: bool):
+def run_single_eq(left_expr: core.INode, right_expr: core.INode, result: bool):
     goal = node_types.HaveResultScratch.with_goal(core.Eq(left_expr, right_expr))
     env = GoalEnv(
         goal=goal,
@@ -181,6 +181,37 @@ def run(left_expr: core.INode, right_expr: core.INode, result: bool):
 
     return env.full_state
 
+def run(raw_expr: core.INode, correct_expr: core.INode, wrong_exprs=list[core.INode]):
+    final_states: list[full_state.FullState] = []
+
+    for wrong_expr in wrong_exprs:
+        final_states.append(run_single_eq(
+            left_expr=raw_expr,
+            right_expr=wrong_expr,
+            result=False,
+        ))
+
+    for wrong_expr in wrong_exprs:
+        final_states.append(run_single_eq(
+            left_expr=wrong_expr,
+            right_expr=raw_expr,
+            result=False,
+        ))
+
+    final_states.append(run_single_eq(
+        left_expr=raw_expr,
+        right_expr=correct_expr,
+        result=True,
+    ))
+
+    final_states.append(run_single_eq(
+        left_expr=correct_expr,
+        right_expr=raw_expr,
+        result=True,
+    ))
+
+    return final_states
+
 def has_goal(env: GoalEnv, goal: meta_env.IGoal):
     selected_goal = env.full_state.nested_arg(
         (full_state.FullState.idx_meta, meta_env.MetaInfo.idx_goal)
@@ -190,68 +221,158 @@ def has_goal(env: GoalEnv, goal: meta_env.IGoal):
 def test_arithmetic() -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
 
-    final_states.append(run(
-        left_expr=core.INumber.zero(),
-        right_expr=core.INumber.zero(),
-        result=True,
-    ))
-    final_states.append(run(
-        left_expr=core.INumber.zero(),
-        right_expr=core.INumber.one(),
-        result=False,
-    ))
-    final_states.append(run(
-        left_expr=core.INumber.one(),
-        right_expr=core.INumber.zero(),
-        result=False,
-    ))
-    final_states.append(run(
-        left_expr=core.INumber.one(),
-        right_expr=core.INumber.one(),
-        result=True,
-    ))
+    final_states += run(
+        raw_expr=core.INumber.zero(),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[
+            core.INumber.one(),
+            core.BinaryInt(core.IBoolean.true(), core.IBoolean.true()),
+            core.Integer(0),
+            core.DefaultGroup(core.INumber.zero()),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.INumber.one(),
+        correct_expr=core.INumber.one(),
+        wrong_exprs=[
+            core.INumber.zero(),
+            core.BinaryInt(core.IBoolean.true(), core.IBoolean.false(), core.IBoolean.true()),
+            core.Integer(1),
+            core.DefaultGroup(core.INumber.one()),
+        ],
+    )
 
-    final_states.append(run(
-        left_expr=core.IntToBinary(core.Integer(0)),
-        right_expr=core.INumber.zero(),
-        result=True,
-    ))
-    final_states.append(run(
-        left_expr=core.IntToBinary(core.Integer(1)),
-        right_expr=core.INumber.one(),
-        result=True,
-    ))
-    final_states.append(run(
-        left_expr=core.IntToBinary(core.Integer(2)),
-        right_expr=core.INumber.one(),
-        result=False,
-    ))
-    final_states.append(run(
-        left_expr=core.IntToBinary(core.Integer(2)),
-        right_expr=core.BinaryInt(core.IBoolean.true(), core.IBoolean.false()),
-        result=True,
-    ))
+    final_states += run(
+        raw_expr=core.IntToBinary(core.Integer(0)),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[
+            core.INumber.one(),
+            core.BinaryInt(core.IBoolean.true(), core.IBoolean.false()),
+            core.Integer(0),
+            core.Optional(core.INumber.zero()),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.IntToBinary(core.Integer(1)),
+        correct_expr=core.INumber.one(),
+        wrong_exprs=[
+            core.INumber.zero(),
+            core.BinaryInt(core.IBoolean.true(), core.IBoolean.false(), core.IBoolean.false()),
+            core.Integer(1),
+            core.Optional(core.INumber.one()),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.IntToBinary(core.Integer(2)),
+        correct_expr=core.BinaryInt(core.IBoolean.true(), core.IBoolean.false()),
+        wrong_exprs=[
+            core.INumber.one(),
+            core.BinaryInt(core.IBoolean.true(), core.IBoolean.true()),
+            core.Integer(2),
+            core.Optional(core.BinaryInt(core.IBoolean.true(), core.IBoolean.false())),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.IntToBinary(core.Integer(1000)),
+        correct_expr=core.BinaryInt(
+            core.IBoolean.true(),
+            core.IBoolean.true(),
+            core.IBoolean.true(),
+            core.IBoolean.true(),
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+            core.IBoolean.false(),
+            core.IBoolean.false(),
+        ),
+        wrong_exprs=[
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+            core.Integer(1000),
+            core.Optional(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ],
+    )
 
-    final_states.append(run(
-        left_expr=core.BinaryToInt(core.INumber.zero()),
-        right_expr=core.Integer(0),
-        result=True,
-    ))
-    final_states.append(run(
-        left_expr=core.BinaryToInt(core.INumber.one()),
-        right_expr=core.Integer(1),
-        result=True,
-    ))
-    final_states.append(run(
-        left_expr=core.BinaryToInt(core.INumber.one()),
-        right_expr=core.Integer(2),
-        result=False,
-    ))
-    final_states.append(run(
-        left_expr=core.BinaryToInt(core.BinaryInt(core.IBoolean.true(), core.IBoolean.false())),
-        right_expr=core.Integer(2),
-        result=True,
-    ))
+    final_states += run(
+        raw_expr=core.BinaryToInt(core.INumber.zero()),
+        correct_expr=core.Integer(0),
+        wrong_exprs=[
+            core.INumber.zero(),
+            core.BinaryInt(core.IBoolean.true(), core.IBoolean.false()),
+            core.Void(),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.BinaryToInt(core.INumber.one()),
+        correct_expr=core.Integer(1),
+        wrong_exprs=[
+            core.INumber.one(),
+            core.BinaryInt(core.IBoolean.true(), core.IBoolean.false(), core.IBoolean.false()),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.BinaryToInt(core.BinaryInt(core.IBoolean.true(), core.IBoolean.false())),
+        correct_expr=core.Integer(2),
+        wrong_exprs=[
+            core.BinaryInt(core.IBoolean.true(), core.IBoolean.false()),
+            core.Integer(1),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.BinaryToInt(core.BinaryInt(
+            core.IBoolean.true(),
+            core.IBoolean.true(),
+            core.IBoolean.true(),
+            core.IBoolean.true(),
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+            core.IBoolean.false(),
+            core.IBoolean.false(),
+        )),
+        correct_expr=core.Integer(1000),
+        wrong_exprs=[
+            core.Integer(999),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+        ],
+    )
 
     #TODO
 
