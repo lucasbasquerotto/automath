@@ -181,6 +181,83 @@ def run_single_eq(left_expr: core.INode, right_expr: core.INode, result: bool):
 
     return env.full_state
 
+def run_single(raw_expr: core.INode, correct_expr: core.INode):
+    goal = node_types.HaveResultScratch.with_goal(raw_expr)
+    state_meta = state.StateMetaInfo.with_goal_achieved(state.GoalAchieved.create())
+    env = GoalEnv(
+        goal=goal,
+        fn_initial_state=lambda meta: full_state.FullState.with_args(
+            meta=meta,
+            current=full_state.HistoryNode.with_args(
+                state=state.State.from_raw(
+                    meta_info=state_meta,
+                    scratches=[correct_expr],
+                ),
+                meta_data=meta_env.MetaData.create(),
+            )
+        ),
+        max_steps=1,
+        allowed_actions=node_types.ESSENTIAL_ACTIONS,
+    )
+    assert has_goal(env=env, goal=goal)
+
+    current_state = get_current_state(env)
+
+    assert current_state == state.State.from_raw(
+        meta_info=state_meta,
+        scratches=[correct_expr],
+    )
+    assert env.full_state.goal_achieved() is False
+
+    # Run Action
+    action_idx = get_basic_action_index(action_impl.VerifyGoal, env)
+    meta_idx = get_from_int_type_index(state.StateScratchIndex, env)
+    scratch_idx = 1
+    raw_action = action.RawAction(
+        full_state.MetaAllowedBasicActionsTypeIndex(action_idx),
+        core.Integer(0),
+        core.Integer(meta_idx),
+        core.Integer(scratch_idx),
+    )
+    full_action = action_impl.VerifyGoal(
+        core.Optional(),
+        full_state.MetaFromIntTypeIndex(meta_idx),
+        core.Integer(scratch_idx),
+    )
+    output = action_impl.VerifyGoalOutput(
+        core.Optional(),
+        state.StateScratchIndex(scratch_idx),
+    )
+    env.step(raw_action)
+    current_state = get_current_state(env)
+    last_history_action = get_last_history_action(env)
+
+    # Verify
+    expected_history = full_state.SuccessActionData.from_args(
+        raw_action=core.Optional(raw_action),
+        action=core.Optional(full_action),
+        output=core.Optional(output),
+        exception=core.Optional(),
+    )
+    if last_history_action != expected_history:
+        print('last_history_action:', env.symbol(last_history_action))
+        print('expected_history:', env.symbol(expected_history))
+    assert last_history_action == expected_history
+
+    state_meta = state_meta.with_new_args(
+        goal_achieved=state.GoalAchieved.achieved(),
+    )
+    expected_state = state.State.from_raw(
+        meta_info=state_meta,
+        scratches=[correct_expr],
+    )
+    if current_state != expected_state:
+        print('current_state:', env.symbol(current_state))
+        print('expected_state:', env.symbol(expected_state))
+    assert current_state == expected_state
+
+    return env.full_state
+
 def run(raw_expr: core.INode, correct_expr: core.INode, wrong_exprs=list[core.INode]):
     final_states: list[full_state.FullState] = []
 
@@ -208,6 +285,11 @@ def run(raw_expr: core.INode, correct_expr: core.INode, wrong_exprs=list[core.IN
         left_expr=correct_expr,
         right_expr=raw_expr,
         result=True,
+    ))
+
+    final_states.append(run_single(
+        raw_expr=raw_expr,
+        correct_expr=correct_expr,
     ))
 
     return final_states
