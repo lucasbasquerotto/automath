@@ -4402,7 +4402,7 @@ class Add(ControlFlowBaseNode, IInstantiable):
             TypeAliasGroup(
                 TypeAlias(IAdditive.as_type()),
             ),
-            RestTypeGroup(TypeIndex(1)),
+            RestTypeGroup(IAdditive.as_type()),
             TypeIndex(1),
         )
 
@@ -4470,7 +4470,7 @@ class IComparableSignedNumber(ISignedNumber, IComparableNumber, ABC):
     def sign(self) -> IComparableSign:
         raise NotImplementedError
 
-class NegativeSign(InheritableNode, IComparableSign, IInstantiable):
+class NegativeSign(InheritableNode, IComparableSign, IDefault, IInstantiable):
 
     idx_negative = 1
 
@@ -4479,6 +4479,10 @@ class NegativeSign(InheritableNode, IComparableSign, IInstantiable):
         return cls.default_protocol(CountableTypeGroup(
             IntBoolean.as_type(),
         ))
+
+    @classmethod
+    def create(cls):
+        return cls(IBoolean.true())
 
     @property
     def negative(self) -> TmpInnerArg:
@@ -4731,7 +4735,7 @@ class SignedInt(BaseSignedInt, IInstantiable):
 
     def normalize(self) -> BaseSignedInt:
         sign = self.raw_sign.apply().real(NegativeSign)
-        abs_value = self.raw_abs.apply().real(BinaryInt)
+        abs_value = self.raw_abs.apply().real(BinaryInt).normalize()
         zero = INumber.zero()
         if abs_value == zero:
             return zero
@@ -4747,10 +4751,10 @@ class SignedInt(BaseSignedInt, IInstantiable):
         if isinstance(another, SignedInt):
             other_abs = another.abs
             Eq(self.sign, another.sign).raise_on_false()
-            return self.func(self.sign, my_abs.add(other_abs))
+            return self.func(self.sign, my_abs.add(other_abs).normalize())
 
         node_2 = another.real(BinaryInt)
-        return node_2.subtract(my_abs)
+        return node_2.subtract(my_abs).normalize()
 
     def lt(self, another: INode):
         if isinstance(another, BinaryInt):
@@ -4846,6 +4850,7 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
 
     def normalize(self) -> Float:
         base = self.base.apply().real(BaseSignedInt)
+        exponent = self.exponent.apply().real(BaseSignedInt)
         zero = INumber.zero()
         if base == zero:
             return self.func(zero, zero)
