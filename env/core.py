@@ -4524,9 +4524,9 @@ class BaseSignedInt(BaseNormalizer, IComparableSignedNumber, ABC):
         return self.add(
             SignedInt(
                 NegativeSign.create(),
-                value.abs,
+                value,
             ).normalize()
-        ).normalize()
+        )
 
     def multiply(self, value: BaseSignedInt) -> BaseSignedInt:
         raise NotImplementedError
@@ -4721,32 +4721,32 @@ class BinaryInt(BaseSignedInt, IInstantiable):
             return IntBoolean.false()
         return IntBoolean.false()
 
-    def multiply(self, another: INumber) -> BaseSignedInt:
-        assert isinstance(another, BaseSignedInt)
-        sign = another.sign
+    def multiply(self, value: INumber) -> BaseSignedInt:
+        assert isinstance(value, BaseSignedInt)
+        sign = value.sign
         me = BinaryToInt(self).normalize()
-        other = BinaryToInt(another.abs).normalize()
+        other = BinaryToInt(value.abs).normalize()
         assert isinstance(me, Integer)
         assert isinstance(other, Integer)
         product = Integer(me.as_int * other.as_int)
         new_abs = IntToBinary(product).normalize()
         return SignedInt(sign, new_abs).normalize()
 
-    def divide(self, another: INumber) -> BaseSignedInt:
-        assert isinstance(another, BaseSignedInt)
-        sign = another.sign
+    def divide(self, value: INumber) -> BaseSignedInt:
+        assert isinstance(value, BaseSignedInt)
+        sign = value.sign
         me = BinaryToInt(self).normalize()
-        other = BinaryToInt(another.abs).normalize()
+        other = BinaryToInt(value.abs).normalize()
         assert isinstance(me, Integer)
         assert isinstance(other, Integer)
         quotient = Integer(me.as_int // other.as_int)
         new_abs = IntToBinary(quotient).normalize()
         return SignedInt(sign, new_abs).normalize()
 
-    def modulo(self, another: INumber) -> BaseSignedInt:
-        assert isinstance(another, BaseSignedInt)
+    def modulo(self, value: INumber) -> BaseSignedInt:
+        assert isinstance(value, BaseSignedInt)
         me = BinaryToInt(self).normalize()
-        other = BinaryToInt(another.abs).normalize()
+        other = BinaryToInt(value.abs).normalize()
         assert isinstance(me, Integer)
         assert isinstance(other, Integer)
         remainder = Integer(me.as_int % other.as_int)
@@ -4859,21 +4859,21 @@ class SignedInt(BaseSignedInt, IInstantiable):
         )
         return sign
 
-    def multiply(self, another: INumber) -> BaseSignedInt:
-        assert isinstance(another, BaseSignedInt)
-        sign = self._mul_sign(another)
-        product = self.abs.multiply(another.abs)
+    def multiply(self, value: INumber) -> BaseSignedInt:
+        assert isinstance(value, BaseSignedInt)
+        sign = self._mul_sign(value)
+        product = self.abs.multiply(value.abs)
         return SignedInt(sign, product).normalize()
 
-    def divide(self, another: INumber) -> BaseSignedInt:
-        assert isinstance(another, BaseSignedInt)
-        sign = self._mul_sign(another)
-        quotient = self.abs.divide(another.abs)
+    def divide(self, value: INumber) -> BaseSignedInt:
+        assert isinstance(value, BaseSignedInt)
+        sign = self._mul_sign(value)
+        quotient = self.abs.divide(value.abs)
         return SignedInt(sign, quotient).normalize()
 
-    def modulo(self, another: INumber) -> BaseSignedInt:
-        assert isinstance(another, BaseSignedInt)
-        remainder = self.abs.modulo(another.abs)
+    def modulo(self, value: INumber) -> BaseSignedInt:
+        assert isinstance(value, BaseSignedInt)
+        remainder = self.abs.modulo(value.abs)
         return remainder
 
 class BinaryToInt(BaseNormalizer, IInstantiable):

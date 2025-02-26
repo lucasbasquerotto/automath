@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 from env import core, state, full_state, action, action_impl, meta_env, node_types
 from env.goal_env import GoalEnv
 
@@ -626,6 +627,152 @@ def test_arithmetic() -> list[full_state.FullState]:
 
     final_states += run(
         raw_expr=core.Add(
+            core.INumber.zero(),
+            core.INumber.zero(),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Add(
+            core.INumber.one(),
+            core.INumber.minus_one(),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Add(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Add(
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Add(
+            core.INumber.one(),
+            core.INumber.zero(),
+        ),
+        correct_expr=core.INumber.one(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Add(
+            core.INumber.zero(),
+            core.INumber.one(),
+        ),
+        correct_expr=core.INumber.one(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Add(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+            core.INumber.zero(),
+        ),
+        correct_expr=core.BinaryInt(
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+            core.IBoolean.true(),
+        ),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Add(
+            core.INumber.zero(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        correct_expr=core.BinaryInt(
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+            core.IBoolean.true(),
+        ),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Add(
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.INumber.zero(),
+        ),
+        correct_expr=core.SignedInt(
+            core.NegativeSign.create(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Add(
+            core.INumber.zero(),
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+        ),
+        correct_expr=core.SignedInt(
+            core.NegativeSign.create(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Add(
             core.BinaryInt(
                 core.IBoolean.true(),
                 core.IBoolean.false(),
@@ -755,6 +902,152 @@ def test_arithmetic() -> list[full_state.FullState]:
 
     final_states += run(
         raw_expr=core.Subtract(
+            core.INumber.zero(),
+            core.INumber.zero(),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.INumber.one(),
+            core.INumber.one(),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.INumber.one(),
+            core.INumber.zero(),
+        ),
+        correct_expr=core.INumber.one(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.INumber.zero(),
+            core.INumber.one(),
+        ),
+        correct_expr=core.INumber.minus_one(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+            core.INumber.zero(),
+        ),
+        correct_expr=core.BinaryInt(
+            core.IBoolean.true(),
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+        ),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.INumber.zero(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+        ),
+        correct_expr=core.SignedInt(
+            core.NegativeSign.create(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+        ),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+            core.INumber.zero(),
+        ),
+        correct_expr=core.SignedInt(
+            core.NegativeSign.create(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+        ),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.INumber.zero(),
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.BinaryInt(
+            core.IBoolean.true(),
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+        ),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Subtract(
             core.BinaryInt(
                 core.IBoolean.true(),
                 core.IBoolean.false(),
@@ -845,6 +1138,210 @@ def test_arithmetic() -> list[full_state.FullState]:
         ],
     )
 
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.INumber.zero(),
+            core.INumber.zero(),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.INumber.zero(),
+            core.INumber.one(),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.INumber.one(),
+            core.INumber.zero(),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.INumber.one(),
+            core.INumber.one(),
+        ),
+        correct_expr=core.INumber.one(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+            core.INumber.zero(),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.INumber.minus_one(),
+            core.INumber.one(),
+        ),
+        correct_expr=core.INumber.minus_one(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+            core.INumber.one(),
+        ),
+        correct_expr=core.BinaryInt(
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+            core.IBoolean.true(),
+        ),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.INumber.one(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        correct_expr=core.BinaryInt(
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+            core.IBoolean.true(),
+        ),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.INumber.one(),
+        ),
+        correct_expr=core.SignedInt(
+            core.NegativeSign.create(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.INumber.one(),
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+        ),
+        correct_expr=core.SignedInt(
+            core.NegativeSign.create(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+            core.INumber.minus_one(),
+        ),
+        correct_expr=core.SignedInt(
+            core.NegativeSign.create(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.INumber.minus_one(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        correct_expr=core.SignedInt(
+            core.NegativeSign.create(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.INumber.minus_one(),
+        ),
+        correct_expr=core.BinaryInt(
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+            core.IBoolean.true(),
+        ),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.INumber.minus_one(),
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+        ),
+        correct_expr=core.BinaryInt(
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+            core.IBoolean.true(),
+        ),
+        wrong_exprs=[],
+    )
     final_states += run(
         raw_expr=core.Multiply(
             core.BinaryInt(
@@ -986,6 +1483,211 @@ def test_arithmetic() -> list[full_state.FullState]:
         ],
     )
 
+    final_states += run(
+        raw_expr=core.Divide(
+            core.INumber.zero(),
+            core.INumber.one(),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Divide(
+            core.INumber.zero(),
+            core.INumber.minus_one(),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Divide(
+            core.INumber.zero(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Divide(
+            core.INumber.zero(),
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Divide(
+            core.INumber.one(),
+            core.INumber.one(),
+        ),
+        correct_expr=core.INumber.one(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Divide(
+            core.INumber.one(),
+            core.INumber.minus_one(),
+        ),
+        correct_expr=core.INumber.minus_one(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Divide(
+            core.INumber.one(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Divide(
+            core.INumber.one(),
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Divide(
+            core.INumber.minus_one(),
+            core.INumber.minus_one(),
+        ),
+        correct_expr=core.INumber.one(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Divide(
+            core.INumber.minus_one(),
+            core.INumber.one(),
+        ),
+        correct_expr=core.INumber.minus_one(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Divide(
+            core.INumber.minus_one(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Divide(
+            core.INumber.minus_one(),
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Divide(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        correct_expr=core.INumber.one(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Divide(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+        ),
+        correct_expr=core.INumber.minus_one(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Divide(
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        correct_expr=core.INumber.minus_one(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Divide(
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+        ),
+        correct_expr=core.INumber.one(),
+        wrong_exprs=[],
+    )
     final_states += run(
         raw_expr=core.Divide(
             core.BinaryInt(
@@ -1137,6 +1839,73 @@ def test_arithmetic() -> list[full_state.FullState]:
         ],
     )
 
+    final_states += run(
+        raw_expr=core.Modulo(
+            core.INumber.zero(),
+            core.INumber.one(),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Modulo(
+            core.INumber.one(),
+            core.INumber.one(),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Modulo(
+            core.INumber.minus_one(),
+            core.INumber.minus_one(),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Modulo(
+            core.INumber.one(),
+            core.INumber.minus_one(),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Modulo(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.Modulo(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
     final_states += run(
         raw_expr=core.Modulo(
             core.BinaryInt(
