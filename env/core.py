@@ -4499,6 +4499,9 @@ class IDivisible(INumber, ABC):
     def divide(self, value: IDivisible) -> IDivisible:
         raise NotImplementedError
 
+    def divided_by(self, value: IDivisible) -> IDivisible:
+        raise NotImplementedError
+
 class BaseSignedInt(BaseNormalizer, IComparableSignedNumber, IDivisible, ABC):
 
     @property
@@ -4536,11 +4539,20 @@ class BaseSignedInt(BaseNormalizer, IComparableSignedNumber, IDivisible, ABC):
     def divide(self, value: IDivisible) -> IDivisible:
         raise NotImplementedError
 
+    def divided_by(self, value: IDivisible) -> IDivisible:
+        raise NotImplementedError
+
     def divide_int(self, value: BaseSignedInt) -> BaseSignedInt:
         raise NotImplementedError
 
     def modulo(self, value: BaseSignedInt) -> BaseSignedInt:
         raise NotImplementedError
+
+    def to_rational(self):
+        return SignedRational(
+            self.sign,
+            Rational(self.abs, INumber.one()).normalize(),
+        ).normalize()
 
 class BinaryInt(BaseSignedInt, IInstantiable):
 
@@ -4738,7 +4750,14 @@ class BinaryInt(BaseSignedInt, IInstantiable):
         return SignedInt(sign, new_abs).normalize()
 
     def divide(self, value: IDivisible) -> IDivisible:
-        raise NotImplementedError
+        if isinstance(value, BinaryInt):
+            return Rational(self, value)
+        return value.divided_by(self)
+
+    def divided_by(self, value: IDivisible) -> IDivisible:
+        if isinstance(value, BinaryInt):
+            return Rational(value, self)
+        return self.divide(value)
 
     def divide_int(self, value: INumber) -> BaseSignedInt:
         assert isinstance(value, BaseSignedInt)
@@ -4874,7 +4893,22 @@ class SignedInt(BaseSignedInt, IInstantiable):
         return SignedInt(sign, product).normalize()
 
     def divide(self, value: IDivisible) -> IDivisible:
-        raise NotImplementedError
+        if isinstance(value, BaseSignedInt):
+            same_sign = Eq(self.sign, value.sign).as_bool
+            return SignedRational(
+                NegativeSign(IBoolean.from_bool(not same_sign)),
+                Rational(self, value),
+            ).normalize()
+        return value.divided_by(self)
+
+    def divided_by(self, value: IDivisible) -> IDivisible:
+        if isinstance(value, BaseSignedInt):
+            same_sign = Eq(self.sign, value.sign).as_bool
+            return SignedRational(
+                NegativeSign(IBoolean.from_bool(not same_sign)),
+                Rational(value, self),
+            ).normalize()
+        return self.divide(value)
 
     def divide_int(self, value: BaseSignedInt) -> BaseSignedInt:
         assert isinstance(value, BaseSignedInt)
@@ -4886,6 +4920,233 @@ class SignedInt(BaseSignedInt, IInstantiable):
         assert isinstance(value, BaseSignedInt)
         remainder = self.abs.modulo(value.abs)
         return remainder
+
+class BaseSignedRational(BaseNormalizer, IComparableSignedNumber, IDivisible, ABC):
+
+    @property
+    def sign(self) -> NegativeSign:
+        raise NotImplementedError
+
+    @property
+    def value(self) -> Rational:
+        raise NotImplementedError
+
+    @property
+    def numerator(self) -> BinaryInt:
+        raise NotImplementedError
+
+    @property
+    def denominator(self) -> BinaryInt:
+        raise NotImplementedError
+
+    def precision(self) -> int:
+        return self.abs.precision()
+
+    def with_new_value(self, value: Rational) -> BaseSignedRational:
+        raise NotImplementedError
+
+    def normalize(self) -> BaseSignedRational:
+        raise NotImplementedError
+
+    def validate_result(self, result: INode, args_group: OptionalValueGroup):
+        IsInstance.verify(result, BaseSignedRational)
+
+    def add(self, another: INode):
+        if isinstance(another, BaseSignedInt):
+            another = another.to_rational()
+
+        if isinstance(another, BaseSignedRational):
+            my_sign = self.sign
+            my_numerator = self.numerator
+            my_denominator = self.denominator
+
+            other_sign = another.sign
+            other_numerator = another.numerator
+            other_denominator = another.denominator
+
+            my_full_numerator = SignedInt(
+                my_sign,
+                my_numerator.multiply(other_denominator),
+            ).normalize()
+            assert isinstance(my_full_numerator, BaseSignedInt)
+            other_full_numerator = SignedInt(
+                other_sign,
+                other_numerator.multiply(my_denominator),
+            ).normalize()
+            assert isinstance(other_full_numerator, BaseSignedInt)
+            new_numerator = my_full_numerator.add(other_full_numerator)
+            assert isinstance(new_numerator, BaseSignedInt)
+            new_denominator = my_denominator.multiply(other_denominator)
+            assert isinstance(new_denominator, BinaryInt)
+            return SignedRational(
+                new_numerator.sign,
+                Rational(new_numerator.abs, new_denominator).normalize(),
+            ).normalize()
+
+        other = another.real(INumber)
+        return other.add(self)
+
+    def subtract(self, value: INumber) -> BaseSignedRational:
+        assert isinstance(value, BaseSignedRational)
+        return self.add(
+            SignedRational(
+                NegativeSign.create(),
+                value,
+            ).normalize()
+        )
+
+    def multiply(self, value: INumber) -> BaseSignedRational:
+        another = value
+
+        if isinstance(another, BaseSignedInt):
+            another = another.to_rational()
+
+        assert isinstance(another, BaseSignedRational)
+
+        my_sign = self.sign
+        my_numerator = self.numerator
+        my_denominator = self.denominator
+
+        other_sign = another.sign
+        other_numerator = another.numerator
+        other_denominator = another.denominator
+
+        same_sign = Eq(my_sign, other_sign).as_bool
+        new_sign = NegativeSign(IBoolean.from_bool(not same_sign))
+        new_numerator = my_numerator.multiply(other_numerator)
+        new_denominator = my_denominator.multiply(other_denominator)
+        return SignedRational(
+            new_sign,
+            Rational(new_numerator, new_denominator).normalize(),
+        ).normalize()
+
+    def divide(self, value: IDivisible) -> IDivisible:
+        another = value
+
+        if isinstance(another, BaseSignedInt):
+            another = another.to_rational()
+
+        assert isinstance(another, BaseSignedRational)
+
+        my_sign = self.sign
+        my_numerator = self.numerator
+        my_denominator = self.denominator
+
+        other_sign = another.sign
+        other_numerator = another.numerator
+        other_denominator = another.denominator
+
+        same_sign = Eq(my_sign, other_sign).as_bool
+        new_sign = NegativeSign(IBoolean.from_bool(not same_sign))
+        new_numerator = my_numerator.multiply(other_denominator)
+        new_denominator = my_denominator.multiply(other_numerator)
+        return SignedRational(
+            new_sign,
+            Rational(new_numerator, new_denominator).normalize(),
+        ).normalize()
+
+    def divided_by(self, value: IDivisible) -> IDivisible:
+        another = value
+
+        if isinstance(another, BaseSignedInt):
+            another = another.to_rational()
+
+        return another.divide(self)
+
+class Rational(BaseSignedRational, IInstantiable):
+
+    idx_numerator = 1
+    idx_denominator = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            BinaryInt.as_type(),
+            BinaryInt.as_type(),
+        ))
+
+    @property
+    def numerator(self) -> BinaryInt:
+        return self.inner_arg(self.idx_numerator).apply().real(BinaryInt)
+
+    @property
+    def denominator(self) -> BinaryInt:
+        return self.inner_arg(self.idx_denominator).apply().real(BinaryInt)
+
+    @property
+    def sign(self) -> NegativeSign:
+        return NegativeSign(IBoolean.false())
+
+    @property
+    def value(self) -> Rational:
+        return self
+
+    def with_new_value(self, value: Rational) -> BaseSignedRational:
+        return value
+
+    def normalize(self) -> BaseSignedRational:
+        denominator = self.denominator
+        Not(Eq(denominator, INumber.zero())).raise_on_false()
+        return self
+
+class SignedRational(BaseSignedRational, IInstantiable):
+
+    idx_sign = 1
+    idx_value = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(),
+            CountableTypeGroup(
+                NegativeSign.as_type(),
+                BaseSignedRational.as_type(),
+            ),
+            UnionType(
+                Rational.as_type(),
+                CompositeType(
+                    SignedRational.as_type(),
+                    CountableTypeGroup(
+                        InstanceType(NegativeSign(IBoolean.true())),
+                        Rational.as_type(),
+                    ),
+                ),
+            ),
+        )
+
+    @property
+    def raw_sign(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_sign)
+
+    @property
+    def raw_value(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_value)
+
+    @property
+    def sign(self):
+        return self.raw_sign.apply().real(NegativeSign)
+
+    def with_new_value(self, value: Rational) -> BaseSignedRational:
+        return self.func(self.sign, value).normalize()
+
+    def normalize(self) -> BaseSignedRational:
+        sign = self.raw_sign.apply().real(NegativeSign)
+        value = self.raw_value.apply().real(BaseSignedRational)
+        if isinstance(value, SignedRational):
+            inner_sign = value.sign
+            assert inner_sign == NegativeSign(IBoolean.true())
+            inner_value = value.value
+            assert isinstance(inner_value, Rational)
+            if sign == NegativeSign(IBoolean.true()):
+                return inner_value
+            else:
+                return value
+        assert isinstance(value, Rational)
+        node = (
+            self.func(sign, value)
+            if sign == NegativeSign(IBoolean.true())
+            else value)
+        return node
 
 class BinaryToInt(BaseNormalizer, IInstantiable):
 
