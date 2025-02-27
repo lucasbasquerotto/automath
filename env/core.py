@@ -4450,9 +4450,6 @@ class INumber(IAdditive, ABC):
     def divide(self, value: INumber) -> INumber:
         raise NotImplementedError
 
-    def modulo(self, value: INumber) -> INumber:
-        raise NotImplementedError
-
 class IComparableNumber(INumber, IComparable, ABC):
     pass
 
@@ -4510,6 +4507,9 @@ class BaseSignedInt(BaseNormalizer, IComparableSignedNumber, ABC):
     def sign(self) -> NegativeSign:
         raise NotImplementedError
 
+    def precision(self) -> int:
+        return len(self.abs.as_tuple)
+
     def with_new_abs(self, abs_value: BinaryInt) -> BaseSignedInt:
         raise NotImplementedError
 
@@ -4528,10 +4528,10 @@ class BaseSignedInt(BaseNormalizer, IComparableSignedNumber, ABC):
             ).normalize()
         )
 
-    def multiply(self, value: BaseSignedInt) -> BaseSignedInt:
+    def multiply(self, value: INumber) -> BaseSignedInt:
         raise NotImplementedError
 
-    def divide(self, value: BaseSignedInt) -> BaseSignedInt:
+    def divide(self, value: INumber) -> BaseSignedInt:
         raise NotImplementedError
 
     def modulo(self, value: BaseSignedInt) -> BaseSignedInt:
@@ -4555,12 +4555,12 @@ class BinaryInt(BaseSignedInt, IInstantiable):
         return abs_value
 
     @classmethod
-    def from_items(cls, items: typing.Sequence[IntBoolean]) -> BinaryInt:
+    def from_items(cls, items: typing.Sequence[IntBoolean]) -> typing.Self:
         return cls(*items).normalize()
 
     @property
     def as_tuple(self) -> tuple[IntBoolean, ...]:
-        return self.args
+        return typing.cast(tuple[IntBoolean, ...], self.args)
 
     def normalize(self) -> typing.Self:
         if self == INumber.zero():
@@ -4743,7 +4743,7 @@ class BinaryInt(BaseSignedInt, IInstantiable):
         new_abs = IntToBinary(quotient).normalize()
         return SignedInt(sign, new_abs).normalize()
 
-    def modulo(self, value: INumber) -> BaseSignedInt:
+    def modulo(self, value: BaseSignedInt) -> BaseSignedInt:
         assert isinstance(value, BaseSignedInt)
         me = BinaryToInt(self).normalize()
         other = BinaryToInt(value.abs).normalize()
@@ -4871,7 +4871,7 @@ class SignedInt(BaseSignedInt, IInstantiable):
         quotient = self.abs.divide(value.abs)
         return SignedInt(sign, quotient).normalize()
 
-    def modulo(self, value: INumber) -> BaseSignedInt:
+    def modulo(self, value: BaseSignedInt) -> BaseSignedInt:
         assert isinstance(value, BaseSignedInt)
         remainder = self.abs.modulo(value.abs)
         return remainder
@@ -4952,6 +4952,10 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
     def exponent(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_exponent)
 
+    def precision(self) -> int:
+        base = self.base.apply().real(BaseSignedInt)
+        return len(base.abs.as_tuple)
+
     def numeric(self) -> float:
         base = self.base.apply().real(BaseSignedInt)
         exponent = self.exponent.apply().real(BaseSignedInt)
@@ -4960,7 +4964,9 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
         precision = len(abs_value.as_tuple)
         abs_int = BinaryToInt(abs_value).normalize()
         exp_int = BinaryToInt(exponent).normalize()
-        value = abs_int * (2 ** (exp_int - precision))
+        assert isinstance(abs_int, Integer)
+        assert isinstance(exp_int, Integer)
+        value = abs_int * (2 ** (exp_int.as_int - precision))
         if sign == NegativeSign(IBoolean.true()):
             value = -value
         return float(value)
@@ -4972,58 +4978,145 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
             return self.func(zero, zero)
         return self
 
-    def add(self, another: INode):
-        other = another.real(Float)
+    def same_exponents(self, other: Float) -> tuple[
+        BaseSignedInt,
+        BaseSignedInt,
+        BaseSignedInt,
+        int,
+    ]:
         my_base = self.base.apply().real(BaseSignedInt)
         my_exponent = self.exponent.apply().real(BaseSignedInt)
         other_base = other.base.apply().real(BaseSignedInt)
         other_exponent = other.exponent.apply().real(BaseSignedInt)
-        if my_base == INumber.zero():
-            return other
-        if other_base == INumber.zero():
-            return self
-        if my_exponent.lt(other_exponent):
+        my_precision = self.precision()
+        other_precision = other.precision()
+        self_higher = False
+
+        if my_exponent.lt(other_exponent).as_bool:
+            higher_precision = other_precision
             higher_exp = other_exponent
             higher_base = other_base
+            lower_precision = my_precision
             lower_exp = my_exponent
             lower_base = my_base
         else:
+            self_higher = True
+            higher_precision = my_precision
             higher_exp = my_exponent
             higher_base = my_base
+            lower_precision = other_precision
             lower_exp = other_exponent
             lower_base = other_base
-        diff_base = len(higher_base.abs.as_tuple) - len(lower_base.abs.as_tuple)
-        if diff_base > 0:
+
+        diff_precision = higher_precision - lower_precision
+
+        if diff_precision > 0:
             lower_bits = list(lower_base.abs.as_tuple)
-            lower_bits = lower_bits + [IBoolean.false()] * diff_base
+            lower_bits = lower_bits + [IBoolean.false()] * diff_precision
             lower_base = lower_base.with_new_abs(BinaryInt.from_items(lower_bits))
-        elif diff_base < 0:
+        elif diff_precision < 0:
             higher_bits = list(higher_base.abs.as_tuple)
-            higher_bits = higher_bits + [IBoolean.false()] * -diff_base
+            higher_bits = higher_bits + [IBoolean.false()] * -diff_precision
             higher_base = higher_base.with_new_abs(BinaryInt.from_items(higher_bits))
+
+        precision = higher_base.precision()
+        assert precision == lower_base.precision()
+
         higher_bits = list(higher_base.abs.as_tuple)
         current_exp = higher_exp
-        minus_one = INumber.minus_one()
-        while lower_exp.lt(current_exp):
+        one = INumber.one()
+        while lower_exp.lt(current_exp).as_bool:
             higher_bits.append(IBoolean.false())
-            current_exp = current_exp.add(minus_one).real(BaseSignedInt)
+            current_exp = current_exp.subtract(one).real(BaseSignedInt)
         higher_base = SignedInt(
             higher_base.sign,
             BinaryInt.from_items(higher_bits)
         ).normalize()
         higher_exp = current_exp
-        assert higher_exp == lower_exp
-        assert isinstance(higher_base, BaseSignedInt)
-        new_base = higher_base.add(lower_base).normalize()
-        diff = len(new_base.abs.as_tuple) - len(lower_base.abs.as_tuple)
+        Eq(higher_exp, lower_exp).raise_on_false()
+
+        my_new_base = higher_base if self_higher else lower_base
+        other_new_base = lower_base if self_higher else higher_base
+
+        return my_new_base, other_new_base, current_exp, precision
+
+    def same_precisions(self, other: Float) -> tuple[
+        BaseSignedInt,
+        BaseSignedInt,
+        BaseSignedInt,
+        BaseSignedInt,
+        int,
+    ]:
+        my_base = self.base.apply().real(BaseSignedInt)
+        my_exponent = self.exponent.apply().real(BaseSignedInt)
+        other_base = other.base.apply().real(BaseSignedInt)
+        other_exponent = other.exponent.apply().real(BaseSignedInt)
+        my_precision = self.precision()
+        other_precision = other.precision()
+        self_higher = False
+
+        if my_precision < other_precision:
+            higher_precision = other_precision
+            higher_base = other_base
+            lower_precision = my_precision
+            lower_base = my_base
+        else:
+            self_higher = True
+            higher_precision = my_precision
+            higher_base = my_base
+            lower_precision = other_precision
+            lower_base = other_base
+
+        diff_precision = higher_precision - lower_precision
+        lower_bits = list(lower_base.abs.as_tuple)
+        lower_bits = lower_bits + [IBoolean.false()] * diff_precision
+        lower_base = lower_base.with_new_abs(BinaryInt.from_items(lower_bits))
+
+        precision = higher_base.precision()
+        assert precision == lower_base.precision()
+
+        my_new_base = higher_base if self_higher else lower_base
+        other_new_base = lower_base if self_higher else higher_base
+
+        return my_new_base, other_new_base, my_exponent, other_exponent, precision
+
+    def add(self, another: INode):
+        (
+            my_new_base,
+            other_new_base,
+            current_exp,
+            precision,
+        ) = self.same_exponents(another.real(Float))
+
+        new_base = my_new_base.add(other_new_base).normalize()
+        # from env.symbol import Symbol
+        # print('my_new_base', Symbol.default(my_new_base))
+        # print('other_new_base', Symbol.default(other_new_base))
+        # print('new_base', Symbol.default(new_base))
+        assert isinstance(new_base, BaseSignedInt)
+        diff = new_base.precision() - precision
         one = INumber.one()
         while diff > 0:
             current_exp = current_exp.add(one).real(BaseSignedInt)
             diff -= 1
         while diff < 0:
-            current_exp = current_exp.add(minus_one).real(BaseSignedInt)
+            current_exp = current_exp.subtract(one).real(BaseSignedInt)
             diff += 1
-        return Float(new_base, higher_exp)
+        return Float(new_base, current_exp)
+
+    def subtract(self, value: INumber) -> Float:
+        if isinstance(value, BaseSignedInt):
+            value = AsFloat(value).normalize()
+        assert isinstance(value, Float)
+        return self.add(
+            Float(
+                SignedInt(
+                    NegativeSign.create(),
+                    value.base.apply().real(BaseSignedInt),
+                ).normalize(),
+                value.exponent.apply()
+            )
+        ).normalize()
 
     def lt(self, another: INode):
         other = another.real(Float)
@@ -5045,35 +5138,41 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
             return my_abs.gt(other_abs)
         return my_abs.lt(other_abs)
 
+    def multiply(self, value: INumber) -> Float:
+        other = value.real(Float)
+        my_base = self.base.apply().real(BaseSignedInt)
+        my_exponent = self.exponent.apply().real(BaseSignedInt)
+        other_base = other.base.apply().real(BaseSignedInt)
+        other_exponent = other.exponent.apply().real(BaseSignedInt)
+
+        new_base = my_base.multiply(other_base)
+        new_exp = my_exponent.add(other_exponent)
+        diff = my_base.precision() + other_base.precision() - new_base.precision()
+        while diff > 0:
+            new_exp = new_exp.subtract(INumber.one())
+            diff -= 1
+        while diff < 0:
+            new_exp = new_exp.add(INumber.one())
+            diff += 1
+        return Float(new_base, new_exp).normalize()
+
+    def divide(self, value: INumber) -> Float:
+        (
+            my_new_base,
+            other_new_base,
+            my_exponent,
+            other_exponent,
+            precision,
+        ) = self.same_precisions(value.real(Float))
+
+        new_base = my_new_base.divide(other_new_base)
+        new_exp = my_exponent.subtract(other_exponent)
+        #TODO handle remainder
+        return Float(new_base, new_exp).normalize()
+
     def gt(self, another: INode):
         node_2 = another.real(Float)
         return node_2.lt(self)
-
-    def subtract(self, value: INumber) -> Float:
-        if isinstance(value, BaseSignedInt):
-            value = AsFloat(value).normalize()
-        assert isinstance(value, Float)
-        return self.add(
-            Float(
-                SignedInt(
-                    NegativeSign.create(),
-                    value.base.apply().real(BaseSignedInt),
-                ).normalize(),
-                value.exponent.apply()
-            )
-        ).normalize()
-
-    # def multiply(self, another: INumber) -> Float:
-    #     product = float(self) * float(another)
-    #     return type(self).from_float(product)
-
-    # def divide(self, another: INumber) -> Float:
-    #     quotient = float(self) / float(another)
-    #     return type(self).from_float(quotient)
-
-    # def modulo(self, another: INumber) -> Float:
-    #     remainder = float(self) % float(another)
-    #     return type(self).from_float(remainder)
 
 class AsFloat(BaseNormalizer, IInstantiable):
 
@@ -5229,11 +5328,11 @@ class Modulo(ControlFlowBaseNode, IInstantiable):
     def protocol(cls) -> Protocol:
         return Protocol(
             TypeAliasGroup(
-                TypeAlias(INumber.as_type()),
+                TypeAlias(BaseSignedInt.as_type()),
             ),
             CountableTypeGroup(
-                INumber.as_type(),
-                INumber.as_type(),
+                BaseSignedInt.as_type(),
+                BaseSignedInt.as_type(),
             ),
             TypeIndex(1),
         )
@@ -5248,10 +5347,10 @@ class Modulo(ControlFlowBaseNode, IInstantiable):
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
         info, node_aux = self.dividend.apply().run(info).as_tuple
-        dividend = node_aux.real(INumber)
+        dividend = node_aux.real(BaseSignedInt)
 
         info, node_aux = self.divisor.apply().run(info).as_tuple
-        divisor = node_aux.real(INumber)
+        divisor = node_aux.real(BaseSignedInt)
 
         node = dividend.modulo(divisor)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
