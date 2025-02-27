@@ -4447,9 +4447,6 @@ class INumber(IAdditive, ABC):
     def multiply(self, value: INumber) -> INumber:
         raise NotImplementedError
 
-    def divide(self, value: INumber) -> INumber:
-        raise NotImplementedError
-
 class IComparableNumber(INumber, IComparable, ABC):
     pass
 
@@ -4497,7 +4494,12 @@ class NegativeSign(InheritableNode, IComparableSign, IDefault, IInstantiable):
     def negative(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_negative)
 
-class BaseSignedInt(BaseNormalizer, IComparableSignedNumber, ABC):
+class IDivisible(INumber, ABC):
+
+    def divide(self, value: IDivisible) -> IDivisible:
+        raise NotImplementedError
+
+class BaseSignedInt(BaseNormalizer, IComparableSignedNumber, IDivisible, ABC):
 
     @property
     def abs(self) -> BinaryInt:
@@ -4531,7 +4533,10 @@ class BaseSignedInt(BaseNormalizer, IComparableSignedNumber, ABC):
     def multiply(self, value: INumber) -> BaseSignedInt:
         raise NotImplementedError
 
-    def divide(self, value: INumber) -> BaseSignedInt:
+    def divide(self, value: IDivisible) -> IDivisible:
+        raise NotImplementedError
+
+    def divide_int(self, value: BaseSignedInt) -> BaseSignedInt:
         raise NotImplementedError
 
     def modulo(self, value: BaseSignedInt) -> BaseSignedInt:
@@ -4732,7 +4737,10 @@ class BinaryInt(BaseSignedInt, IInstantiable):
         new_abs = IntToBinary(product).normalize()
         return SignedInt(sign, new_abs).normalize()
 
-    def divide(self, value: INumber) -> BaseSignedInt:
+    def divide(self, value: IDivisible) -> IDivisible:
+        raise NotImplementedError
+
+    def divide_int(self, value: INumber) -> BaseSignedInt:
         assert isinstance(value, BaseSignedInt)
         sign = value.sign
         me = BinaryToInt(self).normalize()
@@ -4865,10 +4873,13 @@ class SignedInt(BaseSignedInt, IInstantiable):
         product = self.abs.multiply(value.abs)
         return SignedInt(sign, product).normalize()
 
-    def divide(self, value: INumber) -> BaseSignedInt:
+    def divide(self, value: IDivisible) -> IDivisible:
+        raise NotImplementedError
+
+    def divide_int(self, value: BaseSignedInt) -> BaseSignedInt:
         assert isinstance(value, BaseSignedInt)
         sign = self._mul_sign(value)
-        quotient = self.abs.divide(value.abs)
+        quotient = self.abs.divide_int(value.abs)
         return SignedInt(sign, quotient).normalize()
 
     def modulo(self, value: BaseSignedInt) -> BaseSignedInt:
@@ -5089,10 +5100,6 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
         ) = self.same_exponents(another.real(Float))
 
         new_base = my_new_base.add(other_new_base).normalize()
-        # from env.symbol import Symbol
-        # print('my_new_base', Symbol.default(my_new_base))
-        # print('other_new_base', Symbol.default(other_new_base))
-        # print('new_base', Symbol.default(new_base))
         assert isinstance(new_base, BaseSignedInt)
         diff = new_base.precision() - precision
         one = INumber.one()
@@ -5154,20 +5161,6 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
         while diff < 0:
             new_exp = new_exp.add(INumber.one())
             diff += 1
-        return Float(new_base, new_exp).normalize()
-
-    def divide(self, value: INumber) -> Float:
-        (
-            my_new_base,
-            other_new_base,
-            my_exponent,
-            other_exponent,
-            precision,
-        ) = self.same_precisions(value.real(Float))
-
-        new_base = my_new_base.divide(other_new_base)
-        new_exp = my_exponent.subtract(other_exponent)
-        #TODO handle remainder
         return Float(new_base, new_exp).normalize()
 
     def gt(self, another: INode):
@@ -5290,11 +5283,11 @@ class Divide(ControlFlowBaseNode, IInstantiable):
     def protocol(cls) -> Protocol:
         return Protocol(
             TypeAliasGroup(
-                TypeAlias(INumber.as_type()),
+                TypeAlias(IDivisible.as_type()),
             ),
             CountableTypeGroup(
-                INumber.as_type(),
-                INumber.as_type(),
+                IDivisible.as_type(),
+                IDivisible.as_type(),
             ),
             TypeIndex(1),
         )
@@ -5309,12 +5302,50 @@ class Divide(ControlFlowBaseNode, IInstantiable):
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
         info, node_aux = self.dividend.apply().run(info).as_tuple
-        dividend = node_aux.real(INumber)
+        dividend = node_aux.real(IDivisible)
 
         info, node_aux = self.divisor.apply().run(info).as_tuple
-        divisor = node_aux.real(INumber)
+        divisor = node_aux.real(IDivisible)
 
         node = dividend.divide(divisor)
+        arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
+            [dividend, divisor])
+        return RunInfoFullResult(info.to_result(node), arg_group)
+
+class DivideInt(ControlFlowBaseNode, IInstantiable):
+
+    idx_dividend = 1
+    idx_divisor = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(
+                TypeAlias(BaseSignedInt.as_type()),
+            ),
+            CountableTypeGroup(
+                BaseSignedInt.as_type(),
+                BaseSignedInt.as_type(),
+            ),
+            TypeIndex(1),
+        )
+
+    @property
+    def dividend(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_dividend)
+
+    @property
+    def divisor(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_divisor)
+
+    def _run_control(self, info: RunInfo) -> RunInfoFullResult:
+        info, node_aux = self.dividend.apply().run(info).as_tuple
+        dividend = node_aux.real(BaseSignedInt)
+
+        info, node_aux = self.divisor.apply().run(info).as_tuple
+        divisor = node_aux.real(BaseSignedInt)
+
+        node = dividend.divide_int(divisor)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [dividend, divisor])
         return RunInfoFullResult(info.to_result(node), arg_group)

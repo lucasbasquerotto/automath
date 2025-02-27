@@ -1484,7 +1484,7 @@ def test_arithmetic() -> list[full_state.FullState]:
     )
 
     final_states += run(
-        raw_expr=core.Divide(
+        raw_expr=core.DivideInt(
             core.INumber.zero(),
             core.INumber.one(),
         ),
@@ -1492,7 +1492,7 @@ def test_arithmetic() -> list[full_state.FullState]:
         wrong_exprs=[],
     )
     final_states += run(
-        raw_expr=core.Divide(
+        raw_expr=core.DivideInt(
             core.INumber.zero(),
             core.INumber.minus_one(),
         ),
@@ -1500,7 +1500,7 @@ def test_arithmetic() -> list[full_state.FullState]:
         wrong_exprs=[],
     )
     final_states += run(
-        raw_expr=core.Divide(
+        raw_expr=core.DivideInt(
             core.INumber.zero(),
             core.BinaryInt(
                 core.IBoolean.true(),
@@ -1512,7 +1512,7 @@ def test_arithmetic() -> list[full_state.FullState]:
         wrong_exprs=[],
     )
     final_states += run(
-        raw_expr=core.Divide(
+        raw_expr=core.DivideInt(
             core.INumber.zero(),
             core.SignedInt(
                 core.NegativeSign.create(),
@@ -1527,7 +1527,7 @@ def test_arithmetic() -> list[full_state.FullState]:
         wrong_exprs=[],
     )
     final_states += run(
-        raw_expr=core.Divide(
+        raw_expr=core.DivideInt(
             core.INumber.one(),
             core.INumber.one(),
         ),
@@ -1535,7 +1535,7 @@ def test_arithmetic() -> list[full_state.FullState]:
         wrong_exprs=[],
     )
     final_states += run(
-        raw_expr=core.Divide(
+        raw_expr=core.DivideInt(
             core.INumber.one(),
             core.INumber.minus_one(),
         ),
@@ -1543,7 +1543,7 @@ def test_arithmetic() -> list[full_state.FullState]:
         wrong_exprs=[],
     )
     final_states += run(
-        raw_expr=core.Divide(
+        raw_expr=core.DivideInt(
             core.INumber.one(),
             core.BinaryInt(
                 core.IBoolean.true(),
@@ -1555,51 +1555,8 @@ def test_arithmetic() -> list[full_state.FullState]:
         wrong_exprs=[],
     )
     final_states += run(
-        raw_expr=core.Divide(
+        raw_expr=core.DivideInt(
             core.INumber.one(),
-            core.SignedInt(
-                core.NegativeSign.create(),
-                core.BinaryInt(
-                    core.IBoolean.true(),
-                    core.IBoolean.true(),
-                    core.IBoolean.false(),
-                ),
-            ),
-        ),
-        correct_expr=core.INumber.zero(),
-        wrong_exprs=[],
-    )
-    final_states += run(
-        raw_expr=core.Divide(
-            core.INumber.minus_one(),
-            core.INumber.minus_one(),
-        ),
-        correct_expr=core.INumber.one(),
-        wrong_exprs=[],
-    )
-    final_states += run(
-        raw_expr=core.Divide(
-            core.INumber.minus_one(),
-            core.INumber.one(),
-        ),
-        correct_expr=core.INumber.minus_one(),
-        wrong_exprs=[],
-    )
-    final_states += run(
-        raw_expr=core.Divide(
-            core.INumber.minus_one(),
-            core.BinaryInt(
-                core.IBoolean.true(),
-                core.IBoolean.false(),
-                core.IBoolean.true(),
-            ),
-        ),
-        correct_expr=core.INumber.zero(),
-        wrong_exprs=[],
-    )
-    final_states += run(
-        raw_expr=core.Divide(
-            core.INumber.minus_one(),
             core.SignedInt(
                 core.NegativeSign.create(),
                 core.BinaryInt(
@@ -1613,7 +1570,50 @@ def test_arithmetic() -> list[full_state.FullState]:
         wrong_exprs=[],
     )
     final_states += run(
-        raw_expr=core.Divide(
+        raw_expr=core.DivideInt(
+            core.INumber.minus_one(),
+            core.INumber.minus_one(),
+        ),
+        correct_expr=core.INumber.one(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.DivideInt(
+            core.INumber.minus_one(),
+            core.INumber.one(),
+        ),
+        correct_expr=core.INumber.minus_one(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.DivideInt(
+            core.INumber.minus_one(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.DivideInt(
+            core.INumber.minus_one(),
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.INumber.zero(),
+        wrong_exprs=[],
+    )
+    final_states += run(
+        raw_expr=core.DivideInt(
             core.BinaryInt(
                 core.IBoolean.true(),
                 core.IBoolean.false(),
@@ -1629,7 +1629,7 @@ def test_arithmetic() -> list[full_state.FullState]:
         wrong_exprs=[],
     )
     final_states += run(
-        raw_expr=core.Divide(
+        raw_expr=core.DivideInt(
             core.BinaryInt(
                 core.IBoolean.true(),
                 core.IBoolean.false(),
@@ -1648,7 +1648,7 @@ def test_arithmetic() -> list[full_state.FullState]:
         wrong_exprs=[],
     )
     final_states += run(
-        raw_expr=core.Divide(
+        raw_expr=core.DivideInt(
             core.SignedInt(
                 core.NegativeSign.create(),
                 core.BinaryInt(
@@ -1667,7 +1667,7 @@ def test_arithmetic() -> list[full_state.FullState]:
         wrong_exprs=[],
     )
     final_states += run(
-        raw_expr=core.Divide(
+        raw_expr=core.DivideInt(
             core.SignedInt(
                 core.NegativeSign.create(),
                 core.BinaryInt(
@@ -1689,7 +1689,7 @@ def test_arithmetic() -> list[full_state.FullState]:
         wrong_exprs=[],
     )
     final_states += run(
-        raw_expr=core.Divide(
+        raw_expr=core.DivideInt(
             core.BinaryInt(
                 core.IBoolean.true(),
                 core.IBoolean.false(),
@@ -1709,7 +1709,7 @@ def test_arithmetic() -> list[full_state.FullState]:
         ],
     )
     final_states += run(
-        raw_expr=core.Divide(
+        raw_expr=core.DivideInt(
             core.BinaryInt(
                 core.IBoolean.true(),
                 core.IBoolean.false(),
@@ -1731,7 +1731,7 @@ def test_arithmetic() -> list[full_state.FullState]:
         ],
     )
     final_states += run(
-        raw_expr=core.Divide(
+        raw_expr=core.DivideInt(
             core.BinaryInt(
                 core.IBoolean.false(),
                 core.IBoolean.true(),
@@ -1754,7 +1754,7 @@ def test_arithmetic() -> list[full_state.FullState]:
         ],
     )
     final_states += run(
-        raw_expr=core.Divide(
+        raw_expr=core.DivideInt(
             core.BinaryInt(
                 core.IBoolean.true(),
                 core.IBoolean.true(),
@@ -1774,7 +1774,7 @@ def test_arithmetic() -> list[full_state.FullState]:
         wrong_exprs=[],
     )
     final_states += run(
-        raw_expr=core.Divide(
+        raw_expr=core.DivideInt(
             core.BinaryInt(
                 core.IBoolean.true(),
                 core.IBoolean.true(),
@@ -1805,7 +1805,7 @@ def test_arithmetic() -> list[full_state.FullState]:
         ],
     )
     final_states += run(
-        raw_expr=core.Divide(
+        raw_expr=core.DivideInt(
             core.SignedInt(
                 core.NegativeSign.create(),
                 core.BinaryInt(
