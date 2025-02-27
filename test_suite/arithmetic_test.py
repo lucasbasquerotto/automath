@@ -2595,8 +2595,6 @@ def test_arithmetic() -> list[full_state.FullState]:
         wrong_exprs=[],
     )
 
-    #TODO: Add tests for Float (Operations, Comparisons)
-
     final_states += run(
         raw_expr=core.Add(
             core.Float(
@@ -2654,6 +2652,7 @@ def test_arithmetic() -> list[full_state.FullState]:
         ),
         wrong_exprs=[],
     )
+    # [(5/2^3) * 2^3] + [-(2/2^2) * 2^3] = 5 + -4 = 1
     final_states += run(
         raw_expr=core.Add(
             core.Float(
@@ -2687,6 +2686,7 @@ def test_arithmetic() -> list[full_state.FullState]:
         ),
         wrong_exprs=[],
     )
+    # [-(5/2^3) * 2^3] + [(2/2^2) * 2^3] = -5 + 4 = -1
     final_states += run(
         raw_expr=core.Add(
             core.Float(
@@ -2720,6 +2720,7 @@ def test_arithmetic() -> list[full_state.FullState]:
         ),
         wrong_exprs=[],
     )
+    # [-(5/2^3) * 2^3] + [-(2/2^2) * 2^3] = -5 + -4 = -9
     final_states += run(
         raw_expr=core.Add(
             core.Float(
@@ -2857,7 +2858,295 @@ def test_arithmetic() -> list[full_state.FullState]:
         wrong_exprs=[],
     )
 
-    # [(5/2^3) * 2^3] * [(2/2^2) * 2^6] = 5 * 32 = 160
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.Float(
+                core.INumber.zero(),
+                core.INumber.one(),
+            ),
+            core.Float(
+                core.INumber.zero(),
+                core.INumber.one(),
+            ),
+        ),
+        correct_expr=core.Float(
+            core.INumber.zero(),
+            core.INumber.zero(),
+        ),
+        wrong_exprs=[],
+    )
+    # [(5/2^3) * 2^3] - [(2/2^2) * 2^3] = 5 - 4 = 1
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+        ),
+        correct_expr=core.Float(
+            core.INumber.one(),
+            core.INumber.one(),
+        ),
+        wrong_exprs=[],
+    )
+    # [(5/2^3) * 2^3] - [-(2/2^2) * 2^3] = 5 - -4 = 9
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                    ),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+        ),
+        correct_expr=core.Float(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+        ),
+        wrong_exprs=[],
+    )
+    # [-(5/2^3) * 2^3] - [(2/2^2) * 2^3] = -5 - 4 = -9
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+        ),
+        correct_expr=core.Float(
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+        ),
+        wrong_exprs=[],
+    )
+    # [-(5/2^3) * 2^3] - [-(2/2^2) * 2^3] = -5 - -4 = -1
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                    ),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+        ),
+        correct_expr=core.Float(
+            core.INumber.minus_one(),
+            core.INumber.one(),
+        ),
+        wrong_exprs=[],
+    )
+    # [(5/2^3) * 2^3] - [(2/2^2) * 2^6] = 5 - 32 = -27
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.Float(
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        wrong_exprs=[],
+    )
+    # [(5/2^3) * 2^2] - [(2/2^2) * 2^-2] = 5/2 - 1/8 = 19/8 = [(19*2^2/2^7)*2^2]
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                    ),
+                ),
+            ),
+        ),
+        correct_expr=core.Float(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+        ),
+        wrong_exprs=[],
+    )
+
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.AsFloat(
+                core.INumber.zero(),
+            ),
+        ),
+        correct_expr=core.Float(
+            core.BinaryInt.zero(),
+            core.BinaryInt.zero(),
+        ),
+        wrong_exprs=[],
+    )
+    # [(5/2^3) * 2^3] * [(2/2^2) * 2^6] = 5 * 32 = 160 = [(10/2^4)*2^8]
     final_states += run(
         raw_expr=core.Multiply(
             core.Float(
@@ -2899,6 +3188,150 @@ def test_arithmetic() -> list[full_state.FullState]:
         ),
         wrong_exprs=[],
     )
+    # [(7/2^3) * 2] * [(13/2^4) * 2^-1] = 7/2^2 * 13/2^5 = 91/2^7 = [(91/2^7)*2^0]
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+                core.INumber.one(),
+            ),
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+                core.INumber.minus_one(),
+            ),
+        ),
+        correct_expr=core.Float(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+            ),
+            core.INumber.zero(),
+        ),
+        wrong_exprs=[],
+    )
+    # [-(7/2^3) * 2] * [(13/2^4) * 2^-2] = 7/2^2 * 13/2^6 = -91/2^8 = [-(91/2^7)*2^-1]
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.INumber.one(),
+            ),
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                    ),
+                ),
+            ),
+        ),
+        correct_expr=core.Float(
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.INumber.minus_one(),
+        ),
+        wrong_exprs=[],
+    )
+    # [-(7/2^3) * 2^-3] * [-(15/2^4) * 2^-2] = -7/2^6 * -15/2^6 = 105/2^12 = [(105/2^7)*2^-5]
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+            ),
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                    ),
+                ),
+            ),
+        ),
+        correct_expr=core.Float(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+            core.SignedInt(
+                core.NegativeSign.create(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+        ),
+        wrong_exprs=[],
+    )
+
+    #TODO: Add tests for Float (Division, Comparisons)
 
     return final_states
 
