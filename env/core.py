@@ -5073,6 +5073,8 @@ class BaseSignedRational(BaseNormalizer, IComparableSignedNumber, IDivisible, AB
             return Eq(my_sign, NegativeSign.create())
         my_full_numerator = my_numerator.multiply(other_denominator)
         other_full_numerator = other_numerator.multiply(my_denominator)
+        if my_sign == NegativeSign.create():
+            return my_full_numerator.gt(other_full_numerator)
         return my_full_numerator.lt(other_full_numerator)
 
     def gt(self, another: INode):
