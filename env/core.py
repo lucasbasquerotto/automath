@@ -80,26 +80,26 @@ class IAdditive(INode, ABC):
 
 class IComparable(INode, ABC):
 
-    def eq(self, another: INode) -> IntBoolean:
+    def eq(self, another: INode) -> IBoolean:
         return IntBoolean.from_bool(self == another)
 
-    def ne(self, another: INode) -> IntBoolean:
-        return IntBoolean.from_bool(self != another)
+    def ne(self, another: INode) -> IBoolean:
+        return Not(self.eq(another))
 
-    def lt(self, another: INode) -> IntBoolean:
+    def lt(self, another: INode) -> IBoolean:
         raise NotImplementedError(self.__class__)
 
-    def le(self, another: INode) -> IntBoolean:
-        if self == another:
-            return IntBoolean.true()
+    def le(self, another: INode) -> IBoolean:
+        if self.eq(another).as_bool:
+            return IBoolean.true()
         return self.lt(another)
 
-    def gt(self, another: INode) -> IntBoolean:
+    def gt(self, another: INode) -> IBoolean:
         raise NotImplementedError(self.__class__)
 
-    def ge(self, another: INode) -> IntBoolean:
-        if self == another:
-            return IntBoolean.true()
+    def ge(self, another: INode) -> IBoolean:
+        if self.eq(another).as_bool:
+            return IBoolean.true()
         return self.gt(another)
 
 class IFromInt(INode, ABC):
@@ -452,7 +452,10 @@ class BaseNode(IRunnable, ABC):
     _cached_run: dict[int, tuple[RunInfoResult, NodeReturnException | None]] = dict()
 
     @staticmethod
-    def __new__(cls: type[BaseNode], *args: int | INode | typing.Type[INode]) -> typing.Self: # type: ignore
+    def __new__( # type: ignore
+        cls: type[BaseNode],
+        *args: int | INode | typing.Type[INode],
+    ) -> typing.Self: # type: ignore
         h = hash((cls, args)) if BaseNode.cache_enabled else 0
         if BaseNode.cache_enabled:
             instance = cls._instances.get(h)
@@ -3420,10 +3423,7 @@ class GreaterOrEqual(RunnableBoolean, IInstantiable):
         a, b = args
         assert isinstance(a, IComparable)
         assert isinstance(b, IComparable)
-        return Or(
-            Eq(a, b),
-            a.gt(b),
-        ).as_bool
+        return a.ge(b).as_bool
 
     @classmethod
     def with_ints(cls, value1: int, value2: int) -> typing.Self:
@@ -3445,10 +3445,7 @@ class LessOrEqual(RunnableBoolean, IInstantiable):
         a, b = args
         assert isinstance(a, IComparable)
         assert isinstance(b, IComparable)
-        return Or(
-            Eq(a, b),
-            a.lt(b),
-        ).as_bool
+        return a.le(b).as_bool
 
     @classmethod
     def with_ints(cls, value1: int, value2: int) -> typing.Self:
@@ -5084,6 +5081,21 @@ class BaseSignedRational(BaseNormalizer, IComparableSignedNumber, IDivisible, AB
         assert isinstance(another, IComparable)
         return another.lt(self)
 
+    def eq(self, another: INode) -> IBoolean:
+        if isinstance(another, BaseSignedInt):
+            another = another.to_rational()
+        if isinstance(another, BaseSignedRational):
+            new_self = SignedInt(
+                self.sign,
+                self.numerator.multiply(another.denominator),
+            ).normalize()
+            new_other = SignedInt(
+                another.sign,
+                another.numerator.multiply(self.denominator),
+            ).normalize()
+            return Eq(new_self, new_other)
+        return IBoolean.false()
+
     def to_int(self) -> Optional[BaseSignedInt]:
         sign = self.sign
         numerator = self.numerator
@@ -5405,14 +5417,10 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
     def same_precisions(self, other: Float) -> tuple[
         BaseSignedInt,
         BaseSignedInt,
-        BaseSignedInt,
-        BaseSignedInt,
         int,
     ]:
         my_base = self.base.apply().real(BaseSignedInt)
-        my_exponent = self.exponent.apply().real(BaseSignedInt)
         other_base = other.base.apply().real(BaseSignedInt)
-        other_exponent = other.exponent.apply().real(BaseSignedInt)
         my_precision = self.precision()
         other_precision = other.precision()
         self_higher = False
@@ -5440,7 +5448,7 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
         my_new_base = higher_base if self_higher else lower_base
         other_new_base = lower_base if self_higher else higher_base
 
-        return my_new_base, other_new_base, my_exponent, other_exponent, precision
+        return my_new_base, other_new_base, precision
 
     def add(self, another: INode):
         (
@@ -5476,26 +5484,6 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
             )
         ).normalize()
 
-    def lt(self, another: INode):
-        other = another.real(Float)
-        my_base = self.base.apply().real(BaseSignedInt)
-        my_exponent = self.exponent.apply().real(BaseSignedInt)
-        other_base = other.base.apply().real(BaseSignedInt)
-        other_exponent = other.exponent.apply().real(BaseSignedInt)
-        my_sign = my_base.sign.real(NegativeSign)
-        other_sign = other_base.sign.real(NegativeSign)
-        my_abs = my_base.abs.real(BinaryInt)
-        other_abs = other_base.abs.real(BinaryInt)
-        if my_sign != other_sign:
-            return my_sign == NegativeSign(IBoolean.true())
-        if my_exponent != other_exponent:
-            if my_sign == NegativeSign(IBoolean.true()):
-                return my_exponent.gt(other_exponent)
-            return my_exponent.lt(other_exponent)
-        if my_sign == NegativeSign(IBoolean.true()):
-            return my_abs.gt(other_abs)
-        return my_abs.lt(other_abs)
-
     def multiply(self, value: INumber) -> Float:
         other = value.real(Float)
         my_base = self.base.apply().real(BaseSignedInt)
@@ -5514,9 +5502,41 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
             diff += 1
         return Float(new_base, new_exp).normalize()
 
+    def lt(self, another: INode) -> IBoolean:
+        other = another.real(Float)
+        my_base = self.base.apply().real(BaseSignedInt)
+        my_exponent = self.exponent.apply().real(BaseSignedInt)
+        other_base = other.base.apply().real(BaseSignedInt)
+        other_exponent = other.exponent.apply().real(BaseSignedInt)
+        my_sign = my_base.sign.real(NegativeSign)
+        other_sign = other_base.sign.real(NegativeSign)
+        if my_sign != other_sign:
+            return IBoolean.from_bool(my_sign == NegativeSign(IBoolean.true()))
+        if my_exponent != other_exponent:
+            if my_sign == NegativeSign(IBoolean.true()):
+                return my_exponent.gt(other_exponent)
+            return my_exponent.lt(other_exponent)
+        my_new_base, other_new_base, _ = self.same_precisions(other)
+        return my_new_base.lt(other_new_base)
+
+    def eq(self, another: INode) -> IBoolean:
+        other = another.real(Float)
+        my_base = self.base.apply().real(BaseSignedInt)
+        my_exponent = self.exponent.apply().real(BaseSignedInt)
+        other_base = other.base.apply().real(BaseSignedInt)
+        other_exponent = other.exponent.apply().real(BaseSignedInt)
+        my_sign = my_base.sign.real(NegativeSign)
+        other_sign = other_base.sign.real(NegativeSign)
+        same_sign = Eq(my_sign, other_sign).as_bool
+        same_exp = Eq(my_exponent, other_exponent).as_bool
+        if same_sign and same_exp:
+            my_new_base, other_new_base, _ = self.same_precisions(other)
+            return Eq(my_new_base, other_new_base)
+        return IBoolean.false()
+
     def gt(self, another: INode):
-        node_2 = another.real(Float)
-        return node_2.lt(self)
+        other = another.real(Float)
+        return other.lt(self)
 
 class AsFloat(BaseNormalizer, IInstantiable):
 

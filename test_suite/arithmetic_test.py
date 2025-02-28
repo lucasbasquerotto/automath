@@ -3930,6 +3930,482 @@ def test_float_multiply() -> list[full_state.FullState]:
 
     return final_states
 
+def test_float_comparisons() -> list[full_state.FullState]:
+    final_states: list[full_state.FullState] = []
+
+    final_states += run(
+        raw_expr=core.GreaterThan(
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.AsFloat(
+                core.INumber.zero(),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[
+            core.IBoolean.false(),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.GreaterThan(
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.AsFloat(
+                core.INumber.zero(),
+            ),
+        ),
+        correct_expr=core.IBoolean.false(),
+        wrong_exprs=[
+            core.IBoolean.true(),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.GreaterThan(
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.AsFloat(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[
+            core.IBoolean.false(),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.GreaterThan(
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.IBoolean.false(),
+        wrong_exprs=[
+            core.IBoolean.true(),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.GreaterThan(
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                ),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[
+            core.IBoolean.false(),
+        ],
+    )
+
+    final_states += run(
+        raw_expr=core.LessThan(
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                ),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[
+            core.IBoolean.false(),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.LessThan(
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.IBoolean.false(),
+        wrong_exprs=[
+            core.IBoolean.true(),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.LessThan(
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.INumber.minus_one(),
+            ),
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.INumber.minus_one(),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[
+            core.IBoolean.false(),
+        ],
+    )
+
+    final_states += run(
+        raw_expr=core.GreaterOrEqual(
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.INumber.minus_one(),
+            ),
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                    ),
+                ),
+                core.INumber.minus_one(),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[
+            core.IBoolean.false(),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.GreaterOrEqual(
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                        core.IBoolean.false(),
+                        core.IBoolean.false(),
+                        core.IBoolean.false(),
+                        core.IBoolean.false(),
+                    ),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[
+            core.IBoolean.false(),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.GreaterOrEqual(
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+                core.INumber.minus_one(),
+            ),
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                    ),
+                ),
+                core.INumber.zero(),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[
+            core.IBoolean.false(),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.GreaterOrEqual(
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.INumber.minus_one(),
+            ),
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                    ),
+                ),
+                core.INumber.zero(),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[
+            core.IBoolean.false(),
+        ],
+    )
+
+    final_states += run(
+        raw_expr=core.LessOrEqual(
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.INumber.minus_one(),
+            ),
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                    ),
+                ),
+                core.INumber.minus_one(),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[
+            core.IBoolean.false(),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.LessOrEqual(
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                        core.IBoolean.false(),
+                        core.IBoolean.false(),
+                        core.IBoolean.false(),
+                        core.IBoolean.false(),
+                    ),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[
+            core.IBoolean.false(),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.LessOrEqual(
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.INumber.minus_one(),
+            ),
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+                core.INumber.zero(),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[
+            core.IBoolean.false(),
+        ],
+    )
+    final_states += run(
+        raw_expr=core.LessOrEqual(
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+                core.INumber.minus_one(),
+            ),
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+                core.INumber.zero(),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[
+            core.IBoolean.false(),
+        ],
+    )
+
+    return final_states
+
 
 def test_() -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
@@ -3941,6 +4417,7 @@ def test_() -> list[full_state.FullState]:
 
 def test_arithmetic() -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
+
     final_states += test_binary_int_basic()
     final_states += test_signed_int_basic()
     final_states += test_int_to_binary()
@@ -3952,13 +4429,15 @@ def test_arithmetic() -> list[full_state.FullState]:
     final_states += test_int_divide_int()
     final_states += test_int_modulo()
     final_states += test_int_comparisons()
+
+    #TODO: Add tests for Rational
+
     final_states += test_float_basic()
     final_states += test_as_float()
     final_states += test_float_add()
     final_states += test_float_subtract()
     final_states += test_float_multiply()
-
-    #TODO: Add tests for Float (Comparisons)
+    final_states += test_float_comparisons()
 
     return final_states
 
