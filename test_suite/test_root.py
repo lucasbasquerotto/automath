@@ -1,3 +1,4 @@
+import typing
 from env import (
     core,
     state,
@@ -77,23 +78,30 @@ def _final_verification(final_states: list[full_state.FullState]):
 
     return final_states
 
+def run_main_test(fn: typing.Callable[[], list[full_state.FullState]]):
+    def fn_additional_info(final_states: list[full_state.FullState]):
+        amount = len(final_states)
+        action_amount = sum([fs.history_amount() for fs in final_states])
+        return f"Completed tests: {amount} ({action_amount} actions)"
+    return test_utils.run_module_test(fn, fn_additional_info)
+
 def _main_tests() -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
 
-    final_states += test_utils.run_module_test(basic_test.test)
+    final_states += run_main_test(basic_test.test)
 
-    final_states += test_utils.run_module_test(boolean_test.test)
-    final_states += test_utils.run_module_test(arithmetic_test.test)
-    final_states += test_utils.run_module_test(indices_test.test)
+    final_states += run_main_test(boolean_test.test)
+    final_states += run_main_test(arithmetic_test.test)
+    final_states += run_main_test(indices_test.test)
 
-    final_states += test_utils.run_module_test(action_00_action_meta.test)
-    final_states += test_utils.run_module_test(action_01_state_meta.test)
-    final_states += test_utils.run_module_test(action_02_manage_scratch.test)
-    final_states += test_utils.run_module_test(action_03_define_scratch.test)
-    final_states += test_utils.run_module_test(action_04_update_scratch.test)
-    final_states += test_utils.run_module_test(action_05_manage_args_group.test)
+    final_states += run_main_test(action_00_action_meta.test)
+    final_states += run_main_test(action_01_state_meta.test)
+    final_states += run_main_test(action_02_manage_scratch.test)
+    final_states += run_main_test(action_03_define_scratch.test)
+    final_states += run_main_test(action_04_update_scratch.test)
+    final_states += run_main_test(action_05_manage_args_group.test)
 
-    final_states += test_utils.run_module_test(control_flow_test.test)
+    final_states += run_main_test(control_flow_test.test)
 
     return final_states
 

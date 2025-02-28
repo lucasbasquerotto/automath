@@ -2946,6 +2946,382 @@ def test_int_comparisons() -> list[full_state.FullState]:
 
     return final_states
 
+def test_rational_basic() -> list[full_state.FullState]:
+    final_states: list[full_state.FullState] = []
+
+    final_states += run(
+        raw_expr=core.Rational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+        ),
+        correct_expr=core.Rational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+        ),
+        wrong_exprs=[core.Rational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        )],
+    )
+
+    # TODO: Add more tests
+
+    return final_states
+
+
+def test_rational_from_int() -> list[full_state.FullState]:
+    final_states: list[full_state.FullState] = []
+
+    final_states += run(
+        raw_expr=core.IntToRational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        ),
+        correct_expr=core.Rational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+            ),
+        ),
+        wrong_exprs=[core.Rational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+            ),
+        )],
+    )
+
+    # TODO: Add more tests
+
+    return final_states
+
+
+def test_rational_to_int() -> list[full_state.FullState]:
+    final_states: list[full_state.FullState] = []
+
+    final_states += run(
+        raw_expr=core.RationalToInt(core.Rational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+            ),
+        )),
+        correct_expr=core.BinaryInt(
+            core.IBoolean.true(),
+            core.IBoolean.true(),
+            core.IBoolean.true(),
+        ),
+        wrong_exprs=[core.BinaryInt(
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+            core.IBoolean.false(),
+            core.IBoolean.false(),
+        )],
+    )
+
+    # TODO: Add more tests
+
+    return final_states
+
+def test_rational_add() -> list[full_state.FullState]:
+    final_states: list[full_state.FullState] = []
+
+    # (1/2) + (1/3) = (5/6)
+    # TODO: Change Integer To BinaryInt
+    final_states += run(
+        raw_expr=core.Add(
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+        ),
+        correct_expr=core.Rational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+        ),
+        wrong_exprs=[core.Rational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+        )],
+    )
+
+    # TODO: Add more tests
+
+    return final_states
+
+
+def test_rational_subtract() -> list[full_state.FullState]:
+    final_states: list[full_state.FullState] = []
+
+    # (3/4) - (1/2) = (2/8)
+    final_states += run(
+        raw_expr=core.Subtract(
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+            ),
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.Rational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+        ),
+        wrong_exprs=[core.Rational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+        )],
+    )
+
+    # TODO: Add more tests
+
+    return final_states
+
+
+def test_rational_multiply() -> list[full_state.FullState]:
+    final_states: list[full_state.FullState] = []
+
+    # (2/3) * (3/4) = (6/12)
+    final_states += run(
+        raw_expr=core.Multiply(
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.Rational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+        ),
+        wrong_exprs=[core.Rational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.true(),
+            ),
+        )],
+    )
+
+    # TODO: Add more tests
+
+    return final_states
+
+
+def test_rational_divide() -> list[full_state.FullState]:
+    final_states: list[full_state.FullState] = []
+
+    # (3/4) / (1/2) = (6/4)
+    final_states += run(
+        raw_expr=core.Divide(
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+            ),
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.Rational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+        ),
+        wrong_exprs=[core.Rational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+            ),
+        )],
+    )
+
+    # TODO: Add more tests
+
+    return final_states
+
+
+def test_rational_comparisons() -> list[full_state.FullState]:
+    final_states: list[full_state.FullState] = []
+
+    # Check (1/2) <= (2/3) -> true
+    final_states += run(
+        raw_expr=core.LessOrEqual(
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            )
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[core.IBoolean.false()],
+    )
+
+    # TODO: Add more tests
+
+    return final_states
+
 def test_float_basic() -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
 
@@ -3237,7 +3613,21 @@ def test_float_add() -> list[full_state.FullState]:
                 core.IBoolean.false(),
             ),
         ),
-        wrong_exprs=[],
+        wrong_exprs=[
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ],
     )
     # [(5/2^3) * 2^3] + [-(2/2^2) * 2^3] = 5 + -4 = 1
     final_states += run(
@@ -4406,15 +4796,6 @@ def test_float_comparisons() -> list[full_state.FullState]:
 
     return final_states
 
-
-def test_() -> list[full_state.FullState]:
-    final_states: list[full_state.FullState] = []
-
-    #TODO
-
-    return final_states
-
-
 def test_arithmetic() -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
 
@@ -4430,7 +4811,14 @@ def test_arithmetic() -> list[full_state.FullState]:
     final_states += test_int_modulo()
     final_states += test_int_comparisons()
 
-    #TODO: Add tests for Rational
+    final_states += test_rational_basic()
+    final_states += test_rational_from_int()
+    final_states += test_rational_to_int()
+    final_states += test_rational_add()
+    final_states += test_rational_subtract()
+    final_states += test_rational_multiply()
+    final_states += test_rational_divide()
+    final_states += test_rational_comparisons()
 
     final_states += test_float_basic()
     final_states += test_as_float()

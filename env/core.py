@@ -5105,14 +5105,14 @@ class BaseSignedRational(BaseNormalizer, IComparableSignedNumber, IDivisible, AB
             return Optional(zero)
         one = INumber.one()
         if denominator == one:
-            return Optional(SignedInt(sign, numerator))
+            return Optional(SignedInt(sign, numerator).normalize())
         if numerator == denominator:
-            return Optional(SignedInt(sign, one))
+            return Optional(SignedInt(sign, one).normalize())
         if numerator.modulo(denominator) == zero:
             return Optional(SignedInt(
                 sign,
                 numerator.divide_int(denominator),
-            ))
+            ).normalize())
         return Optional()
 
 class IntToRational(BaseNormalizer, IInstantiable):
@@ -5227,6 +5227,18 @@ class SignedRational(BaseSignedRational, IInstantiable):
     @property
     def sign(self):
         return self.raw_sign.apply().real(NegativeSign)
+
+    @property
+    def value(self) -> Rational:
+        return self.raw_value.apply().real(Rational)
+
+    @property
+    def numerator(self) -> BinaryInt:
+        return self.value.numerator
+
+    @property
+    def denominator(self) -> BinaryInt:
+        return self.value.denominator
 
     def with_new_value(self, value: Rational) -> BaseSignedRational:
         return self.func(self.sign, value).normalize()
