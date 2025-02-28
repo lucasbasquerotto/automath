@@ -452,7 +452,7 @@ class BaseNode(IRunnable, ABC):
     _cached_run: dict[int, tuple[RunInfoResult, NodeReturnException | None]] = dict()
 
     @staticmethod
-    def __new__(cls: type[BaseNode], *args: int | INode | typing.Type[INode]):
+    def __new__(cls: type[BaseNode], *args: int | INode | typing.Type[INode]) -> typing.Self: # type: ignore
         h = hash((cls, args)) if BaseNode.cache_enabled else 0
         if BaseNode.cache_enabled:
             instance = cls._instances.get(h)
@@ -462,14 +462,14 @@ class BaseNode(IRunnable, ABC):
                 # if _count % 10000 == 0:
                 #     print_and_replace(f'{_count:10.0f} - {len(cls._instances):10.0f}')
                 assert instance.__class__ == cls, (instance.__class__, cls)
-                return instance
+                return typing.cast(typing.Self, instance)
         instance = super().__new__(cls)
         if BaseNode.cache_enabled:
             instance._cached_hash = h
             cls._instances[h] = instance
         else:
             instance._cached_hash = None
-        return instance
+        return typing.cast(typing.Self, instance)
 
     def __init__(self, *args: int | INode | typing.Type[INode]):
         if not isinstance(self, IInstantiable):
@@ -4548,7 +4548,7 @@ class BaseSignedInt(BaseNormalizer, IComparableSignedNumber, IDivisible, ABC):
     def modulo(self, value: BaseSignedInt) -> BaseSignedInt:
         raise NotImplementedError
 
-    def to_rational(self):
+    def to_rational(self) -> BaseSignedRational:
         return SignedRational(
             self.sign,
             Rational(self.abs, INumber.one()).normalize(),
@@ -4897,7 +4897,7 @@ class SignedInt(BaseSignedInt, IInstantiable):
             same_sign = Eq(self.sign, value.sign).as_bool
             return SignedRational(
                 NegativeSign(IBoolean.from_bool(not same_sign)),
-                Rational(self, value),
+                Rational(self.abs, value.abs),
             ).normalize()
         return value.divided_by(self)
 
@@ -4906,7 +4906,7 @@ class SignedInt(BaseSignedInt, IInstantiable):
             same_sign = Eq(self.sign, value.sign).as_bool
             return SignedRational(
                 NegativeSign(IBoolean.from_bool(not same_sign)),
-                Rational(value, self),
+                Rational(value.abs, self.abs),
             ).normalize()
         return self.divide(value)
 
@@ -5014,7 +5014,9 @@ class BaseSignedRational(BaseNormalizer, IComparableSignedNumber, IDivisible, AB
         same_sign = Eq(my_sign, other_sign).as_bool
         new_sign = NegativeSign(IBoolean.from_bool(not same_sign))
         new_numerator = my_numerator.multiply(other_numerator)
+        assert isinstance(new_numerator, BinaryInt)
         new_denominator = my_denominator.multiply(other_denominator)
+        assert isinstance(new_denominator, BinaryInt)
         return SignedRational(
             new_sign,
             Rational(new_numerator, new_denominator).normalize(),
@@ -5039,7 +5041,9 @@ class BaseSignedRational(BaseNormalizer, IComparableSignedNumber, IDivisible, AB
         same_sign = Eq(my_sign, other_sign).as_bool
         new_sign = NegativeSign(IBoolean.from_bool(not same_sign))
         new_numerator = my_numerator.multiply(other_denominator)
+        assert isinstance(new_numerator, BinaryInt)
         new_denominator = my_denominator.multiply(other_numerator)
+        assert isinstance(new_denominator, BinaryInt)
         return SignedRational(
             new_sign,
             Rational(new_numerator, new_denominator).normalize(),
@@ -5052,6 +5056,92 @@ class BaseSignedRational(BaseNormalizer, IComparableSignedNumber, IDivisible, AB
             another = another.to_rational()
 
         return another.divide(self)
+
+    def lt(self, another: INode):
+        if isinstance(another, BaseSignedInt):
+            another = another.to_rational()
+
+        if not isinstance(another, BaseSignedRational):
+            assert isinstance(another, IComparable)
+            return another.gt(self)
+
+        my_sign = self.sign
+        my_numerator = self.numerator
+        my_denominator = self.denominator
+        other_sign = another.sign
+        other_numerator = another.numerator
+        other_denominator = another.denominator
+        same_sign = Eq(my_sign, other_sign).as_bool
+        if not same_sign:
+            return Eq(my_sign, NegativeSign.create())
+        my_full_numerator = my_numerator.multiply(other_denominator)
+        other_full_numerator = other_numerator.multiply(my_denominator)
+        return my_full_numerator.lt(other_full_numerator)
+
+    def gt(self, another: INode):
+        if isinstance(another, BaseSignedInt):
+            another = another.to_rational()
+        assert isinstance(another, IComparable)
+        return another.lt(self)
+
+    def to_int(self) -> Optional[BaseSignedInt]:
+        sign = self.sign
+        numerator = self.numerator
+        denominator = self.denominator
+        zero = INumber.zero()
+        if numerator == zero:
+            return Optional(zero)
+        one = INumber.one()
+        if denominator == one:
+            return Optional(SignedInt(sign, numerator))
+        if numerator == denominator:
+            return Optional(SignedInt(sign, one))
+        if numerator.modulo(denominator) == zero:
+            return Optional(SignedInt(
+                sign,
+                numerator.divide_int(denominator),
+            ))
+        return Optional()
+
+class IntToRational(BaseNormalizer, IInstantiable):
+
+    idx_signed_int = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(),
+            CountableTypeGroup(BaseSignedInt.as_type()),
+            BaseSignedRational.as_type(),
+        )
+
+    @property
+    def signed_int(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_signed_int)
+
+    def normalize(self) -> BaseSignedRational:
+        signed_int = self.signed_int.apply().real(BaseSignedInt)
+        return signed_int.to_rational()
+
+class RationalToInt(BaseNormalizer, IInstantiable):
+
+    idx_rational = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(),
+            CountableTypeGroup(BaseSignedRational.as_type()),
+            BaseSignedInt.as_type(),
+        )
+
+    @property
+    def rational(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_rational)
+
+    def normalize(self) -> BaseSignedInt:
+        rational = self.rational.apply().real(BaseSignedRational)
+        return rational.to_int().value_or_raise
 
 class Rational(BaseSignedRational, IInstantiable):
 
@@ -5082,7 +5172,7 @@ class Rational(BaseSignedRational, IInstantiable):
         return self
 
     def with_new_value(self, value: Rational) -> BaseSignedRational:
-        return value
+        return value.normalize()
 
     def normalize(self) -> BaseSignedRational:
         denominator = self.denominator
