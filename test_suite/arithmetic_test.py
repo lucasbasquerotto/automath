@@ -1,6 +1,7 @@
 # pylint: disable=too-many-lines
 from env import core, state, full_state, action, action_impl, meta_env, node_types
 from env.goal_env import GoalEnv
+from test_suite import test_utils
 
 def get_current_state(env: GoalEnv):
     return env.full_state.nested_arg(
@@ -6765,33 +6766,47 @@ def test_float_comparisons() -> list[full_state.FullState]:
 def test_arithmetic() -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
 
-    final_states += test_binary_int_basic()
-    final_states += test_signed_int_basic()
-    final_states += test_int_to_binary()
-    final_states += test_binary_to_int()
-    final_states += test_int_add()
-    final_states += test_int_subtract()
-    final_states += test_int_multiply()
-    final_states += test_int_divide()
-    final_states += test_int_divide_int()
-    final_states += test_int_modulo()
-    final_states += test_int_comparisons()
+    final_states += test_utils.run_info_test(
+        name='>>test_binary_int_basic',
+        fn=test_binary_int_basic)
+    final_states += test_utils.run_info_test(
+        name='>>test_signed_int_basic',
+        fn=test_signed_int_basic)
+    final_states += test_utils.run_info_test(name='>>test_int_to_binary', fn=test_int_to_binary)
+    final_states += test_utils.run_info_test(name='>>test_binary_to_int', fn=test_binary_to_int)
+    final_states += test_utils.run_info_test(name='>>test_int_add', fn=test_int_add)
+    final_states += test_utils.run_info_test(name='>>test_int_subtract', fn=test_int_subtract)
+    final_states += test_utils.run_info_test(name='>>test_int_multiply', fn=test_int_multiply)
+    final_states += test_utils.run_info_test(name='>>test_int_divide', fn=test_int_divide)
+    final_states += test_utils.run_info_test(name='>>test_int_divide_int', fn=test_int_divide_int)
+    final_states += test_utils.run_info_test(name='>>test_int_modulo', fn=test_int_modulo)
+    final_states += test_utils.run_info_test(name='>>test_int_comparisons', fn=test_int_comparisons)
 
-    final_states += test_rational_basic()
-    final_states += test_rational_from_int()
-    final_states += test_rational_to_int()
-    final_states += test_rational_add()
-    final_states += test_rational_subtract()
-    final_states += test_rational_multiply()
-    final_states += test_rational_divide()
-    final_states += test_rational_comparisons()
+    final_states += test_utils.run_info_test(name='>>test_rational_basic', fn=test_rational_basic)
+    final_states += test_utils.run_info_test(
+        name='>>test_rational_from_int',
+        fn=test_rational_from_int)
+    final_states += test_utils.run_info_test(name='>>test_rational_to_int', fn=test_rational_to_int)
+    final_states += test_utils.run_info_test(name='>>test_rational_add', fn=test_rational_add)
+    final_states += test_utils.run_info_test(
+        name='>>test_rational_subtract',
+        fn=test_rational_subtract)
+    final_states += test_utils.run_info_test(
+        name='>>test_rational_multiply',
+        fn=test_rational_multiply)
+    final_states += test_utils.run_info_test(name='>>test_rational_divide', fn=test_rational_divide)
+    final_states += test_utils.run_info_test(
+        name='>>test_rational_comparisons',
+        fn=test_rational_comparisons)
 
-    final_states += test_float_basic()
-    final_states += test_as_float()
-    final_states += test_float_add()
-    final_states += test_float_subtract()
-    final_states += test_float_multiply()
-    final_states += test_float_comparisons()
+    final_states += test_utils.run_info_test(name='>>test_float_basic', fn=test_float_basic)
+    final_states += test_utils.run_info_test(name='>>test_as_float', fn=test_as_float)
+    final_states += test_utils.run_info_test(name='>>test_float_add', fn=test_float_add)
+    final_states += test_utils.run_info_test(name='>>test_float_subtract', fn=test_float_subtract)
+    final_states += test_utils.run_info_test(name='>>test_float_multiply', fn=test_float_multiply)
+    final_states += test_utils.run_info_test(
+        name='>>test_float_comparisons',
+        fn=test_float_comparisons)
 
     return final_states
 
