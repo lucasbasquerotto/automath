@@ -3363,6 +3363,28 @@ class Or(MultiArgBooleanNode, IInstantiable):
 
         return fn_return(result)
 
+class ComparableEq(RunnableBoolean, IInstantiable):
+
+    @classmethod
+    def args_type_group(cls):
+        return CountableTypeGroup(
+            IComparable.as_type(),
+            IComparable.as_type(),
+        )
+
+    @property
+    def as_bool(self) -> bool:
+        args = self.args
+        assert len(args) == 2
+        a, b = args
+        assert isinstance(a, IComparable)
+        assert isinstance(b, IComparable)
+        return a.eq(b).as_bool
+
+    @classmethod
+    def with_ints(cls, value1: int, value2: int) -> typing.Self:
+        return cls(Integer(value1), Integer(value2))
+
 class GreaterThan(RunnableBoolean, IInstantiable):
 
     @classmethod
@@ -4918,6 +4940,60 @@ class SignedInt(BaseSignedInt, IInstantiable):
         remainder = self.abs.modulo(value.abs)
         return remainder
 
+class BinaryToInt(BaseNormalizer, IInstantiable):
+
+    idx_binary = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(),
+            CountableTypeGroup(BinaryInt.as_type()),
+            Integer.as_type(),
+        )
+
+    @property
+    def binary(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_binary)
+
+    def normalize(self) -> Integer:
+        binary = self.binary.apply().real(BinaryInt)
+        exp = 0
+        value = 0
+        for bit in binary.as_tuple[::-1]:
+            if bit == IBoolean.true():
+                value += 2 ** exp
+            exp += 1
+        return Integer(value)
+
+class IntToBinary(BaseNormalizer, IInstantiable):
+
+    idx_integer = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(),
+            CountableTypeGroup(Integer.as_type()),
+            BinaryInt.as_type(),
+        )
+
+    @property
+    def integer(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_integer)
+
+    def normalize(self) -> BinaryInt:
+        integer = self.integer.apply().real(Integer)
+        value = integer.as_int
+        bits_reverse: list[IntBoolean] = []
+        while value > 0:
+            bit = IBoolean.from_bool(value % 2 == 1)
+            bits_reverse.append(bit)
+            value //= 2
+        if len(bits_reverse) == 0:
+            bits_reverse.append(IBoolean.false())
+        return BinaryInt.from_items(bits_reverse[::-1]).normalize()
+
 class BaseSignedRational(BaseNormalizer, IComparableSignedNumber, IDivisible, ABC):
 
     @property
@@ -5313,60 +5389,6 @@ class SignedRational(BaseSignedRational, IInstantiable):
             if sign == NegativeSign(IBoolean.true())
             else value)
         return node
-
-class BinaryToInt(BaseNormalizer, IInstantiable):
-
-    idx_binary = 1
-
-    @classmethod
-    def protocol(cls) -> Protocol:
-        return Protocol(
-            TypeAliasGroup(),
-            CountableTypeGroup(BinaryInt.as_type()),
-            Integer.as_type(),
-        )
-
-    @property
-    def binary(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_binary)
-
-    def normalize(self) -> Integer:
-        binary = self.binary.apply().real(BinaryInt)
-        exp = 0
-        value = 0
-        for bit in binary.as_tuple[::-1]:
-            if bit == IBoolean.true():
-                value += 2 ** exp
-            exp += 1
-        return Integer(value)
-
-class IntToBinary(BaseNormalizer, IInstantiable):
-
-    idx_integer = 1
-
-    @classmethod
-    def protocol(cls) -> Protocol:
-        return Protocol(
-            TypeAliasGroup(),
-            CountableTypeGroup(Integer.as_type()),
-            BinaryInt.as_type(),
-        )
-
-    @property
-    def integer(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_integer)
-
-    def normalize(self) -> BinaryInt:
-        integer = self.integer.apply().real(Integer)
-        value = integer.as_int
-        bits_reverse: list[IntBoolean] = []
-        while value > 0:
-            bit = IBoolean.from_bool(value % 2 == 1)
-            bits_reverse.append(bit)
-            value //= 2
-        if len(bits_reverse) == 0:
-            bits_reverse.append(IBoolean.false())
-        return BinaryInt.from_items(bits_reverse[::-1]).normalize()
 
 class Float(BaseNormalizer, IComparableNumber, IInstantiable):
 

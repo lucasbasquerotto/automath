@@ -5370,6 +5370,255 @@ def test_rational_divide() -> list[full_state.FullState]:
 def test_rational_comparisons() -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
 
+    # Check (3/4) == (1/2) -> false
+    final_states += run(
+        raw_expr=core.ComparableEq(
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+            ),
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            )
+        ),
+        correct_expr=core.IBoolean.false(),
+        wrong_exprs=[core.IBoolean.true()],
+    )
+
+    # Check (3/4) == (12/16) -> true
+    final_states += run(
+        raw_expr=core.ComparableEq(
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+            ),
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+            )
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[core.IBoolean.false()],
+    )
+
+    # Check (0/6) == 0 -> true
+    final_states += run(
+        raw_expr=core.ComparableEq(
+            core.Rational(
+                core.INumber.zero(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+            core.INumber.zero(),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[core.IBoolean.false()],
+    )
+
+    # Check (1/2) == 0 -> true
+    final_states += run(
+        raw_expr=core.ComparableEq(
+            core.Rational(
+                core.INumber.one(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+            core.INumber.zero(),
+        ),
+        correct_expr=core.IBoolean.false(),
+        wrong_exprs=[core.IBoolean.true()],
+    )
+
+    # Check (1/1) == 1 -> true
+    final_states += run(
+        raw_expr=core.ComparableEq(
+            core.Rational(
+                core.INumber.one(),
+                core.INumber.one(),
+            ),
+            core.INumber.one(),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[core.IBoolean.false()],
+    )
+
+    # Check (-1/1) == -1 -> true
+    final_states += run(
+        raw_expr=core.ComparableEq(
+            core.SignedRational(
+                core.NegativeSign.create(),
+                core.Rational(
+                    core.INumber.one(),
+                    core.INumber.one(),
+                ),
+            ),
+            core.INumber.minus_one(),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[core.IBoolean.false()],
+    )
+
+    # Check (1/2) != (1/3) -> false
+    final_states += run(
+        raw_expr=core.ComparableEq(
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            )
+        ),
+        correct_expr=core.IBoolean.false(),
+        wrong_exprs=[core.IBoolean.true()],
+    )
+
+    # Check (-5/7) == (-15/21) -> true
+    final_states += run(
+        raw_expr=core.ComparableEq(
+            core.SignedRational(
+                core.NegativeSign.create(),
+                core.Rational(
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                        core.IBoolean.true(),
+                    ),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+            ),
+            core.SignedRational(
+                core.NegativeSign.create(),
+                core.Rational(
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                    ),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[core.IBoolean.false()],
+    )
+
+    # Check (3/12) == (1/3) -> false
+    final_states += run(
+        raw_expr=core.ComparableEq(
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+            ),
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            )
+        ),
+        correct_expr=core.IBoolean.false(),
+        wrong_exprs=[core.IBoolean.true()],
+    )
+
+    # Check (1/3) == (-1/3) -> false
+    final_states += run(
+        raw_expr=core.ComparableEq(
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.SignedRational(
+                core.NegativeSign.create(),
+                core.Rational(
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                    ),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+            ),
+        ),
+        correct_expr=core.IBoolean.false(),
+        wrong_exprs=[core.IBoolean.true()],
+    )
+
     # Check (3/4) > (1/2) -> true
     final_states += run(
         raw_expr=core.GreaterThan(
