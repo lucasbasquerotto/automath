@@ -3304,7 +3304,6 @@ def test_rational_from_int() -> list[full_state.FullState]:
 
     return final_states
 
-
 def test_rational_to_int() -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
 
@@ -3443,6 +3442,320 @@ def test_rational_to_int() -> list[full_state.FullState]:
                 core.BinaryInt.one(),
             ),
         ],
+    )
+
+    return final_states
+
+def test_rational_irreductible() -> list[full_state.FullState]:
+    final_states: list[full_state.FullState] = []
+
+    # Check (3/4) reduce to (3/4)
+    final_states += run(
+        raw_expr=core.ReduceRational(
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.Rational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+        ),
+        wrong_exprs=[],
+    )
+
+    # Check (9/12) reduce to (3/4)
+    final_states += run(
+        raw_expr=core.ReduceRational(
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.Rational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+        ),
+        wrong_exprs=[
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+            ),
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ],
+    )
+
+    # Check (1/2) reduce to (1/2)
+    final_states += run(
+        raw_expr=core.ReduceRational(
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.Rational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+        ),
+        wrong_exprs=[],
+    )
+
+    # Check (15/30) reduce to (1/2)
+    final_states += run(
+        raw_expr=core.ReduceRational(
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.Rational(
+            core.BinaryInt(
+                core.IBoolean.true(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+        ),
+        wrong_exprs=[
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ],
+    )
+
+    # Check (0/1) reduce to 0
+    final_states += run(
+        raw_expr=core.ReduceRational(
+            core.Rational(
+                core.BinaryInt.zero(),
+                core.BinaryInt.one(),
+            ),
+        ),
+        correct_expr=core.BinaryInt.zero(),
+        wrong_exprs=[],
+    )
+
+    # Check (1/1) reduce to 1
+    final_states += run(
+        raw_expr=core.ReduceRational(
+            core.Rational(
+                core.BinaryInt.one(),
+                core.BinaryInt.one(),
+            ),
+        ),
+        correct_expr=core.BinaryInt.one(),
+        wrong_exprs=[],
+    )
+
+    # Check (0/4) reduce to 0
+    final_states += run(
+        raw_expr=core.ReduceRational(
+            core.Rational(
+                core.BinaryInt.zero(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.BinaryInt.zero(),
+        wrong_exprs=[],
+    )
+
+    # Check (4/2) reduce to 2
+    final_states += run(
+        raw_expr=core.ReduceRational(
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.BinaryInt(
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+        ),
+        wrong_exprs=[],
+    )
+
+    # Check (-8/2) reduce to -4
+    final_states += run(
+        raw_expr=core.ReduceRational(
+            core.SignedRational(
+                core.NegativeSign.create(),
+                core.Rational(
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                        core.IBoolean.false(),
+                        core.IBoolean.false(),
+                    ),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                    ),
+                ),
+            ),
+        ),
+        correct_expr=core.SignedInt(
+            core.NegativeSign.create(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+        ),
+        wrong_exprs=[],
+    )
+
+    # Check (3/1) reduce to 3
+    final_states += run(
+        raw_expr=core.ReduceRational(
+            core.Rational(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt.one(),
+            ),
+        ),
+        correct_expr=core.BinaryInt(
+            core.IBoolean.true(),
+            core.IBoolean.true(),
+        ),
+        wrong_exprs=[],
+    )
+
+    # Check (-3/1) reduce to -3
+    final_states += run(
+        raw_expr=core.ReduceRational(
+            core.SignedRational(
+                core.NegativeSign.create(),
+                core.Rational(
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                    ),
+                    core.BinaryInt.one(),
+                ),
+            ),
+        ),
+        correct_expr=core.SignedInt(
+            core.NegativeSign.create(),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.true(),
+            ),
+        ),
+        wrong_exprs=[],
+    )
+
+    # Check (-1/1) reduce to -1
+    final_states += run(
+        raw_expr=core.ReduceRational(
+            core.SignedRational(
+                core.NegativeSign.create(),
+                core.Rational(
+                    core.BinaryInt.one(),
+                    core.BinaryInt.one(),
+                ),
+            ),
+        ),
+        correct_expr=core.BinaryInt.minus_one(),
+        wrong_exprs=[],
     )
 
     return final_states
@@ -6787,6 +7100,9 @@ def test_arithmetic() -> list[full_state.FullState]:
         name='>>test_rational_from_int',
         fn=test_rational_from_int)
     final_states += test_utils.run_info_test(name='>>test_rational_to_int', fn=test_rational_to_int)
+    final_states += test_utils.run_info_test(
+        name='>>test_rational_irreductible',
+        fn=test_rational_irreductible)
     final_states += test_utils.run_info_test(name='>>test_rational_add', fn=test_rational_add)
     final_states += test_utils.run_info_test(
         name='>>test_rational_subtract',

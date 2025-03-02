@@ -5117,6 +5117,30 @@ class BaseSignedRational(BaseNormalizer, IComparableSignedNumber, IDivisible, AB
             ).normalize())
         return Optional()
 
+    def irreductible(self) -> BaseSignedRational | BaseSignedInt:
+        sign = self.sign
+        numerator = self.numerator
+        denominator = self.denominator
+        zero = INumber.zero()
+        if numerator.modulo(denominator) == zero:
+            return SignedInt(
+                sign,
+                numerator.divide_int(denominator),
+            ).normalize()
+        one = INumber.one()
+        new_n: BinaryInt = numerator
+        new_d: BinaryInt = denominator
+        current_factor = denominator.subtract(one)
+        while current_factor.gt(one).as_bool:
+            while new_n.modulo(current_factor) == zero and new_d.modulo(current_factor) == zero:
+                new_n = new_n.divide_int(current_factor).real(BinaryInt)
+                new_d = new_d.divide_int(current_factor).real(BinaryInt)
+            current_factor = current_factor.subtract(one)
+        return SignedRational(
+            sign,
+            Rational(new_n, new_d).normalize(),
+        ).normalize()
+
 class IntToRational(BaseNormalizer, IInstantiable):
 
     idx_signed_int = 1
@@ -5156,6 +5180,32 @@ class RationalToInt(BaseNormalizer, IInstantiable):
     def normalize(self) -> BaseSignedInt:
         rational = self.rational.apply().real(BaseSignedRational)
         return rational.to_int().value_or_raise
+
+class ReduceRational(BaseNormalizer, IInstantiable):
+
+    idx_rational = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(),
+            CountableTypeGroup(UnionType(
+                BaseSignedRational.as_type(),
+                BaseSignedInt.as_type(),
+            )),
+            UnionType(
+                BaseSignedRational.as_type(),
+                BaseSignedInt.as_type(),
+            ),
+        )
+
+    @property
+    def rational(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_rational)
+
+    def normalize(self) -> BaseSignedRational | BaseSignedInt:
+        rational = self.rational.apply().real(BaseSignedRational)
+        return rational.irreductible()
 
 class Rational(BaseSignedRational, IInstantiable):
 
