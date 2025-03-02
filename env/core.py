@@ -4564,7 +4564,7 @@ class BaseSignedInt(BaseNormalizer, IComparableSignedNumber, IDivisible, ABC):
     def divide_int(self, value: BaseSignedInt) -> BaseSignedInt:
         raise NotImplementedError
 
-    def modulo(self, value: BaseSignedInt) -> BaseSignedInt:
+    def modulo(self, value: BaseSignedInt) -> BinaryInt:
         raise NotImplementedError
 
     def to_rational(self) -> BaseSignedRational:
@@ -4760,13 +4760,14 @@ class BinaryInt(BaseSignedInt, IInstantiable):
     def multiply(self, value: INumber) -> BaseSignedInt:
         assert isinstance(value, BaseSignedInt)
         sign = value.sign
-        me = BinaryToInt(self).normalize()
-        other = BinaryToInt(value.abs).normalize()
-        assert isinstance(me, Integer)
-        assert isinstance(other, Integer)
-        product = Integer(me.as_int * other.as_int)
-        new_abs = IntToBinary(product).normalize()
-        return SignedInt(sign, new_abs).normalize()
+        tail: list[IntBoolean] = []
+        current = INumber.zero()
+        for bit in value.abs.as_tuple[::-1]:
+            if bit == IBoolean.true():
+                current = current.add(
+                    BinaryInt.from_items(list(self.as_tuple) + tail))
+            tail.append(IBoolean.false())
+        return SignedInt(sign, current).normalize()
 
     def divide(self, value: IDivisible) -> IDivisible:
         if isinstance(value, BinaryInt):
@@ -4776,28 +4777,40 @@ class BinaryInt(BaseSignedInt, IInstantiable):
     def divided_by(self, value: IDivisible) -> IDivisible:
         if isinstance(value, BinaryInt):
             return Rational(value, self)
-        return self.divide(value)
+        return value.divide(self)
 
-    def divide_int(self, value: INumber) -> BaseSignedInt:
+    def _divide_int(self, value: INumber) -> tuple[BaseSignedInt, BinaryInt]:
         assert isinstance(value, BaseSignedInt)
         sign = value.sign
-        me = BinaryToInt(self).normalize()
-        other = BinaryToInt(value.abs).normalize()
-        assert isinstance(me, Integer)
-        assert isinstance(other, Integer)
-        quotient = Integer(me.as_int // other.as_int)
-        new_abs = IntToBinary(quotient).normalize()
-        return SignedInt(sign, new_abs).normalize()
+        my_bits = self.abs.as_tuple
+        other_abs = value.abs
+        quotient_bits: list[IntBoolean] = []
+        remainder = BinaryInt.from_items(my_bits[:1]).normalize()
+        remaining_bits = list(my_bits[1:])
+        while len(remaining_bits) > 0:
+            if remainder.ge(other_abs).as_bool:
+                remainder = remainder.subtract(other_abs).real(BinaryInt)
+                quotient_bits.append(IBoolean.true())
+            else:
+                quotient_bits.append(IBoolean.false())
+            next_bit = remaining_bits.pop(0)
+            remainder = BinaryInt.from_items(list(remainder.abs.as_tuple) + [next_bit])
+        if remainder.ge(other_abs).as_bool:
+            remainder = remainder.subtract(other_abs).real(BinaryInt)
+            quotient_bits.append(IBoolean.true())
+        else:
+            quotient_bits.append(IBoolean.false())
+        assert remainder.lt(other_abs).as_bool
+        quotient = BinaryInt.from_items(quotient_bits).normalize()
+        return SignedInt(sign, quotient).normalize(), remainder
 
-    def modulo(self, value: BaseSignedInt) -> BaseSignedInt:
-        assert isinstance(value, BaseSignedInt)
-        me = BinaryToInt(self).normalize()
-        other = BinaryToInt(value.abs).normalize()
-        assert isinstance(me, Integer)
-        assert isinstance(other, Integer)
-        remainder = Integer(me.as_int % other.as_int)
-        new_abs = IntToBinary(remainder).normalize()
-        return new_abs
+    def divide_int(self, value: INumber) -> BaseSignedInt:
+        quotient, _ = self._divide_int(value)
+        return quotient
+
+    def modulo(self, value: BaseSignedInt) -> BinaryInt:
+        _, remainder = self._divide_int(value)
+        return remainder
 
 class SignedInt(BaseSignedInt, IInstantiable):
 
@@ -4927,7 +4940,7 @@ class SignedInt(BaseSignedInt, IInstantiable):
                 NegativeSign(IBoolean.from_bool(not same_sign)),
                 Rational(value.abs, self.abs),
             ).normalize()
-        return self.divide(value)
+        return value.divide(self)
 
     def divide_int(self, value: BaseSignedInt) -> BaseSignedInt:
         assert isinstance(value, BaseSignedInt)
@@ -4935,7 +4948,7 @@ class SignedInt(BaseSignedInt, IInstantiable):
         quotient = self.abs.divide_int(value.abs)
         return SignedInt(sign, quotient).normalize()
 
-    def modulo(self, value: BaseSignedInt) -> BaseSignedInt:
+    def modulo(self, value: BaseSignedInt) -> BinaryInt:
         assert isinstance(value, BaseSignedInt)
         remainder = self.abs.modulo(value.abs)
         return remainder

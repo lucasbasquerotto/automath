@@ -2401,6 +2401,24 @@ def test_int_divide_int() -> list[full_state.FullState]:
             ),
         ],
     )
+    final_states += run(
+        raw_expr=core.DivideInt(
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+                core.IBoolean.false(),
+            ),
+            core.BinaryInt(
+                core.IBoolean.true(),
+                core.IBoolean.false(),
+            ),
+        ),
+        correct_expr=core.BinaryInt(
+            core.IBoolean.true(),
+            core.IBoolean.false(),
+        ),
+        wrong_exprs=[],
+    )
 
     return final_states
 
