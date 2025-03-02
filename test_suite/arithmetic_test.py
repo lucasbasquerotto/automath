@@ -2656,9 +2656,7 @@ def test_int_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
     final_states += run(
         raw_expr=core.GreaterThan(
@@ -2676,9 +2674,7 @@ def test_int_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.false(),
-        wrong_exprs=[
-            core.IBoolean.true(),
-        ],
+        wrong_exprs=[core.IBoolean.true()],
     )
     final_states += run(
         raw_expr=core.GreaterThan(
@@ -2699,9 +2695,7 @@ def test_int_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.false(),
-        wrong_exprs=[
-            core.IBoolean.true(),
-        ],
+        wrong_exprs=[core.IBoolean.true()],
     )
 
     final_states += run(
@@ -2797,9 +2791,7 @@ def test_int_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
     final_states += run(
         raw_expr=core.GreaterOrEqual(
@@ -2815,9 +2807,7 @@ def test_int_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
     final_states += run(
         raw_expr=core.GreaterOrEqual(
@@ -2836,9 +2826,7 @@ def test_int_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.false(),
-        wrong_exprs=[
-            core.IBoolean.true(),
-        ],
+        wrong_exprs=[core.IBoolean.true()],
     )
     final_states += run(
         raw_expr=core.GreaterOrEqual(
@@ -2860,9 +2848,7 @@ def test_int_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
 
     final_states += run(
@@ -2878,9 +2864,7 @@ def test_int_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
     final_states += run(
         raw_expr=core.LessOrEqual(
@@ -2896,9 +2880,7 @@ def test_int_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
     final_states += run(
         raw_expr=core.LessOrEqual(
@@ -2917,9 +2899,7 @@ def test_int_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
     final_states += run(
         raw_expr=core.LessOrEqual(
@@ -2940,9 +2920,7 @@ def test_int_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.false(),
-        wrong_exprs=[
-            core.IBoolean.true(),
-        ],
+        wrong_exprs=[core.IBoolean.true()],
     )
 
     return final_states
@@ -6853,6 +6831,212 @@ def test_float_comparisons() -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
 
     final_states += run(
+        raw_expr=core.ComparableEq(
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.Float(
+                core.INumber.zero(),
+                core.INumber.one(),
+            ),
+        ),
+        correct_expr=core.IBoolean.false(),
+        wrong_exprs=[core.IBoolean.true()],
+    )
+    final_states += run(
+        raw_expr=core.ComparableEq(
+            core.Float(
+                core.INumber.zero(),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.Float(
+                core.INumber.zero(),
+                core.INumber.one(),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[core.IBoolean.false()],
+    )
+    final_states += run(
+        raw_expr=core.ComparableEq(
+            core.Float(
+                core.INumber.zero(),
+                core.INumber.minus_one(),
+            ),
+            core.Float(
+                core.INumber.zero(),
+                core.INumber.one(),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[core.IBoolean.false()],
+    )
+    final_states += run(
+        raw_expr=core.ComparableEq(
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                ),
+            ),
+            core.Float(
+                core.INumber.zero(),
+                core.INumber.one(),
+            ),
+        ),
+        correct_expr=core.IBoolean.false(),
+        wrong_exprs=[core.IBoolean.true()],
+    )
+    final_states += run(
+        raw_expr=core.ComparableEq(
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                    ),
+                ),
+                core.INumber.minus_one(),
+            ),
+            core.Float(
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                    ),
+                ),
+                core.INumber.minus_one(),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[core.IBoolean.false()],
+    )
+    final_states += run(
+        raw_expr=core.ComparableEq(
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[core.IBoolean.false()],
+    )
+    final_states += run(
+        raw_expr=core.ComparableEq(
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                ),
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                    ),
+                ),
+            ),
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+                core.SignedInt(
+                    core.NegativeSign.create(),
+                    core.BinaryInt(
+                        core.IBoolean.true(),
+                        core.IBoolean.true(),
+                        core.IBoolean.false(),
+                    ),
+                ),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[core.IBoolean.false()],
+    )
+    final_states += run(
+        raw_expr=core.ComparableEq(
+            core.Float(
+                core.INumber.one(),
+                core.INumber.one(),
+            ),
+            core.Float(
+                core.BinaryInt(
+                    core.IBoolean.true(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                ),
+                core.BinaryInt(
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.false(),
+                    core.IBoolean.true(),
+                ),
+            ),
+        ),
+        correct_expr=core.IBoolean.true(),
+        wrong_exprs=[core.IBoolean.false()],
+    )
+
+    final_states += run(
         raw_expr=core.GreaterThan(
             core.Float(
                 core.BinaryInt(
@@ -6870,9 +7054,7 @@ def test_float_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
     final_states += run(
         raw_expr=core.GreaterThan(
@@ -6895,9 +7077,7 @@ def test_float_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.false(),
-        wrong_exprs=[
-            core.IBoolean.true(),
-        ],
+        wrong_exprs=[core.IBoolean.true()],
     )
     final_states += run(
         raw_expr=core.GreaterThan(
@@ -6920,9 +7100,7 @@ def test_float_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
     final_states += run(
         raw_expr=core.GreaterThan(
@@ -6949,9 +7127,7 @@ def test_float_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.false(),
-        wrong_exprs=[
-            core.IBoolean.true(),
-        ],
+        wrong_exprs=[core.IBoolean.true()],
     )
     final_states += run(
         raw_expr=core.GreaterThan(
@@ -6977,9 +7153,7 @@ def test_float_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
 
     final_states += run(
@@ -7009,9 +7183,7 @@ def test_float_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
     final_states += run(
         raw_expr=core.LessThan(
@@ -7043,9 +7215,7 @@ def test_float_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.false(),
-        wrong_exprs=[
-            core.IBoolean.true(),
-        ],
+        wrong_exprs=[core.IBoolean.true()],
     )
     final_states += run(
         raw_expr=core.LessThan(
@@ -7072,9 +7242,7 @@ def test_float_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
 
     final_states += run(
@@ -7102,9 +7270,7 @@ def test_float_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
     final_states += run(
         raw_expr=core.GreaterOrEqual(
@@ -7143,9 +7309,7 @@ def test_float_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
     final_states += run(
         raw_expr=core.GreaterOrEqual(
@@ -7169,9 +7333,7 @@ def test_float_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
     final_states += run(
         raw_expr=core.GreaterOrEqual(
@@ -7198,9 +7360,7 @@ def test_float_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
 
     final_states += run(
@@ -7228,9 +7388,7 @@ def test_float_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
     final_states += run(
         raw_expr=core.LessOrEqual(
@@ -7269,9 +7427,7 @@ def test_float_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
     final_states += run(
         raw_expr=core.LessOrEqual(
@@ -7295,9 +7451,7 @@ def test_float_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
     final_states += run(
         raw_expr=core.LessOrEqual(
@@ -7318,9 +7472,7 @@ def test_float_comparisons() -> list[full_state.FullState]:
             ),
         ),
         correct_expr=core.IBoolean.true(),
-        wrong_exprs=[
-            core.IBoolean.false(),
-        ],
+        wrong_exprs=[core.IBoolean.false()],
     )
 
     return final_states

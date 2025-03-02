@@ -5588,6 +5588,21 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
             diff += 1
         return Float(new_base, new_exp).normalize()
 
+    def eq(self, another: INode) -> IBoolean:
+        other = another.real(Float)
+        my_base = self.base.apply().real(BaseSignedInt)
+        my_exponent = self.exponent.apply().real(BaseSignedInt)
+        other_base = other.base.apply().real(BaseSignedInt)
+        other_exponent = other.exponent.apply().real(BaseSignedInt)
+        my_sign = my_base.sign.real(NegativeSign)
+        other_sign = other_base.sign.real(NegativeSign)
+        same_sign = Eq(my_sign, other_sign).as_bool
+        same_exp = Eq(my_exponent, other_exponent).as_bool
+        if same_sign and same_exp:
+            my_new_base, other_new_base, _ = self.same_precisions(other)
+            return Eq(my_new_base, other_new_base)
+        return IBoolean.false()
+
     def lt(self, another: INode) -> IBoolean:
         other = another.real(Float)
         my_base = self.base.apply().real(BaseSignedInt)
@@ -5604,21 +5619,6 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
             return my_exponent.lt(other_exponent)
         my_new_base, other_new_base, _ = self.same_precisions(other)
         return my_new_base.lt(other_new_base)
-
-    def eq(self, another: INode) -> IBoolean:
-        other = another.real(Float)
-        my_base = self.base.apply().real(BaseSignedInt)
-        my_exponent = self.exponent.apply().real(BaseSignedInt)
-        other_base = other.base.apply().real(BaseSignedInt)
-        other_exponent = other.exponent.apply().real(BaseSignedInt)
-        my_sign = my_base.sign.real(NegativeSign)
-        other_sign = other_base.sign.real(NegativeSign)
-        same_sign = Eq(my_sign, other_sign).as_bool
-        same_exp = Eq(my_exponent, other_exponent).as_bool
-        if same_sign and same_exp:
-            my_new_base, other_new_base, _ = self.same_precisions(other)
-            return Eq(my_new_base, other_new_base)
-        return IBoolean.false()
 
     def gt(self, another: INode):
         other = another.real(Float)
