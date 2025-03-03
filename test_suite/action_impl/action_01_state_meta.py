@@ -23,7 +23,7 @@ def get_remaining_steps(env: GoalEnv) -> int | None:
         (
             full_state.FullState.idx_current,
             full_state.HistoryNode.idx_meta_data,
-            meta_env.MetaData.idx_remaining_steps,
+            full_state.MetaData.idx_remaining_steps,
         )
     ).apply().cast(core.IOptional[core.IInt]).value
     return value.as_int if value is not None else None
@@ -88,7 +88,7 @@ def goal_test():
                     meta_info=state_meta,
                     scratches=scratches,
                 ),
-                meta_data=meta_env.MetaData.with_args(
+                meta_data=full_state.MetaData.with_args(
                     remaining_steps=(
                         len(scratches)
                         if scratch_goal_1 in scratches
@@ -430,7 +430,7 @@ def dynamic_goal_test():
                     meta_info=state_meta,
                     scratches=scratches,
                 ),
-                meta_data=meta_env.MetaData.with_args(
+                meta_data=full_state.MetaData.with_args(
                     remaining_steps=5
                 ),
             )
@@ -691,7 +691,7 @@ def state_hidden_info_test():
                     meta_info=state_meta,
                     scratches=scratches,
                 ),
-                meta_data=meta_env.MetaData.create(),
+                meta_data=full_state.MetaData.create(),
             ),
             history=full_state.HistoryGroupNode(
                 full_state.HistoryNode.with_args(
@@ -699,7 +699,7 @@ def state_hidden_info_test():
                         meta_info=state_meta,
                         scratches=list(scratches) + [core.Void()]*6,
                     ),
-                    meta_data=meta_env.MetaData.create(),
+                    meta_data=full_state.MetaData.create(),
                     action_data=core.Optional(
                         full_state.SuccessActionData.from_args(
                             raw_action=core.Optional(),
@@ -718,7 +718,7 @@ def state_hidden_info_test():
                         meta_info=state_meta,
                         scratches=list(scratches) + [core.Void()]*5,
                     ),
-                    meta_data=meta_env.MetaData.create(),
+                    meta_data=full_state.MetaData.create(),
                     action_data=core.Optional(
                         full_state.SuccessActionData.from_args(
                             raw_action=core.Optional(),
@@ -737,7 +737,7 @@ def state_hidden_info_test():
                         meta_info=state_meta,
                         scratches=list(scratches) + [core.Void()]*4,
                     ),
-                    meta_data=meta_env.MetaData.create(),
+                    meta_data=full_state.MetaData.create(),
                     action_data=core.Optional(
                         full_state.SuccessActionData.from_args(
                             raw_action=core.Optional(),
@@ -756,7 +756,7 @@ def state_hidden_info_test():
                         meta_info=state_meta,
                         scratches=list(scratches) + [core.Void()]*3,
                     ),
-                    meta_data=meta_env.MetaData.create(),
+                    meta_data=full_state.MetaData.create(),
                     action_data=core.Optional(
                         full_state.SuccessActionData.from_args(
                             raw_action=core.Optional(),
@@ -775,7 +775,7 @@ def state_hidden_info_test():
                         meta_info=state_meta,
                         scratches=list(scratches) + [core.Void()]*2,
                     ),
-                    meta_data=meta_env.MetaData.create(),
+                    meta_data=full_state.MetaData.create(),
                     action_data=core.Optional(
                         full_state.SuccessActionData.from_args(
                             raw_action=core.Optional(),
@@ -794,7 +794,7 @@ def state_hidden_info_test():
                         meta_info=state_meta,
                         scratches=list(scratches) + [core.Void()],
                     ),
-                    meta_data=meta_env.MetaData.create(),
+                    meta_data=full_state.MetaData.create(),
                     action_data=core.Optional(
                         full_state.ActionOutputErrorActionData.from_args(
                             raw_action=core.Optional(),
@@ -815,7 +815,7 @@ def state_hidden_info_test():
                         meta_info=state_meta,
                         scratches=list(scratches) + [core.Void()],
                     ),
-                    meta_data=meta_env.MetaData.create(),
+                    meta_data=full_state.MetaData.create(),
                     action_data=core.Optional(
                         full_state.SuccessActionData.from_args(
                             raw_action=core.Optional(),

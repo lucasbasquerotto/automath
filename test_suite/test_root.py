@@ -57,12 +57,15 @@ def _final_verification(final_states: list[full_state.FullState]):
                 print('actual_next_state:', Symbol.default(actual_next_state))
                 print('expected_next_state:', Symbol.default(expected_next_state))
             assert expected_next_state == actual_next_state, f'{i_case}-{i}'
+            last_action_data_opt = actual_next_fs.last_action_data
+            if last_action_data_opt != action_data_opt:
+                print('last_action_data_opt:', Symbol.default(last_action_data_opt.as_node))
+                print('action_data_opt:', Symbol.default(action_data_opt.as_node))
+            assert last_action_data_opt == action_data_opt, f'{i_case}-{i}'
             if next_fs != actual_next_fs:
                 print('actual_next_fs:', Symbol.default(actual_next_fs))
                 print('expected_next_fs:', Symbol.default(next_fs))
             assert next_fs == actual_next_fs, f'{i_case}-{i}'
-            last_action_data_opt = actual_next_fs.last_action_data
-            assert last_action_data_opt == action_data_opt, f'{i_case}-{i}'
 
             exception = action_data.exception.apply().cast(core.IOptional[core.IExceptionInfo])
 

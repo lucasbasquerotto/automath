@@ -136,7 +136,7 @@ def test_indices() -> list[full_state.FullState]:
                     scratches=scratches,
                     args_groups=args_groups,
                 ),
-                meta_data=meta_env.MetaData.create(),
+                meta_data=full_state.MetaData.create(),
             )
         ),
     )

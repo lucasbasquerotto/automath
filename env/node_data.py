@@ -42,7 +42,7 @@ _main_root_node = MainNodeData(
                     args=None,
                 ),
                 MainNodeData(
-                    node_type=meta_env.MetaData.as_type(),
+                    node_type=full_state.MetaData.as_type(),
                     hidden_index=None,
                     args=None,
                 ),
@@ -67,7 +67,7 @@ _main_root_node = MainNodeData(
                         args=None,
                     ),
                     MainNodeData(
-                        node_type=meta_env.MetaData.as_type(),
+                        node_type=full_state.MetaData.as_type(),
                         hidden_index=_history_meta_hidden,
                         args=None,
                     ),

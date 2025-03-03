@@ -195,7 +195,7 @@ def run_single(raw_expr: core.INode, correct_expr: core.INode):
                     meta_info=state_meta,
                     scratches=[correct_expr],
                 ),
-                meta_data=meta_env.MetaData.create(),
+                meta_data=full_state.MetaData.create(),
             )
         ),
         max_steps=1,

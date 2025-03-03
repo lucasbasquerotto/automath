@@ -21,7 +21,6 @@ from env.core import (
     IInstantiable)
 from env.state import State
 from env.meta_env import (
-    MetaData,
     MetaInfo,
     IActionOutput,
     IAction,
@@ -31,6 +30,7 @@ from env.meta_env import (
     MetaInfoOptions)
 from env.full_state import (
     FullState,
+    MetaData,
     HistoryNode,
     HistoryGroupNode,
     BaseActionData,

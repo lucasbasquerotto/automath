@@ -12,7 +12,7 @@ def get_remaining_steps(env: GoalEnv) -> int | None:
         (
             full_state.FullState.idx_current,
             full_state.HistoryNode.idx_meta_data,
-            meta_env.MetaData.idx_remaining_steps,
+            full_state.MetaData.idx_remaining_steps,
         )
     ).apply().cast(core.IOptional[core.IInt]).value
     return value.as_int if value is not None else None

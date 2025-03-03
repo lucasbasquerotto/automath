@@ -13,7 +13,6 @@ from env.core import (
     InheritableNode,
     INode,
     BaseGroup,
-    Integer,
     TypeNode,
     Type,
     Optional,
@@ -40,48 +39,6 @@ K = typing.TypeVar('K', bound=INode)
 ###########################################################
 ####################### META ITEMS ########################
 ###########################################################
-
-class MetaData(InheritableNode, IDefault, IInstantiable):
-
-    idx_remaining_steps = 1
-
-    @classmethod
-    def create(cls) -> typing.Self:
-        return cls.with_args()
-
-    @classmethod
-    def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup(
-            CompositeType(
-                Optional.as_type(),
-                OptionalTypeGroup(Integer.as_type()),
-            ),
-        ))
-
-    @property
-    def remaining_steps(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_remaining_steps)
-
-    @classmethod
-    def with_args(
-        cls,
-        remaining_steps: int | None = None,
-    ) -> typing.Self:
-        return cls(
-            Optional.with_int(remaining_steps),
-        )
-
-    def with_new_args(
-        self,
-        remaining_steps: int | None = None,
-    ) -> typing.Self:
-        return self.func(
-            (
-                Optional.with_int(remaining_steps)
-                if remaining_steps is not None
-                else self.remaining_steps.apply()
-            ),
-        )
 
 class GeneralTypeGroup(BaseGroup[TypeNode[T]], IInstantiable, typing.Generic[T]):
 

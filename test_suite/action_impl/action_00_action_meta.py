@@ -16,6 +16,7 @@ from env.core import (
 )
 from env.full_state import (
     FullState,
+    MetaData,
     MetaAllTypesTypeIndex,
     HistoryGroupNode,
     HistoryNode,
@@ -24,7 +25,7 @@ from env.full_state import (
     SuccessActionData,
     MetaFromIntTypeIndex,
 )
-from env.meta_env import MetaInfo, SubtypeOuterGroup, GeneralTypeGroup, MetaData
+from env.meta_env import MetaInfo, SubtypeOuterGroup, GeneralTypeGroup
 from env.goal_env import GoalEnv
 from env.node_types import HaveScratch, INode
 from env.state import (
