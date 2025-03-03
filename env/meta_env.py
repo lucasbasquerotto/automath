@@ -17,6 +17,7 @@ from env.core import (
     Type,
     Optional,
     BaseInt,
+    Integer,
     IOptional,
     ITypedIndex,
     ITypedIntIndex,
@@ -164,22 +165,44 @@ class MetaInfoOptions(InheritableNode, IDefault, IInstantiable):
 
     idx_max_history_state_size = 1
     idx_max_steps = 2
+    idx_step_count_to_change_cost = 3
+    idx_cost_multiplier_default = 4
+    idx_cost_multiplier_custom_goal = 5
+    idx_cost_multiplier_sub_goal = 6
+    idx_cost_multiplier_main_goal = 7
+    idx_cost_multiplier_action = 8
+    idx_cost_multiplier_step = 9
+    idx_cost_full_state_memory = 10
+    idx_cost_visible_state_memory = 11
+    idx_cost_main_state_memory = 12
+    idx_cost_run_memory = 13
 
     @classmethod
     def create(cls) -> typing.Self:
-        return cls(Optional.create(), Optional.create())
+        return cls.with_args()
 
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
             CompositeType(
                 Optional.as_type(),
-                OptionalTypeGroup(BaseInt.as_type()),
+                OptionalTypeGroup(Integer.as_type()),
             ),
             CompositeType(
                 Optional.as_type(),
-                OptionalTypeGroup(BaseInt.as_type()),
+                OptionalTypeGroup(Integer.as_type()),
             ),
+            Integer.as_type(),
+            Integer.as_type(),
+            Integer.as_type(),
+            Integer.as_type(),
+            Integer.as_type(),
+            Integer.as_type(),
+            Integer.as_type(),
+            Integer.as_type(),
+            Integer.as_type(),
+            Integer.as_type(),
+            Integer.as_type(),
         ))
 
     @property
@@ -190,15 +213,125 @@ class MetaInfoOptions(InheritableNode, IDefault, IInstantiable):
     def max_steps(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_max_steps)
 
+    @property
+    def step_count_to_change_cost(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_step_count_to_change_cost)
+
+    @property
+    def cost_multiplier_default(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_cost_multiplier_default)
+
+    @property
+    def cost_multiplier_custom_goal(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_cost_multiplier_custom_goal)
+
+    @property
+    def cost_multiplier_sub_goal(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_cost_multiplier_sub_goal)
+
+    @property
+    def cost_multiplier_main_goal(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_cost_multiplier_main_goal)
+
+    @property
+    def cost_multiplier_action(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_cost_multiplier_action)
+
+    @property
+    def cost_multiplier_step(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_cost_multiplier_step)
+
+    @property
+    def cost_full_state_memory(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_cost_full_state_memory)
+
+    @property
+    def cost_visible_state_memory(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_cost_visible_state_memory)
+
+    @property
+    def cost_main_state_memory(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_cost_main_state_memory)
+
+    @property
+    def cost_run_memory(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_cost_run_memory)
+
     @classmethod
     def with_args(
         cls,
         max_history_state_size: int | None = None,
         max_steps: int | None = None,
+        step_count_to_change_cost: int | None = None,
+        cost_multiplier_default: int | None = None,
+        cost_multiplier_custom_goal: int | None = None,
+        cost_multiplier_sub_goal: int | None = None,
+        cost_multiplier_main_goal: int | None = None,
+        cost_multiplier_action: int | None = None,
+        cost_multiplier_step: int | None = None,
+        cost_full_state_memory: int | None = None,
+        cost_visible_state_memory: int | None = None,
+        cost_main_state_memory: int | None = None,
+        cost_run_memory: int | None = None,
     ) -> typing.Self:
         return cls(
             Optional.with_int(max_history_state_size),
             Optional.with_int(max_steps),
+            Integer(
+                step_count_to_change_cost
+                if step_count_to_change_cost is not None
+                else 5
+            ),
+            Integer(
+                cost_multiplier_default
+                if cost_multiplier_default is not None
+                else 20
+            ),
+            Integer(
+                cost_multiplier_custom_goal
+                if cost_multiplier_custom_goal is not None
+                else 10
+            ),
+            Integer(
+                cost_multiplier_sub_goal
+                if cost_multiplier_sub_goal is not None
+                else 3
+            ),
+            Integer(
+                cost_multiplier_main_goal
+                if cost_multiplier_main_goal is not None
+                else 1
+            ),
+            Integer(
+                cost_multiplier_action
+                if cost_multiplier_action is not None
+                else 10
+            ),
+            Integer(
+                cost_multiplier_step
+                if cost_multiplier_step is not None
+                else 1
+            ),
+            Integer(
+                cost_full_state_memory
+                if cost_full_state_memory is not None
+                else 1
+            ),
+            Integer(
+                cost_visible_state_memory
+                if cost_visible_state_memory is not None
+                else 10
+            ),
+            Integer(
+                cost_main_state_memory
+                if cost_main_state_memory is not None
+                else 100
+            ),
+            Integer(
+                cost_run_memory
+                if cost_run_memory is not None
+                else 1
+            ),
         )
 
 ###########################################################

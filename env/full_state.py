@@ -26,6 +26,8 @@ from env.core import (
     IWrapper,
     CompositeType,
     OptionalTypeGroup,
+    BaseNormalizer,
+    TypeAliasGroup,
     TmpInnerArg,
     TmpNestedArg,
     IInstantiable,
@@ -116,10 +118,10 @@ class BaseActionData(InheritableNode, ABC):
     def _strict_validate(self):
         alias_info = self._thin_strict_validate()
 
-        raw_action = self.raw_action.apply().cast(Optional[IRawAction]).value
-        action = self.action.apply().cast(Optional[IAction]).value
-        output = self.output.apply().cast(Optional[IActionOutput]).value
-        exception = self.exception.apply().cast(Optional[IExceptionInfo]).value
+        raw_action = self.raw_action.apply().real(Optional[IRawAction]).value
+        action = self.action.apply().real(Optional[IAction]).value
+        output = self.output.apply().real(Optional[IActionOutput]).value
+        exception = self.exception.apply().real(Optional[IExceptionInfo]).value
 
         if raw_action is not None:
             raw_action_typed = raw_action.real(IRawAction).as_node
@@ -374,6 +376,37 @@ class RunCost(InheritableNode, IInstantiable):
             memory_cost,
         )
 
+class NewCostMultiplier(InheritableNode, IInstantiable):
+
+    idx_multiplier = 1
+    idx_step_count_to_change = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            Integer.as_type(),
+            Integer.as_type(),
+        ))
+
+    @property
+    def multiplier(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_multiplier)
+
+    @property
+    def step_count_to_change(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_step_count_to_change)
+
+    @classmethod
+    def with_args(
+        cls,
+        multiplier: int,
+        step_count_to_change: int | None = None,
+    ) -> typing.Self:
+        return cls(
+            Integer(multiplier),
+            Optional.with_int(step_count_to_change),
+        )
+
 class CostMultiplier(InheritableNode, IInstantiable):
 
     idx_current_multiplier = 1
@@ -432,43 +465,13 @@ class CostMultiplier(InheritableNode, IInstantiable):
             Optional.with_int(step_count_to_change),
         )
 
-class NewCostMultiplier(InheritableNode, IInstantiable):
-
-    idx_multiplier = 1
-    idx_step_count_to_change = 2
-
-    @classmethod
-    def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup(
-            Integer.as_type(),
-            Integer.as_type(),
-        ))
-
-    @property
-    def multiplier(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_multiplier)
-
-    @property
-    def step_count_to_change(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_step_count_to_change)
-
-    @classmethod
-    def with_args(
-        cls,
-        multiplier: int,
-        step_count_to_change: int | None = None,
-    ) -> typing.Self:
-        return cls(
-            Integer(multiplier),
-            Optional.with_int(step_count_to_change),
-        )
-
 class MetaData(InheritableNode, IDefault, IInstantiable):
 
     idx_remaining_steps = 1
-    idx_run_cost = 2
+    idx_new_cost_multiplier = 2
     idx_cost_multiplier = 3
-    idx_new_cost_multiplier = 4
+    idx_run_cost = 4
+    idx_final_cost = 5
 
     @classmethod
     def create(cls) -> typing.Self:
@@ -483,7 +486,7 @@ class MetaData(InheritableNode, IDefault, IInstantiable):
             ),
             CompositeType(
                 Optional.as_type(),
-                OptionalTypeGroup(RunCost.as_type()),
+                OptionalTypeGroup(NewCostMultiplier.as_type()),
             ),
             CompositeType(
                 Optional.as_type(),
@@ -491,7 +494,11 @@ class MetaData(InheritableNode, IDefault, IInstantiable):
             ),
             CompositeType(
                 Optional.as_type(),
-                OptionalTypeGroup(NewCostMultiplier.as_type()),
+                OptionalTypeGroup(RunCost.as_type()),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(Integer.as_type()),
             ),
         ))
 
@@ -500,53 +507,62 @@ class MetaData(InheritableNode, IDefault, IInstantiable):
         return self.inner_arg(self.idx_remaining_steps)
 
     @property
-    def run_cost(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_run_cost)
+    def new_cost_multiplier(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_new_cost_multiplier)
 
     @property
     def cost_multiplier(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_cost_multiplier)
 
     @property
-    def new_cost_multiplier(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_new_cost_multiplier)
+    def run_cost(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_run_cost)
+
+    @property
+    def final_cost(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_final_cost)
 
     @classmethod
     def with_args(
         cls,
         remaining_steps: int | None = None,
-        run_cost: RunCost | None = None,
-        cost_multiplier: CostMultiplier | None = None,
         new_cost_multiplier: NewCostMultiplier | None = None,
+        cost_multiplier: CostMultiplier | None = None,
+        run_cost: RunCost | None = None,
+        final_cost: int | None = None,
     ) -> typing.Self:
         return cls.with_actual_args(
             remaining_steps=Optional.with_int(remaining_steps),
-            run_cost=Optional.with_value(run_cost),
-            cost_multiplier=Optional.with_value(cost_multiplier),
             new_cost_multiplier=Optional.with_value(new_cost_multiplier),
+            cost_multiplier=Optional.with_value(cost_multiplier),
+            run_cost=Optional.with_value(run_cost),
+            final_cost=Optional.with_int(final_cost),
         )
 
     @classmethod
     def with_actual_args(
         cls,
         remaining_steps: Optional[Integer],
-        run_cost: Optional[RunCost],
-        cost_multiplier: Optional[CostMultiplier],
         new_cost_multiplier: Optional[NewCostMultiplier],
+        cost_multiplier: Optional[CostMultiplier],
+        run_cost: Optional[RunCost],
+        final_cost: Optional[Integer],
     ) -> typing.Self:
         return cls(
             remaining_steps,
-            run_cost,
-            cost_multiplier,
             new_cost_multiplier,
+            cost_multiplier,
+            run_cost,
+            final_cost,
         )
 
     def with_new_args(
         self,
         remaining_steps: int | None = None,
-        run_cost: Optional[RunCost] | None = None,
-        cost_multiplier: Optional[CostMultiplier] | None = None,
         new_cost_multiplier: Optional[NewCostMultiplier] | None = None,
+        cost_multiplier: Optional[CostMultiplier] | None = None,
+        run_cost: Optional[RunCost] | None = None,
+        final_cost: int | None = None,
     ) -> typing.Self:
         return self.with_actual_args(
             remaining_steps=(
@@ -554,22 +570,113 @@ class MetaData(InheritableNode, IDefault, IInstantiable):
                 if remaining_steps is not None
                 else self.remaining_steps.apply().real(Optional[Integer])
             ),
-            run_cost=(
-                run_cost
-                if run_cost is not None
-                else self.run_cost.apply().real(Optional[RunCost])
+            new_cost_multiplier=(
+                new_cost_multiplier
+                if new_cost_multiplier is not None
+                else self.new_cost_multiplier.apply().real(Optional[NewCostMultiplier])
             ),
             cost_multiplier=(
                 cost_multiplier
                 if cost_multiplier is not None
                 else self.cost_multiplier.apply().real(Optional[CostMultiplier])
             ),
-            new_cost_multiplier=(
-                new_cost_multiplier
-                if new_cost_multiplier is not None
-                else self.new_cost_multiplier.apply().real(Optional[NewCostMultiplier])
+            run_cost=(
+                run_cost
+                if run_cost is not None
+                else self.run_cost.apply().real(Optional[RunCost])
+            ),
+            final_cost=(
+                Optional.with_int(final_cost)
+                if final_cost is not None
+                else self.final_cost.apply().real(Optional[Integer])
             ),
         )
+
+class FinalCost(BaseNormalizer, IInstantiable):
+
+    idx_cost_multiplier = 1
+    idx_run_cost = 2
+    idx_options = 4
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(),
+            CountableTypeGroup(
+                CostMultiplier.as_type(),
+                RunCost.as_type(),
+                MetaInfoOptions.as_type(),
+            ),
+            Integer.as_type(),
+        )
+
+    @property
+    def cost_multiplier(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_cost_multiplier)
+
+    @property
+    def run_cost(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_run_cost)
+
+    @property
+    def options(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_options)
+
+    @classmethod
+    def with_args(
+        cls,
+        cost_multiplier: CostMultiplier,
+        run_cost: RunCost,
+        options: MetaInfoOptions,
+    ) -> typing.Self:
+        return cls(
+            cost_multiplier,
+            run_cost,
+            options,
+        )
+
+    def normalize(self) -> Integer:
+        cost_multiplier = self.cost_multiplier.apply().real(CostMultiplier)
+        run_cost = self.run_cost.apply().real(RunCost)
+        options = self.options.apply().real(MetaInfoOptions)
+
+        current_multiplier = cost_multiplier.current_multiplier.apply().real(Integer).as_int
+
+        processing_cost = run_cost.processing_cost.apply().real(RunProcessingCost)
+        memory_cost = run_cost.memory_cost.apply().real(RunMemoryCost)
+
+        actions = processing_cost.actions.apply().real(Integer).as_int
+        steps = processing_cost.steps.apply().real(Integer).as_int
+
+        full_state_memory = memory_cost.full_state_memory.apply().real(Integer).as_int
+        visible_state_memory = memory_cost.visible_state_memory.apply().real(Integer).as_int
+        main_state_memory = memory_cost.main_state_memory.apply().real(Integer).as_int
+        run_memory = memory_cost.run_memory.apply().real(Integer).as_int
+
+        cost_multiplier_action = options.cost_multiplier_action.apply().real(Integer).as_int
+        cost_multiplier_step = options.cost_multiplier_step.apply().real(Integer).as_int
+        cost_full_state_memory = options.cost_full_state_memory.apply().real(Integer).as_int
+        cost_visible_state_memory = options.cost_visible_state_memory.apply().real(Integer).as_int
+        cost_main_state_memory = options.cost_main_state_memory.apply().real(Integer).as_int
+        cost_run_memory = options.cost_run_memory.apply().real(Integer).as_int
+
+        action_cost = actions * cost_multiplier_action
+        step_cost = steps * cost_multiplier_step
+        processing_cost_value = action_cost + step_cost
+
+        full_state_memory_cost = full_state_memory * cost_full_state_memory
+        visible_state_memory_cost = visible_state_memory * cost_visible_state_memory
+        main_state_memory_cost = main_state_memory * cost_main_state_memory
+        run_memory_cost = run_memory * cost_run_memory
+        memory_cost_value = (
+            full_state_memory_cost
+            + visible_state_memory_cost
+            + main_state_memory_cost
+            + run_memory_cost)
+
+        final_cost = current_multiplier * processing_cost_value * memory_cost_value
+
+        return Integer(final_cost)
 
 ###########################################################
 ################# FULL STATE DEFINITIONS ##################
@@ -628,15 +735,15 @@ class HistoryNode(InheritableNode, IDefault, IWrapper, IInstantiable):
         state = (
             state
             if state is not None
-            else self.state.apply().cast(State))
+            else self.state.apply().real(State))
         meta_data = (
             meta_data
             if meta_data is not None
-            else self.meta_data.apply().cast(MetaData))
+            else self.meta_data.apply().real(MetaData))
         action_data = (
             action_data
             if action_data is not None
-            else self.action_data.apply().cast(Optional[BaseActionData]))
+            else self.action_data.apply().real(Optional[BaseActionData]))
         return self.with_args(
             state=state,
             meta_data=meta_data,
@@ -696,9 +803,9 @@ class FullState(
         current: HistoryNode | None = None,
         history: HistoryGroupNode | None = None,
     ) -> typing.Self:
-        goal = meta.goal.apply().cast(IGoal)
-        options = meta.options.apply().cast(MetaInfoOptions)
-        max_steps_opt = options.max_steps.apply().cast(Optional[IInt])
+        goal = meta.goal.apply().real(IGoal)
+        options = meta.options.apply().real(MetaInfoOptions)
+        max_steps_opt = options.max_steps.apply().real(Optional[IInt])
         max_steps = max_steps_opt.value.as_int if max_steps_opt.value is not None else None
         current = current if current is not None else HistoryNode.create_with_goal_and_options(
             goal=goal,
@@ -727,43 +834,43 @@ class FullState(
 
     @property
     def last_action_data(self) -> IOptional[BaseActionData]:
-        history_group = self.history.apply().cast(HistoryGroupNode)
+        history_group = self.history.apply().real(HistoryGroupNode)
         history = history_group.as_tuple
         if len(history) == 0:
             return Optional.create()
         last_item = history_group.as_tuple[-1]
         assert isinstance(last_item, HistoryNode)
-        action_data_opt = last_item.action_data.apply().cast(IOptional[BaseActionData])
+        action_data_opt = last_item.action_data.apply().real(IOptional[BaseActionData])
         return action_data_opt
 
     def goal_achieved(self) -> bool:
-        state = self.current_state.apply().cast(State)
+        state = self.current_state.apply().real(State)
         return state.goal_achieved()
 
     def node_types(self) -> tuple[type[INode], ...]:
-        meta = self.meta.apply().cast(MetaInfo)
-        all_types_wrappers = meta.all_types.apply().cast(GeneralTypeGroup).as_tuple
+        meta = self.meta.apply().real(MetaInfo)
+        all_types_wrappers = meta.all_types.apply().real(GeneralTypeGroup).as_tuple
         all_types = tuple(wrapper.type for wrapper in all_types_wrappers)
         return all_types
 
     def history_amount(self) -> int:
-        return len(self.history.apply().cast(HistoryGroupNode).as_tuple)
+        return len(self.history.apply().real(HistoryGroupNode).as_tuple)
 
     def at_history(self, index: int) -> tuple[typing.Self, IOptional[BaseActionData]]:
-        history = self.history.apply().cast(HistoryGroupNode).as_tuple
+        history = self.history.apply().real(HistoryGroupNode).as_tuple
         assert index > 0
         assert index <= len(history)
         item = history[index-1]
         current = HistoryNode.with_args(
-            state=item.state.apply().cast(State),
-            meta_data=item.meta_data.apply().cast(MetaData),
+            state=item.state.apply().real(State),
+            meta_data=item.meta_data.apply().real(MetaData),
         )
-        action_data_opt = item.action_data.apply().cast(IOptional[BaseActionData])
+        action_data_opt = item.action_data.apply().real(IOptional[BaseActionData])
         new_history_group = HistoryGroupNode.from_items(
             history[:index-1]
         )
         new_full_state = self.with_args(
-            meta=self.meta.apply().cast(MetaInfo),
+            meta=self.meta.apply().real(MetaInfo),
             current=current,
             history=new_history_group,
         )
