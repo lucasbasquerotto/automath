@@ -465,6 +465,72 @@ class CostMultiplier(InheritableNode, IInstantiable):
             Optional.with_int(step_count_to_change),
         )
 
+    @classmethod
+    def calculate(
+        cls,
+        meta_info_options: MetaInfoOptions,
+        last_cost_multiplier: typing.Self | None,
+        new_cost_multiplier: NewCostMultiplier | None,
+    ) -> typing.Self:
+        default_multiplier = meta_info_options.cost_multiplier_default.apply().real(
+            Integer
+        ).as_int
+        step_count_to_change = meta_info_options.step_count_to_change_cost.apply().real(
+            Integer
+        ).as_int
+
+        if new_cost_multiplier is not None:
+            multiplier: int = new_cost_multiplier.multiplier.apply().real(Integer).as_int
+            return cls.with_args(
+                current_multiplier=multiplier,
+                default_multiplier=default_multiplier,
+                applied_initial_multiplier=multiplier,
+                steps=0,
+                step_count_to_change=step_count_to_change,
+            )
+        elif last_cost_multiplier is not None:
+            last_steps = last_cost_multiplier.steps.apply().real(Integer).as_int
+            steps = last_steps + 1
+            increase = steps % step_count_to_change == 0
+            last_multiplier = last_cost_multiplier.current_multiplier.apply().real(
+                Integer
+            ).as_int
+            multiplier = (
+                last_multiplier + 1
+                if increase
+                else last_multiplier
+            )
+            if multiplier >= default_multiplier:
+                return cls.with_args(
+                    current_multiplier=default_multiplier,
+                    default_multiplier=default_multiplier,
+                    applied_initial_multiplier=default_multiplier,
+                    steps=0,
+                    step_count_to_change=None,
+                )
+            else:
+                applied_initial_multiplier = (
+                    last_cost_multiplier
+                        .applied_initial_multiplier.apply().real(
+                            Integer
+                        ).as_int
+                )
+                return cls.with_args(
+                    current_multiplier=multiplier,
+                    default_multiplier=default_multiplier,
+                    applied_initial_multiplier=applied_initial_multiplier,
+                    steps=steps,
+                    step_count_to_change=step_count_to_change,
+                )
+
+        return cls.with_args(
+            current_multiplier=default_multiplier,
+            default_multiplier=default_multiplier,
+            applied_initial_multiplier=default_multiplier,
+            steps=0,
+                    step_count_to_change=None,
+        )
+
 class MetaData(InheritableNode, IDefault, IInstantiable):
 
     idx_remaining_steps = 1
@@ -761,6 +827,21 @@ class HistoryNode(InheritableNode, IDefault, IWrapper, IInstantiable):
     def action_data(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_action_data)
 
+    def minimal_meta(self) -> typing.Self:
+        meta_data = self.meta_data.apply().real(MetaData)
+        remaining_steps_value = meta_data.remaining_steps.apply().real(
+            Optional[Integer]
+        ).value
+        remaining_steps = (
+            remaining_steps_value.as_int
+            if remaining_steps_value is not None
+            else None)
+        return self.with_new_args(
+            meta_data=MetaData.with_args(
+                remaining_steps=remaining_steps,
+            )
+        )
+
 class HistoryGroupNode(BaseGroup[HistoryNode], IInstantiable):
 
     @classmethod
@@ -833,6 +914,24 @@ class FullState(
         )
 
     @property
+    def meta_info_options(self) -> MetaInfoOptions:
+        meta = self.meta.apply().real(MetaInfo)
+        options = meta.options.apply().real(MetaInfoOptions)
+        return options
+
+    @property
+    def last_cost_multiplier(self) -> Optional[CostMultiplier]:
+        history_group = self.history.apply().real(HistoryGroupNode)
+        history_items = history_group.as_tuple
+        if len(history_items) == 0:
+            return Optional.create()
+        last_item = history_items[-1]
+        assert isinstance(last_item, HistoryNode)
+        meta_data = last_item.meta_data.apply().real(MetaData)
+        cost_multiplier = meta_data.cost_multiplier.apply().real(Optional[CostMultiplier])
+        return cost_multiplier
+
+    @property
     def last_action_data(self) -> IOptional[BaseActionData]:
         history_group = self.history.apply().real(HistoryGroupNode)
         history = history_group.as_tuple
@@ -855,6 +954,19 @@ class FullState(
 
     def history_amount(self) -> int:
         return len(self.history.apply().real(HistoryGroupNode).as_tuple)
+
+    def minimal_meta(self) -> typing.Self:
+        current = self.current.apply().real(HistoryNode).minimal_meta()
+        history_items = self.history.apply().real(HistoryGroupNode).as_tuple
+        new_history = HistoryGroupNode.from_items(
+            [item.minimal_meta() for item in history_items]
+        )
+        return self.with_args(
+            meta=self.meta.apply().real(MetaInfo),
+            current=current,
+            history=new_history,
+        )
+
 
     def at_history(self, index: int) -> tuple[typing.Self, IOptional[BaseActionData]]:
         history = self.history.apply().real(HistoryGroupNode).as_tuple

@@ -40,6 +40,8 @@ from env.full_state import (
     ActionOutputErrorActionData,
     SuccessActionData,
     MetaAllowedBasicActionsTypeIndex,
+    NewCostMultiplier,
+    CostMultiplier,
 )
 from env.symbol import Symbol
 
@@ -55,6 +57,7 @@ class FullActionOutput(InheritableNode, IWrapper, IInstantiable):
     idx_action = 2
     idx_output = 3
     idx_new_state = 4
+    idx_new_cost_multiplier = 5
 
     @classmethod
     def protocol(cls) -> Protocol:
@@ -66,6 +69,10 @@ class FullActionOutput(InheritableNode, IWrapper, IInstantiable):
             IAction.as_type(),
             IActionOutput.as_type(),
             State.as_type(),
+            CompositeType(
+                Optional.as_type(),
+                OptionalTypeGroup(NewCostMultiplier.as_type()),
+            ),
         ))
 
     @property
@@ -84,6 +91,10 @@ class FullActionOutput(InheritableNode, IWrapper, IInstantiable):
     def new_state(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_new_state)
 
+    @property
+    def new_cost_multiplier(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_new_cost_multiplier)
+
     @classmethod
     def with_args(
         cls,
@@ -91,12 +102,14 @@ class FullActionOutput(InheritableNode, IWrapper, IInstantiable):
         action: IAction,
         output: IActionOutput,
         new_state: State,
+        new_cost_multiplier: Optional[NewCostMultiplier],
     ) -> FullActionOutput:
         return cls(
             raw_action,
             action,
             output,
             new_state,
+            new_cost_multiplier,
         )
 
 ###########################################################
@@ -146,7 +159,7 @@ class RawActionExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiabl
             raw_action=Optional(self.raw_action.apply()),
             action=Optional(),
             output=Optional(),
-            exception=Optional(self.exception.apply().cast(IExceptionInfo)),
+            exception=Optional(self.exception.apply().real(IExceptionInfo)),
         )
 
 class ActionTypeExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiable):
@@ -183,7 +196,7 @@ class ActionTypeExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiab
             raw_action=self.raw_action.apply().real(Optional[IRawAction]),
             action=Optional(self.action.apply()),
             output=Optional(),
-            exception=Optional(self.exception.apply().cast(IExceptionInfo)),
+            exception=Optional(self.exception.apply().real(IExceptionInfo)),
         )
 
 class ActionInputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiable):
@@ -220,7 +233,7 @@ class ActionInputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantia
             raw_action=self.raw_action.apply().real(Optional[IRawAction]),
             action=Optional(self.action.apply()),
             output=Optional(),
-            exception=Optional(self.exception.apply().cast(IExceptionInfo)),
+            exception=Optional(self.exception.apply().real(IExceptionInfo)),
         )
 
 class ActionOutputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiable):
@@ -261,9 +274,9 @@ class ActionOutputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstanti
     def to_action_data(self) -> ActionOutputErrorActionData:
         return ActionOutputErrorActionData.from_args(
             raw_action=self.raw_action.apply().real(Optional[IRawAction]),
-            action=Optional(self.action.apply().cast(BaseAction)),
-            output=Optional(self.output.apply().cast(IActionOutput)),
-            exception=Optional(self.exception.apply().cast(IExceptionInfo)),
+            action=Optional(self.action.apply().real(BaseAction)),
+            output=Optional(self.output.apply().real(IActionOutput)),
+            exception=Optional(self.exception.apply().real(IExceptionInfo)),
         )
 
 ###########################################################
@@ -295,8 +308,8 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
 
         try:
             action.strict_validate()
-            meta = full_state.meta.apply().cast(MetaInfo)
-            allowed_actions = meta.allowed_actions.apply().cast(GeneralTypeGroup[IAction])
+            meta = full_state.meta.apply().real(MetaInfo)
+            allowed_actions = meta.allowed_actions.apply().real(GeneralTypeGroup[IAction])
             min_index = 1
             max_index = len(allowed_actions.as_tuple)
             action_type = allowed_actions.as_tuple.index(action.as_type()) + 1
@@ -329,7 +342,10 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
                 raw_action=Optional.with_value(raw_action),
                 action=action,
                 output=output,
-                new_state=new_state)
+                new_state=new_state,
+                #TODO
+                new_cost_multiplier=Optional.create(),
+            )
             result.strict_validate()
             return result
         except InvalidNodeException as e:
@@ -341,27 +357,31 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             ).as_exception() from e
 
     def run_action_details(self, full_state: FullState) -> tuple[FullState, BaseActionData]:
-        meta = full_state.meta.apply().cast(MetaInfo)
-        options = meta.options.apply().cast(MetaInfoOptions)
-        max_history_state_size = options.max_history_state_size.apply().cast(
+        meta = full_state.meta.apply().real(MetaInfo)
+        options = meta.options.apply().real(MetaInfoOptions)
+        max_history_state_size = options.max_history_state_size.apply().real(
             IOptional[IInt]
         ).value
-        current = full_state.current.apply().cast(HistoryNode)
-        meta_data = current.meta_data.apply().cast(MetaData)
-        remaining_steps_opt = meta_data.remaining_steps.apply().cast(Optional[Integer])
+        current = full_state.current.apply().real(HistoryNode)
+        meta_data = current.meta_data.apply().real(MetaData)
+        remaining_steps_opt = meta_data.remaining_steps.apply().real(Optional[Integer])
         remaining_steps = (
             (remaining_steps_opt.value.as_int)
             if remaining_steps_opt.value is not None
             else None)
+        new_cost_multiplier: NewCostMultiplier | None = None
 
         try:
             if remaining_steps is not None:
                 GreaterThan.with_ints(remaining_steps, 0).raise_on_false()
             full_output = self.inner_run(full_state)
-            raw_action_opt = full_output.raw_action.apply().cast(Optional[IRawAction])
-            actual_action = full_output.action.apply().cast(BaseAction)
-            output = full_output.output.apply().cast(IActionOutput)
-            next_state = full_output.new_state.apply().cast(State)
+            raw_action_opt = full_output.raw_action.apply().real(Optional[IRawAction])
+            actual_action = full_output.action.apply().real(BaseAction)
+            output = full_output.output.apply().real(IActionOutput)
+            next_state = full_output.new_state.apply().real(State)
+            new_cost_multiplier_opt = full_output.new_cost_multiplier.apply().real(
+                Optional[NewCostMultiplier])
+            new_cost_multiplier = new_cost_multiplier_opt.value
             next_state.strict_validate()
             action_data: BaseActionData = SuccessActionData.from_args(
                 raw_action=raw_action_opt,
@@ -375,7 +395,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
                 node_types=full_state.node_types(),
             )
             env_logger.debug(str(symbol), exc_info=e)
-            next_state = current.state.apply().cast(State)
+            next_state = current.state.apply().real(State)
             action_data = e.to_action_data()
 
         action_data.strict_validate()
@@ -383,15 +403,26 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             remaining_steps - 1
             if remaining_steps is not None
             else None)
+
+        meta_info_options = full_state.meta_info_options
+        last_cost_multiplier = full_state.last_cost_multiplier.value
+        cost_multiplier = CostMultiplier.calculate(
+            meta_info_options=meta_info_options,
+            last_cost_multiplier=last_cost_multiplier,
+            new_cost_multiplier=new_cost_multiplier,
+        )
+
         meta_data = meta_data.with_new_args(
-            remaining_steps
+            remaining_steps,
+            new_cost_multiplier=Optional.with_value(new_cost_multiplier),
+            cost_multiplier=Optional.with_value(cost_multiplier),
         )
 
         current = current.with_new_args(
             action_data=Optional(action_data),
         )
 
-        history = list(full_state.history.apply().cast(HistoryGroupNode).as_tuple)
+        history = list(full_state.history.apply().real(HistoryGroupNode).as_tuple)
         history.append(current)
 
         current = HistoryNode.with_args(
@@ -402,11 +433,13 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
         if max_history_state_size is not None:
             history = history[-max_history_state_size.as_int:]
 
-        return FullState.with_args(
+        new_full_state = FullState.with_args(
             meta=meta,
             current=current,
             history=HistoryGroupNode.from_items(history),
-        ), action_data
+        )
+
+        return new_full_state, action_data
 
     def run_action(self, full_state: FullState) -> FullState:
         full_state, _ = self.run_action_details(full_state)

@@ -62,6 +62,8 @@ def _final_verification(final_states: list[full_state.FullState]):
                 print('last_action_data_opt:', Symbol.default(last_action_data_opt.as_node))
                 print('action_data_opt:', Symbol.default(action_data_opt.as_node))
             assert last_action_data_opt == action_data_opt, f'{i_case}-{i}'
+            next_fs = next_fs.minimal_meta()
+            actual_next_fs = actual_next_fs.minimal_meta()
             if next_fs != actual_next_fs:
                 print('actual_next_fs:', Symbol.default(actual_next_fs))
                 print('expected_next_fs:', Symbol.default(next_fs))
