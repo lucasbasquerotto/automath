@@ -363,12 +363,37 @@ class FullStateIntBaseIndex(
     pass
 
 ###########################################################
+####################### ACTION INFO #######################
+###########################################################
+
+class IActionGeneralInfo(INode, ABC):
+    pass
+
+class IActionInfo(IActionGeneralInfo, ABC):
+    pass
+
+class ActionInfo(InheritableNode, IActionInfo, IDefault, IInstantiable):
+    #TODO implement
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup())
+
+class IActionOutputInfo(IActionGeneralInfo, ABC):
+    pass
+
+class ActionOutputInfo(InheritableNode, IActionOutputInfo, IDefault, IInstantiable):
+    #TODO implement
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup())
+
+###########################################################
 #################### ACTION BASE NODES ####################
 ###########################################################
 
 class IActionOutput(INode, typing.Generic[S], ABC):
 
-    def run_output(self, full_state: S) -> State:
+    def run_output(self, full_state: S) -> tuple[State, IActionOutputInfo]:
         raise NotImplementedError
 
 class IAction(INode, typing.Generic[S], ABC):

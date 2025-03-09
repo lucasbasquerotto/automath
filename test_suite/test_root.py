@@ -72,7 +72,7 @@ def _final_verification(final_states: list[full_state.FullState]):
             exception = action_data.exception.apply().cast(core.IOptional[core.IExceptionInfo])
 
             if exception.is_empty().as_bool:
-                full_out = act.inner_run(current_fs)
+                full_out, _ = act.inner_run(current_fs)
                 output = full_out.output.apply().cast(action.IActionOutput)
                 next_state = full_out.new_state.apply().cast(state.State)
                 actual_output = action_data.output.apply().cast(

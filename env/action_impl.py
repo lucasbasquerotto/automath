@@ -50,7 +50,13 @@ from env.state import (
     DynamicGoal,
     StateMetaHiddenInfo,
 )
-from env.meta_env import MetaInfo
+from env.meta_env import (
+    MetaInfo,
+    IActionGeneralInfo,
+    IActionInfo,
+    ActionInfo,
+    ActionOutputInfo,
+)
 from env.full_state import (
     FullState,
     FullStateIntIndex,
@@ -68,6 +74,7 @@ from env.action import (
     IBasicAction,
     BasicAction,
     GeneralAction,
+    ActionFullInfo,
 )
 
 ###########################################################
@@ -92,12 +99,14 @@ class DynamicActionOutput(InheritableNode, IMetaActionOutput, IInstantiable):
             IActionOutput.as_type(),
         ))
 
-    def run_output(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> tuple[State, ActionFullInfo]:
         action = self.inner_arg(self.idx_action).apply().cast(BaseAction)
         output = self.inner_arg(self.idx_action_output).apply().real(IActionOutput[FullState])
-        full_output = action.inner_run(full_state)
+        full_output, info = action.inner_run(full_state)
         Eq(full_output.output.apply(), output).raise_on_false()
-        return full_output.new_state.apply().real(State)
+        state = full_output.new_state.apply().real(State)
+        output_info = ActionFullInfo(info, ActionOutputInfo.create())
+        return state, output_info
 
 class DynamicAction(
     BasicAction[DynamicActionOutput],
@@ -120,7 +129,7 @@ class DynamicAction(
             StateScratchIndex.as_type(),
         ))
 
-    def _run_action(self, full_state: FullState) -> DynamicActionOutput:
+    def _run_action(self, full_state: FullState) -> tuple[DynamicActionOutput, IActionInfo]:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         assert isinstance(scratch_index, StateScratchIndex)
 
@@ -129,10 +138,13 @@ class DynamicAction(
         assert isinstance(scratch, Scratch)
 
         action = scratch.value_or_raise.real(BaseAction)
-        full_output = action.inner_run(full_state)
+        full_output, info = action.inner_run(full_state)
         output = full_output.output.apply().real(IActionOutput[FullState])
 
-        return DynamicActionOutput(action, output)
+        output = DynamicActionOutput(action, output)
+        full_info = ActionFullInfo(info, ActionInfo.create())
+
+        return output, full_info
 
 class GroupActionOutput(InheritableNode, IMetaActionOutput, IInstantiable):
 
@@ -146,14 +158,15 @@ class GroupActionOutput(InheritableNode, IMetaActionOutput, IInstantiable):
             ),
         ))
 
-    def run_output(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> tuple[State, ActionFullInfo]:
         new_state = full_state.current_state.apply().real(State)
+        item_infos: list[ActionFullInfo] = []
         for arg in self.args:
             group = arg.real(DefaultGroup)
             item1, item2 = group.as_tuple
             action = item1.real(BaseAction)
             output = item2.real(IActionOutput[FullState])
-            full_output = action.inner_run(full_state)
+            full_output, info = action.inner_run(full_state)
             Eq(full_output.output.apply(), output).raise_on_false()
             new_state = full_output.new_state.apply().real(State)
             current = full_state.current.apply().real(HistoryNode)
@@ -161,7 +174,9 @@ class GroupActionOutput(InheritableNode, IMetaActionOutput, IInstantiable):
                 current=current.with_new_args(state=new_state),
                 meta=full_state.meta.apply().real(MetaInfo),
                 history=full_state.history.apply().real(HistoryGroupNode))
-        return new_state
+            item_infos.append(ActionFullInfo(info))
+        full_info = ActionFullInfo(*item_infos, ActionOutputInfo.create())
+        return new_state, full_info
 
 class GroupAction(BaseAction[GroupActionOutput], IMetaAction, IInstantiable):
 
@@ -169,21 +184,26 @@ class GroupAction(BaseAction[GroupActionOutput], IMetaAction, IInstantiable):
     def protocol(cls) -> Protocol:
         return cls.rest_protocol(BaseAction.as_type())
 
-    def _run_action(self, full_state: FullState) -> GroupActionOutput:
+    def _run_action(self, full_state: FullState) -> tuple[GroupActionOutput, IActionInfo]:
         new_state = full_state.current_state.apply().real(State)
         items: list[DefaultGroup] = []
+        item_infos: list[IActionGeneralInfo] = []
         for arg in self.args:
             action = arg.real(BaseAction)
-            full_output = action.inner_run(full_state)
+            full_output, info = action.inner_run(full_state)
             output = full_output.output.apply().real(IActionOutput[FullState])
-            new_state = output.run_output(full_state)
+            new_state, out_info = output.run_output(full_state)
             current = full_state.current.apply().real(HistoryNode)
             full_state = FullState.with_args(
                 current=current.with_new_args(state=new_state),
                 meta=full_state.meta.apply().real(MetaInfo),
                 history=full_state.history.apply().real(HistoryGroupNode))
             items.append(DefaultGroup(action, output))
-        return GroupActionOutput(*items)
+            item_infos.append(info)
+            item_infos.append(out_info)
+        output = GroupActionOutput(*items)
+        full_info = ActionFullInfo(*item_infos, ActionInfo.create())
+        return output, full_info
 
 class RestoreHistoryStateOutput(GeneralAction, IBasicAction[FullState], IInstantiable):
 
@@ -202,13 +222,13 @@ class RestoreHistoryStateOutput(GeneralAction, IBasicAction[FullState], IInstant
         Eq.from_ints(arg3, 0).raise_on_false()
         return cls(index)
 
-    def run_output(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> tuple[State, ActionOutputInfo]:
         index = self.inner_arg(self.idx_recent_history_index).apply()
         assert isinstance(index, NodeArgReverseIndex)
         history = full_state.history.apply().real(HistoryGroupNode)
         history_item = index.find_in_node(history).value_or_raise.real(HistoryNode)
         new_state = history_item.state.apply().real(State)
-        return new_state
+        return new_state, ActionOutputInfo.create()
 
 ###########################################################
 ################### STATE META ACTIONS ####################
@@ -229,7 +249,7 @@ class VerifyGoalOutput(GeneralAction, IInstantiable):
             INode.as_type(),
         ))
 
-    def run_output(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> tuple[State, ActionOutputInfo]:
         nested_args_wrapper = self.inner_arg(
             self.idx_nested_args_indices
         ).apply().real(Optional[NestedArgIndexGroup])
@@ -259,7 +279,8 @@ class VerifyGoalOutput(GeneralAction, IInstantiable):
         new_meta_info = meta_info.apply_goal_achieved(nested_args_wrapper)
         new_state = state.with_new_args(meta_info=new_meta_info)
 
-        return new_state
+        #TODO define new cost
+        return new_state, ActionOutputInfo.create()
 
 class VerifyGoal(
     BasicAction[VerifyGoalOutput],
@@ -291,7 +312,7 @@ class VerifyGoal(
             Integer.as_type(),
         ))
 
-    def _run_action(self, full_state: FullState) -> VerifyGoalOutput:
+    def _run_action(self, full_state: FullState) -> tuple[VerifyGoalOutput, IActionInfo]:
         scratch_index_nested_indices = self.inner_arg(
             self.idx_scratch_index_nested_indices
         ).apply().real(Optional[StateScratchIndex])
@@ -317,7 +338,7 @@ class VerifyGoal(
         assert isinstance(node_type, TypeNode) and issubclass(node_type.type, IFromInt)
         content = node_type.type.from_int(index_value.as_int)
 
-        return VerifyGoalOutput(nested, content)
+        return VerifyGoalOutput(nested, content), ActionInfo.create()
 
 class CreateDynamicGoalOutput(GeneralAction, IInstantiable):
 
@@ -331,7 +352,7 @@ class CreateDynamicGoalOutput(GeneralAction, IInstantiable):
             IGoal.as_type(),
         ))
 
-    def run_output(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> tuple[State, ActionOutputInfo]:
         index = self.inner_arg(self.idx_dynamic_goal_index).apply().real(StateDynamicGoalIndex)
         goal_expr = self.inner_arg(self.idx_goal_expr).apply().real(IGoal)
 
@@ -349,7 +370,7 @@ class CreateDynamicGoalOutput(GeneralAction, IInstantiable):
         )
         new_state = state.with_new_args(meta_info=new_meta_info)
 
-        return new_state
+        return new_state, ActionOutputInfo.create()
 
 class CreateDynamicGoal(
     BasicAction[CreateDynamicGoalOutput],
@@ -369,7 +390,7 @@ class CreateDynamicGoal(
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(StateScratchIndex.as_type()))
 
-    def _run_action(self, full_state: FullState) -> CreateDynamicGoalOutput:
+    def _run_action(self, full_state: FullState) -> tuple[CreateDynamicGoalOutput, IActionInfo]:
         scratch_index_goal = self.inner_arg(
             self.idx_scratch_index_goal
         ).apply().real(StateScratchIndex)
@@ -387,7 +408,7 @@ class CreateDynamicGoal(
         ).dynamic_goal_group.apply().real(DynamicGoalGroup)
         dynamic_goal_index = StateDynamicGoalIndex(len(dynamic_goal_group.as_tuple) + 1)
 
-        return CreateDynamicGoalOutput(dynamic_goal_index, goal_expr)
+        return CreateDynamicGoalOutput(dynamic_goal_index, goal_expr), ActionInfo.create()
 
 class VerifyDynamicGoalOutput(GeneralAction, IInstantiable):
 
@@ -406,7 +427,7 @@ class VerifyDynamicGoalOutput(GeneralAction, IInstantiable):
             INode.as_type(),
         ))
 
-    def run_output(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> tuple[State, ActionOutputInfo]:
         dynamic_goal_index = self.inner_arg(
             self.idx_dynamic_goal
         ).apply().real(StateDynamicGoalIndex)
@@ -442,7 +463,8 @@ class VerifyDynamicGoalOutput(GeneralAction, IInstantiable):
             dynamic_goal,
         ).value_or_raise
 
-        return new_state
+        #TODO define new cost
+        return new_state, ActionOutputInfo.create()
 
 class VerifyDynamicGoal(
     BasicAction[VerifyDynamicGoalOutput],
@@ -474,7 +496,7 @@ class VerifyDynamicGoal(
             StateScratchIndex.as_type(),
         ))
 
-    def _run_action(self, full_state: FullState) -> VerifyDynamicGoalOutput:
+    def _run_action(self, full_state: FullState) -> tuple[VerifyDynamicGoalOutput, IActionInfo]:
         dynamic_node_index = self.inner_arg(
             self.idx_dynamic_node_index
         ).apply().real(StateDynamicGoalIndex)
@@ -500,7 +522,7 @@ class VerifyDynamicGoal(
         scratch = scratch_content_index.find_in_outer_node(state).value_or_raise
         content = scratch.value_or_raise
 
-        return VerifyDynamicGoalOutput(dynamic_node_index, nested, content)
+        return VerifyDynamicGoalOutput(dynamic_node_index, nested, content), ActionInfo.create()
 
 class DeleteDynamicGoalOutput(GeneralAction, IBasicAction[FullState], IInstantiable):
 
@@ -517,12 +539,12 @@ class DeleteDynamicGoalOutput(GeneralAction, IBasicAction[FullState], IInstantia
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(StateDynamicGoalIndex.as_type()))
 
-    def run_output(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> tuple[State, ActionOutputInfo]:
         dynamic_goal_index = self.inner_arg(self.idx_dynamic_goal_index).apply()
         assert isinstance(dynamic_goal_index, StateDynamicGoalIndex)
         state = full_state.current_state.apply().real(State)
         new_state = dynamic_goal_index.remove_in_outer_target(state).value_or_raise
-        return new_state
+        return new_state, ActionOutputInfo.create()
 
 class DefineStateHiddenInfoOutput(GeneralAction, IInstantiable):
 
@@ -534,7 +556,7 @@ class DefineStateHiddenInfoOutput(GeneralAction, IInstantiable):
             StateMetaHiddenInfo.as_type(),
         ))
 
-    def run_output(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> tuple[State, ActionOutputInfo]:
         hidden_info = self.inner_arg(
             self.idx_hidden_info
         ).apply().real(StateMetaHiddenInfo)
@@ -545,7 +567,7 @@ class DefineStateHiddenInfoOutput(GeneralAction, IInstantiable):
         new_meta_info = meta_info.with_new_args(hidden_info=hidden_info)
         new_state = state.with_new_args(meta_info=new_meta_info)
 
-        return new_state
+        return new_state, ActionOutputInfo.create()
 
 class ResetStateHiddenInfo(BasicAction[DefineStateHiddenInfoOutput], IInstantiable):
 
@@ -560,9 +582,12 @@ class ResetStateHiddenInfo(BasicAction[DefineStateHiddenInfoOutput], IInstantiab
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup())
 
-    def _run_action(self, full_state: FullState) -> DefineStateHiddenInfoOutput:
+    def _run_action(self, full_state: FullState) -> tuple[
+        DefineStateHiddenInfoOutput,
+        IActionInfo,
+    ]:
         hidden_info = StateMetaHiddenInfo.create()
-        return DefineStateHiddenInfoOutput(hidden_info)
+        return DefineStateHiddenInfoOutput(hidden_info), ActionInfo.create()
 
 class DefineStateHiddenInfo(BasicAction[DefineStateHiddenInfoOutput], IInstantiable):
 
@@ -585,7 +610,10 @@ class DefineStateHiddenInfo(BasicAction[DefineStateHiddenInfoOutput], IInstantia
             Integer.as_type(),
         ))
 
-    def _run_action(self, full_state: FullState) -> DefineStateHiddenInfoOutput:
+    def _run_action(self, full_state: FullState) -> tuple[
+        DefineStateHiddenInfoOutput,
+        IActionInfo,
+    ]:
         hidden_index = self.inner_arg(self.idx_hidden_index).apply()
         type_index = self.inner_arg(self.idx_type_index).apply()
         index_value = self.inner_arg(self.idx_index_value).apply()
@@ -604,7 +632,7 @@ class DefineStateHiddenInfo(BasicAction[DefineStateHiddenInfoOutput], IInstantia
         hidden_info = meta_info.hidden_info.apply().real(StateMetaHiddenInfo)
         hidden_info = hidden_index.replace_in_target(hidden_info, hidden_value).value_or_raise
 
-        return DefineStateHiddenInfoOutput(hidden_info)
+        return DefineStateHiddenInfoOutput(hidden_info), ActionInfo.create()
 
 ###########################################################
 ################## SCRATCH BASE ACTIONS ###################
@@ -626,7 +654,7 @@ class ScratchBaseActionOutput(GeneralAction, ISingleChild[StateScratchIndex], AB
     def child(self):
         return self.inner_arg(self.idx_index).apply()
 
-    def run_output(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> tuple[State, ActionOutputInfo]:
         raise NotImplementedError
 
 class ScratchWithNodeBaseActionOutput(GeneralAction, ABC):
@@ -645,7 +673,7 @@ class ScratchWithNodeBaseActionOutput(GeneralAction, ABC):
     def child(self):
         return self.inner_arg(self.idx_index).apply()
 
-    def run_output(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> tuple[State, ActionOutputInfo]:
         raise NotImplementedError
 
 ###########################################################
@@ -654,7 +682,7 @@ class ScratchWithNodeBaseActionOutput(GeneralAction, ABC):
 
 class CreateScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
 
-    def run_output(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> tuple[State, ActionOutputInfo]:
         index = self.inner_arg(self.idx_index).apply()
         new_node = self.inner_arg(self.idx_node).apply()
         assert isinstance(index, StateScratchIndex)
@@ -665,9 +693,10 @@ class CreateScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
         Eq.from_ints(index.as_int, len(scratch_group.as_tuple) + 1).raise_on_false()
         new_args = list(scratch_group.as_tuple) + [new_node]
 
-        return state.with_new_args(
+        new_state = state.with_new_args(
             scratch_group=scratch_group.func(*new_args),
         )
+        return new_state, ActionOutputInfo.create()
 
 class CreateScratch(
     BasicAction[CreateScratchOutput],
@@ -705,7 +734,7 @@ class CreateScratch(
     def child(self):
         return self.inner_arg(self.idx_clone_index).apply()
 
-    def _run_action(self, full_state: FullState) -> CreateScratchOutput:
+    def _run_action(self, full_state: FullState) -> tuple[CreateScratchOutput, IActionInfo]:
         clone_index = self.inner_arg(
             self.idx_clone_index
         ).apply().real(Optional[StateScratchIndex])
@@ -714,12 +743,12 @@ class CreateScratch(
         scratch_group = state.scratch_group.apply().real(ScratchGroup)
         index = StateScratchIndex(len(scratch_group.as_tuple) + 1)
         if clone_index.value is None:
-            return CreateScratchOutput(index, Scratch.create())
+            return CreateScratchOutput(index, Scratch.create()), ActionInfo.create()
         scratch = clone_index.value.find_in_outer_node(state).value_or_raise
         assert isinstance(scratch, Scratch)
         scratch.validate()
 
-        return CreateScratchOutput(index, scratch)
+        return CreateScratchOutput(index, scratch), ActionInfo.create()
 
 class DeleteScratchOutput(ScratchBaseActionOutput, IBasicAction[FullState], IInstantiable):
 
@@ -730,12 +759,12 @@ class DeleteScratchOutput(ScratchBaseActionOutput, IBasicAction[FullState], IIns
         Eq.from_ints(arg3, 0).raise_on_false()
         return cls(index)
 
-    def run_output(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> tuple[State, ActionOutputInfo]:
         index = self.inner_arg(self.idx_index).apply()
         assert isinstance(index, StateScratchIndex)
         state = full_state.current_state.apply().real(State)
         new_state = index.remove_in_outer_target(state).value_or_raise
-        return new_state
+        return new_state, ActionOutputInfo.create()
 
 ###########################################################
 ##################### DEFINE SCRATCH ######################
@@ -743,7 +772,7 @@ class DeleteScratchOutput(ScratchBaseActionOutput, IBasicAction[FullState], IIns
 
 class DefineScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
 
-    def run_output(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> tuple[State, ActionOutputInfo]:
         index = self.inner_arg(self.idx_index).apply()
         scratch = self.inner_arg(self.idx_node).apply()
         assert isinstance(index, StateScratchIndex)
@@ -752,7 +781,7 @@ class DefineScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
         state = full_state.current_state.apply().real(State)
         new_state = index.replace_in_outer_target(state, scratch).value_or_raise
 
-        return new_state
+        return new_state, ActionOutputInfo.create()
 
 class ClearScratch(BasicAction[DefineScratchOutput], IInstantiable):
 
@@ -769,10 +798,11 @@ class ClearScratch(BasicAction[DefineScratchOutput], IInstantiable):
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(StateScratchIndex.as_type()))
 
-    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> tuple[DefineScratchOutput, IActionInfo]:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         assert isinstance(scratch_index, StateScratchIndex)
-        return DefineScratchOutput(scratch_index, Scratch.create())
+        output = DefineScratchOutput(scratch_index, Scratch.create())
+        return output, ActionInfo.create()
 
 class DefineScratchFromDefault(
     BasicAction[DefineScratchOutput],
@@ -796,7 +826,7 @@ class DefineScratchFromDefault(
             MetaDefaultTypeIndex.as_type(),
         ))
 
-    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> tuple[DefineScratchOutput, IActionInfo]:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         type_index = self.inner_arg(self.idx_type_index).apply()
         assert isinstance(scratch_index, StateScratchIndex)
@@ -806,7 +836,8 @@ class DefineScratchFromDefault(
         assert isinstance(node_type, TypeNode) and issubclass(node_type.type, IDefault)
         content = node_type.type.create()
 
-        return DefineScratchOutput(scratch_index, Scratch(content))
+        output = DefineScratchOutput(scratch_index, Scratch(content))
+        return output, ActionInfo.create()
 
 class DefineScratchFromInt(
     BasicAction[DefineScratchOutput],
@@ -832,7 +863,7 @@ class DefineScratchFromInt(
             Integer.as_type(),
         ))
 
-    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> tuple[DefineScratchOutput, IActionInfo]:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         type_index = self.inner_arg(self.idx_type_index).apply()
         index_value = self.inner_arg(self.idx_index_value).apply()
@@ -844,7 +875,8 @@ class DefineScratchFromInt(
         assert isinstance(node_type, TypeNode) and issubclass(node_type.type, IFromInt)
         content = node_type.type.from_int(index_value.as_int)
 
-        return DefineScratchOutput(scratch_index, Scratch(content))
+        output = DefineScratchOutput(scratch_index, Scratch(content))
+        return output, ActionInfo.create()
 
 class DefineScratchFromSingleArg(
     BasicAction[DefineScratchOutput],
@@ -870,7 +902,7 @@ class DefineScratchFromSingleArg(
             StateScratchIndex.as_type(),
         ))
 
-    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> tuple[DefineScratchOutput, IActionInfo]:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         type_index = self.inner_arg(self.idx_type_index).apply()
         arg_index = self.inner_arg(self.idx_arg).apply()
@@ -887,7 +919,8 @@ class DefineScratchFromSingleArg(
 
         content = node_type.type.with_node(arg)
 
-        return DefineScratchOutput(scratch_index, Scratch(content))
+        output = DefineScratchOutput(scratch_index, Scratch(content))
+        return output, ActionInfo.create()
 
 class DefineScratchFromIntIndex(
     BasicAction[DefineScratchOutput],
@@ -913,7 +946,7 @@ class DefineScratchFromIntIndex(
             Integer.as_type(),
         ))
 
-    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> tuple[DefineScratchOutput, IActionInfo]:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         type_index = self.inner_arg(self.idx_type_index).apply()
         index_value = self.inner_arg(self.idx_index_value).apply()
@@ -929,7 +962,8 @@ class DefineScratchFromIntIndex(
         content = node_index.find_in_outer_node(full_state).value_or_raise
         content = IsEmpty.with_optional(content).value_or_raise
 
-        return DefineScratchOutput(scratch_index, Scratch(content))
+        output = DefineScratchOutput(scratch_index, Scratch(content))
+        return output, ActionInfo.create()
 
 class DefineScratchFromFunctionWithIntArg(
     BasicAction[DefineScratchOutput],
@@ -955,7 +989,7 @@ class DefineScratchFromFunctionWithIntArg(
             Integer.as_type(),
         ))
 
-    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> tuple[DefineScratchOutput, IActionInfo]:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         source_index = self.inner_arg(self.idx_source_index).apply()
         int_arg = self.inner_arg(self.idx_int_arg).apply()
@@ -986,7 +1020,8 @@ class DefineScratchFromFunctionWithIntArg(
         assert isinstance(fn_call, INode)
         fn_call.as_node.validate()
 
-        return DefineScratchOutput(scratch_index, Scratch(fn_call))
+        output = DefineScratchOutput(scratch_index, Scratch(fn_call))
+        return output, ActionInfo.create()
 
 class DefineScratchFromFunctionWithSingleArg(
     BasicAction[DefineScratchOutput],
@@ -1012,7 +1047,7 @@ class DefineScratchFromFunctionWithSingleArg(
             StateScratchIndex.as_type(),
         ))
 
-    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> tuple[DefineScratchOutput, IActionInfo]:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         source_index = self.inner_arg(self.idx_source_index).apply()
         single_arg_index = self.inner_arg(self.idx_single_arg_index).apply()
@@ -1047,7 +1082,8 @@ class DefineScratchFromFunctionWithSingleArg(
         assert isinstance(fn_call, INode)
         fn_call.as_node.validate()
 
-        return DefineScratchOutput(scratch_index, Scratch(fn_call))
+        output = DefineScratchOutput(scratch_index, Scratch(fn_call))
+        return output, ActionInfo.create()
 
 class DefineScratchFromFunctionWithArgs(
     BasicAction[DefineScratchOutput],
@@ -1079,7 +1115,7 @@ class DefineScratchFromFunctionWithArgs(
             ),
         ))
 
-    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> tuple[DefineScratchOutput, IActionInfo]:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         source_index = self.inner_arg(self.idx_source_index).apply()
         args_group_index = self.inner_arg(self.idx_args_group_index).apply()
@@ -1121,7 +1157,8 @@ class DefineScratchFromFunctionWithArgs(
         assert isinstance(fn_call, INode)
         fn_call.as_node.validate()
 
-        return DefineScratchOutput(scratch_index, Scratch(fn_call))
+        output = DefineScratchOutput(scratch_index, Scratch(fn_call))
+        return output, ActionInfo.create()
 
 class DefineScratchFromScratchNode(
     BasicAction[DefineScratchOutput],
@@ -1147,7 +1184,7 @@ class DefineScratchFromScratchNode(
             ScratchNodeIndex.as_type(),
         ))
 
-    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> tuple[DefineScratchOutput, IActionInfo]:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         source_index = self.inner_arg(self.idx_source_index).apply()
         source_inner_index = self.inner_arg(self.idx_source_inner_index).apply()
@@ -1162,7 +1199,8 @@ class DefineScratchFromScratchNode(
 
         new_content = source_inner_index.find_in_node(source_scratch).value_or_raise
 
-        return DefineScratchOutput(scratch_index, Scratch(new_content))
+        output = DefineScratchOutput(scratch_index, Scratch(new_content))
+        return output, ActionInfo.create()
 
 ###########################################################
 ##################### UPDATE SCRATCH ######################
@@ -1192,7 +1230,7 @@ class UpdateScratchFromAnother(
             StateScratchIndex.as_type(),
         ))
 
-    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> tuple[DefineScratchOutput, IActionInfo]:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         scratch_inner_index = self.inner_arg(self.idx_scratch_inner_index).apply()
         source_index = self.inner_arg(self.idx_source_index).apply()
@@ -1210,7 +1248,8 @@ class UpdateScratchFromAnother(
             inner_content,
         ).value_or_raise
 
-        return DefineScratchOutput(scratch_index, Scratch(new_content))
+        output = DefineScratchOutput(scratch_index, Scratch(new_content))
+        return output, ActionInfo.create()
 
 ###########################################################
 ####################### RUN SCRATCH #######################
@@ -1238,7 +1277,7 @@ class RunScratch(
             StateScratchIndex.as_type(),
         ))
 
-    def _run_action(self, full_state: FullState) -> DefineScratchOutput:
+    def _run_action(self, full_state: FullState) -> tuple[DefineScratchOutput, IActionInfo]:
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
         source_index = self.inner_arg(self.idx_source_index).apply()
         assert isinstance(scratch_index, StateScratchIndex)
@@ -1258,7 +1297,8 @@ class RunScratch(
         _, again = content.as_node.run(info).as_tuple
         Eq(content, again).raise_on_false()
 
-        return DefineScratchOutput(scratch_index, Scratch(content))
+        output = DefineScratchOutput(scratch_index, Scratch(content))
+        return output, ActionInfo.create()
 
 ###########################################################
 #################### MANAGE ARGS GROUP ####################
@@ -1276,7 +1316,7 @@ class CreateArgsGroupOutput(GeneralAction, IInstantiable):
             PartialArgsGroup.as_type(),
         ))
 
-    def run_output(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> tuple[State, ActionOutputInfo]:
         index = self.inner_arg(self.idx_index).apply()
         new_args_group = self.inner_arg(self.idx_new_args_group).apply()
         assert isinstance(index, StateArgsGroupIndex)
@@ -1291,9 +1331,10 @@ class CreateArgsGroupOutput(GeneralAction, IInstantiable):
         args_outer_group = state.args_outer_group.apply().real(PartialArgsOuterGroup)
         new_args = list(args_outer_group.as_tuple) + [new_args_group]
 
-        return state.with_new_args(
+        new_state = state.with_new_args(
             args_outer_group=args_outer_group.func(*new_args),
         )
+        return new_state, ActionOutputInfo.create()
 
 class CreateArgsGroup(
     BasicAction[CreateArgsGroupOutput],
@@ -1323,7 +1364,7 @@ class CreateArgsGroup(
             ),
         ))
 
-    def _run_action(self, full_state: FullState) -> CreateArgsGroupOutput:
+    def _run_action(self, full_state: FullState) -> tuple[CreateArgsGroupOutput, IActionInfo]:
         args_amount = self.inner_arg(self.idx_args_amount).apply().real(Integer)
         args_group_source_index = self.inner_arg(
             self.idx_args_group_source_index
@@ -1345,7 +1386,8 @@ class CreateArgsGroup(
             len(state.args_outer_group.apply().real(PartialArgsOuterGroup).as_tuple) + 1
         )
 
-        return CreateArgsGroupOutput(index, new_args_group)
+        output = CreateArgsGroupOutput(index, new_args_group)
+        return output, ActionInfo.create()
 
 class DeleteArgsGroupOutput(GeneralAction, IBasicAction[FullState], IInstantiable):
 
@@ -1362,12 +1404,12 @@ class DeleteArgsGroupOutput(GeneralAction, IBasicAction[FullState], IInstantiabl
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(StateArgsGroupIndex.as_type()))
 
-    def run_output(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> tuple[State, ActionOutputInfo]:
         args_group_index = self.inner_arg(self.idx_args_group_index).apply()
         assert isinstance(args_group_index, StateArgsGroupIndex)
         state = full_state.current_state.apply().real(State)
         new_state = args_group_index.remove_in_outer_target(state).value_or_raise
-        return new_state
+        return new_state, ActionOutputInfo.create()
 
 class DefineArgsGroupArgOutput(GeneralAction, IInstantiable):
 
@@ -1383,7 +1425,7 @@ class DefineArgsGroupArgOutput(GeneralAction, IInstantiable):
             IOptional.as_type(),
         ))
 
-    def run_output(self, full_state: FullState) -> State:
+    def run_output(self, full_state: FullState) -> tuple[State, ActionOutputInfo]:
         group_index = self.inner_arg(self.idx_group_index).apply()
         arg_index = self.inner_arg(self.idx_arg_index).apply()
         new_arg = self.inner_arg(self.idx_new_arg).apply()
@@ -1404,7 +1446,7 @@ class DefineArgsGroupArgOutput(GeneralAction, IInstantiable):
 
         new_state = group_index.replace_in_outer_target(state, new_args_group).value_or_raise
 
-        return new_state
+        return new_state, ActionOutputInfo.create()
 
 class DefineArgsGroup(
     BasicAction[DefineArgsGroupArgOutput],
@@ -1430,7 +1472,7 @@ class DefineArgsGroup(
             StateScratchIndex.as_type(),
         ))
 
-    def _run_action(self, full_state: FullState) -> DefineArgsGroupArgOutput:
+    def _run_action(self, full_state: FullState) -> tuple[DefineArgsGroupArgOutput, IActionInfo]:
         args_group_index = self.inner_arg(self.idx_args_group_index).apply()
         arg_index = self.inner_arg(self.idx_arg_index).apply()
         scratch_index = self.inner_arg(self.idx_scratch_index).apply()
@@ -1443,4 +1485,5 @@ class DefineArgsGroup(
         scratch = scratch_index.find_in_outer_node(state).value_or_raise
         assert isinstance(scratch, Scratch)
 
-        return DefineArgsGroupArgOutput(args_group_index, arg_index, scratch)
+        output = DefineArgsGroupArgOutput(args_group_index, arg_index, scratch)
+        return output, ActionInfo.create()

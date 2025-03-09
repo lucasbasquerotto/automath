@@ -17,8 +17,10 @@ from env.core import (
     IWrapper,
     CompositeType,
     OptionalTypeGroup,
+    BaseGroup,
     TmpInnerArg,
-    IInstantiable)
+    IInstantiable,
+)
 from env.state import State
 from env.meta_env import (
     MetaInfo,
@@ -27,7 +29,12 @@ from env.meta_env import (
     IBasicAction,
     IRawAction,
     GeneralTypeGroup,
-    MetaInfoOptions)
+    MetaInfoOptions,
+    ActionInfo,
+    IActionInfo,
+    IActionOutputInfo,
+    IActionGeneralInfo,
+)
 from env.full_state import (
     FullState,
     MetaData,
@@ -57,7 +64,6 @@ class FullActionOutput(InheritableNode, IWrapper, IInstantiable):
     idx_action = 2
     idx_output = 3
     idx_new_state = 4
-    idx_new_cost_multiplier = 5
 
     @classmethod
     def protocol(cls) -> Protocol:
@@ -69,10 +75,6 @@ class FullActionOutput(InheritableNode, IWrapper, IInstantiable):
             IAction.as_type(),
             IActionOutput.as_type(),
             State.as_type(),
-            CompositeType(
-                Optional.as_type(),
-                OptionalTypeGroup(NewCostMultiplier.as_type()),
-            ),
         ))
 
     @property
@@ -91,10 +93,6 @@ class FullActionOutput(InheritableNode, IWrapper, IInstantiable):
     def new_state(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_new_state)
 
-    @property
-    def new_cost_multiplier(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_new_cost_multiplier)
-
     @classmethod
     def with_args(
         cls,
@@ -102,14 +100,12 @@ class FullActionOutput(InheritableNode, IWrapper, IInstantiable):
         action: IAction,
         output: IActionOutput,
         new_state: State,
-        new_cost_multiplier: Optional[NewCostMultiplier],
     ) -> FullActionOutput:
         return cls(
             raw_action,
             action,
             output,
             new_state,
-            new_cost_multiplier,
         )
 
 ###########################################################
@@ -280,6 +276,24 @@ class ActionOutputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstanti
         )
 
 ###########################################################
+####################### ACTION INFO #######################
+###########################################################
+
+class ActionFullInfo(BaseGroup[IActionGeneralInfo], IActionInfo, IActionOutputInfo, IInstantiable):
+
+    @classmethod
+    def item_type(cls):
+        return IActionGeneralInfo
+
+    def normalize(self) -> typing.Self:
+        #TODO implement normalization
+        return self
+
+    def new_cost_multiplier(self) -> NewCostMultiplier | None:
+        #TODO implement new cost multiplier
+        return None
+
+###########################################################
 ##################### IMPLEMENTATION ######################
 ###########################################################
 
@@ -288,10 +302,13 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
     def as_action(self) -> typing.Self:
         return self
 
-    def _run_action(self, full_state: FullState) -> O:
+    def _run_action(self, full_state: FullState) -> tuple[O, IActionInfo]:
         raise NotImplementedError
 
-    def inner_run(self, full_state: FullState) -> FullActionOutput:
+    def inner_run(self, full_state: FullState) -> tuple[
+        FullActionOutput,
+        ActionFullInfo,
+    ]:
         action: BaseAction = self
         raw_action: RawAction | None = None
 
@@ -327,7 +344,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
 
         try:
             # pylint: disable=protected-access
-            output = action._run_action(full_state)
+            output, action_info = action._run_action(full_state)
             assert isinstance(output, IActionOutput)
         except InvalidNodeException as e:
             raise ActionInputExceptionInfo(
@@ -337,17 +354,15 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             ).as_exception() from e
 
         try:
-            new_state = output.run_output(full_state)
+            new_state, output_info = output.run_output(full_state)
             result = FullActionOutput.with_args(
                 raw_action=Optional.with_value(raw_action),
                 action=action,
                 output=output,
                 new_state=new_state,
-                #TODO
-                new_cost_multiplier=Optional.create(),
             )
             result.strict_validate()
-            return result
+            return result, ActionFullInfo(action_info, output_info)
         except InvalidNodeException as e:
             raise ActionOutputExceptionInfo(
                 Optional.with_value(raw_action),
@@ -374,14 +389,13 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
         try:
             if remaining_steps is not None:
                 GreaterThan.with_ints(remaining_steps, 0).raise_on_false()
-            full_output = self.inner_run(full_state)
+            full_output, action_full_info = self.inner_run(full_state)
             raw_action_opt = full_output.raw_action.apply().real(Optional[IRawAction])
             actual_action = full_output.action.apply().real(BaseAction)
             output = full_output.output.apply().real(IActionOutput)
             next_state = full_output.new_state.apply().real(State)
-            new_cost_multiplier_opt = full_output.new_cost_multiplier.apply().real(
-                Optional[NewCostMultiplier])
-            new_cost_multiplier = new_cost_multiplier_opt.value
+            action_full_info = action_full_info.normalize()
+            new_cost_multiplier = action_full_info.new_cost_multiplier()
             next_state.strict_validate()
             action_data: BaseActionData = SuccessActionData.from_args(
                 raw_action=raw_action_opt,
@@ -458,8 +472,8 @@ class GeneralAction(
     IActionOutput[FullState],
     ABC,
 ):
-    def _run_action(self, full_state: FullState) -> typing.Self:
-        return self
+    def _run_action(self, full_state: FullState) -> tuple[typing.Self, ActionInfo]:
+        return self, ActionInfo.create()
 
 class RawAction(BaseAction[IActionOutput], IRawAction[FullState], IInstantiable):
 
