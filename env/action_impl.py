@@ -56,6 +56,9 @@ from env.meta_env import (
     IActionInfo,
     ActionInfo,
     ActionOutputInfo,
+    ActionFullInfo,
+    MetaInfoOptions,
+    NewCostMultiplier,
 )
 from env.full_state import (
     FullState,
@@ -74,7 +77,6 @@ from env.action import (
     IBasicAction,
     BasicAction,
     GeneralAction,
-    ActionFullInfo,
 )
 
 ###########################################################
@@ -105,7 +107,7 @@ class DynamicActionOutput(InheritableNode, IMetaActionOutput, IInstantiable):
         full_output, info = action.inner_run(full_state)
         Eq(full_output.output.apply(), output).raise_on_false()
         state = full_output.new_state.apply().real(State)
-        output_info = ActionFullInfo(info, ActionOutputInfo.create())
+        output_info = ActionFullInfo(info.normalize(), ActionOutputInfo.create())
         return state, output_info
 
 class DynamicAction(
@@ -142,7 +144,7 @@ class DynamicAction(
         output = full_output.output.apply().real(IActionOutput[FullState])
 
         output = DynamicActionOutput(action, output)
-        full_info = ActionFullInfo(info, ActionInfo.create())
+        full_info = ActionFullInfo(info.normalize(), ActionInfo.create())
 
         return output, full_info
 
@@ -174,7 +176,7 @@ class GroupActionOutput(InheritableNode, IMetaActionOutput, IInstantiable):
                 current=current.with_new_args(state=new_state),
                 meta=full_state.meta.apply().real(MetaInfo),
                 history=full_state.history.apply().real(HistoryGroupNode))
-            item_infos.append(ActionFullInfo(info))
+            item_infos.append(info.normalize())
         full_info = ActionFullInfo(*item_infos, ActionOutputInfo.create())
         return new_state, full_info
 
@@ -198,8 +200,13 @@ class GroupAction(BaseAction[GroupActionOutput], IMetaAction, IInstantiable):
                 current=current.with_new_args(state=new_state),
                 meta=full_state.meta.apply().real(MetaInfo),
                 history=full_state.history.apply().real(HistoryGroupNode))
+            out_info = (
+                out_info.normalize()
+                if isinstance(out_info, ActionFullInfo)
+                else out_info
+            )
             items.append(DefaultGroup(action, output))
-            item_infos.append(info)
+            item_infos.append(info.normalize())
             item_infos.append(out_info)
         output = GroupActionOutput(*items)
         full_info = ActionFullInfo(*item_infos, ActionInfo.create())
@@ -279,8 +286,25 @@ class VerifyGoalOutput(GeneralAction, IInstantiable):
         new_meta_info = meta_info.apply_goal_achieved(nested_args_wrapper)
         new_state = state.with_new_args(meta_info=new_meta_info)
 
-        #TODO define new cost
-        return new_state, ActionOutputInfo.create()
+        sub_goal = (
+            (nested_args_indices is not None)
+            and
+            len(nested_args_indices.as_tuple) > 0)
+
+        meta = full_state.meta.apply().real(MetaInfo)
+        meta_info_options = meta.options.apply().real(MetaInfoOptions)
+        cost_multiplier_main_goal = meta_info_options.cost_multiplier_main_goal.apply().real(
+            Integer)
+        cost_multiplier_sub_goal = meta_info_options.cost_multiplier_sub_goal.apply().real(
+            Integer)
+        step_count_to_change_cost = meta_info_options.step_count_to_change_cost.apply().real(
+            Integer)
+        multiplier = cost_multiplier_sub_goal if sub_goal else cost_multiplier_main_goal
+        new_cost_multiplier = NewCostMultiplier.with_args(
+            multiplier=multiplier.as_int,
+            step_count_to_change=step_count_to_change_cost.as_int)
+
+        return new_state, ActionOutputInfo.with_args(new_cost_multiplier=new_cost_multiplier)
 
 class VerifyGoal(
     BasicAction[VerifyGoalOutput],
@@ -463,8 +487,17 @@ class VerifyDynamicGoalOutput(GeneralAction, IInstantiable):
             dynamic_goal,
         ).value_or_raise
 
-        #TODO define new cost
-        return new_state, ActionOutputInfo.create()
+        meta = full_state.meta.apply().real(MetaInfo)
+        meta_info_options = meta.options.apply().real(MetaInfoOptions)
+        multiplier = meta_info_options.cost_multiplier_custom_goal.apply().real(
+            Integer)
+        step_count_to_change_cost = meta_info_options.step_count_to_change_cost.apply().real(
+            Integer)
+        new_cost_multiplier = NewCostMultiplier.with_args(
+            multiplier=multiplier.as_int,
+            step_count_to_change=step_count_to_change_cost.as_int)
+
+        return new_state, ActionOutputInfo.with_args(new_cost_multiplier=new_cost_multiplier)
 
 class VerifyDynamicGoal(
     BasicAction[VerifyDynamicGoalOutput],

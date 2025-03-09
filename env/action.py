@@ -17,7 +17,6 @@ from env.core import (
     IWrapper,
     CompositeType,
     OptionalTypeGroup,
-    BaseGroup,
     TmpInnerArg,
     IInstantiable,
 )
@@ -32,8 +31,12 @@ from env.meta_env import (
     MetaInfoOptions,
     ActionInfo,
     IActionInfo,
-    IActionOutputInfo,
-    IActionGeneralInfo,
+    NewCostMultiplier,
+    CostMultiplier,
+    ActionFullInfo,
+    RunProcessingCost,
+    RunCost,
+    RunMemoryCost,
 )
 from env.full_state import (
     FullState,
@@ -47,10 +50,9 @@ from env.full_state import (
     ActionOutputErrorActionData,
     SuccessActionData,
     MetaAllowedBasicActionsTypeIndex,
-    NewCostMultiplier,
-    CostMultiplier,
 )
 from env.symbol import Symbol
+from env.node_data import NodeData
 
 ###########################################################
 ########################## MAIN ###########################
@@ -279,20 +281,6 @@ class ActionOutputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstanti
 ####################### ACTION INFO #######################
 ###########################################################
 
-class ActionFullInfo(BaseGroup[IActionGeneralInfo], IActionInfo, IActionOutputInfo, IInstantiable):
-
-    @classmethod
-    def item_type(cls):
-        return IActionGeneralInfo
-
-    def normalize(self) -> typing.Self:
-        #TODO implement normalization
-        return self
-
-    def new_cost_multiplier(self) -> NewCostMultiplier | None:
-        #TODO implement new cost multiplier
-        return None
-
 ###########################################################
 ##################### IMPLEMENTATION ######################
 ###########################################################
@@ -345,6 +333,11 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
         try:
             # pylint: disable=protected-access
             output, action_info = action._run_action(full_state)
+            action_info = (
+                action_info.normalize()
+                if isinstance(action_info, ActionFullInfo)
+                else action_info
+            )
             assert isinstance(output, IActionOutput)
         except InvalidNodeException as e:
             raise ActionInputExceptionInfo(
@@ -362,6 +355,11 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
                 new_state=new_state,
             )
             result.strict_validate()
+            output_info = (
+                output_info.normalize()
+                if isinstance(output_info, ActionFullInfo)
+                else output_info
+            )
             return result, ActionFullInfo(action_info, output_info)
         except InvalidNodeException as e:
             raise ActionOutputExceptionInfo(
@@ -385,6 +383,8 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             if remaining_steps_opt.value is not None
             else None)
         new_cost_multiplier: NewCostMultiplier | None = None
+        processing_cost: RunProcessingCost | None = None
+        run_memory_size = 0
 
         try:
             if remaining_steps is not None:
@@ -395,7 +395,9 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             output = full_output.output.apply().real(IActionOutput)
             next_state = full_output.new_state.apply().real(State)
             action_full_info = action_full_info.normalize()
-            new_cost_multiplier = action_full_info.new_cost_multiplier()
+            new_cost_multiplier = action_full_info.get_new_cost_multiplier()
+            processing_cost = action_full_info.get_processing_cost()
+            run_memory_size = action_full_info.get_run_memory_size().as_int
             next_state.strict_validate()
             action_data: BaseActionData = SuccessActionData.from_args(
                 raw_action=raw_action_opt,
@@ -452,6 +454,43 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             current=current,
             history=HistoryGroupNode.from_items(history),
         )
+
+        if processing_cost is not None:
+            cost_full_state_memory = meta_info_options.cost_full_state_memory.apply().real(
+                Integer).as_int
+            cost_visible_state_memory = meta_info_options.cost_visible_state_memory.apply().real(
+                Integer).as_int
+            cost_main_state_memory = meta_info_options.cost_main_state_memory.apply().real(
+                Integer).as_int
+            cost_run_memory = meta_info_options.cost_run_memory.apply().real(
+                Integer).as_int
+
+            node_types = full_state.node_types()
+            node_data = NodeData(node=next_state, node_types=node_types)
+
+            full_state_memory_size = len(new_full_state)
+            visible_state_memory_size = len(node_data.to_data_array())
+            main_state_memory_size = len(next_state)
+
+            memory_cost = RunMemoryCost.with_args(
+                full_state_memory=full_state_memory_size*cost_full_state_memory,
+                visible_state_memory=visible_state_memory_size*cost_visible_state_memory,
+                main_state_memory=main_state_memory_size*cost_main_state_memory,
+                run_memory=run_memory_size*cost_run_memory,
+            )
+            run_cost = RunCost.with_args(
+                processing_cost=processing_cost,
+                memory_cost=memory_cost,
+            )
+            meta_data = meta_data.with_new_args(
+                run_cost=Optional.with_value(run_cost),
+            )
+            current = current.with_new_args(
+                meta_data=meta_data,
+            )
+            new_full_state = new_full_state.with_new_args(
+                current=current,
+            )
 
         return new_full_state, action_data
 

@@ -4,6 +4,7 @@ from env.core import (
     INode,
     IDefault,
     BaseNode,
+    TypeNode,
     IFunction,
     IOptional,
     CompositeType,
@@ -85,8 +86,8 @@ class Goal(InheritableNode, IGoal, typing.Generic[T, K], ABC):
 class GoalGroup(BaseGroup[IGoal], IGoal, IInstantiable):
 
     @classmethod
-    def item_type(cls):
-        return IGoal
+    def item_type(cls) -> TypeNode:
+        return IGoal.as_type()
 
 class IGoalAchieved(IBoolean, ABC):
 
@@ -136,8 +137,8 @@ class GoalAchieved(BaseIntBoolean, IGoalAchieved, IInstantiable):
 class GoalAchievedGroup(BaseGroup[IGoalAchieved], IGoalAchieved, IInstantiable):
 
     @classmethod
-    def item_type(cls):
-        return IGoalAchieved
+    def item_type(cls) -> TypeNode:
+        return IGoalAchieved.as_type()
 
     @property
     def as_bool(self) -> bool:
@@ -179,8 +180,8 @@ class DynamicGoal(InheritableNode, IDefault, IInstantiable):
 class DynamicGoalGroup(BaseGroup[DynamicGoal], IInstantiable):
 
     @classmethod
-    def item_type(cls):
-        return DynamicGoal
+    def item_type(cls) -> TypeNode:
+        return DynamicGoal.as_type()
 
 class StateMetaHiddenInfo(InheritableNode, IDefault, IInstantiable):
 
@@ -358,8 +359,8 @@ class Scratch(OptionalBase[INode], IContext, IOpaqueScope, IInstantiable):
 class ScratchGroup(BaseGroup[Scratch], IInstantiable):
 
     @classmethod
-    def item_type(cls):
-        return Scratch
+    def item_type(cls) -> TypeNode:
+        return Scratch.as_type()
 
     @classmethod
     def from_raw_items(cls, items: typing.Sequence[INode | None]) -> typing.Self:
@@ -376,8 +377,8 @@ class PartialArgsGroup(BaseOptionalValueGroup[INode], IOpaqueScope, IInstantiabl
 class PartialArgsOuterGroup(BaseGroup[PartialArgsGroup], IInstantiable):
 
     @classmethod
-    def item_type(cls):
-        return PartialArgsGroup
+    def item_type(cls) -> TypeNode:
+        return PartialArgsGroup.as_type()
 
 class IDefinitionKey(INode, ABC):
     pass
@@ -415,8 +416,8 @@ class FunctionDefinition(
 class StateDefinitionGroup(BaseGroup[StateDefinition], IInstantiable):
 
     @classmethod
-    def item_type(cls):
-        return StateDefinition
+    def item_type(cls) -> TypeNode:
+        return StateDefinition.as_type()
 
 ###########################################################
 ########################## STATE ##########################
@@ -534,7 +535,7 @@ class IStateIndex(ITypedIndex[State, T], typing.Generic[T], ABC):
         return State
 
     @classmethod
-    def item_type(cls) -> type[T]:
+    def item_type(cls) -> TypeNode:
         raise NotImplementedError
 
     def find_in_outer_node(self, node: State) -> IOptional[T]:
@@ -552,8 +553,8 @@ class StateIntIndex(BaseInt, IStateIndex[T], ITypedIntIndex[State, T], typing.Ge
 class StateDynamicGoalIndex(StateIntIndex[DynamicGoal], IInstantiable):
 
     @classmethod
-    def item_type(cls):
-        return DynamicGoal
+    def item_type(cls) -> TypeNode:
+        return DynamicGoal.as_type()
 
     @classmethod
     def _state_dynamic_goal_group(cls, state: State) -> DynamicGoalGroup:
@@ -591,8 +592,8 @@ class StateDynamicGoalIndex(StateIntIndex[DynamicGoal], IInstantiable):
 class StateScratchIndex(StateIntIndex[Scratch], IInstantiable):
 
     @classmethod
-    def item_type(cls):
-        return Scratch
+    def item_type(cls) -> TypeNode:
+        return Scratch.as_type()
 
     @classmethod
     def _update_state(cls, target: State, group_opt: IOptional[BaseNode]) -> IOptional[State]:
@@ -644,8 +645,8 @@ class ScratchNodeIndex(NodeIntBaseIndex, IInstantiable):
 class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup], IInstantiable):
 
     @classmethod
-    def item_type(cls):
-        return PartialArgsGroup
+    def item_type(cls) -> TypeNode:
+        return PartialArgsGroup.as_type()
 
     @classmethod
     def _update_state(cls, target: State, group_opt: IOptional[BaseNode]) -> IOptional[State]:
@@ -676,8 +677,8 @@ class StateArgsGroupArgIndex(InheritableNode, IStateIndex[INode], IInstantiable)
     idx_arg_index = 2
 
     @classmethod
-    def item_type(cls):
-        return INode
+    def item_type(cls) -> TypeNode:
+        return INode.as_type()
 
     @classmethod
     def protocol(cls) -> Protocol:
@@ -738,8 +739,8 @@ class StateArgsGroupArgIndex(InheritableNode, IStateIndex[INode], IInstantiable)
 class StateDefinitionIndex(StateIntIndex[StateDefinition], IInstantiable):
 
     @classmethod
-    def item_type(cls):
-        return StateDefinition
+    def item_type(cls) -> TypeNode:
+        return StateDefinition.as_type()
 
     def find_in_outer_node(self, node: State) -> IOptional[StateDefinition]:
         return self.find_arg(node.definition_group.apply())

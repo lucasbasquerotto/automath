@@ -197,7 +197,7 @@ class IWrapper(INode, ABC):
 class IGroup(IWrapper, IInheritableNode, IAdditive, typing.Generic[T], ABC):
 
     @classmethod
-    def item_type(cls) -> type[T]:
+    def item_type(cls) -> TypeNode:
         raise NotImplementedError(cls)
 
     @property
@@ -337,7 +337,7 @@ class ITypedIndex(INodeIndex, typing.Generic[O, T], ABC):
         raise NotImplementedError(cls)
 
     @classmethod
-    def item_type(cls) -> type[T]:
+    def item_type(cls) -> TypeNode:
         raise NotImplementedError(cls)
 
     def find_in_node(self, node: INode):
@@ -346,7 +346,7 @@ class ITypedIndex(INodeIndex, typing.Generic[O, T], ABC):
 
     def replace_in_target(self, target_node: INode, new_node: INode):
         assert isinstance(target_node, self.outer_type())
-        assert isinstance(new_node, self.item_type())
+        assert isinstance(new_node, self.item_type().type)
         return self.replace_in_outer_target(target_node, new_node)
 
     def remove_in_target(self, target_node: INode):
@@ -371,8 +371,8 @@ class ITypedIntIndex(IInt, ITypedIndex[O, T], typing.Generic[O, T], ABC):
     def find_arg(self, node: INode) -> IOptional[T]:
         result = NodeArgIndex(self.as_int).find_in_node(node)
         if result.value is not None:
-            assert isinstance(result.value, self.item_type()), \
-                f'{type(result.value)} != {self.item_type()}'
+            assert isinstance(result.value, self.item_type().type), \
+                f'{type(result.value)} != {self.item_type().type}'
         return result.real(IOptional[T])
 
     def replace_arg(self, target: K, new_node: T) -> IOptional[K]:
@@ -1419,10 +1419,10 @@ class BaseGroup(InheritableNode, IGroup[T], IDefault, typing.Generic[T], ABC):
     def protocol(cls) -> Protocol:
         return Protocol(
             TypeAliasGroup(),
-            RestTypeGroup(TypeNode(cls.item_type())),
+            RestTypeGroup(cls.item_type()),
             CompositeType(
                 cls.as_type(),
-                RestTypeGroup(TypeNode(cls.item_type())),
+                RestTypeGroup(cls.item_type()),
             ),
         )
 
@@ -1446,7 +1446,7 @@ class BaseGroup(InheritableNode, IGroup[T], IDefault, typing.Generic[T], ABC):
 
     def _strict_validate(self):
         alias_info = super()._strict_validate()
-        t = self.item_type()
+        t = self.item_type().type
         for arg in self.args:
             origin = typing.get_origin(t)
             t = origin if origin is not None else t
@@ -1459,14 +1459,14 @@ class BaseGroup(InheritableNode, IGroup[T], IDefault, typing.Generic[T], ABC):
 class DefaultGroup(BaseGroup[INode], IInstantiable):
 
     @classmethod
-    def item_type(cls):
-        return INode
+    def item_type(cls) -> TypeNode:
+        return INode.as_type()
 
 class BaseIntGroup(BaseGroup[IInt], ABC):
 
     @classmethod
-    def item_type(cls):
-        return IInt
+    def item_type(cls) -> TypeNode:
+        return IInt.as_type()
 
     @classmethod
     def create_item(cls, value: int):
@@ -1482,8 +1482,8 @@ class IntGroup(BaseIntGroup, IInstantiable):
 class NestedArgIndexGroup(BaseIntGroup, IInstantiable):
 
     @classmethod
-    def item_type(cls):
-        return NodeArgIndex
+    def item_type(cls) -> TypeNode:
+        return NodeArgIndex.as_type()
 
     @classmethod
     def create_item(cls, value: int):
@@ -1500,8 +1500,8 @@ class BaseOptionalValueGroup(BaseGroup[IOptional[T]], IFromInt, typing.Generic[T
         return cls(*([Optional()]*value))
 
     @classmethod
-    def item_type(cls):
-        return Optional[T]
+    def item_type(cls) -> TypeNode:
+        return Optional.as_type()
 
     @classmethod
     def from_optional_items(cls, items: typing.Sequence[T | None]) -> typing.Self:
@@ -1569,8 +1569,8 @@ class CountableTypeGroup(
 ):
 
     @classmethod
-    def item_type(cls) -> type[IType]:
-        return IType
+    def item_type(cls) -> TypeNode:
+        return IType.as_type()
 
     @classmethod
     def from_int(cls, value: int) -> typing.Self:
@@ -1697,8 +1697,8 @@ class TypeAliasGroup(
 ):
 
     @classmethod
-    def item_type(cls) -> type[TypeAlias]:
-        return TypeAlias
+    def item_type(cls) -> TypeNode:
+        return TypeAlias.as_type()
 
     def _strict_validate(self):
         alias_info = super()._strict_validate()
@@ -3019,8 +3019,8 @@ class StackExceptionInfoGroup(
 ):
 
     @classmethod
-    def item_type(cls):
-        return IStackExceptionInfoItem
+    def item_type(cls) -> TypeNode:
+        return IStackExceptionInfoItem.as_type()
 
 class StackExceptionInfo(
     InheritableNode,
@@ -3116,7 +3116,7 @@ class SingleOptionalBooleanChildWrapper(
     idx_value = 1
 
     @classmethod
-    def item_type(cls) -> IType:
+    def item_type(cls) -> TypeNode:
         return INode.as_type()
 
     @classmethod
@@ -3551,8 +3551,8 @@ class PlaceholderIndex(
         return ScopeDataPlaceholderItemGroup
 
     @classmethod
-    def item_type(cls):
-        return Placeholder
+    def item_type(cls) -> TypeNode:
+        return Placeholder.as_type()
 
     def find_in_outer_node(self, node: ScopeDataPlaceholderItemGroup):
         assert isinstance(node, ScopeDataPlaceholderItemGroup)
@@ -3628,8 +3628,8 @@ class ScopeDataFutureVarItemGroup(
 class ScopeDataGroup(BaseGroup[ScopeDataPlaceholderItemGroup], IInstantiable):
 
     @classmethod
-    def item_type(cls):
-        return ScopeDataPlaceholderItemGroup
+    def item_type(cls) -> TypeNode:
+        return ScopeDataPlaceholderItemGroup.as_type()
 
     def is_future(self):
         items = self.as_tuple
@@ -3770,8 +3770,8 @@ class RunInfoScopeDataIndex(
         return RunInfo
 
     @classmethod
-    def item_type(cls):
-        return ScopeDataPlaceholderItemGroup
+    def item_type(cls) -> TypeNode:
+        return ScopeDataPlaceholderItemGroup.as_type()
 
     @classmethod
     def _outer_group(cls, run_info: RunInfo) -> ScopeDataGroup:
@@ -3917,6 +3917,49 @@ class BaseNormalizer(ControlFlowBaseNode, ABC):
 
     def validate_result(self, result: INode, args_group: OptionalValueGroup):
         IsInstance.verify(result, BaseNode)
+
+class BaseNormalizerGroup(BaseNormalizer, IGroup[T], typing.Generic[T], ABC):
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return Protocol(
+            TypeAliasGroup(),
+            RestTypeGroup(cls.item_type()),
+            CompositeType(
+                cls.as_type(),
+                RestTypeGroup(cls.item_type()),
+            ),
+        )
+
+    @property
+    def args(self) -> tuple[T, ...]:
+        return typing.cast(tuple[T, ...], self._args)
+
+    @property
+    def as_tuple(self) -> tuple[T, ...]:
+        return self.args
+
+    @classmethod
+    def from_items(cls, items: typing.Sequence[T]) -> typing.Self:
+        return cls(*items)
+
+    def amount(self) -> int:
+        return len(self.args)
+
+    def amount_node(self) -> Integer:
+        return Integer(self.amount())
+
+    def _strict_validate(self):
+        alias_info = super()._strict_validate()
+        t = self.item_type().type
+        for arg in self.args:
+            origin = typing.get_origin(t)
+            t = origin if origin is not None else t
+            assert isinstance(arg, t), f'{type(arg)} != {t}'
+        return alias_info
+
+    def to_optional_group(self) -> OptionalValueGroup[T]:
+        return OptionalValueGroup.from_optional_items(self.args)
 
 class FunctionCall(ControlFlowBaseNode, IInstantiable):
 

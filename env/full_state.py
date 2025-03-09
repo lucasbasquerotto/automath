@@ -1,4 +1,3 @@
-# pylint: disable=too-many-lines
 import typing
 from abc import ABC
 from env.core import (
@@ -26,8 +25,6 @@ from env.core import (
     IWrapper,
     CompositeType,
     OptionalTypeGroup,
-    BaseNormalizer,
-    TypeAliasGroup,
     TmpInnerArg,
     TmpNestedArg,
     IInstantiable,
@@ -53,6 +50,9 @@ from env.meta_env import (
     DetailedType,
     GeneralTypeGroup,
     MetaInfoOptions,
+    MetaData,
+    CostMultiplier,
+
 )
 
 T = typing.TypeVar('T', bound=INode)
@@ -264,487 +264,6 @@ class ActionOutputErrorActionData(BaseActionData, IInstantiable):
         ))
 
 ###########################################################
-####################### META ITEMS ########################
-###########################################################
-
-class RunProcessingCost(InheritableNode, IInstantiable):
-
-    idx_actions = 1
-    idx_steps = 2
-
-    @classmethod
-    def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup(
-            Integer.as_type(),
-            Integer.as_type(),
-        ))
-
-    @property
-    def actions(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_actions)
-
-    @property
-    def steps(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_steps)
-
-    @classmethod
-    def with_args(
-        cls,
-        actions: int,
-        steps: int,
-    ) -> typing.Self:
-        return cls(
-            Integer(actions),
-            Integer(steps),
-        )
-
-class RunMemoryCost(InheritableNode, IInstantiable):
-
-    idx_full_state_memory = 1
-    idx_visible_state_memory = 2
-    idx_main_state_memory = 3
-    idx_run_memory = 4
-
-    @classmethod
-    def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup(
-            Integer.as_type(),
-            Integer.as_type(),
-            Integer.as_type(),
-            Integer.as_type(),
-        ))
-
-    @property
-    def full_state_memory(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_full_state_memory)
-
-    @property
-    def visible_state_memory(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_visible_state_memory)
-
-    @property
-    def main_state_memory(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_main_state_memory)
-
-    @property
-    def run_memory(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_run_memory)
-
-    @classmethod
-    def with_args(
-        cls,
-        full_state_memory: int,
-        visible_state_memory: int,
-        main_state_memory: int,
-        run_memory: int,
-    ) -> typing.Self:
-        return cls(
-            Integer(full_state_memory),
-            Integer(visible_state_memory),
-            Integer(main_state_memory),
-            Integer(run_memory),
-        )
-
-class RunCost(InheritableNode, IInstantiable):
-
-    idx_processing_cost = 1
-    idx_memory_cost = 2
-
-    @classmethod
-    def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup(
-            RunProcessingCost.as_type(),
-            RunMemoryCost.as_type(),
-        ))
-
-    @property
-    def processing_cost(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_processing_cost)
-
-    @property
-    def memory_cost(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_memory_cost)
-
-    @classmethod
-    def with_args(
-        cls,
-        processing_cost: RunProcessingCost,
-        memory_cost: RunMemoryCost,
-    ) -> typing.Self:
-        return cls(
-            processing_cost,
-            memory_cost,
-        )
-
-class NewCostMultiplier(InheritableNode, IInstantiable):
-
-    idx_multiplier = 1
-    idx_step_count_to_change = 2
-
-    @classmethod
-    def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup(
-            Integer.as_type(),
-            Integer.as_type(),
-        ))
-
-    @property
-    def multiplier(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_multiplier)
-
-    @property
-    def step_count_to_change(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_step_count_to_change)
-
-    @classmethod
-    def with_args(
-        cls,
-        multiplier: int,
-        step_count_to_change: int | None = None,
-    ) -> typing.Self:
-        return cls(
-            Integer(multiplier),
-            Optional.with_int(step_count_to_change),
-        )
-
-class CostMultiplier(InheritableNode, IInstantiable):
-
-    idx_current_multiplier = 1
-    idx_default_multiplier = 2
-    idx_applied_initial_multiplier = 3
-    idx_steps = 4
-    idx_step_count_to_change = 5
-
-    @classmethod
-    def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup(
-            Integer.as_type(),
-            Integer.as_type(),
-            Integer.as_type(),
-            Integer.as_type(),
-            CompositeType(
-                Optional.as_type(),
-                OptionalTypeGroup(Integer.as_type()),
-            ),
-        ))
-
-    @property
-    def current_multiplier(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_current_multiplier)
-
-    @property
-    def default_multiplier(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_default_multiplier)
-
-    @property
-    def applied_initial_multiplier(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_applied_initial_multiplier)
-
-    @property
-    def steps(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_steps)
-
-    @property
-    def step_count_to_change(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_step_count_to_change)
-
-    @classmethod
-    def with_args(
-        cls,
-        current_multiplier: int,
-        default_multiplier: int,
-        applied_initial_multiplier: int,
-        steps: int,
-        step_count_to_change: int | None = None,
-    ) -> typing.Self:
-        return cls(
-            Integer(current_multiplier),
-            Integer(default_multiplier),
-            Integer(applied_initial_multiplier),
-            Integer(steps),
-            Optional.with_int(step_count_to_change),
-        )
-
-    @classmethod
-    def calculate(
-        cls,
-        meta_info_options: MetaInfoOptions,
-        last_cost_multiplier: typing.Self | None,
-        new_cost_multiplier: NewCostMultiplier | None,
-    ) -> typing.Self:
-        default_multiplier = meta_info_options.cost_multiplier_default.apply().real(
-            Integer
-        ).as_int
-        step_count_to_change = meta_info_options.step_count_to_change_cost.apply().real(
-            Integer
-        ).as_int
-
-        if new_cost_multiplier is not None:
-            multiplier: int = new_cost_multiplier.multiplier.apply().real(Integer).as_int
-            return cls.with_args(
-                current_multiplier=multiplier,
-                default_multiplier=default_multiplier,
-                applied_initial_multiplier=multiplier,
-                steps=0,
-                step_count_to_change=step_count_to_change,
-            )
-        elif last_cost_multiplier is not None:
-            last_steps = last_cost_multiplier.steps.apply().real(Integer).as_int
-            steps = last_steps + 1
-            increase = steps % step_count_to_change == 0
-            last_multiplier = last_cost_multiplier.current_multiplier.apply().real(
-                Integer
-            ).as_int
-            multiplier = (
-                last_multiplier + 1
-                if increase
-                else last_multiplier
-            )
-            if multiplier >= default_multiplier:
-                return cls.with_args(
-                    current_multiplier=default_multiplier,
-                    default_multiplier=default_multiplier,
-                    applied_initial_multiplier=default_multiplier,
-                    steps=0,
-                    step_count_to_change=None,
-                )
-            else:
-                applied_initial_multiplier = (
-                    last_cost_multiplier
-                        .applied_initial_multiplier.apply().real(
-                            Integer
-                        ).as_int
-                )
-                return cls.with_args(
-                    current_multiplier=multiplier,
-                    default_multiplier=default_multiplier,
-                    applied_initial_multiplier=applied_initial_multiplier,
-                    steps=steps,
-                    step_count_to_change=step_count_to_change,
-                )
-
-        return cls.with_args(
-            current_multiplier=default_multiplier,
-            default_multiplier=default_multiplier,
-            applied_initial_multiplier=default_multiplier,
-            steps=0,
-                    step_count_to_change=None,
-        )
-
-class MetaData(InheritableNode, IDefault, IInstantiable):
-
-    idx_remaining_steps = 1
-    idx_new_cost_multiplier = 2
-    idx_cost_multiplier = 3
-    idx_run_cost = 4
-    idx_final_cost = 5
-
-    @classmethod
-    def create(cls) -> typing.Self:
-        return cls.with_args()
-
-    @classmethod
-    def protocol(cls) -> Protocol:
-        return cls.default_protocol(CountableTypeGroup(
-            CompositeType(
-                Optional.as_type(),
-                OptionalTypeGroup(Integer.as_type()),
-            ),
-            CompositeType(
-                Optional.as_type(),
-                OptionalTypeGroup(NewCostMultiplier.as_type()),
-            ),
-            CompositeType(
-                Optional.as_type(),
-                OptionalTypeGroup(CostMultiplier.as_type()),
-            ),
-            CompositeType(
-                Optional.as_type(),
-                OptionalTypeGroup(RunCost.as_type()),
-            ),
-            CompositeType(
-                Optional.as_type(),
-                OptionalTypeGroup(Integer.as_type()),
-            ),
-        ))
-
-    @property
-    def remaining_steps(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_remaining_steps)
-
-    @property
-    def new_cost_multiplier(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_new_cost_multiplier)
-
-    @property
-    def cost_multiplier(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_cost_multiplier)
-
-    @property
-    def run_cost(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_run_cost)
-
-    @property
-    def final_cost(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_final_cost)
-
-    @classmethod
-    def with_args(
-        cls,
-        remaining_steps: int | None = None,
-        new_cost_multiplier: NewCostMultiplier | None = None,
-        cost_multiplier: CostMultiplier | None = None,
-        run_cost: RunCost | None = None,
-        final_cost: int | None = None,
-    ) -> typing.Self:
-        return cls.with_actual_args(
-            remaining_steps=Optional.with_int(remaining_steps),
-            new_cost_multiplier=Optional.with_value(new_cost_multiplier),
-            cost_multiplier=Optional.with_value(cost_multiplier),
-            run_cost=Optional.with_value(run_cost),
-            final_cost=Optional.with_int(final_cost),
-        )
-
-    @classmethod
-    def with_actual_args(
-        cls,
-        remaining_steps: Optional[Integer],
-        new_cost_multiplier: Optional[NewCostMultiplier],
-        cost_multiplier: Optional[CostMultiplier],
-        run_cost: Optional[RunCost],
-        final_cost: Optional[Integer],
-    ) -> typing.Self:
-        return cls(
-            remaining_steps,
-            new_cost_multiplier,
-            cost_multiplier,
-            run_cost,
-            final_cost,
-        )
-
-    def with_new_args(
-        self,
-        remaining_steps: int | None = None,
-        new_cost_multiplier: Optional[NewCostMultiplier] | None = None,
-        cost_multiplier: Optional[CostMultiplier] | None = None,
-        run_cost: Optional[RunCost] | None = None,
-        final_cost: int | None = None,
-    ) -> typing.Self:
-        return self.with_actual_args(
-            remaining_steps=(
-                Optional.with_int(remaining_steps)
-                if remaining_steps is not None
-                else self.remaining_steps.apply().real(Optional[Integer])
-            ),
-            new_cost_multiplier=(
-                new_cost_multiplier
-                if new_cost_multiplier is not None
-                else self.new_cost_multiplier.apply().real(Optional[NewCostMultiplier])
-            ),
-            cost_multiplier=(
-                cost_multiplier
-                if cost_multiplier is not None
-                else self.cost_multiplier.apply().real(Optional[CostMultiplier])
-            ),
-            run_cost=(
-                run_cost
-                if run_cost is not None
-                else self.run_cost.apply().real(Optional[RunCost])
-            ),
-            final_cost=(
-                Optional.with_int(final_cost)
-                if final_cost is not None
-                else self.final_cost.apply().real(Optional[Integer])
-            ),
-        )
-
-class FinalCost(BaseNormalizer, IInstantiable):
-
-    idx_cost_multiplier = 1
-    idx_run_cost = 2
-    idx_options = 4
-
-    @classmethod
-    def protocol(cls) -> Protocol:
-        return Protocol(
-            TypeAliasGroup(),
-            CountableTypeGroup(
-                CostMultiplier.as_type(),
-                RunCost.as_type(),
-                MetaInfoOptions.as_type(),
-            ),
-            Integer.as_type(),
-        )
-
-    @property
-    def cost_multiplier(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_cost_multiplier)
-
-    @property
-    def run_cost(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_run_cost)
-
-    @property
-    def options(self) -> TmpInnerArg:
-        return self.inner_arg(self.idx_options)
-
-    @classmethod
-    def with_args(
-        cls,
-        cost_multiplier: CostMultiplier,
-        run_cost: RunCost,
-        options: MetaInfoOptions,
-    ) -> typing.Self:
-        return cls(
-            cost_multiplier,
-            run_cost,
-            options,
-        )
-
-    def normalize(self) -> Integer:
-        cost_multiplier = self.cost_multiplier.apply().real(CostMultiplier)
-        run_cost = self.run_cost.apply().real(RunCost)
-        options = self.options.apply().real(MetaInfoOptions)
-
-        current_multiplier = cost_multiplier.current_multiplier.apply().real(Integer).as_int
-
-        processing_cost = run_cost.processing_cost.apply().real(RunProcessingCost)
-        memory_cost = run_cost.memory_cost.apply().real(RunMemoryCost)
-
-        actions = processing_cost.actions.apply().real(Integer).as_int
-        steps = processing_cost.steps.apply().real(Integer).as_int
-
-        full_state_memory = memory_cost.full_state_memory.apply().real(Integer).as_int
-        visible_state_memory = memory_cost.visible_state_memory.apply().real(Integer).as_int
-        main_state_memory = memory_cost.main_state_memory.apply().real(Integer).as_int
-        run_memory = memory_cost.run_memory.apply().real(Integer).as_int
-
-        cost_multiplier_action = options.cost_multiplier_action.apply().real(Integer).as_int
-        cost_multiplier_step = options.cost_multiplier_step.apply().real(Integer).as_int
-        cost_full_state_memory = options.cost_full_state_memory.apply().real(Integer).as_int
-        cost_visible_state_memory = options.cost_visible_state_memory.apply().real(Integer).as_int
-        cost_main_state_memory = options.cost_main_state_memory.apply().real(Integer).as_int
-        cost_run_memory = options.cost_run_memory.apply().real(Integer).as_int
-
-        action_cost = actions * cost_multiplier_action
-        step_cost = steps * cost_multiplier_step
-        processing_cost_value = action_cost + step_cost
-
-        full_state_memory_cost = full_state_memory * cost_full_state_memory
-        visible_state_memory_cost = visible_state_memory * cost_visible_state_memory
-        main_state_memory_cost = main_state_memory * cost_main_state_memory
-        run_memory_cost = run_memory * cost_run_memory
-        memory_cost_value = (
-            full_state_memory_cost
-            + visible_state_memory_cost
-            + main_state_memory_cost
-            + run_memory_cost)
-
-        final_cost = current_multiplier * processing_cost_value * memory_cost_value
-
-        return Integer(final_cost)
-
-###########################################################
 ################# FULL STATE DEFINITIONS ##################
 ###########################################################
 
@@ -845,8 +364,8 @@ class HistoryNode(InheritableNode, IDefault, IWrapper, IInstantiable):
 class HistoryGroupNode(BaseGroup[HistoryNode], IInstantiable):
 
     @classmethod
-    def item_type(cls) -> type[HistoryNode]:
-        return HistoryNode
+    def item_type(cls) -> TypeNode:
+        return HistoryNode.as_type()
 
 ###########################################################
 ####################### FULL STATE ########################
@@ -894,6 +413,29 @@ class FullState(
         )
         history = history if history is not None else HistoryGroupNode()
         return cls.new(meta, current, history)
+
+    def with_new_args(
+        self,
+        meta: MetaInfo | None = None,
+        current: HistoryNode | None = None,
+        history: HistoryGroupNode | None = None,
+    ) -> typing.Self:
+        meta = (
+            meta
+            if meta is not None
+            else self.meta.apply().real(MetaInfo))
+        current = (
+            current
+            if current is not None
+            else self.current.apply().real(HistoryNode))
+        history = (
+            history
+            if history is not None
+            else self.history.apply().real(HistoryGroupNode))
+        return self.with_args(
+            meta=meta,
+            current=current,
+            history=history)
 
     @property
     def meta(self) -> TmpInnerArg:
@@ -1024,8 +566,8 @@ class FullStateArgIndex(NodeArgBaseIndex, IFullStateIndex[FullState, INode], IIn
         return FullState
 
     @classmethod
-    def item_type(cls):
-        return INode
+    def item_type(cls) -> TypeNode:
+        return INode.as_type()
 
     def find_in_outer_node(self, node: FullState):
         return self.find_in_node(node)
@@ -1053,8 +595,8 @@ class FullStateReadonlyGroupBaseIndex(FullStateGroupBaseIndex[T], ABC):
 class FullStateGroupTypeBaseIndex(FullStateReadonlyGroupBaseIndex[TypeNode[T]], ABC):
 
     @classmethod
-    def item_type(cls) -> type[TypeNode[T]]:
-        return TypeNode
+    def item_type(cls) -> TypeNode:
+        return TypeNode.as_type()
 
     @classmethod
     def inner_item_type(cls) -> type[T]:
@@ -1082,8 +624,8 @@ class MetaAllTypesTypeIndex(
 class MetaTypesDetailsTypeIndex(FullStateReadonlyGroupBaseIndex[DetailedType], IInstantiable):
 
     @classmethod
-    def item_type(cls):
-        return DetailedType
+    def item_type(cls) -> TypeNode:
+        return DetailedType.as_type()
 
     @classmethod
     def group(cls, full_state: FullState) -> TmpNestedArg:
@@ -1303,8 +845,8 @@ class MetaBasicActionsTypeIndex(
 class CurrentStateScratchIndex(FullStateReadonlyGroupBaseIndex[Scratch], IInstantiable):
 
     @classmethod
-    def item_type(cls):
-        return Scratch
+    def item_type(cls) -> TypeNode:
+        return Scratch.as_type()
 
     @classmethod
     def group(cls, full_state: FullState) -> TmpNestedArg:
@@ -1320,8 +862,8 @@ class CurrentStateArgsOuterGroupIndex(
 ):
 
     @classmethod
-    def item_type(cls):
-        return PartialArgsGroup
+    def item_type(cls) -> TypeNode:
+        return PartialArgsGroup.as_type()
 
     @classmethod
     def group(cls, full_state: FullState) -> TmpNestedArg:
@@ -1334,8 +876,8 @@ class CurrentStateArgsOuterGroupIndex(
 class CurrentStateDefinitionIndex(FullStateReadonlyGroupBaseIndex[StateDefinition], IInstantiable):
 
     @classmethod
-    def item_type(cls):
-        return StateDefinition
+    def item_type(cls) -> TypeNode:
+        return StateDefinition.as_type()
 
     @classmethod
     def group(cls, full_state: FullState) -> TmpNestedArg:
