@@ -222,7 +222,7 @@ class IFunction(INode, ABC):
 
 class IRunnable(INode, ABC):
 
-    def run(self, info: RunInfo) -> RunInfoResult:
+    def run(self, info_with_stats: RunInfoWithStats) -> RunInfoResult:
         raise NotImplementedError(self.__class__)
 
     def main_run(self, info: RunInfo) -> tuple[
@@ -244,7 +244,7 @@ class IRunnable(INode, ABC):
 
             if isinstance(self, IOpaqueScope):
                 result = RunInfoResult.with_args(
-                    run_info=info,
+                    run_info=info.with_stats(),
                     return_value=new_node,
                 )
                 new_info, new_node = result.as_tuple
@@ -437,14 +437,6 @@ class TmpNestedArg:
 ######################## BASE NODE ########################
 ###########################################################
 
-# import sys
-# def print_and_replace(text):
-#     # Print the text and flush the output
-#     sys.stdout.write(f'\r{text}')
-#     sys.stdout.flush()
-
-# _count = 0
-
 class BaseNode(IRunnable, ABC):
 
     cache_enabled = True
@@ -460,10 +452,6 @@ class BaseNode(IRunnable, ABC):
         if BaseNode.cache_enabled:
             instance = cls._instances.get(h)
             if instance is not None:
-                # global _count
-                # _count += 1
-                # if _count % 10000 == 0:
-                #     print_and_replace(f'{_count:10.0f} - {len(cls._instances):10.0f}')
                 assert instance.__class__ == cls, (instance.__class__, cls)
                 return typing.cast(typing.Self, instance)
         instance = super().__new__(cls)
@@ -489,8 +477,10 @@ class BaseNode(IRunnable, ABC):
         cls._instances.clear()
         cls._cached_run.clear()
 
-    def run(self, info: RunInfo) -> RunInfoResult:
+    def run(self, info_with_stats: RunInfoWithStats) -> RunInfoResult:
+        info = info_with_stats.run_info.apply().real(RunInfo)
         info_hash = hash((self, info)) if BaseNode.cache_enabled else 0
+        #TODO
         if BaseNode.cache_enabled:
             cached = self._cached_run.get(info_hash)
             if cached is not None:
@@ -498,11 +488,6 @@ class BaseNode(IRunnable, ABC):
                 if exception is not None:
                     raise exception
                 return result
-
-        # global _count
-        # _count += 1
-        # if _count % 1000 == 0:
-        #     print_and_replace(f'{_count:10.0f} - {len(self._cached_run):10.0f}')
 
         cached_result = self.main_run(info)
         result, exception = cached_result
@@ -847,7 +832,7 @@ class TypeNode(
     def with_arg_group(self, group: BaseGroup, info: RunInfo):
         t = self.type
         assert issubclass(t, InheritableNode)
-        return t.new(*group.as_tuple).as_node.run(info)
+        return t.new(*group.as_tuple).as_node.run(info.with_stats())
 
     def _valid(
         self,
@@ -862,7 +847,7 @@ class TypeNode(
 
     def _run(self, info: RunInfo) -> RunInfoFullResult:
         self.validate()
-        result = info.to_result(self)
+        result = info.with_stats().to_result(self)
         return RunInfoFullResult(result, OptionalValueGroup())
 
     def __eq__(self, other) -> bool:
@@ -926,7 +911,7 @@ class BaseInt(BaseNode, IInt, ISpecialValue, ABC):
 
     def _run(self, info: RunInfo) -> RunInfoFullResult:
         self.validate()
-        result = info.to_result(self)
+        result = info.with_stats().to_result(self)
         return RunInfoFullResult(result, OptionalValueGroup())
 
     def _strict_validate(self):
@@ -1035,19 +1020,20 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
     def _base_run(self, info: RunInfo) -> RunInfoFullResult:
         self.validate()
         args: list[INode] = []
+        info_with_stats = info.with_stats()
         for arg in self.args:
-            info, new_arg = arg.as_node.run(info).as_tuple
+            info_with_stats, new_arg = arg.as_node.run(info_with_stats).as_tuple
             args.append(new_arg)
         new_node = self.func(*args)
-        if not info.is_future():
+        if not info_with_stats.is_future():
             new_node.strict_validate()
         result = (
             RunInfoResult.with_args(
-                run_info=info,
+                run_info=info_with_stats,
                 return_value=new_node,
             )
             if isinstance(self, IDynamic)
-            else info.to_result(new_node))
+            else info_with_stats.to_result(new_node))
         return RunInfoFullResult(result, OptionalValueGroup.from_optional_items(args))
 
     def _run(self, info: RunInfo) -> RunInfoFullResult:
@@ -1155,7 +1141,7 @@ class ParentScopeBase(BaseInt, IDynamic, IDefault, ABC):
         scope_data_group = info.scope_data_group.apply().real(ScopeDataGroup)
         amount = len(scope_data_group.as_tuple)
         IsInsideRange(node, Integer.zero(), Integer(amount)).raise_on_false()
-        result = info.to_result(node)
+        result = info.with_stats().to_result(node)
         return RunInfoFullResult(result, OptionalValueGroup())
 
     def validate_result(self, result: INode, args_group: OptionalValueGroup):
@@ -1214,7 +1200,7 @@ class Placeholder(InheritableNode, IDynamic, IFromInt, typing.Generic[T], ABC):
 
     def _run(self, info: RunInfo) -> RunInfoFullResult:
         base_result, arg_group = self._base_run(info).as_tuple
-        info, node_aux = base_result.as_tuple
+        info_with_stats, node_aux = base_result.as_tuple
         node = node_aux.real(self.__class__)
 
         scope_index = node.parent_scope.apply().real(RunInfoScopeDataIndex)
@@ -1230,16 +1216,16 @@ class Placeholder(InheritableNode, IDynamic, IFromInt, typing.Generic[T], ABC):
             groups = info.scope_data_group.apply().real(ScopeDataGroup).as_tuple
             group_amount = len(groups)
             near_scope = NearParentScope.from_int(group_amount - scope_index.as_int + 1)
-            result = info.to_result(node.func(near_scope, index))
+            result = info_with_stats.to_result(node.func(near_scope, index))
             return RunInfoFullResult(result, arg_group)
 
         item = NodeArgIndex(index.as_int).find_in_node(scope).value_or_raise
-        info, node_aux = item.as_node.run(info).as_tuple
+        info_with_stats, node_aux = item.as_node.run(info_with_stats).as_tuple
         node_aux = node_aux.real(IOptional)
 
         new_node = node_aux.value_or_raise
 
-        result = info.to_result(new_node)
+        result = info_with_stats.to_result(new_node)
         return RunInfoFullResult(result, arg_group)
 
 class Param(Placeholder[T], IInstantiable, typing.Generic[T]):
@@ -2295,7 +2281,7 @@ class DynamicType(InheritableNode, IBasicType, IInstantiable):
         _, result = FunctionCall.define(
             fn=transformer,
             args=arg_group,
-        ).as_node.run(run_info).as_tuple
+        ).as_node.run(run_info.with_stats()).as_tuple
 
         return t.valid(result, alias_info=alias_info)
 
@@ -2557,7 +2543,7 @@ class ScopedFunctionBase(
             scope_data = ScopeDataParamItemGroup.from_optional_items(group.as_tuple)
             scope_data.strict_validate()
 
-        new_info = (
+        new_main_info = (
             info.with_new_args(
                 scope_data_group=ScopeDataGroup(),
                 return_after_scope=Optional(),
@@ -2565,6 +2551,7 @@ class ScopedFunctionBase(
             if isinstance(self, IOpaqueScope)
             else info
         ).add_scope(scope_data)
+        new_info = new_main_info.with_stats()
 
         try:
             result = self.expr.apply().run(new_info)
@@ -2572,8 +2559,8 @@ class ScopedFunctionBase(
             result, _ = e.result.as_tuple
 
         if isinstance(self, IOpaqueScope):
-            _, node = result.as_tuple
-            new_info = info
+            info_with_stats, node = result.as_tuple
+            new_info = info.with_stats().add_stats(info_with_stats)
         else:
             new_info, node = result.as_tuple
             new_info = new_info.with_scopes(info)
@@ -2588,18 +2575,20 @@ class ScopedFunctionBase(
             return_value=node,
         )
 
-    def prepare_expr(self, info: RunInfo) -> RunInfoResult:
+    def prepare_expr(self, info_with_stats: RunInfoWithStats) -> RunInfoResult:
         raise NotImplementedError
 
     def _run(self, info: RunInfo) -> RunInfoFullResult:
         self.validate()
 
-        info, node_aux = self.protocol_arg.apply().run(info).as_tuple
+        info_with_stats = info.with_stats()
+
+        info_with_stats, node_aux = self.protocol_arg.apply().run(info_with_stats).as_tuple
         type_group = node_aux.real(Protocol)
 
-        info, expr = self.prepare_expr(info).as_tuple
+        info_with_stats, expr = self.prepare_expr(info_with_stats).as_tuple
 
-        result = info.to_result(self.func(type_group, expr))
+        result = info_with_stats.to_result(self.func(type_group, expr))
         args_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [type_group, expr]
         )
@@ -2615,10 +2604,10 @@ class FunctionExpr(
     def expr_type(cls) -> IType:
         return INode.as_type()
 
-    def prepare_expr(self, info: RunInfo):
+    def prepare_expr(self, info_with_stats: RunInfoWithStats):
         expr = self.expr.apply()
         return RunInfoResult.with_args(
-            run_info=info,
+            run_info=info_with_stats,
             return_value=expr,
         )
 
@@ -2632,8 +2621,8 @@ class FunctionWrapper(
     def expr_type(cls) -> IType:
         return FunctionCall.as_type()
 
-    def prepare_expr(self, info: RunInfo):
-        new_info = info.add_scope(ScopeDataFutureParamItemGroup())
+    def prepare_expr(self, info_with_stats: RunInfoWithStats):
+        new_info = info_with_stats.add_scope(ScopeDataFutureParamItemGroup())
         return self.expr.apply().run(new_info)
 
 ###########################################################
@@ -2684,14 +2673,14 @@ class RunnableBoolean(InheritableNode, IDynamic, IBoolean, ABC):
 
     def _run(self, info: RunInfo) -> RunInfoFullResult:
         base_result, arg_group = self._base_run(info).as_tuple
-        info, node_aux = base_result.as_tuple
-        if info.is_future():
+        info_with_stats, node_aux = base_result.as_tuple
+        if info_with_stats.is_future():
             return base_result
 
         node = node_aux.real(self.__class__)
         value = node.func(*node.args).strict_bool
 
-        result = info.to_result(IntBoolean.from_bool(value))
+        result = info_with_stats.to_result(IntBoolean.from_bool(value))
         return RunInfoFullResult(result, arg_group)
 
 class BooleanWrapper(
@@ -3310,18 +3299,20 @@ class And(MultiArgBooleanNode, IInstantiable):
                 all_run_args)
             return RunInfoFullResult(result, arg_group)
 
+        info_with_stats = info.with_stats()
+
         for arg in self.args:
-            info, run_arg = arg.as_node.run(info).as_tuple
+            info_with_stats, run_arg = arg.as_node.run(info_with_stats).as_tuple
             if isinstance(run_arg, IBoolean):
                 if not run_arg.as_bool:
-                    result = info.to_result(IBoolean.false())
+                    result = info_with_stats.to_result(IBoolean.false())
                     return fn_return(result)
             run_args.append(run_arg)
 
         for run_arg in run_args:
             assert isinstance(run_arg, IBoolean)
 
-        result = info.to_result(IBoolean.true())
+        result = info_with_stats.to_result(IBoolean.true())
 
         return fn_return(result)
 
@@ -3347,19 +3338,21 @@ class Or(MultiArgBooleanNode, IInstantiable):
                 all_run_args)
             return RunInfoFullResult(result, arg_group)
 
+        info_with_stats = info.with_stats()
+
         for arg in self.args:
-            info, run_arg = arg.as_node.run(info).as_tuple
+            info_with_stats, run_arg = arg.as_node.run(info_with_stats).as_tuple
             if isinstance(run_arg, IBoolean):
                 val_1 = run_arg.as_bool
                 if val_1 is True:
-                    result = info.to_result(IBoolean.true())
+                    result = info_with_stats.to_result(IBoolean.true())
                     return fn_return(result)
             run_args.append(run_arg)
 
         for run_arg in run_args:
             assert isinstance(run_arg, IBoolean)
 
-        result = info.to_result(IBoolean.false())
+        result = info_with_stats.to_result(IBoolean.false())
 
         return fn_return(result)
 
@@ -3639,7 +3632,6 @@ class ScopeDataGroup(BaseGroup[ScopeDataPlaceholderItemGroup], IInstantiable):
         items = list(self.as_tuple)
         items.append(item)
         return self.func(*items)
-
 class RunInfo(InheritableNode, IInstantiable):
 
     idx_scope_data_group = 1
@@ -3754,10 +3746,152 @@ class RunInfo(InheritableNode, IInstantiable):
         return_after_val = return_after_scope.value
         return return_after_val is not None
 
+    def with_stats(self) -> RunInfoWithStats:
+        return RunInfoWithStats.with_args(
+            run_info=self,
+            stats=RunInfoStats.create(),
+        )
+
+class RunInfoStats(InheritableNode, IDefault, IAdditive, IInstantiable):
+
+    idx_instructions = 1
+    idx_memory = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            Integer.as_type(),
+            Integer.as_type(),
+        ))
+
+    @property
+    def instructions(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_instructions)
+
+    @property
+    def memory(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_memory)
+
+    @classmethod
+    def create(cls) -> typing.Self:
+        return cls.with_args()
+
+    @classmethod
+    def with_args(
+        cls,
+        instructions: int = 0,
+        memory: int = 0,
+    ) -> typing.Self:
+        return cls(Integer(instructions), Integer(memory))
+
+    def add(self, another: INode) -> typing.Self:
+        assert isinstance(another, RunInfoStats)
+        instructions = self.instructions.apply().real(Integer)
+        memory = self.memory.apply().real(Integer)
+        another_instructions = another.instructions.apply().real(Integer)
+        another_memory = another.memory.apply().real(Integer)
+        new_instructions = instructions.as_int + another_instructions.as_int
+        new_memory = memory.as_int + another_memory.as_int
+        return self.with_args(
+            instructions=new_instructions,
+            memory=new_memory,
+        )
+
+class RunInfoWithStats(InheritableNode, IInstantiable):
+
+    idx_run_info = 1
+    idx_stats = 2
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            RunInfo.as_type(),
+            RunInfoStats.as_type(),
+        ))
+
+    @property
+    def run_info(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_run_info)
+
+    @property
+    def stats(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_stats)
+
+    @classmethod
+    def with_args(
+        cls,
+        run_info: RunInfo,
+        stats: RunInfoStats,
+    ) -> typing.Self:
+        return cls(run_info, stats)
+
+    def is_future(self) -> IBoolean:
+        run_info = self.run_info.apply().real(RunInfo)
+        group = run_info.scope_data_group.apply().real(ScopeDataGroup)
+        return group.is_future()
+
     def to_result(self, result: INode) -> RunInfoResult:
         return RunInfoResult.with_args(
             run_info=self,
             return_value=result)
+
+    def add_stats(self, info_with_stats: typing.Self) -> typing.Self:
+        stats_to_add = info_with_stats.stats.apply().real(RunInfoStats)
+        return self.add_inner_stats(stats_to_add)
+
+    def add_inner_stats(self, stats_to_add: RunInfoStats) -> typing.Self:
+        run_info = self.run_info.apply().real(RunInfo)
+        stats = self.stats.apply().real(RunInfoStats)
+        new_stats = stats.add(stats_to_add)
+        return self.with_args(run_info, new_stats)
+
+    def with_scopes(self, info_base: RunInfo) -> typing.Self:
+        run_info = self.run_info.apply().real(RunInfo)
+        new_run_info = run_info.with_scopes(info_base)
+        return self.with_args(
+            run_info=new_run_info,
+            stats=self.stats.apply().real(RunInfoStats),
+        )
+
+    def add_scope(
+        self,
+        item: ScopeDataPlaceholderItemGroup,
+    ) -> typing.Self:
+        run_info = self.run_info.apply().real(RunInfo)
+        new_run_info = run_info.add_scope(item)
+        return self.with_args(
+            run_info=new_run_info,
+            stats=self.stats.apply().real(RunInfoStats),
+        )
+
+    def add_scope_var(
+        self,
+        scope_index: RunInfoScopeDataIndex,
+        item_index: PlaceholderIndex,
+        value: INode,
+    ) -> typing.Self:
+        run_info = self.run_info.apply().real(RunInfo)
+        new_run_info = run_info.add_scope_var(scope_index, item_index, value)
+        return self.with_args(
+            run_info=new_run_info,
+            stats=self.stats.apply().real(RunInfoStats),
+        )
+
+    def with_return(self, return_after_scope: Optional[RunInfoScopeDataIndex]) -> typing.Self:
+        run_info = self.run_info.apply().real(RunInfo)
+        new_run_info = run_info.with_new_args(
+            return_after_scope=return_after_scope)
+        return self.with_args(
+            run_info=new_run_info,
+            stats=self.stats.apply().real(RunInfoStats),
+        )
+
+    def must_return(self) -> bool:
+        run_info = self.run_info.apply().real(RunInfo)
+        return run_info.must_return()
+
+    def get_stats(self) -> RunInfoStats:
+        return self.stats.apply().real(RunInfoStats)
 
 class RunInfoScopeDataIndex(
     BaseInt,
@@ -3818,7 +3952,7 @@ class RunInfoResult(InheritableNode, IInstantiable):
     @classmethod
     def protocol(cls) -> Protocol:
         return cls.default_protocol(CountableTypeGroup(
-            RunInfo.as_type(),
+            RunInfoWithStats.as_type(),
             INode.as_type(),
         ))
 
@@ -3832,17 +3966,25 @@ class RunInfoResult(InheritableNode, IInstantiable):
 
     @property
     def as_tuple(self):
-        new_info = self.run_info.apply().real(RunInfo)
+        new_info = self.run_info.apply().real(RunInfoWithStats)
         return_value = self.return_value.apply().cast(INode)
         return new_info, return_value
 
     @classmethod
     def with_args(
         cls,
-        run_info: RunInfo,
+        run_info: RunInfoWithStats,
         return_value: INode,
     ) -> RunInfoResult:
         return cls(run_info, return_value)
+
+    def add_stats(self, info_with_stats: RunInfoWithStats) -> RunInfoResult:
+        run_info = self.run_info.apply().real(RunInfoWithStats)
+        new_run_info = run_info.add_stats(info_with_stats)
+        return self.with_args(
+            run_info=new_run_info,
+            return_value=self.return_value.apply().cast(INode),
+        )
 
 class RunInfoFullResult(InheritableNode, IInstantiable):
 
@@ -3876,10 +4018,11 @@ class ControlFlowBaseNode(InheritableNode, IDynamic, ABC):
         self.validate()
         if info.is_future():
             args: list[INode] = []
+            info_with_stats = info.with_stats()
             for arg in self.args:
-                info, node_aux = arg.as_node.run(info).as_tuple
+                info_with_stats, node_aux = arg.as_node.run(info_with_stats).as_tuple
                 args.append(node_aux)
-            result = info.to_result(self.func(*args))
+            result = info_with_stats.to_result(self.func(*args))
             arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(args)
             return RunInfoFullResult(result, arg_group)
         return self._run_control(info)
@@ -3907,9 +4050,9 @@ class BaseNormalizer(ControlFlowBaseNode, ABC):
         if info.is_future():
             return default_result
         result_aux, arg_group = default_result.as_tuple
-        info, node_aux = result_aux.as_tuple
+        info_with_stats, node_aux = result_aux.as_tuple
         node = node_aux.real(self.__class__)
-        result = info.to_result(node.normalize())
+        result = info_with_stats.to_result(node.normalize())
         return RunInfoFullResult(result, arg_group)
 
     def normalize(self) -> INode:
@@ -3989,13 +4132,16 @@ class FunctionCall(ControlFlowBaseNode, IInstantiable):
         return cls(fn, args)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux = self.function.apply().run(info).as_tuple
+        info_with_stats = info.with_stats()
+
+        info_with_stats, node_aux = self.function.apply().run(info_with_stats).as_tuple
         fn = node_aux.real(IFunction)
 
-        info, node_aux = self.arg_group.apply().run(info).as_tuple
+        info_with_stats, node_aux = self.arg_group.apply().run(info_with_stats).as_tuple
         fn_arg_group = node_aux.real(BaseGroup)
 
         result = fn.with_arg_group(group=fn_arg_group, info=info)
+        result = result.add_stats(info_with_stats)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [fn, fn_arg_group])
         return RunInfoFullResult(result, arg_group)
@@ -4034,19 +4180,21 @@ class If(ControlFlowBaseNode, IInstantiable):
         return self.inner_arg(self.idx_false_expr)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux = self.condition.apply().run(info).as_tuple
+        info_with_stats = info.with_stats()
+
+        info_with_stats, node_aux = self.condition.apply().run(info_with_stats).as_tuple
         condition = node_aux.real(IBoolean)
 
         flag = condition.strict_bool
 
         if flag:
-            true_result = self.true_expr.apply().run(info)
+            true_result = self.true_expr.apply().run(info_with_stats)
             _, true_node = true_result.as_tuple
             arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
                 [condition, true_node, None])
             return RunInfoFullResult(true_result, arg_group)
 
-        false_result = self.false_expr.apply().run(info)
+        false_result = self.false_expr.apply().run(info_with_stats)
         _, false_node = false_result.as_tuple
         arg_group = OptionalValueGroup.from_optional_items(
             [condition, None, false_node])
@@ -4104,10 +4252,12 @@ class Loop(ControlFlowBaseNode, IFromSingleNode[IFunction], IInstantiable):
         return self.inner_arg(self.idx_initial_data)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux = self.callback.apply().run(info).as_tuple
+        info_with_stats = info.with_stats()
+
+        info_with_stats, node_aux = self.callback.apply().run(info_with_stats).as_tuple
         callback = node_aux.real(IFunction)
 
-        info, node_aux = self.initial_data.apply().run(info).as_tuple
+        info_with_stats, node_aux = self.initial_data.apply().run(info_with_stats).as_tuple
         initial_data = node_aux.real(Optional[INode])
 
         condition = True
@@ -4115,18 +4265,23 @@ class Loop(ControlFlowBaseNode, IFromSingleNode[IFunction], IInstantiable):
         idx = 0
         while condition:
             idx += 1
-            info, node_aux = FunctionCall(callback, DefaultGroup(data)).run(info).as_tuple
+            info_with_stats, node_aux = FunctionCall(
+                callback,
+                DefaultGroup(data),
+            ).run(info_with_stats).as_tuple
             result = node_aux.real(LoopGuard)
 
-            info, node_aux = result.condition.apply().run(info).as_tuple
+            info_with_stats, node_aux = result.condition.apply().run(
+                info_with_stats).as_tuple
             cond_node = node_aux.real(IBoolean)
 
-            info, new_data = result.result.apply().run(info).as_tuple
+            info_with_stats, new_data = result.result.apply().run(
+                info_with_stats).as_tuple
 
             data = Optional(new_data)
             condition = cond_node.strict_bool
 
-        result = info.to_result(result=data)
+        result = info_with_stats.to_result(result=data)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [callback, initial_data]
         )
@@ -4151,11 +4306,12 @@ class InstructionGroup(ControlFlowBaseNode, IInnerScope, IInstantiable):
             else ScopeDataVarItemGroup()
         )
         info = info.add_scope(scope_data)
+        info_with_stats = info.with_stats()
 
         run_args: list[INode] = []
         for i, arg in enumerate(self.args):
             try:
-                info, node = arg.as_node.run(info).as_tuple
+                info_with_stats, node = arg.as_node.run(info_with_stats).as_tuple
             except InvalidNodeException as e:
                 exc_info = e.info.add_stack(
                     node=StackExceptionInfoRunItem(arg),
@@ -4168,7 +4324,7 @@ class InstructionGroup(ControlFlowBaseNode, IInnerScope, IInstantiable):
                 raise InvalidNodeException(exc_info) from e
             run_args.append(node)
 
-        result = info.to_result(Void())
+        result = info_with_stats.to_result(Void())
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(run_args)
         return RunInfoFullResult(result, arg_group)
 
@@ -4199,21 +4355,23 @@ class Assign(ControlFlowBaseNode, IInstantiable):
         return self.inner_arg(self.idx_value)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux = self.var_index.apply().run(info).as_tuple
+        info_with_stats = info.with_stats()
+
+        info_with_stats, node_aux = self.var_index.apply().run(info_with_stats).as_tuple
         var_index = node_aux.real(PlaceholderIndex)
 
-        info, node_aux = self.value.apply().run(info).as_tuple
+        info_with_stats, node_aux = self.value.apply().run(info_with_stats).as_tuple
         value = node_aux
 
-        info, node_aux = NearParentScope.create().run(info).as_tuple
+        info_with_stats, node_aux = NearParentScope.create().run(info_with_stats).as_tuple
         scope_index = node_aux.real(RunInfoScopeDataIndex)
 
-        info = info.add_scope_var(
+        info_with_stats = info_with_stats.add_scope_var(
             scope_index=scope_index,
             item_index=var_index,
             value=value)
 
-        result = info.to_result(value)
+        result = info_with_stats.to_result(value)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [var_index, value]
         )
@@ -4250,17 +4408,17 @@ class Return(ControlFlowBaseNode, IFromSingleNode[INode], IInstantiable):
         return self.inner_arg(self.idx_value)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux = self.parent_scope.apply().run(info).as_tuple
+        info_with_stats = info.with_stats()
+
+        info_with_stats, node_aux = self.parent_scope.apply().run(info_with_stats).as_tuple
         scope_index = node_aux.real(RunInfoScopeDataIndex)
 
-        info, value = self.value.apply().run(info).as_tuple
+        info_with_stats, value = self.value.apply().run(info_with_stats).as_tuple
 
-        if not info.is_future():
-            info = info.with_new_args(
-                return_after_scope=Optional(scope_index)
-            )
+        if not info_with_stats.is_future():
+            info_with_stats = info_with_stats.with_return(Optional(scope_index))
 
-        result = info.to_result(value)
+        result = info_with_stats.to_result(value)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [scope_index, value]
         )
@@ -4293,16 +4451,18 @@ class InnerArg(ControlFlowBaseNode, IInstantiable):
         return self.inner_arg(self.idx_arg_index)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux = self.node.apply().run(info).as_tuple
+        info_with_stats = info.with_stats()
+
+        info_with_stats, node_aux = self.node.apply().run(info_with_stats).as_tuple
         node = node_aux.cast(INode)
 
-        info, node_aux = self.arg_index.apply().run(info).as_tuple
+        info_with_stats, node_aux = self.arg_index.apply().run(info_with_stats).as_tuple
         arg_index = node_aux.real(NodeArgIndex)
 
         result = arg_index.find_in_node(node).value_or_raise
 
         result = RunInfoResult.with_args(
-            run_info=info,
+            run_info=info_with_stats,
             return_value=result)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [node, arg_index]
@@ -4340,17 +4500,19 @@ class NestedArg(ControlFlowBaseNode, IInstantiable):
         return self.inner_arg(self.idx_arg_indices)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, root_node = self.node.apply().run(info).as_tuple
+        info_with_stats = info.with_stats()
+
+        info_with_stats, root_node = self.node.apply().run(info_with_stats).as_tuple
         node = root_node
 
-        info, node_aux = self.arg_indices.apply().run(info).as_tuple
+        info_with_stats, node_aux = self.arg_indices.apply().run(info_with_stats).as_tuple
         arg_indices = node_aux.real(NestedArgIndexGroup)
 
         for arg_index in arg_indices.as_tuple:
-            info, node = InnerArg(node, arg_index).run(info).as_tuple
+            info_with_stats, node = InnerArg(node, arg_index).run(info_with_stats).as_tuple
 
         result = RunInfoResult.with_args(
-            run_info=info,
+            run_info=info_with_stats,
             return_value=node)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [node, arg_indices]
@@ -4363,8 +4525,10 @@ class NestedArg(ControlFlowBaseNode, IInstantiable):
 
 class IIterator(INode, ABC):
 
-    def next(self, run_info: RunInfo) -> RunInfoResult:
+    def next(self, info_with_stats: RunInfoWithStats) -> RunInfoResult:
+        run_info = info_with_stats.run_info.apply().real(RunInfo)
         result = self._next(run_info)
+        result.add_stats(info_with_stats)
         _, node = result.as_tuple
         assert isinstance(node, IOptional)
         group = node.value
@@ -4412,17 +4576,17 @@ class GroupIterator(InheritableNode, IFromSingleNode[BaseGroup], IIterator, IIns
         return self.func(group, index)
 
     def _next(self, run_info: RunInfo):
-        info = run_info
+        info_with_stats = run_info.with_stats()
 
-        info, node_aux = self.group.apply().run(info).as_tuple
+        info_with_stats, node_aux = self.group.apply().run(info_with_stats).as_tuple
         group = node_aux.real(BaseGroup)
 
-        info, node_aux = self.index.apply().run(info).as_tuple
+        info_with_stats, node_aux = self.index.apply().run(info_with_stats).as_tuple
         index = node_aux.real(NodeArgIndex)
 
         if index.as_int > group.amount():
             result: Optional[INode] = Optional()
-            return info.to_result(result)
+            return info_with_stats.to_result(result)
 
         value = index.find_in_node(group).value_or_raise
         new_iter = self.with_new_args(
@@ -4430,7 +4594,7 @@ class GroupIterator(InheritableNode, IFromSingleNode[BaseGroup], IIterator, IIns
             index=NodeArgIndex(index.as_int + 1),
         )
         result = Optional(DefaultGroup(new_iter, value))
-        return info.to_result(result)
+        return info_with_stats.to_result(result)
 
 class Next(ControlFlowBaseNode, IInstantiable):
 
@@ -4448,9 +4612,10 @@ class Next(ControlFlowBaseNode, IInstantiable):
         return self.inner_arg(self.idx_iter)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux = self.iter.apply().run(info).as_tuple
+        info_with_stats = info.with_stats()
+        info_with_stats, node_aux = self.iter.apply().run(info_with_stats).as_tuple
         iterator = node_aux.real(IIterator)
-        result = iterator.next(info)
+        result = iterator.next(info_with_stats)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [iterator]
         )
@@ -4471,8 +4636,9 @@ class Add(ControlFlowBaseNode, IInstantiable):
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
         node: IAdditive | None = None
         run_args: list[INode] = []
+        info_with_stats = info.with_stats()
         for arg in self.args:
-            info, node_aux = arg.as_node.run(info).as_tuple
+            info_with_stats, node_aux = arg.as_node.run(info_with_stats).as_tuple
             run_args.append(node_aux)
             if node is None:
                 arg_node = node_aux.real(IAdditive)
@@ -4480,7 +4646,7 @@ class Add(ControlFlowBaseNode, IInstantiable):
             else:
                 node = node.add(node_aux)
         assert node is not None
-        result = info.to_result(node)
+        result = info_with_stats.to_result(node)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             run_args)
         return RunInfoFullResult(result, arg_group)
@@ -5738,16 +5904,18 @@ class Subtract(ControlFlowBaseNode, IInstantiable):
         return self.inner_arg(self.idx_subtrahend)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux = self.minuend.apply().run(info).as_tuple
+        info_with_stats = info.with_stats()
+
+        info_with_stats, node_aux = self.minuend.apply().run(info_with_stats).as_tuple
         minuend = node_aux.real(INumber)
 
-        info, node_aux = self.subtrahend.apply().run(info).as_tuple
+        info_with_stats, node_aux = self.subtrahend.apply().run(info_with_stats).as_tuple
         subtrahend = node_aux.real(INumber)
 
         node = minuend.subtract(subtrahend)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [minuend, subtrahend])
-        return RunInfoFullResult(info.to_result(node), arg_group)
+        return RunInfoFullResult(info_with_stats.to_result(node), arg_group)
 
 class Multiply(ControlFlowBaseNode, IInstantiable):
 
@@ -5776,16 +5944,18 @@ class Multiply(ControlFlowBaseNode, IInstantiable):
         return self.inner_arg(self.idx_factor_2)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux = self.factor_1.apply().run(info).as_tuple
+        info_with_stats = info.with_stats()
+
+        info_with_stats, node_aux = self.factor_1.apply().run(info_with_stats).as_tuple
         factor_1 = node_aux.real(INumber)
 
-        info, node_aux = self.factor_2.apply().run(info).as_tuple
+        info_with_stats, node_aux = self.factor_2.apply().run(info_with_stats).as_tuple
         factor_2 = node_aux.real(INumber)
 
         node = factor_1.multiply(factor_2)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [factor_1, factor_2])
-        return RunInfoFullResult(info.to_result(node), arg_group)
+        return RunInfoFullResult(info_with_stats.to_result(node), arg_group)
 
 class Divide(ControlFlowBaseNode, IInstantiable):
 
@@ -5814,16 +5984,18 @@ class Divide(ControlFlowBaseNode, IInstantiable):
         return self.inner_arg(self.idx_divisor)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux = self.dividend.apply().run(info).as_tuple
+        info_with_stats = info.with_stats()
+
+        info_with_stats, node_aux = self.dividend.apply().run(info_with_stats).as_tuple
         dividend = node_aux.real(IDivisible)
 
-        info, node_aux = self.divisor.apply().run(info).as_tuple
+        info_with_stats, node_aux = self.divisor.apply().run(info_with_stats).as_tuple
         divisor = node_aux.real(IDivisible)
 
         node = dividend.divide(divisor)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [dividend, divisor])
-        return RunInfoFullResult(info.to_result(node), arg_group)
+        return RunInfoFullResult(info_with_stats.to_result(node), arg_group)
 
 class DivideInt(ControlFlowBaseNode, IInstantiable):
 
@@ -5852,16 +6024,18 @@ class DivideInt(ControlFlowBaseNode, IInstantiable):
         return self.inner_arg(self.idx_divisor)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux = self.dividend.apply().run(info).as_tuple
+        info_with_stats = info.with_stats()
+
+        info_with_stats, node_aux = self.dividend.apply().run(info_with_stats).as_tuple
         dividend = node_aux.real(BaseSignedInt)
 
-        info, node_aux = self.divisor.apply().run(info).as_tuple
+        info_with_stats, node_aux = self.divisor.apply().run(info_with_stats).as_tuple
         divisor = node_aux.real(BaseSignedInt)
 
         node = dividend.divide_int(divisor)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [dividend, divisor])
-        return RunInfoFullResult(info.to_result(node), arg_group)
+        return RunInfoFullResult(info_with_stats.to_result(node), arg_group)
 
 class Modulo(ControlFlowBaseNode, IInstantiable):
 
@@ -5890,13 +6064,15 @@ class Modulo(ControlFlowBaseNode, IInstantiable):
         return self.inner_arg(self.idx_divisor)
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
-        info, node_aux = self.dividend.apply().run(info).as_tuple
+        info_with_stats = info.with_stats()
+
+        info_with_stats, node_aux = self.dividend.apply().run(info_with_stats).as_tuple
         dividend = node_aux.real(BaseSignedInt)
 
-        info, node_aux = self.divisor.apply().run(info).as_tuple
+        info_with_stats, node_aux = self.divisor.apply().run(info_with_stats).as_tuple
         divisor = node_aux.real(BaseSignedInt)
 
         node = dividend.modulo(divisor)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
             [dividend, divisor])
-        return RunInfoFullResult(info.to_result(node), arg_group)
+        return RunInfoFullResult(info_with_stats.to_result(node), arg_group)

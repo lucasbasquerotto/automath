@@ -33,6 +33,7 @@ from env.core import (
     BaseNormalizer,
     BaseNormalizerGroup,
     TypeAliasGroup,
+    RunInfoStats,
     TmpInnerArg,
     IInstantiable)
 from env.state import State, IGoal
@@ -863,6 +864,15 @@ class IActionGeneralInfo(INode, ABC):
     def get_run_memory_size(self) -> Integer:
         raise NotImplementedError
 
+    def to_stats(self) -> RunInfoStats:
+        processing_cost = self.get_processing_cost()
+        run_memory_size = self.get_run_memory_size()
+        instructions = processing_cost.instructions.apply().real(Integer)
+        return RunInfoStats.with_args(
+            instructions=instructions.as_int,
+            memory=run_memory_size.as_int,
+        )
+
 class BaseActionInfo(InheritableNode, IActionGeneralInfo, IDefault, ABC):
 
     idx_new_cost_multiplier = 1
@@ -908,6 +918,15 @@ class BaseActionInfo(InheritableNode, IActionGeneralInfo, IDefault, ABC):
     @classmethod
     def create(cls) -> typing.Self:
         return cls.with_args()
+
+    @classmethod
+    def with_stats(cls, stats: RunInfoStats) -> typing.Self:
+        instructions = stats.instructions.apply().real(Integer)
+        memory = stats.memory.apply().real(Integer)
+        return cls.with_args(
+            instructions=instructions.as_int,
+            run_memory_size=memory.as_int,
+        )
 
     def get_new_cost_multiplier(self) -> NewCostMultiplier | None:
         new_cost_multiplier_opt = self.new_cost_multiplier.apply().real(

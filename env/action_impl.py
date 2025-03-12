@@ -1325,13 +1325,14 @@ class RunScratch(
             scope_data_group=ScopeDataGroup(),
             return_after_scope=Optional(),
         )
-        _, content = old_content.as_node.run(info).as_tuple
+        info_with_stats = info.with_stats()
+        info_with_stats, content = old_content.as_node.run(info_with_stats).as_tuple
 
-        _, again = content.as_node.run(info).as_tuple
+        info_with_stats, again = content.as_node.run(info_with_stats).as_tuple
         Eq(content, again).raise_on_false()
 
         output = DefineScratchOutput(scratch_index, Scratch(content))
-        return output, ActionInfo.create()
+        return output, ActionInfo.with_stats(info_with_stats.get_stats())
 
 ###########################################################
 #################### MANAGE ARGS GROUP ####################

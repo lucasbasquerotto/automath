@@ -14,6 +14,8 @@ from env.core import (
     CountableTypeGroup,
     RunInfoFullResult,
     IntBoolean,
+    Integer,
+    RunInfoStats,
     IInstantiable,
 )
 from env.state import (
@@ -85,7 +87,7 @@ class HaveResultScratch(Goal[IRunnable, StateScratchIndex], IInstantiable):
             scope_data_group=ScopeDataGroup(),
             return_after_scope=Optional(),
         )
-        eval_result = runnable.run(run_info)
+        eval_result = runnable.run(run_info.with_stats())
         _, goal_inner_expr = eval_result.as_tuple
         assert isinstance(eval_param, StateScratchIndex)
         scratch = eval_param.find_in_node(state).value_or_raise
@@ -147,7 +149,7 @@ class CorrectActionValidator(ControlFlowBaseNode, IInstantiable):
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
         base_result, arg_group = super()._run(info).as_tuple
-        info, inner_result = base_result.as_tuple
+        info_with_stats, inner_result = base_result.as_tuple
 
         final_self = inner_result.real(ActionOutputFromAction)
 
@@ -156,11 +158,11 @@ class CorrectActionValidator(ControlFlowBaseNode, IInstantiable):
 
         _, action_data = action.run_action_details(full_state)
 
-        info, result = IBoolean.from_bool(
+        info_with_stats, result = IBoolean.from_bool(
             isinstance(action_data, SuccessActionData)
-        ).as_node.run(info).as_tuple
+        ).as_node.run(info_with_stats).as_tuple
 
-        return RunInfoFullResult(info.to_result(result), arg_group)
+        return RunInfoFullResult(info_with_stats.to_result(result), arg_group)
 
 class ActionFromRawAction(ControlFlowBaseNode, IInstantiable):
 
@@ -180,7 +182,7 @@ class ActionFromRawAction(ControlFlowBaseNode, IInstantiable):
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
         base_result, arg_group = super()._run(info).as_tuple
-        info, inner_result = base_result.as_tuple
+        info_with_stats, inner_result = base_result.as_tuple
 
         final_self = inner_result.real(ActionFromRawAction)
 
@@ -189,7 +191,7 @@ class ActionFromRawAction(ControlFlowBaseNode, IInstantiable):
 
         action = raw_action.to_action(full_state)
 
-        return RunInfoFullResult(info.to_result(action), arg_group)
+        return RunInfoFullResult(info_with_stats.to_result(action), arg_group)
 
 class ActionOutputFromAction(ControlFlowBaseNode, IInstantiable):
 
@@ -209,16 +211,18 @@ class ActionOutputFromAction(ControlFlowBaseNode, IInstantiable):
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
         base_result, arg_group = super()._run(info).as_tuple
-        info, inner_result = base_result.as_tuple
+        info_with_stats, inner_result = base_result.as_tuple
 
         final_self = inner_result.real(ActionOutputFromAction)
 
         action = final_self.inner_arg(self.idx_action).apply().real(BaseAction)
         full_state = final_self.inner_arg(self.idx_full_state).apply().real(FullState)
 
-        output = action.inner_run(full_state).output.apply().cast(IActionOutput)
+        full_out, action_info = action.inner_run(full_state)
+        output = full_out.output.apply().cast(IActionOutput)
+        info_with_stats = info_with_stats.add_inner_stats(action_info.to_stats())
 
-        return RunInfoFullResult(info.to_result(output), arg_group)
+        return RunInfoFullResult(info_with_stats.to_result(output), arg_group)
 
 class ActionOutputFromRawAction(ControlFlowBaseNode, IInstantiable):
 
@@ -238,16 +242,18 @@ class ActionOutputFromRawAction(ControlFlowBaseNode, IInstantiable):
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
         base_result, arg_group = super()._run(info).as_tuple
-        info, inner_result = base_result.as_tuple
+        info_with_stats, inner_result = base_result.as_tuple
 
         final_self = inner_result.real(ActionOutputFromAction)
 
         action = final_self.inner_arg(self.idx_raw_action).apply().real(RawAction)
         full_state = final_self.inner_arg(self.idx_full_state).apply().real(FullState)
 
-        output = action.inner_run(full_state).output.apply().cast(IActionOutput)
+        full_out, action_info = action.inner_run(full_state)
+        output = full_out.output.apply().cast(IActionOutput)
+        info_with_stats = info_with_stats.add_inner_stats(action_info.to_stats())
 
-        return RunInfoFullResult(info.to_result(output), arg_group)
+        return RunInfoFullResult(info_with_stats.to_result(output), arg_group)
 
 class NewStateFromActionOutput(ControlFlowBaseNode, IInstantiable):
 
@@ -267,16 +273,17 @@ class NewStateFromActionOutput(ControlFlowBaseNode, IInstantiable):
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
         base_result, arg_group = super()._run(info).as_tuple
-        info, inner_result = base_result.as_tuple
+        info_with_stats, inner_result = base_result.as_tuple
 
         final_self = inner_result.real(ActionOutputFromAction)
 
         action_output = final_self.inner_arg(self.idx_action_output).apply().real(IActionOutput)
         full_state = final_self.inner_arg(self.idx_full_state).apply().real(FullState)
 
-        new_state = action_output.run_output(full_state)
+        new_state, output_info = action_output.run_output(full_state)
+        info_with_stats = info_with_stats.add_inner_stats(output_info.to_stats())
 
-        return RunInfoFullResult(info.to_result(new_state), arg_group)
+        return RunInfoFullResult(info_with_stats.to_result(new_state), arg_group)
 
 class NewStateFromAction(ControlFlowBaseNode, IInstantiable):
 
@@ -296,16 +303,18 @@ class NewStateFromAction(ControlFlowBaseNode, IInstantiable):
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
         base_result, arg_group = super()._run(info).as_tuple
-        info, inner_result = base_result.as_tuple
+        info_with_stats, inner_result = base_result.as_tuple
 
         final_self = inner_result.real(ActionOutputFromAction)
 
         action = final_self.inner_arg(self.idx_action).apply().real(BaseAction)
         full_state = final_self.inner_arg(self.idx_full_state).apply().real(FullState)
 
-        new_state = action.inner_run(full_state).new_state.apply().real(State)
+        full_out, action_info = action.inner_run(full_state)
+        new_state = full_out.new_state.apply().real(State)
+        info_with_stats = info_with_stats.add_inner_stats(action_info.to_stats())
 
-        return RunInfoFullResult(info.to_result(new_state), arg_group)
+        return RunInfoFullResult(info_with_stats.to_result(new_state), arg_group)
 
 class NewStateFromRawAction(ControlFlowBaseNode, IInstantiable):
 
@@ -325,13 +334,15 @@ class NewStateFromRawAction(ControlFlowBaseNode, IInstantiable):
 
     def _run_control(self, info: RunInfo) -> RunInfoFullResult:
         base_result, arg_group = super()._run(info).as_tuple
-        info, inner_result = base_result.as_tuple
+        info_with_stats, inner_result = base_result.as_tuple
 
         final_self = inner_result.real(ActionOutputFromAction)
 
         action = final_self.inner_arg(self.idx_raw_action).apply().real(RawAction)
         full_state = final_self.inner_arg(self.idx_full_state).apply().real(FullState)
 
-        new_state = action.inner_run(full_state).new_state.apply().real(State)
+        full_out, action_info = action.inner_run(full_state)
+        new_state = full_out.new_state.apply().real(State)
+        info_with_stats = info_with_stats.add_inner_stats(action_info.to_stats())
 
-        return RunInfoFullResult(info.to_result(new_state), arg_group)
+        return RunInfoFullResult(info_with_stats.to_result(new_state), arg_group)
