@@ -632,7 +632,7 @@ class CostMultiplier(InheritableNode, IInstantiable):
             default_multiplier=default_multiplier,
             applied_initial_multiplier=default_multiplier,
             steps=0,
-                    step_count_to_change=None,
+            step_count_to_change=None,
         )
 
 class MetaData(InheritableNode, IDefault, IInstantiable):

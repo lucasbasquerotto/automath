@@ -286,10 +286,7 @@ class VerifyGoalOutput(GeneralAction, IInstantiable):
         new_meta_info = meta_info.apply_goal_achieved(nested_args_wrapper)
         new_state = state.with_new_args(meta_info=new_meta_info)
 
-        sub_goal = (
-            (nested_args_indices is not None)
-            and
-            len(nested_args_indices.as_tuple) > 0)
+        final_goal_achieved = new_meta_info.is_goal_achieved()
 
         meta = full_state.meta.apply().real(MetaInfo)
         meta_info_options = meta.options.apply().real(MetaInfoOptions)
@@ -299,11 +296,13 @@ class VerifyGoalOutput(GeneralAction, IInstantiable):
             Integer)
         step_count_to_change_cost = meta_info_options.step_count_to_change_cost.apply().real(
             Integer)
-        multiplier = cost_multiplier_sub_goal if sub_goal else cost_multiplier_main_goal
+        multiplier = (
+            cost_multiplier_main_goal
+            if final_goal_achieved
+            else cost_multiplier_sub_goal)
         new_cost_multiplier = NewCostMultiplier.with_args(
             multiplier=multiplier.as_int,
             step_count_to_change=step_count_to_change_cost.as_int)
-
         return new_state, ActionOutputInfo.with_args(new_cost_multiplier=new_cost_multiplier)
 
 class VerifyGoal(

@@ -11,6 +11,7 @@ from env import (
     node_data,
 )
 from env.goal_env import GoalEnv
+from env.symbol import Symbol
 from test_suite import test_utils
 
 def get_current_state(env: GoalEnv):
@@ -34,6 +35,10 @@ def get_last_history_action(env: GoalEnv):
     return last.action_data.apply().inner_arg(
         core.Optional.idx_value
     ).apply().cast(full_state.BaseActionData)
+
+def get_metadata(env: GoalEnv):
+    current = env.full_state.current.apply().cast(full_state.HistoryNode)
+    return current.meta_data.apply().cast(meta_env.MetaData)
 
 def get_from_int_type_index(node_type: type[core.INode], env: GoalEnv):
     selected_types = env.full_state.meta.apply().nested_arg((
@@ -463,6 +468,64 @@ def dynamic_goal_test():
     current_state = get_current_state(env)
     prev_remaining_steps = get_remaining_steps(env)
 
+    default_multiplier = 50
+    current_multiplier = default_multiplier
+    applied_initial_multiplier = default_multiplier
+    steps = 0
+    default_step_count_to_change = 5
+
+    cost_multiplier_goal = 1
+    cost_multiplier_sub_goal = 3
+    cost_multiplier_custom_goal = 10
+
+    def verify_cost(new_cost_multiplier: meta_env.NewCostMultiplier | None = None):
+        nonlocal default_multiplier
+        nonlocal current_multiplier
+        nonlocal applied_initial_multiplier
+        nonlocal steps
+        nonlocal default_step_count_to_change
+
+        last_metadata = get_metadata(env)
+
+        last_new_cost_multiplier_opt = last_metadata.new_cost_multiplier.apply()
+        new_cost_multiplier_opt = core.Optional.with_value(new_cost_multiplier)
+        if last_new_cost_multiplier_opt != new_cost_multiplier_opt:
+            print('last_new_cost_multiplier_opt:', Symbol.default(last_new_cost_multiplier_opt))
+            print('new_cost_multiplier_opt:', Symbol.default(new_cost_multiplier_opt))
+        assert last_new_cost_multiplier_opt == new_cost_multiplier_opt
+
+        steps += 1
+        step_count_to_change = default_step_count_to_change
+
+        if new_cost_multiplier is not None:
+            applied_initial_multiplier = new_cost_multiplier.multiplier.apply().cast(
+                core.IInt).as_int
+            current_multiplier = applied_initial_multiplier
+            steps = 0
+        elif steps % default_step_count_to_change == 0:
+            current_multiplier = current_multiplier + 1
+
+        if current_multiplier >= default_multiplier:
+            current_multiplier = default_multiplier
+            applied_initial_multiplier = default_multiplier
+            step_count_to_change = None
+            steps = 0
+
+        cost_multiplier = meta_env.CostMultiplier.with_args(
+            current_multiplier=current_multiplier,
+            default_multiplier=default_multiplier,
+            applied_initial_multiplier=applied_initial_multiplier,
+            steps=steps,
+            step_count_to_change=step_count_to_change,
+        )
+
+        last_cost_multiplier_opt = last_metadata.cost_multiplier.apply()
+        cost_multiplier_opt = core.Optional.with_node(cost_multiplier)
+        if last_cost_multiplier_opt != cost_multiplier_opt:
+            print('last_cost_multiplier_opt:', Symbol.default(last_cost_multiplier_opt))
+            print('cost_multiplier_opt:', Symbol.default(cost_multiplier_opt))
+        assert cost_multiplier_opt == last_cost_multiplier_opt
+
     state_meta = state.StateMetaInfo.with_goal_achieved(state.GoalAchievedGroup(
         state.GoalAchieved.create(),
         state.GoalAchieved.create(),
@@ -509,6 +572,7 @@ def dynamic_goal_test():
         exception=core.Optional(),
     )
     assert env.full_state.goal_achieved() is False
+    verify_cost()
 
     # Run Action
     meta_idx = get_from_int_type_index(state.StateDynamicGoalIndex, env)
@@ -549,6 +613,10 @@ def dynamic_goal_test():
         exception=core.Optional(),
     )
     assert env.full_state.goal_achieved() is False
+    verify_cost(meta_env.NewCostMultiplier.with_args(
+        multiplier=cost_multiplier_sub_goal,
+        step_count_to_change=default_step_count_to_change,
+    ))
 
     # Run Action
     meta_idx = get_from_int_type_index(state.StateScratchIndex, env)
@@ -583,6 +651,7 @@ def dynamic_goal_test():
         exception=core.Optional(),
     )
     assert env.full_state.goal_achieved() is False
+    verify_cost()
 
     # Run Action
     raw_action = action_impl.VerifyDynamicGoal.from_raw(1, 0, 2)
@@ -625,6 +694,10 @@ def dynamic_goal_test():
         exception=core.Optional(),
     )
     assert env.full_state.goal_achieved() is False
+    verify_cost(meta_env.NewCostMultiplier.with_args(
+        multiplier=cost_multiplier_custom_goal,
+        step_count_to_change=default_step_count_to_change,
+    ))
 
     # Run Action
     meta_idx = get_from_int_type_index(state.StateDynamicGoalIndex, env)
@@ -665,6 +738,10 @@ def dynamic_goal_test():
         exception=core.Optional(),
     )
     assert env.full_state.goal_achieved() is True
+    verify_cost(meta_env.NewCostMultiplier.with_args(
+        multiplier=cost_multiplier_goal,
+        step_count_to_change=default_step_count_to_change,
+    ))
 
     return [env.full_state]
 

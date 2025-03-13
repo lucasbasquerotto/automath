@@ -480,14 +480,19 @@ class BaseNode(IRunnable, ABC):
     def run(self, info_with_stats: RunInfoWithStats) -> RunInfoResult:
         info = info_with_stats.run_info.apply().real(RunInfo)
         info_hash = hash((self, info)) if BaseNode.cache_enabled else 0
-        #TODO
+
+        def fn_result(result: RunInfoResult, exception: NodeReturnException | None):
+            if exception is not None:
+                exception.add_stats(info_with_stats)
+                raise exception
+            result.add_stats(info_with_stats)
+            return result
+
         if BaseNode.cache_enabled:
             cached = self._cached_run.get(info_hash)
             if cached is not None:
                 result, exception = cached
-                if exception is not None:
-                    raise exception
-                return result
+                return fn_result(result, exception)
 
         cached_result = self.main_run(info)
         result, exception = cached_result
@@ -503,9 +508,7 @@ class BaseNode(IRunnable, ABC):
         if BaseNode.cache_enabled:
             self._cached_run[info_hash] = cached_result
 
-        if exception is not None:
-            raise exception
-        return result
+        return fn_result(result, exception)
 
     @classmethod
     def default_protocol(cls, args_group: IBaseTypeGroup) -> Protocol:
@@ -2722,6 +2725,10 @@ class NodeReturnException(Exception):
         assert isinstance(result, RunInfoFullResult)
         return result
 
+    def add_stats(self, info_with_stats: RunInfoWithStats) -> typing.Self:
+        new_result = self.result.add_stats(info_with_stats)
+        return self.__class__(new_result)
+
 class IExceptionInfo(INode, ABC):
 
     def as_exception(self):
@@ -4011,6 +4018,36 @@ class RunInfoFullResult(InheritableNode, IInstantiable):
         info_result = self.info_result.apply().real(RunInfoResult)
         return_value = self.run_args.apply().real(OptionalValueGroup)
         return info_result, return_value
+
+    @classmethod
+    def with_args(
+        cls,
+        info_result: RunInfoResult,
+        run_args: OptionalValueGroup[INode],
+    ) -> typing.Self:
+        return cls(info_result, run_args)
+
+    def with_new_args(
+        self,
+        info_result: RunInfoResult | None = None,
+        run_args: OptionalValueGroup[INode] | None = None,
+    ) -> typing.Self:
+        info_result = (
+            info_result
+            if info_result is not None
+            else self.info_result.apply().real(RunInfoResult))
+        run_args = (
+            run_args
+            if run_args is not None
+            else self.run_args.apply().real(OptionalValueGroup[INode]))
+        return self.func(info_result, run_args)
+
+    def add_stats(self, info_with_stats: RunInfoWithStats) -> typing.Self:
+        info_result, _ = self.as_tuple
+        info_result = info_result.add_stats(info_with_stats)
+        return self.with_new_args(
+            info_result=info_result,
+        )
 
 class ControlFlowBaseNode(InheritableNode, IDynamic, ABC):
 

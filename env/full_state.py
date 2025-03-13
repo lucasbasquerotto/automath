@@ -462,14 +462,10 @@ class FullState(
         return options
 
     @property
-    def last_cost_multiplier(self) -> Optional[CostMultiplier]:
-        history_group = self.history.apply().real(HistoryGroupNode)
-        history_items = history_group.as_tuple
-        if len(history_items) == 0:
-            return Optional.create()
-        last_item = history_items[-1]
-        assert isinstance(last_item, HistoryNode)
-        meta_data = last_item.meta_data.apply().real(MetaData)
+    def cost_multiplier(self) -> Optional[CostMultiplier]:
+        current = self.current.apply().real(HistoryNode)
+        assert isinstance(current, HistoryNode)
+        meta_data = current.meta_data.apply().real(MetaData)
         cost_multiplier = meta_data.cost_multiplier.apply().real(Optional[CostMultiplier])
         return cost_multiplier
 

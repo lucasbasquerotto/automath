@@ -347,6 +347,9 @@ class StateMetaInfo(InheritableNode, IDefault, IInstantiable):
         result = NodeArgIndex(self.idx_goal_achieved).replace_in_target(self, goal_achieved)
         return result.value_or_raise
 
+    def is_goal_achieved(self) -> bool:
+        return self.goal_achieved.apply().cast(IGoalAchieved).as_bool
+
 class IContext(IWrapper, ABC):
     pass
 

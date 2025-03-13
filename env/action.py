@@ -378,6 +378,8 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
         ).value
         current = full_state.current.apply().real(HistoryNode)
         meta_data = current.meta_data.apply().real(MetaData)
+        meta_info_options = full_state.meta_info_options
+        last_cost_multiplier = full_state.cost_multiplier.value
         remaining_steps_opt = meta_data.remaining_steps.apply().real(Optional[Integer])
         remaining_steps = (
             (remaining_steps_opt.value.as_int)
@@ -421,18 +423,10 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             if remaining_steps is not None
             else None)
 
-        meta_info_options = full_state.meta_info_options
-        last_cost_multiplier = full_state.last_cost_multiplier.value
         cost_multiplier = CostMultiplier.calculate(
             meta_info_options=meta_info_options,
             last_cost_multiplier=last_cost_multiplier,
             new_cost_multiplier=new_cost_multiplier,
-        )
-
-        meta_data = meta_data.with_new_args(
-            remaining_steps,
-            new_cost_multiplier=Optional.with_value(new_cost_multiplier),
-            cost_multiplier=Optional.with_value(cost_multiplier),
         )
 
         current = current.with_new_args(
@@ -441,6 +435,12 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
 
         history = list(full_state.history.apply().real(HistoryGroupNode).as_tuple)
         history.append(current)
+
+        meta_data = meta_data.with_new_args(
+            remaining_steps,
+            new_cost_multiplier=Optional.with_value(new_cost_multiplier),
+            cost_multiplier=Optional.with_value(cost_multiplier),
+        )
 
         current = HistoryNode.with_args(
             state=next_state,
