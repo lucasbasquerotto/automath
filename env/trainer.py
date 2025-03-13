@@ -88,7 +88,7 @@ class Trainer:
         if inception_level < max_inception_level:
             full_state = self.env.full_state
 
-            _, action_data = raw_action.run_action_details(full_state)
+            _, action_data, __ = raw_action.run_action_details(full_state)
             assert isinstance(action_data, BaseActionData)
 
             action_opt = action_data.action.apply().real(Optional[BaseAction])

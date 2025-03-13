@@ -156,11 +156,12 @@ class CorrectActionValidator(ControlFlowBaseNode, IInstantiable):
         action = final_self.inner_arg(self.idx_action).apply().real(BaseAction)
         full_state = final_self.inner_arg(self.idx_full_state).apply().real(FullState)
 
-        _, action_data = action.run_action_details(full_state)
+        _, action_data, stats = action.run_action_details(full_state)
 
         info_with_stats, result = IBoolean.from_bool(
             isinstance(action_data, SuccessActionData)
         ).as_node.run(info_with_stats).as_tuple
+        info_with_stats = info_with_stats.add_inner_stats(stats)
 
         return RunInfoFullResult(info_with_stats.to_result(result), arg_group)
 

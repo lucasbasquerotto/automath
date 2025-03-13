@@ -17,6 +17,7 @@ from env.core import (
     IWrapper,
     CompositeType,
     OptionalTypeGroup,
+    RunInfoStats,
     TmpInnerArg,
     IInstantiable,
 )
@@ -278,10 +279,6 @@ class ActionOutputExceptionInfo(InheritableNode, IActionExceptionInfo, IInstanti
         )
 
 ###########################################################
-####################### ACTION INFO #######################
-###########################################################
-
-###########################################################
 ##################### IMPLEMENTATION ######################
 ###########################################################
 
@@ -369,7 +366,11 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
                 e.info,
             ).as_exception() from e
 
-    def run_action_details(self, full_state: FullState) -> tuple[FullState, BaseActionData]:
+    def run_action_details(self, full_state: FullState) -> tuple[
+        FullState,
+        BaseActionData,
+        RunInfoStats,
+    ]:
         meta = full_state.meta.apply().real(MetaInfo)
         options = meta.options.apply().real(MetaInfoOptions)
         max_history_state_size = options.max_history_state_size.apply().real(
@@ -492,10 +493,20 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
                 current=current,
             )
 
-        return new_full_state, action_data
+        instructions = (
+            processing_cost.instructions.apply().real(Integer).as_int
+            if processing_cost is not None
+            else 1
+        )
+        stats = RunInfoStats.with_args(
+            instructions=instructions,
+            memory=run_memory_size,
+        )
+
+        return new_full_state, action_data, stats
 
     def run_action(self, full_state: FullState) -> FullState:
-        full_state, _ = self.run_action_details(full_state)
+        full_state, _, __ = self.run_action_details(full_state)
         return full_state
 
 class BasicAction(
