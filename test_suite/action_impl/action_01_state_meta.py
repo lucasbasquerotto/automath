@@ -496,11 +496,14 @@ def dynamic_goal_test():
 
         steps += 1
         step_count_to_change = default_step_count_to_change
+        new_multiplier = (
+            new_cost_multiplier.multiplier.apply().cast(core.IInt).as_int
+            if new_cost_multiplier is not None
+            else None)
 
-        if new_cost_multiplier is not None:
-            applied_initial_multiplier = new_cost_multiplier.multiplier.apply().cast(
-                core.IInt).as_int
-            current_multiplier = applied_initial_multiplier
+        if new_multiplier is not None and new_multiplier <= current_multiplier:
+            applied_initial_multiplier = new_multiplier
+            current_multiplier = new_multiplier
             steps = 0
         elif steps % default_step_count_to_change == 0:
             current_multiplier = current_multiplier + 1
@@ -525,6 +528,25 @@ def dynamic_goal_test():
             print('last_cost_multiplier_opt:', Symbol.default(last_cost_multiplier_opt))
             print('cost_multiplier_opt:', Symbol.default(cost_multiplier_opt))
         assert cost_multiplier_opt == last_cost_multiplier_opt
+
+        run_cost_opt = last_metadata.run_cost.apply().real(core.Optional[meta_env.RunCost])
+        run_cost = run_cost_opt.value_or_raise
+        memory_cost = run_cost.memory_cost.apply().real(meta_env.RunMemoryCost)
+
+        full_state_memory = memory_cost.full_state_memory.apply().real(core.Integer).as_int
+        visible_state_memory = memory_cost.visible_state_memory.apply().real(core.Integer).as_int
+        main_state_memory = memory_cost.main_state_memory.apply().real(core.Integer).as_int
+
+        full_state_no_cost = env.full_state.before_run_stats()
+        current = full_state_no_cost.current.apply().cast(full_state.HistoryNode)
+        inner_state = current.state.apply().cast(state.State)
+
+        assert main_state_memory == len(inner_state), \
+            f'{main_state_memory} != {len(inner_state)}'
+        assert full_state_memory == len(full_state_no_cost), \
+            f'{full_state_memory} != {len(full_state_no_cost)} ({len(env.full_state)})'
+        assert visible_state_memory == len(full_state_no_cost), \
+            f'{visible_state_memory} != {len(full_state_no_cost)}'
 
     state_meta = state.StateMetaInfo.with_goal_achieved(state.GoalAchievedGroup(
         state.GoalAchieved.create(),

@@ -584,15 +584,22 @@ class CostMultiplier(InheritableNode, IInstantiable):
         ).as_int
 
         if new_cost_multiplier is not None:
-            multiplier: int = new_cost_multiplier.multiplier.apply().real(Integer).as_int
-            return cls.with_args(
-                current_multiplier=multiplier,
-                default_multiplier=default_multiplier,
-                applied_initial_multiplier=multiplier,
-                steps=0,
-                step_count_to_change=step_count_to_change,
+            multiplier = new_cost_multiplier.multiplier.apply().real(Integer).as_int
+            last_multiplier = (
+                last_cost_multiplier.current_multiplier.apply().real(Integer).as_int
+                if last_cost_multiplier is not None
+                else None
             )
-        elif last_cost_multiplier is not None:
+            if last_multiplier is None or multiplier <= last_multiplier:
+                return cls.with_args(
+                    current_multiplier=multiplier,
+                    default_multiplier=default_multiplier,
+                    applied_initial_multiplier=multiplier,
+                    steps=0,
+                    step_count_to_change=step_count_to_change,
+                )
+
+        if last_cost_multiplier is not None:
             last_steps = last_cost_multiplier.steps.apply().real(Integer).as_int
             steps = last_steps + 1
             increase = steps % step_count_to_change == 0
@@ -766,7 +773,7 @@ class FinalCost(BaseNormalizer, IInstantiable):
 
     idx_cost_multiplier = 1
     idx_run_cost = 2
-    idx_options = 4
+    idx_options = 3
 
     @classmethod
     def protocol(cls) -> Protocol:

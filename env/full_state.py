@@ -52,7 +52,7 @@ from env.meta_env import (
     MetaInfoOptions,
     MetaData,
     CostMultiplier,
-
+    NewCostMultiplier,
 )
 
 T = typing.TypeVar('T', bound=INode)
@@ -361,6 +361,31 @@ class HistoryNode(InheritableNode, IDefault, IWrapper, IInstantiable):
             )
         )
 
+    def before_run_stats(self) -> typing.Self:
+        meta_data = self.meta_data.apply().real(MetaData)
+        remaining_steps_value = meta_data.remaining_steps.apply().real(
+            Optional[Integer]
+        ).value
+        remaining_steps = (
+            remaining_steps_value.as_int
+            if remaining_steps_value is not None
+            else None)
+        new_cost_multiplier = meta_data.new_cost_multiplier.apply().real(
+            Optional[NewCostMultiplier]
+        ).value
+        cost_multiplier = meta_data.cost_multiplier.apply().real(
+            Optional[CostMultiplier]
+        ).value
+        return self.with_new_args(
+            meta_data=MetaData.with_args(
+                remaining_steps=remaining_steps,
+                new_cost_multiplier=new_cost_multiplier,
+                cost_multiplier=cost_multiplier,
+                run_cost=None,
+                final_cost=None,
+            )
+        )
+
 class HistoryGroupNode(BaseGroup[HistoryNode], IInstantiable):
 
     @classmethod
@@ -499,12 +524,14 @@ class FullState(
         new_history = HistoryGroupNode.from_items(
             [item.minimal_meta() for item in history_items]
         )
-        return self.with_args(
-            meta=self.meta.apply().real(MetaInfo),
+        return self.with_new_args(
             current=current,
             history=new_history,
         )
 
+    def before_run_stats(self) -> typing.Self:
+        current = self.current.apply().real(HistoryNode).before_run_stats()
+        return self.with_new_args(current=current)
 
     def at_history(self, index: int) -> tuple[typing.Self, IOptional[BaseActionData]]:
         history = self.history.apply().real(HistoryGroupNode).as_tuple

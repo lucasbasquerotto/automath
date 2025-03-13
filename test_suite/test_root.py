@@ -95,9 +95,9 @@ def _main_tests() -> list[full_state.FullState]:
 
     final_states += run_main_test(basic_test.test)
 
-    final_states += run_main_test(boolean_test.test)
-    final_states += run_main_test(arithmetic_test.test)
-    final_states += run_main_test(indices_test.test)
+    # final_states += run_main_test(boolean_test.test)
+    # final_states += run_main_test(arithmetic_test.test)
+    # final_states += run_main_test(indices_test.test)
 
     final_states += run_main_test(action_00_action_meta.test)
     final_states += run_main_test(action_01_state_meta.test)

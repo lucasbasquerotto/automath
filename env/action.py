@@ -37,6 +37,7 @@ from env.meta_env import (
     ActionFullInfo,
     RunProcessingCost,
     RunCost,
+    FinalCost,
     RunMemoryCost,
 )
 from env.full_state import (
@@ -445,7 +446,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
         current = HistoryNode.with_args(
             state=next_state,
             meta_data=meta_data,
-        )
+        ).before_run_stats()
 
         if max_history_state_size is not None:
             history = history[-max_history_state_size.as_int:]
@@ -457,34 +458,31 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
         )
 
         if processing_cost is not None:
-            cost_full_state_memory = meta_info_options.cost_full_state_memory.apply().real(
-                Integer).as_int
-            cost_visible_state_memory = meta_info_options.cost_visible_state_memory.apply().real(
-                Integer).as_int
-            cost_main_state_memory = meta_info_options.cost_main_state_memory.apply().real(
-                Integer).as_int
-            cost_run_memory = meta_info_options.cost_run_memory.apply().real(
-                Integer).as_int
-
             node_types = full_state.node_types()
-            node_data = NodeData(node=next_state, node_types=node_types)
+            node_data = NodeData(node=new_full_state, node_types=node_types)
 
             full_state_memory_size = len(new_full_state)
             visible_state_memory_size = len(node_data.to_data_array())
             main_state_memory_size = len(next_state)
 
             memory_cost = RunMemoryCost.with_args(
-                full_state_memory=full_state_memory_size*cost_full_state_memory,
-                visible_state_memory=visible_state_memory_size*cost_visible_state_memory,
-                main_state_memory=main_state_memory_size*cost_main_state_memory,
-                run_memory=run_memory_size*cost_run_memory,
+                full_state_memory=full_state_memory_size,
+                visible_state_memory=visible_state_memory_size,
+                main_state_memory=main_state_memory_size,
+                run_memory=run_memory_size,
             )
             run_cost = RunCost.with_args(
                 processing_cost=processing_cost,
                 memory_cost=memory_cost,
             )
+            final_cost = FinalCost.with_args(
+                cost_multiplier=cost_multiplier,
+                run_cost=run_cost,
+                options=meta_info_options,
+            ).normalize()
             meta_data = meta_data.with_new_args(
                 run_cost=Optional.with_value(run_cost),
+                final_cost=final_cost.as_int,
             )
             current = current.with_new_args(
                 meta_data=meta_data,
