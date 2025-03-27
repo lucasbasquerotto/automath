@@ -460,6 +460,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
         if processing_cost is not None:
             node_types = full_state.node_types()
             node_data = NodeData(node=new_full_state, node_types=node_types)
+            # node_data = NodeData(node=next_state, node_types=node_types)
 
             full_state_memory_size = len(new_full_state)
             visible_state_memory_size = len(node_data.to_data_array())
