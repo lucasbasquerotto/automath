@@ -11,6 +11,7 @@ from env.goal_env import GoalEnv
 from env.node_types import HaveScratch
 from test_suite import (
     test_utils,
+    agent_test,
     basic_test,
     boolean_test,
     arithmetic_test,
@@ -88,7 +89,29 @@ def run_main_test(fn: typing.Callable[[], list[full_state.FullState]]):
         amount = len(final_states)
         action_amount = sum([fs.history_amount() for fs in final_states])
         return f"Completed tests: {amount} ({action_amount} actions)"
-    return test_utils.run_module_test(fn, fn_additional_info)
+    full_states = test_utils.run_module_test(fn, fn_additional_info)
+    def run_agent_tests(final_states: list[full_state.FullState]) -> tuple[int, int]:
+        all_complete = 0
+        for full_state_case in final_states:
+            complete = agent_test.replay_actions_with_demo_agent(full_state_case)
+            all_complete += complete
+        return all_complete, len(final_states)
+    def fn_additional_info_agent(values: tuple[int, int]):
+        all_complete, amount = values
+        suffix = ''
+        if all_complete != amount:
+            diff = amount - all_complete
+            if diff == 1:
+                suffix = f" ({diff} case without successful action to simulate)"
+            else:
+                suffix = f" ({diff} cases without successful actions to simulate)"
+        return f"Agent completed: {all_complete}{suffix}"
+    test_utils.run_test(
+        f' -> agent ({fn.__module__})',
+        lambda: run_agent_tests(full_states),
+        fn_additional_info_agent,
+    )
+    return full_states
 
 def _main_tests(fast: bool) -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []

@@ -575,3 +575,37 @@ class RawAction(BaseAction[IActionOutput], IRawAction[FullState], IInstantiable)
         basic_action = action_type.type.from_raw(arg1.as_int, arg2.as_int, arg3.as_int)
 
         return basic_action
+
+    @classmethod
+    def from_basic_action(
+        cls,
+        action: IBasicAction,
+        full_state: FullState,
+    ) -> typing.Self:
+        args = action.to_raw_args().as_tuple
+        assert len(args) == 3, f"Expected 3 arguments, got {len(args)} ({type(action)})"
+        action_index = MetaAllowedBasicActionsTypeIndex.get_basic_action_index(
+            node_type=type(action),
+            full_state=full_state)
+        assert action_index.as_int > 0, f"Invalid action type: {type(action)}"
+        return cls.with_args(
+            action_index=action_index,
+            arg1=Integer(args[0].as_int),
+            arg2=Integer(args[1].as_int),
+            arg3=Integer(args[2].as_int),
+        )
+
+    @classmethod
+    def with_args(
+        cls,
+        action_index: MetaAllowedBasicActionsTypeIndex,
+        arg1: Integer,
+        arg2: Integer,
+        arg3: Integer,
+    ) -> typing.Self:
+        return cls(
+            action_index,
+            arg1,
+            arg2,
+            arg3,
+        )

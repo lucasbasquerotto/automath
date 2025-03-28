@@ -672,6 +672,18 @@ class MetaAllowedBasicActionsTypeIndex(
             MetaInfo.idx_allowed_basic_actions,
         ))
 
+    @classmethod
+    def get_basic_action_index(
+        cls,
+        node_type: type[IBasicAction],
+        full_state: FullState,
+    ) -> typing.Self:
+        selected_types = full_state.meta.apply().real(
+            MetaInfo
+        ).allowed_basic_actions.apply().cast(GeneralTypeGroup)
+        meta_idx = selected_types.as_tuple.index(node_type.as_type()) + 1
+        return cls.from_int(meta_idx)
+
 class MetaAllowedActionsTypeIndex(
     FullStateGroupTypeBaseIndex[IAction[FullState]],
     IInstantiable):

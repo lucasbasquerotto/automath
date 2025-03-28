@@ -10,6 +10,7 @@ from env import (
     node_types as node_types_module,
     node_data,
 )
+from env.action import RawAction
 from env.goal_env import GoalEnv
 from env.symbol import Symbol
 from test_suite import test_utils
@@ -106,7 +107,6 @@ def goal_test():
     def test_goal_specified(
         goal: node_types_module.HaveScratch,
         scratch_goal: core.INode,
-        direct: bool,
         error=False,
     ):
         env = GoalEnv(
@@ -149,8 +149,7 @@ def goal_test():
             core.Optional(),
             state.StateScratchIndex(1),
         )
-        act = output if direct else raw_action
-        env.step(act)
+        env.step(raw_action)
         if prev_remaining_steps is not None:
             remaining_steps = get_remaining_steps(env)
             assert remaining_steps == prev_remaining_steps - 1
@@ -169,7 +168,7 @@ def goal_test():
             )
             assert last_history_action == full_state.SuccessActionData.from_args(
                 raw_action=core.Optional(),
-                action=core.Optional(output if direct else full_action),
+                action=core.Optional(full_action),
                 output=core.Optional(output),
                 exception=core.Optional(),
             )
@@ -177,7 +176,7 @@ def goal_test():
         else:
             assert current_state == initial_state
             expected_action: core.Optional[core.INode] = core.Optional(
-                output if direct else full_action
+                full_action
             )
             actual_action = last_history_action.action.apply().cast(core.IOptional)
             assert expected_action == actual_action
@@ -201,6 +200,10 @@ def goal_test():
         scratch_nest_1 = core.NestedArgIndexGroup.from_ints([1])
         scratch_nest_2 = core.NestedArgIndexGroup.from_ints([2, 1])
         scratch_nest_3 = core.NestedArgIndexGroup.from_ints([2, 2])
+        scratch_dynamic_goal = action_impl.VerifyGoalOutput(
+            core.Optional(scratch_nest_2),
+            state.StateScratchIndex(2),
+        )
         scratches = [
             scratch_goal_1,
             scratch_goal_2,
@@ -208,6 +211,7 @@ def goal_test():
             scratch_nest_1,
             scratch_nest_2,
             scratch_nest_3,
+            scratch_dynamic_goal,
         ]
         env = GoalEnv(
             goal=goal,
@@ -280,11 +284,25 @@ def goal_test():
         assert env.full_state.goal_achieved() is False
 
         # Achieve 2nd Goal
-        output = action_impl.VerifyGoalOutput(
-            core.Optional(scratch_nest_2),
-            state.StateScratchIndex(2),
+        action_index = full_state.MetaAllowedBasicActionsTypeIndex.get_basic_action_index(
+            node_type=action_impl.DynamicAction,
+            full_state=env.full_state,
         )
-        env.step(output)
+        scratch_idx = 7
+        raw_action = RawAction(
+            action_index,
+            core.Integer(scratch_idx),
+            core.Integer(0),
+            core.Integer(0),
+        )
+        full_action = action_impl.DynamicAction(
+            state.StateScratchIndex(scratch_idx),
+        )
+        output = action_impl.DynamicActionOutput(
+            scratch_dynamic_goal,
+            scratch_dynamic_goal,
+        )
+        env.step(raw_action)
         if prev_remaining_steps is not None:
             remaining_steps = get_remaining_steps(env)
             assert remaining_steps == prev_remaining_steps - 1
@@ -306,8 +324,8 @@ def goal_test():
             scratches=scratches,
         )
         assert last_history_action == full_state.SuccessActionData.from_args(
-            raw_action=core.Optional(),
-            action=core.Optional(output),
+            raw_action=core.Optional(raw_action),
+            action=core.Optional(full_action),
             output=core.Optional(output),
             exception=core.Optional(),
         )
@@ -372,11 +390,11 @@ def goal_test():
 
     def main() -> list[full_state.FullState]:
         final_states: list[full_state.FullState] = []
-        final_states.append(test_goal_specified(goal_1, scratch_goal_1, direct=True))
-        final_states.append(test_goal_specified(goal_2, scratch_goal_2, direct=False))
-        final_states.append(test_goal_specified(goal_3, scratch_goal_3, direct=True))
-        final_states.append(test_goal_specified(goal_1, scratch_goal_2, direct=True, error=True))
-        final_states.append(test_goal_specified(goal_2, scratch_goal_3, direct=False, error=True))
+        final_states.append(test_goal_specified(goal_1, scratch_goal_1))
+        final_states.append(test_goal_specified(goal_2, scratch_goal_2))
+        final_states.append(test_goal_specified(goal_3, scratch_goal_3))
+        final_states.append(test_goal_specified(goal_1, scratch_goal_2, error=True))
+        final_states.append(test_goal_specified(goal_2, scratch_goal_3, error=True))
         final_states.append(test_goal_specified_with_group())
         final_states.append(test_goal_specified_with_group(error=True))
         return final_states
