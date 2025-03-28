@@ -27,6 +27,7 @@ The `env/` directory contains the core environment components that power the mat
 
 The `test_suite/` directory contains comprehensive tests that verify the system's functionality:
 
+- `agent_test.py` - Contains tests for agent implementations using a function that recreates execution traces
 - `arithmetic_test.py` - Tests mathematical arithmetic operations and their implementations
 - `basic_test.py` - Verifies fundamental functionality of the system's components
 - `boolean_test.py` - Tests boolean operations and logical reasoning capabilities
