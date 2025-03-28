@@ -90,7 +90,7 @@ def run_main_test(fn: typing.Callable[[], list[full_state.FullState]]):
         return f"Completed tests: {amount} ({action_amount} actions)"
     return test_utils.run_module_test(fn, fn_additional_info)
 
-def _main_tests() -> list[full_state.FullState]:
+def _main_tests(fast: bool) -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
 
     final_states += run_main_test(basic_test.test)
@@ -100,7 +100,7 @@ def _main_tests() -> list[full_state.FullState]:
     final_states += run_main_test(indices_test.test)
 
     final_states += run_main_test(action_00_action_meta.test)
-    final_states += run_main_test(action_01_state_meta.test)
+    final_states += run_main_test(lambda: action_01_state_meta.test(fast))
     final_states += run_main_test(action_02_manage_scratch.test)
     final_states += run_main_test(action_03_define_scratch.test)
     final_states += run_main_test(action_04_update_scratch.test)
@@ -113,10 +113,10 @@ def _main_tests() -> list[full_state.FullState]:
 def initialize_cache() -> None:
     GoalEnv(HaveScratch.with_goal(core.Void()))
 
-def all_tests() -> list[full_state.FullState]:
+def all_tests(fast: bool) -> list[full_state.FullState]:
     try:
         test_utils.run_test('initialize_cache', initialize_cache)
-        final_states = test_utils.run_test('main_tests', _main_tests)
+        final_states = test_utils.run_test('main_tests', lambda: _main_tests(fast))
         test_utils.run_test('final_verification', lambda: _final_verification(final_states))
         return final_states
     except core.InvalidNodeException as e:
@@ -124,5 +124,5 @@ def all_tests() -> list[full_state.FullState]:
         env_logger.debug(str(symbol), exc_info=e)
         raise e
 
-def test() -> list[full_state.FullState]:
-    return test_utils.run_test('all_tests', all_tests)
+def test(fast: bool = False) -> list[full_state.FullState]:
+    return test_utils.run_test('all_tests', lambda: all_tests(fast))

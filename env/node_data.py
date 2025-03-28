@@ -140,7 +140,7 @@ _main_root_node = MainNodeData(
 class NodeData:
 
     _cache: dict[
-        tuple[type[core.INode], ...],
+        tuple[int, tuple[type[core.INode], ...]],
         dict[tuple[int, int | None], np.ndarray[np.int_, np.dtype]],
     ] = {}
 
@@ -151,11 +151,6 @@ class NodeData:
     ):
         self.node = node
         self.node_types = node_types
-        cache = NodeData._cache.get(node_types)
-        if cache is None:
-            cache = {}
-            NodeData._cache[node_types] = cache
-        self._my_cache = cache
 
         main_node = _main_root_node if isinstance(node, full_state.FullState) else None
         current_state = (
@@ -170,6 +165,15 @@ class NodeData:
             state_meta.hidden_info.apply().real(state.StateMetaHiddenInfo)
             if state_meta is not None
             else None)
+
+        hidden_hash = hash(hidden_info)
+        full_key = (hidden_hash, node_types)
+
+        cache = NodeData._cache.get(full_key)
+        if cache is None:
+            cache = {}
+            NodeData._cache[full_key] = cache
+        self._my_cache = cache
 
         self._main_node = main_node
         self._hidden_info = hidden_info
@@ -194,6 +198,7 @@ class NodeData:
             initial_scope_id=initial_scope_id,
             initial_context_parent_node_id=initial_context_parent_node_id,
             main_node=self._main_node,
+            hidden_info=self._hidden_info,
             initial_hidden=initial_hidden,
         )
 
@@ -210,51 +215,39 @@ class NodeData:
         initial_scope_id: int = 0,
         initial_context_parent_node_id: int = 0,
         main_node: MainNodeData | None = None,
+        hidden_info: state.StateMetaHiddenInfo | None = None,
         initial_hidden: bool = False,
         cached=False,
     ) -> np.ndarray[np.int_, np.dtype]:
-        import datetime
-
-        outer_start = datetime.datetime.now()
-
         result = self._to_data_array_with_full_specs(
+            root_node=self.node,
             root_node_id=root_node_id,
             initial_parent_id=initial_parent_id,
             initial_arg_id=initial_arg_id,
             initial_scope_id=initial_scope_id,
             initial_context_parent_node_id=initial_context_parent_node_id,
             main_node=main_node,
+            hidden_info=hidden_info,
             initial_hidden=initial_hidden,
             cached=cached,
         )
-
-        if not cached:
-            outer_end = datetime.datetime.now()
-            outer_delta = outer_end - outer_start
-            time = outer_delta.total_seconds()
-            if time > 0.05:
-                print(
-                    f"Total Time: {outer_delta.total_seconds()} seconds",
-                    f"Total Nodes: {len(result)}",
-                )
-
         return result
 
     def _to_data_array_with_full_specs(
         self,
+        root_node: core.INode,
         root_node_id: int,
         initial_parent_id: int = 0,
         initial_arg_id: int = 0,
         initial_scope_id: int = 0,
         initial_context_parent_node_id: int = 0,
         main_node: MainNodeData | None = None,
+        hidden_info: state.StateMetaHiddenInfo | None = None,
         initial_hidden: bool = False,
         cached=False,
     ) -> np.ndarray[np.int_, np.dtype]:
         root_node = self.node
         node_types = self.node_types
-
-        hidden_info = self._hidden_info
 
         size = len(root_node.as_node)
         result = np.zeros((size, 9), dtype=np.int_)
@@ -296,6 +289,7 @@ class NodeData:
                     context_parent_node_id=context_parent_node_id,
                     node=node,
                     main_node=main_node,
+                    hidden_info=hidden_info,
                     force_hidden=force_hidden,
                 )
                 additional = len(cache) - 1
@@ -307,6 +301,10 @@ class NodeData:
                         result[idx][2] = arg_id
                     else:
                         result[idx+i][1] = item[1] + node_id-1
+                        result[idx+i][2] = item[2]
+
+                    for j in range(3, 9):
+                        result[idx+i][j] = item[j]
 
                 node_id += additional
                 idx += additional
@@ -406,6 +404,8 @@ class NodeData:
 
                 result[idx][8] = 1 if force_hidden or hidden else 0
 
+        assert idx == len(result) - 1, \
+            f'idx={idx} != {len(result) - 1}'
         return result
 
     def _to_cached_data_array(
@@ -414,17 +414,19 @@ class NodeData:
         context_parent_node_id: int,
         node: core.INode,
         main_node: MainNodeData | None,
+        hidden_info: state.StateMetaHiddenInfo | None,
         force_hidden: bool,
     ) -> np.ndarray[np.int_, np.dtype]:
         node_hash = hash(node)
         other_hash = hash((
             main_node,
+            hash(hidden_info) if hidden_info is not None else None,
             parent_scope_id,
             context_parent_node_id,
             force_hidden,
         ))
-        full_hash = (node_hash, other_hash)
-        cache = self._my_cache.get(full_hash)
+        full_key = (node_hash, other_hash)
+        cache = self._my_cache.get(full_key)
         if cache is None:
             # pylint: disable=protected-access
             cache = NodeData(
@@ -433,6 +435,7 @@ class NodeData:
             )._to_data_array_with_specs(
                 root_node_id=1,
                 main_node=main_node,
+                hidden_info=hidden_info,
                 initial_scope_id=parent_scope_id,
                 initial_context_parent_node_id=context_parent_node_id,
                 initial_hidden=force_hidden,
@@ -440,9 +443,5 @@ class NodeData:
             )
             assert len(cache) == len(node.as_node), \
                 f'len(cache)={len(cache)} != len(node)={len(node.as_node)}'
-            self._my_cache[full_hash] = cache
-            # print('new', len(self._my_cache))
-        # else:
-            # print('cached', len(cache))
+            self._my_cache[full_key] = cache
         return cache
-

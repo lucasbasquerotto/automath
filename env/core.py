@@ -440,6 +440,7 @@ class TmpNestedArg:
 class BaseNode(IRunnable, ABC):
 
     cache_enabled = True
+    fast = False
     _instances: dict[int, BaseNode] = dict()
     _cached_run: dict[int, tuple[RunInfoResult, NodeReturnException | None]] = dict()
 

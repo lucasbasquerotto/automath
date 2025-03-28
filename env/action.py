@@ -3,6 +3,7 @@ import typing
 from abc import ABC
 from utils.env_logger import env_logger
 from env.core import (
+    BaseNode,
     InheritableNode,
     IExceptionInfo,
     Optional,
@@ -459,11 +460,18 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
 
         if processing_cost is not None:
             node_types = full_state.node_types()
-            node_data = NodeData(node=new_full_state, node_types=node_types)
+            node_data = (
+                NodeData(node=new_full_state, node_types=node_types)
+                if not BaseNode.fast
+                else None)
             # node_data = NodeData(node=next_state, node_types=node_types)
 
             full_state_memory_size = len(new_full_state)
-            visible_state_memory_size = len(node_data.to_data_array())
+            visible_state_memory_size = (
+                len(node_data.to_data_array())
+                if node_data is not None
+                else full_state_memory_size
+            )
             main_state_memory_size = len(next_state)
 
             memory_cost = RunMemoryCost.with_args(

@@ -767,7 +767,7 @@ def dynamic_goal_test():
 
     return [env.full_state]
 
-def state_hidden_info_test():
+def state_hidden_info_test(fast: bool):
     scratch_goal_1 = core.RestTypeGroup(core.INode.as_type())
     goal = node_types_module.HaveScratch.with_goal(scratch_goal_1)
 
@@ -1145,33 +1145,34 @@ def state_hidden_info_test():
     current_state = get_current_state(env)
     assert current_state != original_state
 
-    node_types = env.full_state.node_types()
-    full_data_array = node_data.NodeData(
-        node=env.full_state,
-        node_types=node_types,
-    ).to_data_array()
-    # Remove FullState root node
-    # (will remain only the "current" state node, and its children,
-    # because the other FullState children will be hidden)
-    actual_data_array = full_data_array[1:]
-    # node_id of the "current" state node
-    initial_node_id = int(actual_data_array[0, 0])
-    expected_data_array = node_data.NodeData(
-        node=env.full_state.current.apply(),
-        node_types=node_types,
-    ).to_data_array_with_specs(
-        root_node_id=initial_node_id,
-        initial_parent_id=1,
-        initial_arg_id=env.full_state.idx_current,
-        initial_scope_id=1,
-    )
-    same_array = np.array_equal(actual_data_array, expected_data_array)
-    if not same_array:
-        print('actual_data_array:', actual_data_array.shape)
-        print(actual_data_array)
-        print('expected_data_array:', expected_data_array.shape)
-        print(expected_data_array)
-    assert same_array
+    if not fast:
+        node_types = env.full_state.node_types()
+        full_data_array = node_data.NodeData(
+            node=env.full_state,
+            node_types=node_types,
+        ).to_data_array()
+        # Remove FullState root node
+        # (will remain only the "current" state node, and its children,
+        # because the other FullState children will be hidden)
+        actual_data_array = full_data_array[1:]
+        # node_id of the "current" state node
+        initial_node_id = int(actual_data_array[0, 0])
+        expected_data_array = node_data.NodeData(
+            node=env.full_state.current.apply(),
+            node_types=node_types,
+        ).to_data_array_with_specs(
+            root_node_id=initial_node_id,
+            initial_parent_id=1,
+            initial_arg_id=env.full_state.idx_current,
+            initial_scope_id=1,
+        )
+        same_array = np.array_equal(actual_data_array, expected_data_array)
+        if not same_array:
+            print('actual_data_array:', actual_data_array.shape)
+            print(actual_data_array)
+            print('expected_data_array:', expected_data_array.shape)
+            print(expected_data_array)
+        assert same_array
 
     reset_hidden_info(env, original_state)
 
@@ -1183,74 +1184,76 @@ def state_hidden_info_test():
     raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
     env.step(raw_action)
 
-    node_types = env.full_state.node_types()
-    full_data_array = node_data.NodeData(
-        node=env.full_state,
-        node_types=node_types,
-    ).to_data_array()
-    # Remove FullState root node
-    # (will remain only the "current" state node, and its children,
-    # because the other FullState children will be hidden)
-    actual_data_array = full_data_array[1:]
-    initial_parent_id = int(actual_data_array[0, 0]) - 2
-    expected_data_array_aux = node_data.NodeData(
-        node=core.DefaultGroup(
-            core.Void(),
-            env.full_state.current.apply(),
-            env.full_state.history.apply(),
-        ),
-        node_types=node_types,
-    ).to_data_array_with_specs(
-        root_node_id=initial_parent_id,
-        initial_scope_id=1,
-    )
-    expected_data_array = expected_data_array_aux[2:]
-    # in each row, if the 2nd element is equal to initial_parent_id, change to 1
-    expected_data_array[:, 1] = np.where(
-        expected_data_array[:, 1] == initial_parent_id,
-        1,
-        expected_data_array[:, 1]
-    )
-    same_array = np.array_equal(actual_data_array, expected_data_array)
-    if not same_array:
-        print('actual_data_array:', actual_data_array.shape)
-        print(actual_data_array)
-        print('expected_data_array:', expected_data_array.shape)
-        print(expected_data_array)
-    assert same_array
+    if not fast:
+        node_types = env.full_state.node_types()
+        full_data_array = node_data.NodeData(
+            node=env.full_state,
+            node_types=node_types,
+        ).to_data_array()
+        # Remove FullState root node
+        # (will remain only the "current" state node, and its children,
+        # because the other FullState children will be hidden)
+        actual_data_array = full_data_array[1:]
+        initial_parent_id = int(actual_data_array[0, 0]) - 2
+        expected_data_array_aux = node_data.NodeData(
+            node=core.DefaultGroup(
+                core.Void(),
+                env.full_state.current.apply(),
+                env.full_state.history.apply(),
+            ),
+            node_types=node_types,
+        ).to_data_array_with_specs(
+            root_node_id=initial_parent_id,
+            initial_scope_id=1,
+        )
+        expected_data_array = expected_data_array_aux[2:]
+        # in each row, if the 2nd element is equal to initial_parent_id, change to 1
+        expected_data_array[:, 1] = np.where(
+            expected_data_array[:, 1] == initial_parent_id,
+            1,
+            expected_data_array[:, 1]
+        )
+        same_array = np.array_equal(actual_data_array, expected_data_array)
+        if not same_array:
+            print('actual_data_array:', actual_data_array.shape)
+            print(actual_data_array)
+            print('expected_data_array:', expected_data_array.shape)
+            print(expected_data_array)
+        assert same_array
 
     reset_hidden_info(env, original_state)
 
     current_state = get_current_state(env)
     assert current_state == original_state
 
-    full_data_array = node_data.NodeData(
-        node=env.full_state,
-        node_types=node_types,
-    ).to_data_array()
-    current_len = len(env.full_state)
-    assert len(full_data_array) == current_len
-    main_len = len(env.full_state.current.apply())
-    assert main_len > 0
-    assert main_len < current_len
+    if not fast:
+        full_data_array = node_data.NodeData(
+            node=env.full_state,
+            node_types=node_types,
+        ).to_data_array()
+        current_len = len(env.full_state)
+        assert len(full_data_array) == current_len
+        main_len = len(env.full_state.current.apply())
+        assert main_len > 0
+        assert main_len < current_len
 
-    hidden_idx = state.StateMetaHiddenInfo.idx_meta_hidden
-    meta_idx = get_from_int_type_index(core.IntBoolean, env)
-    raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
-    env.step(raw_action)
+        hidden_idx = state.StateMetaHiddenInfo.idx_meta_hidden
+        meta_idx = get_from_int_type_index(core.IntBoolean, env)
+        raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
+        env.step(raw_action)
 
-    full_data_array = node_data.NodeData(
-        node=env.full_state,
-        node_types=node_types,
-    ).to_data_array()
-    prev_len = current_len
-    current_len = (
-        1
-        + len(env.full_state.current.apply())
-        + len(env.full_state.history.apply()))
-    assert len(full_data_array) == current_len
-    assert current_len < prev_len
-    assert main_len < current_len
+        full_data_array = node_data.NodeData(
+            node=env.full_state,
+            node_types=node_types,
+        ).to_data_array()
+        prev_len = current_len
+        current_len = (
+            1
+            + len(env.full_state.current.apply())
+            + len(env.full_state.history.apply()))
+        assert len(full_data_array) == current_len
+        assert current_len < prev_len
+        assert main_len < current_len
 
     def get_history_to_show() -> full_state.HistoryGroupNode:
         history_items = env.full_state.history.apply().real(full_state.HistoryGroupNode).as_tuple
@@ -1267,21 +1270,22 @@ def state_hidden_info_test():
     raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, history_amount)
     env.step(raw_action)
 
-    full_data_array = node_data.NodeData(
-        node=env.full_state,
-        node_types=node_types,
-    ).to_data_array()
-    history = get_history_to_show()
-    for i in range(len(initial_history.as_tuple)-2):
-        assert history.as_tuple[i] == initial_history.as_tuple[i+2]
-    prev_len = current_len
-    current_len = (
-        1
-        + len(env.full_state.current.apply())
-        + len(history))
-    assert len(full_data_array) == current_len, (len(full_data_array), current_len)
-    assert current_len < prev_len
-    assert main_len < current_len
+    if not fast:
+        full_data_array = node_data.NodeData(
+            node=env.full_state,
+            node_types=node_types,
+        ).to_data_array()
+        history = get_history_to_show()
+        for i in range(len(initial_history.as_tuple)-2):
+            assert history.as_tuple[i] == initial_history.as_tuple[i+2]
+        prev_len = current_len
+        current_len = (
+            1
+            + len(env.full_state.current.apply())
+            + len(history))
+        assert len(full_data_array) == current_len, (len(full_data_array), current_len)
+        assert current_len < prev_len
+        assert main_len < current_len
 
     def get_partial_action_data(
         item: full_state.HistoryNode,
@@ -1306,197 +1310,203 @@ def state_hidden_info_test():
     raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
     env.step(raw_action)
 
-    full_data_array = node_data.NodeData(
-        node=env.full_state,
-        node_types=node_types,
-    ).to_data_array()
-    history = get_history_to_show()
-    prev_history = history
-    partial_history = full_state.HistoryGroupNode(*[
-        core.DefaultGroup(
-            item.state.apply(),
-            item.meta_data.apply(),
-            get_partial_action_data(item, hide_exception=True),
-        )
-        for item in history.as_tuple
-    ])
-    assert len(partial_history) < len(prev_history)
-    prev_history = partial_history
-    prev_len = current_len
-    current_len = (
-        1
-        + len(env.full_state.current.apply())
-        + len(partial_history))
-    assert len(full_data_array) == current_len, (len(full_data_array), current_len)
-    assert current_len < prev_len
-    assert main_len < current_len
+    if not fast:
+        full_data_array = node_data.NodeData(
+            node=env.full_state,
+            node_types=node_types,
+        ).to_data_array()
+        history = get_history_to_show()
+        prev_history = history
+        partial_history = full_state.HistoryGroupNode(*[
+            core.DefaultGroup(
+                item.state.apply(),
+                item.meta_data.apply(),
+                get_partial_action_data(item, hide_exception=True),
+            )
+            for item in history.as_tuple
+        ])
+        assert len(partial_history) < len(prev_history)
+        prev_history = partial_history
+        prev_len = current_len
+        current_len = (
+            1
+            + len(env.full_state.current.apply())
+            + len(partial_history))
+        assert len(full_data_array) == current_len, (len(full_data_array), current_len)
+        assert current_len < prev_len
+        assert main_len < current_len
 
     hidden_idx = state.StateMetaHiddenInfo.idx_history_raw_action_hidden
     meta_idx = get_from_int_type_index(core.IntBoolean, env)
     raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
     env.step(raw_action)
 
-    full_data_array = node_data.NodeData(
-        node=env.full_state,
-        node_types=node_types,
-    ).to_data_array()
-    history = get_history_to_show()
-    partial_history = full_state.HistoryGroupNode(*[
-        core.DefaultGroup(
-            item.state.apply(),
-            item.meta_data.apply(),
-            get_partial_action_data(
-                item,
-                hide_raw_action=True,
-                hide_exception=True),
-        )
-        for item in history.as_tuple
-    ])
-    assert len(partial_history) < len(prev_history)
-    prev_history = partial_history
-    prev_len = current_len
-    current_len = (
-        1
-        + len(env.full_state.current.apply())
-        + len(partial_history))
-    assert len(full_data_array) == current_len, (len(full_data_array), current_len)
-    assert current_len < prev_len
-    assert main_len < current_len
+    if not fast:
+        full_data_array = node_data.NodeData(
+            node=env.full_state,
+            node_types=node_types,
+        ).to_data_array()
+        history = get_history_to_show()
+        partial_history = full_state.HistoryGroupNode(*[
+            core.DefaultGroup(
+                item.state.apply(),
+                item.meta_data.apply(),
+                get_partial_action_data(
+                    item,
+                    hide_raw_action=True,
+                    hide_exception=True),
+            )
+            for item in history.as_tuple
+        ])
+        assert len(partial_history) < len(prev_history)
+        prev_history = partial_history
+        prev_len = current_len
+        current_len = (
+            1
+            + len(env.full_state.current.apply())
+            + len(partial_history))
+        assert len(full_data_array) == current_len, (len(full_data_array), current_len)
+        assert current_len < prev_len
+        assert main_len < current_len
 
     hidden_idx = state.StateMetaHiddenInfo.idx_history_action_hidden
     meta_idx = get_from_int_type_index(core.IntBoolean, env)
     raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
     env.step(raw_action)
 
-    full_data_array = node_data.NodeData(
-        node=env.full_state,
-        node_types=node_types,
-    ).to_data_array()
-    history = get_history_to_show()
-    partial_history = full_state.HistoryGroupNode(*[
-        core.DefaultGroup(
-            item.state.apply(),
-            item.meta_data.apply(),
-            get_partial_action_data(
-                item,
-                hide_raw_action=True,
-                hide_action=True,
-                hide_exception=True),
-        )
-        for item in history.as_tuple
-    ])
-    assert len(partial_history) < len(prev_history)
-    prev_history = partial_history
-    prev_len = current_len
-    current_len = (
-        1
-        + len(env.full_state.current.apply())
-        + len(partial_history))
-    assert len(full_data_array) == current_len, (len(full_data_array), current_len)
-    assert current_len < prev_len
-    assert main_len < current_len
+    if not fast:
+        full_data_array = node_data.NodeData(
+            node=env.full_state,
+            node_types=node_types,
+        ).to_data_array()
+        history = get_history_to_show()
+        partial_history = full_state.HistoryGroupNode(*[
+            core.DefaultGroup(
+                item.state.apply(),
+                item.meta_data.apply(),
+                get_partial_action_data(
+                    item,
+                    hide_raw_action=True,
+                    hide_action=True,
+                    hide_exception=True),
+            )
+            for item in history.as_tuple
+        ])
+        assert len(partial_history) < len(prev_history)
+        prev_history = partial_history
+        prev_len = current_len
+        current_len = (
+            1
+            + len(env.full_state.current.apply())
+            + len(partial_history))
+        assert len(full_data_array) == current_len, (len(full_data_array), current_len)
+        assert current_len < prev_len
+        assert main_len < current_len
 
     hidden_idx = state.StateMetaHiddenInfo.idx_history_action_output_hidden
     meta_idx = get_from_int_type_index(core.IntBoolean, env)
     raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
     env.step(raw_action)
 
-    full_data_array = node_data.NodeData(
-        node=env.full_state,
-        node_types=node_types,
-    ).to_data_array()
-    history = get_history_to_show()
-    partial_history = full_state.HistoryGroupNode(*[
-        core.DefaultGroup(
-            item.state.apply(),
-            item.meta_data.apply(),
-            get_partial_action_data(
-                item,
-                hide_raw_action=True,
-                hide_action=True,
-                hide_output=True,
-                hide_exception=True,
-            ),
-        )
-        for item in history.as_tuple
-    ])
-    assert len(partial_history) < len(prev_history)
-    prev_history = partial_history
-    prev_len = current_len
-    current_len = (
-        1
-        + len(env.full_state.current.apply())
-        + len(partial_history))
-    assert len(full_data_array) == current_len, (len(full_data_array), current_len)
-    assert current_len < prev_len
-    assert main_len < current_len
+    if not fast:
+        full_data_array = node_data.NodeData(
+            node=env.full_state,
+            node_types=node_types,
+        ).to_data_array()
+        history = get_history_to_show()
+        partial_history = full_state.HistoryGroupNode(*[
+            core.DefaultGroup(
+                item.state.apply(),
+                item.meta_data.apply(),
+                get_partial_action_data(
+                    item,
+                    hide_raw_action=True,
+                    hide_action=True,
+                    hide_output=True,
+                    hide_exception=True,
+                ),
+            )
+            for item in history.as_tuple
+        ])
+        assert len(partial_history) < len(prev_history)
+        prev_history = partial_history
+        prev_len = current_len
+        current_len = (
+            1
+            + len(env.full_state.current.apply())
+            + len(partial_history))
+        assert len(full_data_array) == current_len, (len(full_data_array), current_len)
+        assert current_len < prev_len
+        assert main_len < current_len
 
     hidden_idx = state.StateMetaHiddenInfo.idx_history_state_hidden
     meta_idx = get_from_int_type_index(core.IntBoolean, env)
     raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
     env.step(raw_action)
 
-    full_data_array = node_data.NodeData(
-        node=env.full_state,
-        node_types=node_types,
-    ).to_data_array()
-    history = get_history_to_show()
-    partial_history = full_state.HistoryGroupNode(*[
-        core.DefaultGroup(
-            item.meta_data.apply(),
-            get_partial_action_data(
-                item,
-                hide_raw_action=True,
-                hide_action=True,
-                hide_output=True,
-                hide_exception=True,
-            ),
-        )
-        for item in history.as_tuple
-    ])
-    assert len(partial_history) < len(prev_history)
-    prev_history = partial_history
-    prev_len = current_len
-    current_len = (
-        1
-        + len(env.full_state.current.apply())
-        + len(partial_history))
-    assert len(full_data_array) == current_len, (len(full_data_array), current_len)
-    assert current_len < prev_len
-    assert main_len < current_len
+    if not fast:
+        full_data_array = node_data.NodeData(
+            node=env.full_state,
+            node_types=node_types,
+        ).to_data_array()
+        history = get_history_to_show()
+        partial_history = full_state.HistoryGroupNode(*[
+            core.DefaultGroup(
+                item.meta_data.apply(),
+                get_partial_action_data(
+                    item,
+                    hide_raw_action=True,
+                    hide_action=True,
+                    hide_output=True,
+                    hide_exception=True,
+                ),
+            )
+            for item in history.as_tuple
+        ])
+        assert len(partial_history) < len(prev_history)
+        prev_history = partial_history
+        prev_len = current_len
+        current_len = (
+            1
+            + len(env.full_state.current.apply())
+            + len(partial_history))
+        assert len(full_data_array) == current_len, (len(full_data_array), current_len)
+        assert current_len < prev_len
+        assert main_len < current_len
 
     hidden_idx = state.StateMetaHiddenInfo.idx_history_meta_hidden
     meta_idx = get_from_int_type_index(core.IntBoolean, env)
     raw_action = action_impl.DefineStateHiddenInfo.from_raw(hidden_idx, meta_idx, 1)
     env.step(raw_action)
 
-    full_data_array = node_data.NodeData(
-        node=env.full_state,
-        node_types=node_types,
-    ).to_data_array()
-    history = get_history_to_show()
-    partial_history = full_state.HistoryGroupNode(*[
-        core.DefaultGroup(
-            get_partial_action_data(
-                item,
-                hide_raw_action=True,
-                hide_action=True,
-                hide_output=True,
-                hide_exception=True,
-            ),
-        )
-        for item in history.as_tuple
-    ])
-    assert len(partial_history) < len(prev_history)
-    prev_history = partial_history
-    prev_len = current_len
-    current_len = (
-        1
-        + len(env.full_state.current.apply())
-        + len(partial_history))
-    assert len(full_data_array) == current_len, (len(full_data_array), current_len)
-    assert current_len < prev_len
-    assert main_len < current_len
+    if not fast:
+        full_data_array = node_data.NodeData(
+            node=env.full_state,
+            node_types=node_types,
+        ).to_data_array()
+        history = get_history_to_show()
+        partial_history = full_state.HistoryGroupNode(*[
+            core.DefaultGroup(
+                get_partial_action_data(
+                    item,
+                    hide_raw_action=True,
+                    hide_action=True,
+                    hide_output=True,
+                    hide_exception=True,
+                ),
+            )
+            for item in history.as_tuple
+        ])
+        assert len(partial_history) < len(prev_history)
+        prev_history = partial_history
+        prev_len = current_len
+        current_len = (
+            1
+            + len(env.full_state.current.apply())
+            + len(partial_history))
+        assert len(full_data_array) == current_len, (len(full_data_array), current_len)
+        assert current_len < prev_len
+        assert main_len < current_len
 
     reset_hidden_info(env, original_state)
 
@@ -1505,9 +1515,11 @@ def state_hidden_info_test():
 
     return [env.full_state]
 
-def test() -> list[full_state.FullState]:
+def test(fast: bool) -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
     final_states += test_utils.run_test('>>goal_test', goal_test)
     final_states += test_utils.run_test('>>dynamic_goal_test', dynamic_goal_test)
-    final_states += test_utils.run_test('>>state_hidden_info_test', state_hidden_info_test)
+    final_states += test_utils.run_test(
+        '>>state_hidden_info_test',
+        lambda: state_hidden_info_test(fast))
     return final_states
