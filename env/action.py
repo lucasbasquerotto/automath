@@ -596,6 +596,21 @@ class RawAction(BaseAction[IActionOutput], IRawAction[FullState], IInstantiable)
         )
 
     @classmethod
+    def with_raw_args(
+        cls,
+        action_index: int,
+        arg1: int,
+        arg2: int,
+        arg3: int,
+    ) -> typing.Self:
+        return cls.with_args(
+            action_index=MetaAllowedBasicActionsTypeIndex(action_index),
+            arg1=Integer(arg1),
+            arg2=Integer(arg2),
+            arg3=Integer(arg3),
+        )
+
+    @classmethod
     def with_args(
         cls,
         action_index: MetaAllowedBasicActionsTypeIndex,

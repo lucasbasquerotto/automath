@@ -84,54 +84,83 @@ def _final_verification(final_states: list[full_state.FullState]):
 
     return final_states
 
-def run_main_test(fn: typing.Callable[[], list[full_state.FullState]]):
+T = typing.TypeVar('T')
+
+def _run_main_test(
+    fn: typing.Callable[[], list[full_state.FullState]],
+    fn_run_agent: typing.Callable[[list[full_state.FullState]], T],
+    fn_additional_info_agent: typing.Callable[[T], str] | None = None,
+):
     def fn_additional_info(final_states: list[full_state.FullState]):
         amount = len(final_states)
         action_amount = sum([fs.history_amount() for fs in final_states])
         return f"Completed tests: {amount} ({action_amount} actions)"
     full_states = test_utils.run_module_test(fn, fn_additional_info)
-    def run_agent_tests(final_states: list[full_state.FullState]) -> tuple[int, int]:
-        all_complete = 0
-        for full_state_case in final_states:
-            complete = agent_test.replay_actions_with_demo_agent(full_state_case)
-            all_complete += complete
-        return all_complete, len(final_states)
-    def fn_additional_info_agent(values: tuple[int, int]):
-        all_complete, amount = values
-        suffix = ''
-        if all_complete != amount:
-            diff = amount - all_complete
-            if diff == 1:
-                suffix = f" ({diff} case without successful action to simulate)"
-            else:
-                suffix = f" ({diff} cases without successful actions to simulate)"
-        return f"Agent completed: {all_complete}{suffix}"
     test_utils.run_test(
         f' -> agent ({fn.__module__})',
-        lambda: run_agent_tests(full_states),
+        lambda: fn_run_agent(full_states),
         fn_additional_info_agent,
     )
     return full_states
 
-def _main_tests(fast: bool) -> list[full_state.FullState]:
+def _run_agent_tests(final_states: list[full_state.FullState]) -> tuple[int, int]:
+    all_complete = 0
+    for full_state_case in final_states:
+        complete = agent_test.replay_actions_with_demo_agent(full_state_case)
+        all_complete += complete
+    return all_complete, len(final_states)
+
+def _fn_additional_info_agent(values: tuple[int, int]):
+    all_complete, amount = values
+    suffix = ''
+    if all_complete != amount:
+        diff = amount - all_complete
+        if diff == 1:
+            suffix = f" ({diff} case without successful action to simulate)"
+        else:
+            suffix = f" ({diff} cases without successful actions to simulate)"
+    return f"Agent completed: {all_complete}{suffix}"
+
+def run_with_agent(
+    fast: bool,
+    fn_run_agent: typing.Callable[[list[full_state.FullState]], T],
+    fn_additional_info_agent: typing.Callable[[T], str] | None = None,
+) -> list[full_state.FullState]:
     final_states: list[full_state.FullState] = []
 
-    final_states += run_main_test(basic_test.test)
+    def run(
+        fn: typing.Callable[[], list[full_state.FullState]],
+    ) -> list[full_state.FullState]:
+        return _run_main_test(
+            fn=fn,
+            fn_run_agent=fn_run_agent,
+            fn_additional_info_agent=fn_additional_info_agent,
+        )
 
-    final_states += run_main_test(boolean_test.test)
-    final_states += run_main_test(arithmetic_test.test)
-    final_states += run_main_test(indices_test.test)
 
-    final_states += run_main_test(action_00_action_meta.test)
-    final_states += run_main_test(lambda: action_01_state_meta.test(fast))
-    final_states += run_main_test(action_02_manage_scratch.test)
-    final_states += run_main_test(action_03_define_scratch.test)
-    final_states += run_main_test(action_04_update_scratch.test)
-    final_states += run_main_test(action_05_manage_args_group.test)
+    final_states += run(basic_test.test)
 
-    final_states += run_main_test(control_flow_test.test)
+    final_states += run(boolean_test.test)
+    final_states += run(arithmetic_test.test)
+    final_states += run(indices_test.test)
+
+    final_states += run(action_00_action_meta.test)
+    final_states += run(lambda: action_01_state_meta.test(fast))
+    final_states += run(action_02_manage_scratch.test)
+    final_states += run(action_03_define_scratch.test)
+    final_states += run(action_04_update_scratch.test)
+    final_states += run(action_05_manage_args_group.test)
+
+    final_states += run(control_flow_test.test)
 
     return final_states
+
+def _main_tests(fast: bool) -> list[full_state.FullState]:
+    return run_with_agent(
+        fast=fast,
+        fn_run_agent=_run_agent_tests,
+        fn_additional_info_agent=_fn_additional_info_agent,
+    )
 
 def initialize_cache() -> None:
     GoalEnv(HaveScratch.with_goal(core.Void()))
