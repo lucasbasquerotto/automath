@@ -354,9 +354,15 @@ class SmartAgent(BaseAgent):
         if random.random() > self.epsilon:
             # Exploit: use the model
             with torch.no_grad():
-                action_logits, arg1, arg2, arg3 = self.policy_net(state_tensor)
+                tensors: tuple[
+                    torch.Tensor,
+                    torch.Tensor,
+                    torch.Tensor,
+                    torch.Tensor,
+                ] = self.policy_net(state_tensor)
+                action_logits, arg1, arg2, arg3 = tensors
                 # +1 because action indices start at 1
-                action_idx = action_logits.argmax(dim=1).item() + 1
+                action_idx = int(action_logits.argmax(dim=1).item()) + 1
                 arg1_val = int(arg1.item())
                 arg2_val = int(arg2.item())
                 arg3_val = int(arg3.item())
