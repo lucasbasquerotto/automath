@@ -558,6 +558,42 @@ class FullState(
         allowed_basic_actions = meta.allowed_basic_actions.apply().real(GeneralTypeGroup)
         return len(allowed_basic_actions.as_tuple)
 
+    def with_max_steps(
+        self,
+        max_steps: int | None = None,
+    ) -> typing.Self:
+        meta = self.meta.apply().real(MetaInfo)
+        options = meta.options.apply().real(MetaInfoOptions)
+        new_options = options.with_new_args(max_steps=max_steps)
+        new_meta = meta.with_new_args(options=new_options)
+        history_amount = self.history_amount()
+        remaining_steps = (
+            None
+            if max_steps is None
+            else max(max_steps - history_amount, 0)
+        )
+        current = self.current.apply().real(HistoryNode)
+        meta_data = current.meta_data.apply().real(MetaData)
+        meta_data = meta_data.with_new_args(remaining_steps=remaining_steps)
+        new_current = current.with_new_args(meta_data=meta_data)
+        history_items: list[HistoryNode] = []
+        for i, item in enumerate(history_items):
+            remaining_steps = (
+                None
+                if max_steps is None
+                else max(max_steps - i, 0)
+            )
+            meta_data = item.meta_data.apply().real(MetaData)
+            meta_data = meta_data.with_new_args(remaining_steps=remaining_steps)
+            item = item.with_new_args(meta_data=meta_data)
+            history_items[i] = item
+        new_history = HistoryGroupNode.from_items(history_items)
+        return self.with_new_args(
+            meta=new_meta,
+            current=new_current,
+            history=new_history,
+        )
+
 ###########################################################
 ###################### MAIN INDICES #######################
 ###########################################################

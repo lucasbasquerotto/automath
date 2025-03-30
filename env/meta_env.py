@@ -339,6 +339,101 @@ class MetaInfoOptions(InheritableNode, IDefault, IInstantiable):
             ),
         )
 
+    def with_new_args(
+        self,
+        max_history_state_size: int | None = None,
+        max_steps: int | None = None,
+        step_count_to_change_cost: int | None = None,
+        cost_multiplier_default: int | None = None,
+        cost_multiplier_custom_goal: int | None = None,
+        cost_multiplier_sub_goal: int | None = None,
+        cost_multiplier_main_goal: int | None = None,
+        cost_multiplier_action: int | None = None,
+        cost_multiplier_instruction: int | None = None,
+        cost_full_state_memory: int | None = None,
+        cost_visible_state_memory: int | None = None,
+        cost_main_state_memory: int | None = None,
+        cost_run_memory: int | None = None,
+    ) -> typing.Self:
+        current_max_history_state_size = self.max_history_state_size.apply().real(
+            Optional[Integer]).value
+        current_max_steps = self.max_steps.apply().real(Optional[Integer]).value
+        return self.with_args(
+            max_history_state_size=(
+                max_history_state_size
+                if max_history_state_size is not None
+                else (
+                    current_max_history_state_size.as_int
+                    if current_max_history_state_size is not None
+                    else None
+                )
+            ),
+            max_steps=(
+                max_steps
+                if max_steps is not None
+                else (
+                    current_max_steps.as_int
+                    if current_max_steps is not None
+                    else None
+                )
+            ),
+            step_count_to_change_cost=(
+                step_count_to_change_cost
+                if step_count_to_change_cost is not None
+                else self.step_count_to_change_cost.apply().real(Integer).as_int
+            ),
+            cost_multiplier_default=(
+                cost_multiplier_default
+                if cost_multiplier_default is not None
+                else self.cost_multiplier_default.apply().real(Integer).as_int
+            ),
+            cost_multiplier_custom_goal=(
+                cost_multiplier_custom_goal
+                if cost_multiplier_custom_goal is not None
+                else self.cost_multiplier_custom_goal.apply().real(Integer).as_int
+            ),
+            cost_multiplier_sub_goal=(
+                cost_multiplier_sub_goal
+                if cost_multiplier_sub_goal is not None
+                else self.cost_multiplier_sub_goal.apply().real(Integer).as_int
+            ),
+            cost_multiplier_main_goal=(
+                cost_multiplier_main_goal
+                if cost_multiplier_main_goal is not None
+                else self.cost_multiplier_main_goal.apply().real(Integer).as_int
+            ),
+            cost_multiplier_action=(
+                cost_multiplier_action
+                if cost_multiplier_action is not None
+                else self.cost_multiplier_action.apply().real(Integer).as_int
+            ),
+            cost_multiplier_instruction=(
+                cost_multiplier_instruction
+                if cost_multiplier_instruction is not None
+                else self.cost_multiplier_instruction.apply().real(Integer).as_int
+            ),
+            cost_full_state_memory=(
+                cost_full_state_memory
+                if cost_full_state_memory is not None
+                else self.cost_full_state_memory.apply().real(Integer).as_int
+            ),
+            cost_visible_state_memory=(
+                cost_visible_state_memory
+                if cost_visible_state_memory is not None
+                else self.cost_visible_state_memory.apply().real(Integer).as_int
+            ),
+            cost_main_state_memory=(
+                cost_main_state_memory
+                if cost_main_state_memory is not None
+                else self.cost_main_state_memory.apply().real(Integer).as_int
+            ),
+            cost_run_memory=(
+                cost_run_memory
+                if cost_run_memory is not None
+                else self.cost_run_memory.apply().real(Integer).as_int
+            ),
+        )
+
 ###########################################################
 ################## FULL STATE BASE NODES ##################
 ###########################################################
@@ -1301,53 +1396,6 @@ class MetaInfo(InheritableNode, IWrapper, IInstantiable):
             ),
         ))
 
-    @classmethod
-    @functools.cache
-    def with_defaults(
-        cls,
-        goal: IGoal,
-        all_types: tuple[TypeNode, ...],
-        allowed_actions: tuple[TypeNode[IAction], ...] | None = None,
-        max_history_state_size: int | None = None,
-        max_steps: int | None = None,
-    ) -> typing.Self:
-        main_args = _meta_main_args(all_types)
-        allowed_actions_list = [
-            t
-            for t in all_types
-            if (
-                issubclass(t.type, IAction)
-                and issubclass(t.type, IInstantiable)
-                and (allowed_actions is None or t in allowed_actions)
-            )
-        ]
-        allowed_actions_group = GeneralTypeGroup.from_items(allowed_actions_list)
-
-        return cls(
-            goal,
-            MetaInfoOptions.with_args(
-                max_history_state_size=max_history_state_size,
-                max_steps=max_steps,
-            ),
-            main_args.all_types_group,
-            main_args.allowed_basic_actions_group,
-            allowed_actions_group,
-            main_args.all_types_details,
-            main_args.default_group,
-            main_args.from_int_group,
-            main_args.int_group,
-            main_args.node_index_group,
-            main_args.full_state_index_group,
-            main_args.full_state_int_index_group,
-            main_args.single_child_group,
-            main_args.group_outer_group,
-            main_args.function_group,
-            main_args.boolean_group,
-            main_args.instantiable_group,
-            main_args.basic_actions,
-            main_args.all_actions,
-        )
-
     @property
     def goal(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_goal)
@@ -1423,3 +1471,158 @@ class MetaInfo(InheritableNode, IWrapper, IInstantiable):
     @property
     def all_actions(self) -> TmpInnerArg:
         return self.inner_arg(self.idx_all_actions)
+
+    @classmethod
+    @functools.cache
+    def with_defaults(
+        cls,
+        goal: IGoal,
+        all_types: tuple[TypeNode, ...],
+        allowed_actions: tuple[TypeNode[IAction], ...] | None = None,
+        max_history_state_size: int | None = None,
+        max_steps: int | None = None,
+    ) -> typing.Self:
+        main_args = _meta_main_args(all_types)
+        allowed_actions_list = [
+            t
+            for t in all_types
+            if (
+                issubclass(t.type, IAction)
+                and issubclass(t.type, IInstantiable)
+                and (allowed_actions is None or t in allowed_actions)
+            )
+        ]
+        allowed_actions_group = GeneralTypeGroup.from_items(allowed_actions_list)
+
+        return cls(
+            goal,
+            MetaInfoOptions.with_args(
+                max_history_state_size=max_history_state_size,
+                max_steps=max_steps,
+            ),
+            main_args.all_types_group,
+            main_args.allowed_basic_actions_group,
+            allowed_actions_group,
+            main_args.all_types_details,
+            main_args.default_group,
+            main_args.from_int_group,
+            main_args.int_group,
+            main_args.node_index_group,
+            main_args.full_state_index_group,
+            main_args.full_state_int_index_group,
+            main_args.single_child_group,
+            main_args.group_outer_group,
+            main_args.function_group,
+            main_args.boolean_group,
+            main_args.instantiable_group,
+            main_args.basic_actions,
+            main_args.all_actions,
+        )
+
+    @classmethod
+    def with_args(
+        cls,
+        goal: IGoal,
+        options: MetaInfoOptions,
+        all_types: GeneralTypeGroup,
+        allowed_basic_actions: GeneralTypeGroup,
+        allowed_actions: GeneralTypeGroup,
+        all_types_details: DetailedTypeGroup,
+        default_group: SubtypeOuterGroup[IDefault],
+        from_int_group: SubtypeOuterGroup[IFromInt],
+        int_group: SubtypeOuterGroup[IInt],
+        node_index_group: SubtypeOuterGroup[INodeIndex],
+        full_state_index_group: SubtypeOuterGroup[IFullStateIndex],
+        full_state_int_index_group: SubtypeOuterGroup[FullStateIntBaseIndex],
+        single_child_group: SubtypeOuterGroup[IFromSingleNode],
+        group_outer_group: SubtypeOuterGroup[IGroup],
+        function_group: SubtypeOuterGroup[IFunction],
+        boolean_group: SubtypeOuterGroup[IBoolean],
+        instantiable_group: SubtypeOuterGroup[IInstantiable],
+        basic_actions: SubtypeOuterGroup[IBasicAction],
+        all_actions: SubtypeOuterGroup[IAction],
+    ) -> typing.Self:
+        return cls(
+            goal,
+            options,
+            all_types,
+            allowed_basic_actions,
+            allowed_actions,
+            all_types_details,
+            default_group,
+            from_int_group,
+            int_group,
+            node_index_group,
+            full_state_index_group,
+            full_state_int_index_group,
+            single_child_group,
+            group_outer_group,
+            function_group,
+            boolean_group,
+            instantiable_group,
+            basic_actions,
+            all_actions
+        )
+
+    def with_new_args(
+        self,
+        goal: IGoal | None = None,
+        options: MetaInfoOptions | None = None,
+        all_types: GeneralTypeGroup | None = None,
+        allowed_basic_actions: GeneralTypeGroup | None = None,
+        allowed_actions: GeneralTypeGroup | None = None,
+        all_types_details: DetailedTypeGroup | None = None,
+        default_group: SubtypeOuterGroup[IDefault] | None = None,
+        from_int_group: SubtypeOuterGroup[IFromInt] | None = None,
+        int_group: SubtypeOuterGroup[IInt] | None = None,
+        node_index_group: SubtypeOuterGroup[INodeIndex] | None = None,
+        full_state_index_group: SubtypeOuterGroup[IFullStateIndex] | None = None,
+        full_state_int_index_group: SubtypeOuterGroup[FullStateIntBaseIndex] | None = None,
+        single_child_group: SubtypeOuterGroup[IFromSingleNode] | None = None,
+        group_outer_group: SubtypeOuterGroup[IGroup] | None = None,
+        function_group: SubtypeOuterGroup[IFunction] | None = None,
+        boolean_group: SubtypeOuterGroup[IBoolean] | None = None,
+        instantiable_group: SubtypeOuterGroup[IInstantiable] | None = None,
+        basic_actions: SubtypeOuterGroup[IBasicAction] | None = None,
+        all_actions: SubtypeOuterGroup[IAction] | None = None,
+    ) -> typing.Self:
+        return self.with_args(
+            goal=goal or self.goal.apply().real(IGoal),
+            options=options or self.options.apply().real(MetaInfoOptions),
+            all_types=all_types or self.all_types.apply().real(GeneralTypeGroup),
+            allowed_basic_actions=allowed_basic_actions or self.allowed_basic_actions.apply().real(
+                GeneralTypeGroup),
+            allowed_actions=allowed_actions or self.allowed_actions.apply().real(GeneralTypeGroup),
+            all_types_details=all_types_details or self.all_types_details.apply().real(
+                DetailedTypeGroup),
+            default_group=default_group or self.default_group.apply().real(
+                SubtypeOuterGroup[IDefault]),
+            from_int_group=from_int_group or self.from_int_group.apply().real(
+                SubtypeOuterGroup[IFromInt]),
+            int_group=int_group or self.int_group.apply().
+                real(SubtypeOuterGroup[IInt]),
+            node_index_group=node_index_group or self.node_index_group.apply().real(
+                SubtypeOuterGroup[INodeIndex]),
+            full_state_index_group=(
+                full_state_index_group
+                or self.full_state_index_group.apply().real(
+                    SubtypeOuterGroup[IFullStateIndex])),
+            full_state_int_index_group=(
+                full_state_int_index_group
+                or self.full_state_int_index_group.apply().real(
+                    SubtypeOuterGroup[FullStateIntBaseIndex])),
+            single_child_group=single_child_group or self.single_child_group.apply().real(
+                SubtypeOuterGroup[IFromSingleNode]),
+            group_outer_group=group_outer_group or self.group_outer_group.apply().real(
+                SubtypeOuterGroup[IGroup]),
+            function_group=function_group or self.function_group.apply().real(
+                SubtypeOuterGroup[IFunction]),
+            boolean_group=boolean_group or self.boolean_group.apply().real(
+                SubtypeOuterGroup[IBoolean]),
+            instantiable_group=instantiable_group or self.instantiable_group.apply().real(
+                SubtypeOuterGroup[IInstantiable]),
+            basic_actions=basic_actions or self.basic_actions.apply().real(
+                SubtypeOuterGroup[IBasicAction]),
+            all_actions=all_actions or self.all_actions.apply().real(
+                SubtypeOuterGroup[IAction]),
+        )

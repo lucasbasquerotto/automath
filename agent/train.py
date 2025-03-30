@@ -118,7 +118,9 @@ def train_smart_agent(
         # Create a goal environment with the current state
         env = GoalEnv(
             goal=HaveScratch.with_goal(core.Void()),
-            fn_initial_state=lambda _: current_fs
+            fn_initial_state=lambda _: current_fs.with_max_steps(
+                max_steps=max_steps_per_episode + current_fs.history_amount(),
+            )
         )
 
         # Create a trainer and run training

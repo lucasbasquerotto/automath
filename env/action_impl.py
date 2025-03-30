@@ -28,6 +28,7 @@ from env.core import (
     CompositeType,
     OptionalTypeGroup,
     ScopeDataGroup,
+    IsInstance,
     Eq,
     Not,
     IInstantiable,
@@ -354,6 +355,7 @@ class VerifyGoal(
             assert isinstance(scratch, Scratch)
             scratch.validate()
             content = scratch.value_or_raise
+            IsInstance.assert_type(content, NestedArgIndexGroup)
             assert isinstance(content, NestedArgIndexGroup)
             nested = Optional(content)
 
@@ -663,6 +665,8 @@ class DefineStateHiddenInfo(BasicAction[DefineStateHiddenInfoOutput], IInstantia
         meta_info = state.meta_info.apply().real(StateMetaInfo)
         hidden_info = meta_info.hidden_info.apply().real(StateMetaHiddenInfo)
         hidden_info = hidden_index.replace_in_target(hidden_info, hidden_value).value_or_raise
+
+        hidden_info.strict_validate()
 
         return DefineStateHiddenInfoOutput(hidden_info), ActionInfo.create()
 
