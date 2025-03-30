@@ -28,6 +28,9 @@ class Environment:
     def max_steps(self) -> int | None:
         return self._max_steps
 
+    def action_space_size(self):
+        return self._full_state.action_space_size()
+
     def reset(self) -> full_state_module.FullState:
         self._full_state = self._initial_state
         self._current_step = 0

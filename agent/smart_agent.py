@@ -19,12 +19,12 @@ class NodeFeatureExtractor(nn.Module):
     followed by global pooling.
     """
 
-    def __init__(self, input_dim: int = 7, hidden_dim: int = 128, output_dim: int = 256):
+    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int):
         """
         Initialize the feature extractor network.
 
         Args:
-            input_dim: Dimension of each node feature vector (excluding the node id)
+            input_dim: Dimension of each node feature vector
             hidden_dim: Size of hidden layers
             output_dim: Size of output feature vector
         """
@@ -77,7 +77,7 @@ class ActionPredictor(nn.Module):
     Neural network module that predicts action indices and arguments.
     """
 
-    def __init__(self, input_dim: int = 256, hidden_dim: int = 128, action_space_size: int = 10):
+    def __init__(self, input_dim: int, hidden_dim: int, action_space_size: int):
         """
         Initialize the action predictor network.
 
@@ -139,16 +139,16 @@ class DQN(nn.Module):
 
     def __init__(
         self,
-        input_dim: int = 7,
-        feature_dim: int = 256,
-        hidden_dim: int = 128,
-        action_space_size: int = 10
+        input_dim: int,
+        feature_dim: int,
+        hidden_dim: int,
+        action_space_size: int,
     ):
         """
         Initialize the DQN.
 
         Args:
-            input_dim: Dimension of each node feature vector (excluding the node id)
+            input_dim: Dimension of each node feature vector
             feature_dim: Dimension of feature vector produced by node feature extractor
             hidden_dim: Size of hidden layers in action predictor
             action_space_size: Number of possible action indices
@@ -243,24 +243,26 @@ class SmartAgent(BaseAgent):
 
     def __init__(
         self,
-        action_space_size: int = 10,
-        feature_dim: int = 256,
-        hidden_dim: int = 128,
-        learning_rate: float = 0.001,
-        gamma: float = 0.99,
-        epsilon_start: float = 1.0,
-        epsilon_end: float = 0.1,
-        epsilon_decay: float = 0.995,
-        replay_buffer_capacity: int = 10000,
-        batch_size: int = 64,
-        target_update_frequency: int = 100,
-        device: Optional[torch.device] = None
+        action_space_size: int,
+        input_dim: int,
+        feature_dim: int,
+        hidden_dim: int,
+        learning_rate: float,
+        gamma: float,
+        epsilon_start: float,
+        epsilon_end: float,
+        epsilon_decay: float,
+        replay_buffer_capacity: int,
+        batch_size: int,
+        target_update_frequency: int,
+        device: Optional[torch.device],
     ):
         """
         Initialize the SmartAgent.
 
         Args:
             action_space_size: Number of possible action indices
+            input_dim: Dimension of each node feature vector
             feature_dim: Dimension of feature vector produced by node feature extractor
             hidden_dim: Size of hidden layers
             learning_rate: Learning rate for optimizer
@@ -274,6 +276,7 @@ class SmartAgent(BaseAgent):
             device: Device to use for tensor operations
         """
         self.action_space_size = action_space_size
+        self.input_dim = input_dim
         self.feature_dim = feature_dim
         self.hidden_dim = hidden_dim
         self.learning_rate = learning_rate
@@ -292,14 +295,14 @@ class SmartAgent(BaseAgent):
 
         # Create policy and target networks
         self.policy_net = DQN(
-            input_dim=7,  # We use 7 features from the node data array (excluding node id)
+            input_dim=input_dim,
             feature_dim=feature_dim,
             hidden_dim=hidden_dim,
             action_space_size=action_space_size
         ).to(self.device)
 
         self.target_net = DQN(
-            input_dim=7,
+            input_dim=input_dim,
             feature_dim=feature_dim,
             hidden_dim=hidden_dim,
             action_space_size=action_space_size
@@ -418,6 +421,9 @@ class SmartAgent(BaseAgent):
         state_np = state_tensor.cpu().numpy().squeeze(0)
         next_state_np = next_state_tensor.cpu().numpy().squeeze(0)
 
+        # Store the feature dimension so we can ensure consistency
+        feature_dim = state_np.shape[1]
+
         # Add experience to replay buffer
         self.replay_buffer.add(
             state_np,
@@ -441,16 +447,22 @@ class SmartAgent(BaseAgent):
         batch_next_states = []
         batch_dones = []
 
+        # Verify that all states in the batch have the same feature dimension
         for b_state, b_action, b_reward, b_next_state, b_done in batch:
+            assert b_state.shape[1] == feature_dim
+            assert b_next_state.shape[1] == feature_dim
             batch_states.append(b_state)
             batch_actions.append(b_action)
             batch_rewards.append(b_reward)
             batch_next_states.append(b_next_state)
             batch_dones.append(b_done)
 
+        # If we don't have enough valid samples after filtering, raise an error
+        assert len(batch_states) >= 2
+
         # Handle variable-length sequences by padding
         # Find the maximum number of nodes in the batch
-        max_nodes = max(len(s) for s in batch_states)
+        max_nodes = max(len(s) for s in batch_states + batch_next_states)
 
         # Pad states and next_states to have the same number of nodes
         padded_states = []

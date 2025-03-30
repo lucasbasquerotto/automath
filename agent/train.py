@@ -11,7 +11,7 @@ from test_suite import test_root
 from utils.env_logger import env_logger
 
 def train_smart_agent(
-    action_space_size: int = 10,
+    input_dim: int = 8,
     feature_dim: int = 256,
     hidden_dim: int = 128,
     learning_rate: float = 0.001,
@@ -27,13 +27,13 @@ def train_smart_agent(
     save_interval: int = 100,
     model_path: str = "tmp/trained_model.pt",
     device: Optional[torch.device] = None,
-    fast: bool = True,
 ) -> SmartAgent:
     """
     Train the SmartAgent using test cases from the test suite.
 
     Args:
         action_space_size: Number of possible action indices
+        input_dim: Dimension of input state vector
         feature_dim: Dimension of feature vector produced by node feature extractor
         hidden_dim: Size of hidden layers
         learning_rate: Learning rate for optimizer
@@ -49,14 +49,17 @@ def train_smart_agent(
         save_interval: How often to save the model (in states)
         model_path: Path to save the trained model
         device: Device to use for tensor operations
-        fast: Whether to use fast mode for testing (fewer test cases)
 
     Returns:
         Trained SmartAgent
     """
+    tmp_env = GoalEnv(goal=HaveScratch.with_goal(core.Void()))
+    action_space_size = tmp_env.action_space_size()
+
     # Create the SmartAgent
     agent = SmartAgent(
         action_space_size=action_space_size,
+        input_dim=input_dim,
         feature_dim=feature_dim,
         hidden_dim=hidden_dim,
         learning_rate=learning_rate,
@@ -71,9 +74,8 @@ def train_smart_agent(
     )
 
     # Function to run training on a list of full_states
-    def run_agent_training(full_states: list[FullState]) -> tuple[int, int]:
+    def run_agent_training(full_states: list[FullState]) -> int:
         total_trained = 0
-        total_skipped = 0
         amount = 0
 
         for i, full_state_case in enumerate(full_states):
@@ -84,31 +86,35 @@ def train_smart_agent(
 
             # For each state in history, train the agent
             for history_idx in range(history_amount):
-                completed = run_agent_case(
-                    history_idx=history_idx,
-                    history_amount=history_amount,
-                    current_fs=full_state_case
-                )
-                if completed:
-                    total_trained += 1
-                else:
-                    total_skipped += 1
+                env_logger.info(
+                    f"[{amount+1}] <before> Training on history state "
+                    f"{history_idx+1}/{history_amount}")
+
+                current_fs, _ = full_state_case.at_history(history_idx + 1)
+                results = run_agent_case(current_fs)
+                total_trained += 1
+
+                # Print training statistics
+                rewards = [r for r, _, _ in results]
+                steps = [s for _, s, _ in results]
+                successes = sum(1 for _, _, success in results if success)
+
+                env_logger.info(
+                    f"[{amount+1}] <after> Avg reward: {sum(rewards) / len(rewards):.2f}, "
+                    f"Avg steps: {sum(steps) / len(steps):.2f}, "
+                    f"Success rate: {successes / len(results):.2%}")
 
                 # Save the model at regular intervals
                 amount += 1
                 if (amount + 1) % save_interval == 0:
                     datetime = time.strftime("%Y%m%d_%H%M%S")
                     agent.save(model_path)
-                    env_logger.info(f"{datetime} [{amount}] Model saved to {model_path}")
+                    env_logger.info(f"{datetime} [{amount+1}] Model saved to {model_path}")
 
-        return total_trained, total_skipped
+        return total_trained
 
     # Function to run training on a list of full_states
-    def run_agent_case(
-        history_idx: int,
-        history_amount: int,
-        current_fs: FullState,
-    ) -> bool:
+    def run_agent_case(current_fs: FullState) -> list[tuple[float, int, bool]]:
         # Create a goal environment with the current state
         env = GoalEnv(
             goal=HaveScratch.with_goal(core.Void()),
@@ -125,29 +131,13 @@ def train_smart_agent(
             max_inception_level=0,  # No inception training for now
         )
 
-        try:
-            env_logger.info(f"  Training on history state {history_idx+1}/{history_amount}")
-            results = trainer.train()
+        results = trainer.train()
 
-            # Print training statistics
-            rewards = [r for r, _, _ in results]
-            steps = [s for _, s, _ in results]
-            successes = sum(1 for _, _, success in results if success)
-
-            env_logger.info(
-                f"    Avg reward: {sum(rewards) / len(rewards):.2f}, "
-                f"Avg steps: {sum(steps) / len(steps):.2f}, "
-                f"Success rate: {successes / len(results):.2%}")
-
-            return True
-        except Exception as e:
-            env_logger.error(f"Error training on state {history_idx+1}: {e}")
-            return False
+        return results
 
     # Additional info function for logging
-    def fn_additional_info_agent(values: tuple[int, int]) -> str:
-        total_trained, total_skipped = values
-        return f"States trained: {total_trained}, States skipped: {total_skipped}"
+    def fn_additional_info_agent(total_trained: int) -> str:
+        return f"States trained: {total_trained}"
 
     # Run training on all test cases
     start_time = time.time()
@@ -155,7 +145,7 @@ def train_smart_agent(
 
     # Use the test_root's run_with_agent to get all the test states
     test_root.run_with_agent(
-        fast=fast,
+        fast=False,
         fn_run_agent=run_agent_training,
         fn_additional_info_agent=fn_additional_info_agent,
     )

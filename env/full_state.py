@@ -553,6 +553,10 @@ class FullState(
         )
         return new_full_state, action_data_opt
 
+    def action_space_size(self) -> int:
+        meta = self.meta.apply().real(MetaInfo)
+        allowed_basic_actions = meta.allowed_basic_actions.apply().real(GeneralTypeGroup)
+        return len(allowed_basic_actions.as_tuple)
 
 ###########################################################
 ###################### MAIN INDICES #######################

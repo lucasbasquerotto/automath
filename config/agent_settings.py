@@ -1,7 +1,7 @@
 import typing
 import torch
 
-ACTION_SPACE_SIZE: int = 10
+INPUT_DIM: int = 8
 FEATURE_DIM: int = 256
 HIDDEN_DIM: int = 128
 LEARNING_RATE: float = 0.001
@@ -17,4 +17,3 @@ MAX_STEPS_PER_EPISODE: int = 10000
 SAVE_INTERVAL: int = 100
 MODEL_PATH: str = "tmp/trained_model.pt"
 DEVICE: typing.Optional[torch.device] = None
-FAST: bool = True
