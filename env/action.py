@@ -307,9 +307,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
                 action_aux = raw_action.to_action(full_state)
                 assert isinstance(action_aux, BaseAction)
                 action = action_aux
-                print('action', Symbol.default(action))
             except InvalidNodeException as e:
-                print('exception', Symbol.default(RawActionExceptionInfo(raw_action, e.info)))
                 raise RawActionExceptionInfo(raw_action, e.info).as_exception() from e
 
         try:
@@ -420,7 +418,6 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             env_logger.debug(str(symbol), exc_info=e)
             next_state = current.state.apply().real(State)
             action_data = e.to_action_data()
-        print('action_data', Symbol.default(action_data))
         action_data.strict_validate()
         remaining_steps = (
             remaining_steps - 1
@@ -432,8 +429,6 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             last_cost_multiplier=last_cost_multiplier,
             new_cost_multiplier=new_cost_multiplier,
         )
-
-        print('len', len(full_state), '- ', remaining_steps)
 
         current = current.with_new_args(
             action_data=Optional(action_data),

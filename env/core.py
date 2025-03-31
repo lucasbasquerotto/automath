@@ -48,6 +48,7 @@ class INode(ABC):
     def cast(self, t: typing.Type[T]) -> T:
         origin = typing.get_origin(t)
         t = origin if origin is not None else t
+        IsInstance.assert_type(self, t)
         assert isinstance(self, t), f'{type(self)} != {t}'
         return typing.cast(T, self)
 
@@ -241,8 +242,10 @@ class IRunnable(INode, ABC):
             except NodeReturnException as e:
                 outer_result = e.result
 
+            #TODO equality node here
             assert isinstance(outer_result, RunInfoFullResult)
             result, args_group = outer_result.as_tuple
+            #TODO equality node here
             assert isinstance(result, RunInfoResult)
             new_info, new_node = result.as_tuple
 
@@ -345,15 +348,19 @@ class ITypedIndex(INodeIndex, typing.Generic[O, T], ABC):
         raise NotImplementedError(cls)
 
     def find_in_node(self, node: INode):
+        IsInstance.assert_type(node, self.outer_type())
         assert isinstance(node, self.outer_type())
         return self.find_in_outer_node(node)
 
     def replace_in_target(self, target_node: INode, new_node: INode):
+        IsInstance.assert_type(target_node, self.outer_type())
         assert isinstance(target_node, self.outer_type())
+        IsInstance.assert_type(new_node, self.item_type().type)
         assert isinstance(new_node, self.item_type().type)
         return self.replace_in_outer_target(target_node, new_node)
 
     def remove_in_target(self, target_node: INode):
+        IsInstance.assert_type(target_node, self.outer_type())
         assert isinstance(target_node, self.outer_type())
         return self.remove_in_outer_target(target_node)
 
@@ -375,6 +382,7 @@ class ITypedIntIndex(IInt, ITypedIndex[O, T], typing.Generic[O, T], ABC):
     def find_arg(self, node: INode) -> IOptional[T]:
         result = NodeArgIndex(self.as_int).find_in_node(node)
         if result.value is not None:
+            #TODO equality node here
             assert isinstance(result.value, self.item_type().type), \
                 f'{type(result.value)} != {self.item_type().type}'
         return result.real(IOptional[T])
@@ -398,7 +406,9 @@ class IInstantiable(INode, ABC):
 class TmpInnerArg:
 
     def __init__(self, node: BaseNode, idx: int):
+        IsInstance.assert_type(node, BaseNode)
         assert isinstance(node, BaseNode)
+        Integer(idx).strict_validate()
         assert isinstance(idx, int)
         self.node = node
         self.idx = idx
@@ -406,7 +416,8 @@ class TmpInnerArg:
     def apply(self) -> BaseNode:
         node = self.node
         idx = self.idx
-        node_aux = node.args[idx-1]
+        node_aux = typing.cast(INode, node.args[idx-1])
+        IsInstance(node_aux, BaseNode.as_type()).as_type_or_raise
         assert isinstance(node_aux, BaseNode)
         node = node_aux
         return node
@@ -417,7 +428,10 @@ class TmpInnerArg:
 class TmpNestedArg:
 
     def __init__(self, node: BaseNode, idxs: tuple[int, ...]):
+        IsInstance.assert_type(node, BaseNode)
         assert isinstance(node, BaseNode)
+        for idx in idxs:
+            Integer(idx).strict_validate()
         assert all(isinstance(idx, int) for idx in idxs)
         self.node = node
         self.idxs = idxs
@@ -426,7 +440,8 @@ class TmpNestedArg:
         node = self.node
         idxs = self.idxs
         for idx in idxs:
-            node_aux = node.args[idx-1]
+            node_aux = typing.cast(INode, node.args[idx-1])
+            IsInstance(node_aux, BaseNode.as_type()).as_type_or_raise
             assert isinstance(node_aux, BaseNode)
             node = node_aux
         return node
@@ -457,6 +472,7 @@ class BaseNode(IRunnable, ABC):
         if BaseNode.cache_enabled:
             instance = cls._instances.get(h)
             if instance is not None:
+                #TODO equality node here
                 assert instance.__class__ == cls, (instance.__class__, cls)
                 return typing.cast(typing.Self, instance)
         instance = super().__new__(cls)
@@ -506,6 +522,7 @@ class BaseNode(IRunnable, ABC):
         if self != new_node:
             new_result, _ = new_node.as_node.main_run(info)
 
+            #TODO equality node here
             assert isinstance(new_result, RunInfoResult)
             _, node_aux = new_result.as_tuple
             Eq(new_node, node_aux).raise_on_false()
@@ -635,6 +652,7 @@ class BaseNode(IRunnable, ABC):
         if cached is not None:
             return cached
         alias_info = self._strict_validate()
+        IsInstance.assert_type(alias_info, AliasInfo)
         assert alias_info is not None
         self._cached_valid_strict = alias_info
         return alias_info
@@ -646,6 +664,7 @@ class BaseNode(IRunnable, ABC):
         cached = self._cached_result_type
         if cached is not None:
             if isinstance(cached, bool):
+                #TODO equality node here
                 assert isinstance(self, IType)
                 return self
             return cached
@@ -653,7 +672,7 @@ class BaseNode(IRunnable, ABC):
         protocol = instance.as_node.protocol()
         alias_info_p = protocol.verify(instance)
         protocol = alias_info_p.apply(protocol)
-        Eq.from_ints(len(protocol.find(BaseTypeIndex)), 0).raise_on_false()
+        Eq.with_ints(len(protocol.find(BaseTypeIndex)), 0).raise_on_false()
         result_type = (
             self.type.apply().real(IType)
             if isinstance(self, TypeEnforcer)
@@ -738,7 +757,7 @@ class IType(INode, ABC):
             base_type,
             type_to_verify,
         )]
-        Eq.from_ints(len(type_to_verify.as_node.find(BaseTypeIndex)), 0).raise_on_false()
+        Eq.with_ints(len(type_to_verify.as_node.find(BaseTypeIndex)), 0).raise_on_false()
 
         while len(type_stack) > 0:
             my_type, type_to_verify = type_stack.pop()
@@ -824,7 +843,9 @@ class TypeNode(
     def __init__(self, t: type[T]):
         origin = typing.get_origin(t)
         t = origin if origin is not None else t
-        assert isinstance(t, type) and issubclass(t, INode), t
+        assert isinstance(t, type)
+        IInheritableNode.as_supertype().is_subclass(t).raise_on_false()
+        assert issubclass(t, INode), t
         super().__init__(t)
 
     @property
@@ -846,6 +867,7 @@ class TypeNode(
 
     def with_arg_group(self, group: BaseGroup, info: RunInfo):
         t = self.type
+        #TODO equality node here
         assert issubclass(t, InheritableNode)
         return t.new(*group.as_tuple).as_node.run(info.with_stats())
 
@@ -907,6 +929,7 @@ class BaseInt(BaseNode, IInt, ISpecialValue, ABC):
         return cls.default_protocol(CountableTypeGroup())
 
     def __init__(self, value: int):
+        Integer(value).strict_validate()
         assert isinstance(value, int)
         super().__init__(value)
 
@@ -917,6 +940,7 @@ class BaseInt(BaseNode, IInt, ISpecialValue, ABC):
     @property
     def as_int(self) -> int:
         value = self.args[0]
+        #TODO equality node here
         assert isinstance(value, int)
         return value
 
@@ -975,6 +999,8 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
         return cls(*args)
 
     def __init__(self, *args: INode):
+        for arg in args:
+            IsInstance.assert_type(arg, INode)
         assert all(isinstance(arg, INode) for arg in args)
         super().__init__(*args)
 
@@ -987,7 +1013,9 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
         return self.args
 
     def replace_at(self, index: INodeIndex, new_node: INode) -> INode | None:
+        #TODO equality node here
         assert isinstance(index, INodeIndex)
+        #TODO equality node here
         assert isinstance(new_node, INode)
         if isinstance(index, NodeArgIndex):
             value = index.as_int
@@ -1005,9 +1033,11 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
         args = self.args
         type_group = self.protocol().arg_group.apply()
         if isinstance(type_group, OptionalTypeGroup):
+            #TODO equality node here
             assert len(args) <= 1, \
                 f'{type(self)}: {len(args)} > 1'
         elif isinstance(type_group, CountableTypeGroup):
+            #TODO equality node here
             assert len(args) == len(type_group.args), \
                 f'{type(self)}: {len(args)} != {len(type_group.args)}'
 
@@ -1152,6 +1182,7 @@ class ParentScopeBase(BaseInt, IDynamic, IDefault, ABC):
 
     def _run(self, info: RunInfo):
         node = self._index(info)
+        #TODO equality node here
         assert isinstance(node, RunInfoScopeDataIndex)
         scope_data_group = info.scope_data_group.apply().real(ScopeDataGroup)
         amount = len(scope_data_group.as_tuple)
@@ -1222,8 +1253,10 @@ class Placeholder(InheritableNode, IDynamic, IFromInt, typing.Generic[T], ABC):
         index = node.index.apply().real(BaseInt)
 
         scope = scope_index.find_in_outer_node(info).value_or_raise
+        #TODO equality node here
         assert isinstance(scope, ScopeDataPlaceholderItemGroup), type(scope)
 
+        #TODO equality node here
         assert isinstance(node, scope.item_inner_type()), \
             f'{type(node)} != {scope.item_inner_type()} ({scope_index.as_int} - {index.as_int})'
 
@@ -1272,6 +1305,7 @@ class NodeMainBaseIndex(NodeIntBaseIndex, ABC):
 
     @classmethod
     def _inner_getitem(cls, node: INode, index: int) -> tuple[INode | None, int]:
+        #TODO equality node here
         assert index > 0
         index -= 1
         if index == 0:
@@ -1290,6 +1324,7 @@ class NodeMainBaseIndex(NodeIntBaseIndex, ABC):
         new_node: INode,
         index: int,
     ) -> tuple[INode | None, int]:
+        #TODO equality node here
         assert index > 0
         index -= 1
         if index == 0:
@@ -1308,6 +1343,7 @@ class NodeMainBaseIndex(NodeIntBaseIndex, ABC):
 
     @classmethod
     def _ancestors(cls, node: INode, index: int) -> tuple[list[INode], int]:
+        #TODO equality node here
         assert index > 0
         index -= 1
         if index == 0:
@@ -1376,6 +1412,7 @@ class NodeArgBaseIndex(NodeIntBaseIndex, ABC):
                 (new_node if i == index - 1 else arg)
                 for i, arg in enumerate(args)
             ])
+            #TODO equality node here
             assert isinstance(new_target, type(target_node))
             return Optional(new_target).real(IOptional[T])
         return Optional()
@@ -1392,6 +1429,7 @@ class NodeArgBaseIndex(NodeIntBaseIndex, ABC):
                 if i != index - 1
             ]
             new_target = target_node.func(*new_args)
+            #TODO equality node here
             assert isinstance(new_target, type(target_node))
             return Optional(new_target).real(Optional[T])
         return Optional()
@@ -1451,6 +1489,7 @@ class BaseGroup(InheritableNode, IGroup[T], IDefault, typing.Generic[T], ABC):
         for arg in self.args:
             origin = typing.get_origin(t)
             t = origin if origin is not None else t
+            #TODO equality node here
             assert isinstance(arg, t), f'{type(arg)} != {t}'
         return alias_info
 
@@ -1510,6 +1549,7 @@ class BaseOptionalValueGroup(BaseGroup[IOptional[T]], IFromInt, typing.Generic[T
 
     def strict(self) -> DefaultGroup:
         values = [item.value for item in self.args if item.value is not None]
+        #TODO equality node here
         assert len(values) == len(self.args)
         return DefaultGroup(*values)
 
@@ -1730,7 +1770,7 @@ class TypeAliasOptionalGroup(
                 if actual.is_empty().as_bool
                 else actual.value_or_raise)
             node = TypeIndex(i + 1).replace_in_node(node, t)
-        Eq(Integer(len(node.as_node.find(BaseTypeIndex))), Integer.zero()).raise_on_false()
+        Eq.with_ints(len(node.as_node.find(BaseTypeIndex)), 0).raise_on_false()
         return node
 
 class AliasInfo(
@@ -1812,7 +1852,7 @@ class AliasInfo(
         self_group = self.alias_group_base.apply().real(TypeAliasGroup)
         p_alias_group = protocol.alias_group.apply().real(TypeAliasGroup)
         Eq(self_group, p_alias_group).raise_on_false()
-        Eq(Integer(len(p_alias_group.as_node.find(BaseTypeIndex))), Integer.zero()).raise_on_false()
+        Eq.with_ints(len(p_alias_group.as_node.find(BaseTypeIndex)), 0).raise_on_false()
 
         actual_group = self.alias_group_actual.apply().real(TypeAliasOptionalGroup)
         args_group = actual_group.replace_aliases(protocol.arg_group.apply()).real(IBaseTypeGroup)
@@ -2121,6 +2161,7 @@ class Type(InheritableNode, IBasicType, ISingleChild[IType], IInstantiable):
         self,
         t: typing.Type,
     ) -> IntBoolean:
+        #TODO equality node here
         assert issubclass(t, INode)
         return self.static_valid_node(t.as_type())
 
@@ -2146,7 +2187,7 @@ class NotType(InheritableNode, IBasicType, ISingleChild[IType], IInstantiable):
         alias_info: AliasInfo,
     ) -> tuple[bool, AliasInfo]:
         my_type = self.type.apply().real(IType)
-        Eq.from_ints(len(my_type.as_node.find(TypeIndex)), 0).raise_on_false()
+        Eq.with_ints(len(my_type.as_node.find(TypeIndex)), 0).raise_on_false()
         valid, alias_info = my_type.valid(instance, alias_info)
         return not valid, alias_info
 
@@ -2378,7 +2419,7 @@ class UnionType(
         alias_info: AliasInfo,
     ) -> tuple[bool, AliasInfo]:
         args = [arg for arg in self.args if isinstance(arg, IType)]
-        Eq.from_ints(len(args), len(self.args)).raise_on_false()
+        Eq.with_ints(len(args), len(self.args)).raise_on_false()
         for t in args:
             valid, alias_info = t.valid(instance, alias_info=alias_info)
             if valid:
@@ -2391,7 +2432,7 @@ class UnionType(
         alias_info: AliasInfo,
     ) -> tuple[bool, AliasInfo]:
         args = [arg for arg in self.args if isinstance(arg, IType)]
-        Eq.from_ints(len(args), len(self.args)).raise_on_false()
+        Eq.with_ints(len(args), len(self.args)).raise_on_false()
         for t in args:
             valid, alias_info = IType.general_valid_type(
                 base_type=t,
@@ -2407,7 +2448,7 @@ class UnionType(
         alias_info: AliasInfo,
     ) -> tuple[bool, AliasInfo]:
         args = [arg for arg in self.args if isinstance(arg, IType)]
-        Eq.from_ints(len(args), len(self.args)).raise_on_false()
+        Eq.with_ints(len(args), len(self.args)).raise_on_false()
         for t in args:
             valid, alias_info = IType.general_valid_type(
                 base_type=type_that_verifies,
@@ -2435,7 +2476,7 @@ class IntersectionType(
         alias_info: AliasInfo,
     ) -> tuple[bool, AliasInfo]:
         args = [arg for arg in self.args if isinstance(arg, IType)]
-        Eq.from_ints(len(args), len(self.args)).raise_on_false()
+        Eq.with_ints(len(args), len(self.args)).raise_on_false()
         for t in args:
             valid, alias_info = t.valid(instance, alias_info=alias_info)
             if not valid:
@@ -2448,7 +2489,7 @@ class IntersectionType(
         alias_info: AliasInfo,
     ) -> tuple[bool, AliasInfo]:
         args = [arg for arg in self.args if isinstance(arg, IType)]
-        Eq.from_ints(len(args), len(self.args)).raise_on_false()
+        Eq.with_ints(len(args), len(self.args)).raise_on_false()
         for t in args:
             valid, alias_info = IType.general_valid_type(
                 base_type=t,
@@ -2464,7 +2505,7 @@ class IntersectionType(
         alias_info: AliasInfo,
     ) -> tuple[bool, AliasInfo]:
         args = [arg for arg in self.args if isinstance(arg, IType)]
-        Eq.from_ints(len(args), len(self.args)).raise_on_false()
+        Eq.with_ints(len(args), len(self.args)).raise_on_false()
         for t in args:
             valid, alias_info = IType.general_valid_type(
                 base_type=type_that_verifies,
@@ -2506,6 +2547,7 @@ class CompositeType(InheritableNode, IComplexType, IInstantiable):
         args = self.type_args.apply()
         if args == Void():
             return True, alias_info
+        #TODO equality node here
         assert isinstance(args, IBaseTypeGroup)
         i_args = instance.real(InheritableNode).args
         return args.valid_info(
@@ -2588,7 +2630,9 @@ class ScopedFunctionBase(
             new_info = new_info.with_scopes(info)
 
         if not info.is_future():
+            #TODO equality node here
             assert alias_info is not None
+            #TODO equality node here
             assert protocol_arg is not None
             protocol_arg.verify_result(node, alias_info=alias_info)
 
@@ -2741,6 +2785,7 @@ class NodeReturnException(Exception):
     @property
     def result(self) -> RunInfoFullResult:
         result = self.args[0]
+        #TODO equality node here
         assert isinstance(result, RunInfoFullResult)
         return result
 
@@ -3081,6 +3126,7 @@ class InvalidNodeException(Exception):
     @property
     def info(self) -> IExceptionInfo:
         info = self.args[0]
+        #TODO equality node here
         assert isinstance(info, IExceptionInfo)
         return info
 
@@ -3199,8 +3245,10 @@ class IsInstance(RunnableBoolean, typing.Generic[T], IInstantiable):
     @property
     def as_bool(self) -> bool:
         instance = self.instance.apply()
+        #TODO equality node here
         assert isinstance(instance, INode)
         t = self.type.apply()
+        #TODO equality node here
         assert isinstance(t, TypeNode)
         alias_info = AliasInfo.with_node(TypeAliasGroup())
         valid, _ = t.valid(instance, alias_info=alias_info)
@@ -3217,7 +3265,8 @@ class IsInstance(RunnableBoolean, typing.Generic[T], IInstantiable):
         return cls(instance, TypeNode(t)).real(IsInstance[T])
 
     @classmethod
-    def assert_type(cls, instance: INode, t: typing.Type[T]) -> T:
+    def assert_type(cls, instance: typing.Any, t: typing.Type[T]) -> T:
+        assert isinstance(instance, INode)
         return cls(instance, TypeNode(t)).as_type_or_raise
 
     @classmethod
@@ -3251,7 +3300,7 @@ class Eq(RunnableBoolean, IInstantiable):
         return left == right
 
     @classmethod
-    def from_ints(cls, left: int, right: int) -> Eq:
+    def with_ints(cls, left: int, right: int) -> Eq:
         return cls(Integer(left), Integer(right))
 
 class SameArgsAmount(RunnableBoolean, IInstantiable):
@@ -3336,6 +3385,7 @@ class And(MultiArgBooleanNode, IInstantiable):
             run_args.append(run_arg)
 
         for run_arg in run_args:
+            #TODO equality node here
             assert isinstance(run_arg, IBoolean)
 
         result = info_with_stats.to_result(IBoolean.true())
@@ -3376,6 +3426,7 @@ class Or(MultiArgBooleanNode, IInstantiable):
             run_args.append(run_arg)
 
         for run_arg in run_args:
+            #TODO equality node here
             assert isinstance(run_arg, IBoolean)
 
         result = info_with_stats.to_result(IBoolean.false())
@@ -3394,9 +3445,12 @@ class ComparableEq(RunnableBoolean, IInstantiable):
     @property
     def as_bool(self) -> bool:
         args = self.args
+        #TODO equality node here
         assert len(args) == 2
         a, b = args
+        #TODO equality node here
         assert isinstance(a, IComparable)
+        #TODO equality node here
         assert isinstance(b, IComparable)
         return a.eq(b).as_bool
 
@@ -3416,9 +3470,12 @@ class GreaterThan(RunnableBoolean, IInstantiable):
     @property
     def as_bool(self) -> bool:
         args = self.args
+        #TODO equality node here
         assert len(args) == 2
         a, b = args
+        #TODO equality node here
         assert isinstance(a, IComparable)
+        #TODO equality node here
         assert isinstance(b, IComparable)
         return a.gt(b).as_bool
 
@@ -3438,9 +3495,12 @@ class LessThan(RunnableBoolean, IInstantiable):
     @property
     def as_bool(self) -> bool:
         args = self.args
+        #TODO equality node here
         assert len(args) == 2
         a, b = args
+        #TODO equality node here
         assert isinstance(a, IComparable)
+        #TODO equality node here
         assert isinstance(b, IComparable)
         return a.lt(b).as_bool
 
@@ -3460,9 +3520,12 @@ class GreaterOrEqual(RunnableBoolean, IInstantiable):
     @property
     def as_bool(self) -> bool:
         args = self.args
+        #TODO equality node here
         assert len(args) == 2
         a, b = args
+        #TODO equality node here
         assert isinstance(a, IComparable)
+        #TODO equality node here
         assert isinstance(b, IComparable)
         return a.ge(b).as_bool
 
@@ -3482,9 +3545,12 @@ class LessOrEqual(RunnableBoolean, IInstantiable):
     @property
     def as_bool(self) -> bool:
         args = self.args
+        #TODO equality node here
         assert len(args) == 2
         a, b = args
+        #TODO equality node here
         assert isinstance(a, IComparable)
+        #TODO equality node here
         assert isinstance(b, IComparable)
         return a.le(b).as_bool
 
@@ -3526,10 +3592,13 @@ class IsInsideRange(RunnableBoolean, IInstantiable):
     @property
     def as_bool(self) -> bool:
         value = self.raw_value.apply()
+        #TODO equality node here
         assert isinstance(value, IInt)
         min_value = self.min_value.apply()
+        #TODO equality node here
         assert isinstance(min_value, IInt)
         max_value = self.max_value.apply()
+        #TODO equality node here
         assert isinstance(max_value, IInt)
         return min_value.as_int <= value.as_int <= max_value.as_int
 
@@ -3574,11 +3643,14 @@ class PlaceholderIndex(
         return Placeholder.as_type()
 
     def find_in_outer_node(self, node: ScopeDataPlaceholderItemGroup):
+        #TODO equality node here
         assert isinstance(node, ScopeDataPlaceholderItemGroup)
         return self.find_in_node(node)
 
     def replace_in_outer_target(self, target: ScopeDataPlaceholderItemGroup, new_node: Placeholder):
+        #TODO equality node here
         assert isinstance(target, ScopeDataPlaceholderItemGroup)
+        #TODO equality node here
         assert isinstance(new_node, Placeholder)
         return self.replace_in_target(target, new_node)
 
@@ -3717,10 +3789,13 @@ class RunInfo(InheritableNode, IInstantiable):
         item_index: PlaceholderIndex,
         value: INode,
     ) -> RunInfo:
+        #TODO equality node here
         assert isinstance(scope_index, RunInfoScopeDataIndex)
+        #TODO equality node here
         assert isinstance(item_index, PlaceholderIndex)
 
         item = scope_index.find_in_outer_node(self).value_or_raise
+        #TODO equality node here
         assert isinstance(item, ScopeDataVarItemGroup)
 
         new_item = item.define_item(item_index, value)
@@ -3759,6 +3834,7 @@ class RunInfo(InheritableNode, IInstantiable):
         return_after_scope = self.return_after_scope.apply().real(Optional[RunInfoScopeDataIndex])
         return_after_val = return_after_scope.value
         if return_after_val is not None:
+            #TODO equality node here
             assert isinstance(return_after_val, RunInfoScopeDataIndex)
             ret_index = return_after_val.as_int
             if ret_index > base_amount:
@@ -3811,6 +3887,7 @@ class RunInfoStats(InheritableNode, IDefault, IAdditive, IInstantiable):
         return cls(Integer(instructions), Integer(memory))
 
     def add(self, another: INode) -> typing.Self:
+        #TODO equality node here
         assert isinstance(another, RunInfoStats)
         instructions = self.instructions.apply().real(Integer)
         memory = self.memory.apply().real(Integer)
@@ -3946,6 +4023,7 @@ class RunInfoScopeDataIndex(
         group = group_opt.value
         if group is None:
             return Optional.create()
+        #TODO equality node here
         assert isinstance(group, ScopeDataGroup)
         return Optional(target.with_new_args(
             scope_data_group=group,
@@ -4154,6 +4232,7 @@ class BaseNormalizerGroup(BaseNormalizer, IGroup[T], typing.Generic[T], ABC):
         for arg in self.args:
             origin = typing.get_origin(t)
             t = origin if origin is not None else t
+            #TODO equality node here
             assert isinstance(arg, t), f'{type(arg)} != {t}'
         return alias_info
 
@@ -4586,12 +4665,16 @@ class IIterator(INode, ABC):
         result = self._next(run_info)
         result.add_stats(info_with_stats)
         _, node = result.as_tuple
+        #TODO equality node here
         assert isinstance(node, IOptional)
         group = node.value
         if group is not None:
+            #TODO equality node here
             assert isinstance(group, DefaultGroup)
+            #TODO equality node here
             assert len(group.args) == 2
             new_iter, _ = group.as_tuple
+            #TODO equality node here
             assert isinstance(new_iter, self.__class__)
         return result
 
@@ -4701,6 +4784,7 @@ class Add(ControlFlowBaseNode, IInstantiable):
                 node = arg_node
             else:
                 node = node.add(node_aux)
+        #TODO equality node here
         assert node is not None
         result = info_with_stats.to_result(node)
         arg_group: OptionalValueGroup[INode] = OptionalValueGroup.from_optional_items(
@@ -4809,6 +4893,7 @@ class BaseSignedInt(BaseNormalizer, IComparableSignedNumber, IDivisible, ABC):
         IsInstance.verify(result, BaseSignedInt)
 
     def subtract(self, value: INumber) -> BaseSignedInt:
+        #TODO equality node here
         assert isinstance(value, BaseSignedInt)
         return self.add(
             SignedInt(
@@ -4868,6 +4953,7 @@ class BinaryInt(BaseSignedInt, IInstantiable):
             return self
 
         bits = self.as_tuple
+        #TODO equality node here
         assert len(bits) > 0
         if bits[0] == IBoolean.true():
             return self
@@ -4952,8 +5038,11 @@ class BinaryInt(BaseSignedInt, IInstantiable):
                 elif my_bit == IBoolean.true():
                     new_bits_reverse.append(IBoolean.true())
                 else:
+                    #TODO equality node here
                     assert not one_to_subtract
+                    #TODO equality node here
                     assert my_bit == IBoolean.false()
+                    #TODO equality node here
                     assert other_bit == IBoolean.true()
                     one_to_subtract = True
                     new_bits_reverse.append(IBoolean.true())
@@ -4980,6 +5069,7 @@ class BinaryInt(BaseSignedInt, IInstantiable):
 
     def lt(self, another: INode):
         if not isinstance(another, BinaryInt):
+            #TODO equality node here
             assert isinstance(another, IComparable)
             return another.gt(self)
         my_bits = self.as_tuple
@@ -4993,15 +5083,19 @@ class BinaryInt(BaseSignedInt, IInstantiable):
             if my_bit == other_bit:
                 continue
             if my_bit == IBoolean.true():
+                #TODO equality node here
                 assert other_bit == IBoolean.false()
                 return IntBoolean.false()
+            #TODO equality node here
             assert my_bit == IBoolean.false()
+            #TODO equality node here
             assert other_bit == IBoolean.true()
             return IntBoolean.true()
         return IntBoolean.false()
 
     def gt(self, another: INode):
         if not isinstance(another, BinaryInt):
+            #TODO equality node here
             assert isinstance(another, IComparable)
             return another.lt(self)
         my_bits = self.as_tuple
@@ -5015,14 +5109,18 @@ class BinaryInt(BaseSignedInt, IInstantiable):
             if my_bit == other_bit:
                 continue
             if my_bit == IBoolean.true():
+                #TODO equality node here
                 assert other_bit == IBoolean.false()
                 return IntBoolean.true()
+            #TODO equality node here
             assert my_bit == IBoolean.false()
+            #TODO equality node here
             assert other_bit == IBoolean.true()
             return IntBoolean.false()
         return IntBoolean.false()
 
     def multiply(self, value: INumber) -> BaseSignedInt:
+        #TODO equality node here
         assert isinstance(value, BaseSignedInt)
         sign = value.sign
         tail: list[IntBoolean] = []
@@ -5045,6 +5143,7 @@ class BinaryInt(BaseSignedInt, IInstantiable):
         return value.divide(self)
 
     def _divide_int(self, value: INumber) -> tuple[BaseSignedInt, BinaryInt]:
+        #TODO equality node here
         assert isinstance(value, BaseSignedInt)
         sign = value.sign
         my_bits = self.abs.as_tuple
@@ -5065,6 +5164,7 @@ class BinaryInt(BaseSignedInt, IInstantiable):
             quotient_bits.append(IBoolean.true())
         else:
             quotient_bits.append(IBoolean.false())
+        #TODO equality node here
         assert remainder.lt(other_abs).as_bool
         quotient = BinaryInt.from_items(quotient_bits).normalize()
         return SignedInt(sign, quotient).normalize(), remainder
@@ -5129,13 +5229,16 @@ class SignedInt(BaseSignedInt, IInstantiable):
             return zero
         if isinstance(abs_value, SignedInt):
             inner_sign = abs_value.sign
+            #TODO equality node here
             assert inner_sign == NegativeSign(IBoolean.true())
             inner_abs_value = abs_value.abs
+            #TODO equality node here
             assert isinstance(inner_abs_value, BinaryInt)
             if sign == NegativeSign(IBoolean.true()):
                 return inner_abs_value
             else:
                 return abs_value
+        #TODO equality node here
         assert isinstance(abs_value, BinaryInt)
         node = (
             self.func(sign, abs_value)
@@ -5184,6 +5287,7 @@ class SignedInt(BaseSignedInt, IInstantiable):
         return sign
 
     def multiply(self, value: INumber) -> BaseSignedInt:
+        #TODO equality node here
         assert isinstance(value, BaseSignedInt)
         sign = self._mul_sign(value)
         product = self.abs.multiply(value.abs)
@@ -5208,12 +5312,14 @@ class SignedInt(BaseSignedInt, IInstantiable):
         return value.divide(self)
 
     def divide_int(self, value: BaseSignedInt) -> BaseSignedInt:
+        #TODO equality node here
         assert isinstance(value, BaseSignedInt)
         sign = self._mul_sign(value)
         quotient = self.abs.divide_int(value.abs)
         return SignedInt(sign, quotient).normalize()
 
     def modulo(self, value: BaseSignedInt) -> BinaryInt:
+        #TODO equality node here
         assert isinstance(value, BaseSignedInt)
         remainder = self.abs.modulo(value.abs)
         return remainder
@@ -5319,15 +5425,19 @@ class BaseSignedRational(BaseNormalizer, IComparableSignedNumber, IDivisible, AB
                 my_sign,
                 my_numerator.multiply(other_denominator),
             ).normalize()
+            #TODO equality node here
             assert isinstance(my_full_numerator, BaseSignedInt)
             other_full_numerator = SignedInt(
                 other_sign,
                 other_numerator.multiply(my_denominator),
             ).normalize()
+            #TODO equality node here
             assert isinstance(other_full_numerator, BaseSignedInt)
             new_numerator = my_full_numerator.add(other_full_numerator)
+            #TODO equality node here
             assert isinstance(new_numerator, BaseSignedInt)
             new_denominator = my_denominator.multiply(other_denominator)
+            #TODO equality node here
             assert isinstance(new_denominator, BinaryInt)
             return SignedRational(
                 new_numerator.sign,
@@ -5338,6 +5448,7 @@ class BaseSignedRational(BaseNormalizer, IComparableSignedNumber, IDivisible, AB
         return other.add(self)
 
     def subtract(self, value: INumber) -> BaseSignedRational:
+        #TODO equality node here
         assert isinstance(value, BaseSignedRational)
         return self.add(
             SignedRational(
@@ -5352,6 +5463,7 @@ class BaseSignedRational(BaseNormalizer, IComparableSignedNumber, IDivisible, AB
         if isinstance(another, BaseSignedInt):
             another = another.to_rational()
 
+        #TODO equality node here
         assert isinstance(another, BaseSignedRational)
 
         my_sign = self.sign
@@ -5365,8 +5477,10 @@ class BaseSignedRational(BaseNormalizer, IComparableSignedNumber, IDivisible, AB
         same_sign = Eq(my_sign, other_sign).as_bool
         new_sign = NegativeSign(IBoolean.from_bool(not same_sign))
         new_numerator = my_numerator.multiply(other_numerator)
+        #TODO equality node here
         assert isinstance(new_numerator, BinaryInt)
         new_denominator = my_denominator.multiply(other_denominator)
+        #TODO equality node here
         assert isinstance(new_denominator, BinaryInt)
         return SignedRational(
             new_sign,
@@ -5379,6 +5493,7 @@ class BaseSignedRational(BaseNormalizer, IComparableSignedNumber, IDivisible, AB
         if isinstance(another, BaseSignedInt):
             another = another.to_rational()
 
+        #TODO equality node here
         assert isinstance(another, BaseSignedRational)
 
         my_sign = self.sign
@@ -5392,8 +5507,10 @@ class BaseSignedRational(BaseNormalizer, IComparableSignedNumber, IDivisible, AB
         same_sign = Eq(my_sign, other_sign).as_bool
         new_sign = NegativeSign(IBoolean.from_bool(not same_sign))
         new_numerator = my_numerator.multiply(other_denominator)
+        #TODO equality node here
         assert isinstance(new_numerator, BinaryInt)
         new_denominator = my_denominator.multiply(other_numerator)
+        #TODO equality node here
         assert isinstance(new_denominator, BinaryInt)
         return SignedRational(
             new_sign,
@@ -5413,6 +5530,7 @@ class BaseSignedRational(BaseNormalizer, IComparableSignedNumber, IDivisible, AB
             another = another.to_rational()
 
         if not isinstance(another, BaseSignedRational):
+            #TODO equality node here
             assert isinstance(another, IComparable)
             return another.gt(self)
 
@@ -5434,6 +5552,7 @@ class BaseSignedRational(BaseNormalizer, IComparableSignedNumber, IDivisible, AB
     def gt(self, another: INode):
         if isinstance(another, BaseSignedInt):
             another = another.to_rational()
+        #TODO equality node here
         assert isinstance(another, IComparable)
         return another.lt(self)
 
@@ -5654,13 +5773,16 @@ class SignedRational(BaseSignedRational, IInstantiable):
         value = self.raw_value.apply().real(BaseSignedRational)
         if isinstance(value, SignedRational):
             inner_sign = value.sign
+            #TODO equality node here
             assert inner_sign == NegativeSign(IBoolean.true())
             inner_value = value.value
+            #TODO equality node here
             assert isinstance(inner_value, Rational)
             if sign == NegativeSign(IBoolean.true()):
                 return inner_value
             else:
                 return value
+        #TODO equality node here
         assert isinstance(value, Rational)
         node = (
             self.func(sign, value)
@@ -5702,7 +5824,9 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
         precision = len(abs_value.as_tuple)
         abs_int = BinaryToInt(abs_value).normalize()
         exp_int = BinaryToInt(exponent).normalize()
+        #TODO equality node here
         assert isinstance(abs_int, Integer)
+        #TODO equality node here
         assert isinstance(exp_int, Integer)
         value = abs_int * (2 ** (exp_int.as_int - precision))
         if sign == NegativeSign(IBoolean.true()):
@@ -5758,6 +5882,7 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
             higher_base = higher_base.with_new_abs(BinaryInt.from_items(higher_bits))
 
         precision = higher_base.precision()
+        #TODO equality node here
         assert precision == lower_base.precision()
 
         higher_bits = list(higher_base.abs.as_tuple)
@@ -5807,6 +5932,7 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
         lower_base = lower_base.with_new_abs(BinaryInt.from_items(lower_bits))
 
         precision = higher_base.precision()
+        #TODO equality node here
         assert precision == lower_base.precision()
 
         my_new_base = higher_base if self_higher else lower_base
@@ -5823,6 +5949,7 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
         ) = self.same_exponents(another.real(Float))
 
         new_base = my_new_base.add(other_new_base).normalize()
+        #TODO equality node here
         assert isinstance(new_base, BaseSignedInt)
         diff = new_base.precision() - precision
         one = INumber.one()
@@ -5837,6 +5964,7 @@ class Float(BaseNormalizer, IComparableNumber, IInstantiable):
     def subtract(self, value: INumber) -> Float:
         if isinstance(value, BaseSignedInt):
             value = AsFloat(value).normalize()
+        #TODO equality node here
         assert isinstance(value, Float)
         return self.add(
             Float(

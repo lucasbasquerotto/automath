@@ -1,4 +1,4 @@
-from env.core import Optional, IExceptionInfo, IRunnable
+from env.core import Optional, IExceptionInfo, IRunnable, IsInstance
 from env.goal_env import GoalEnv
 from env.base_agent import BaseAgent
 from env.full_state import BaseActionData
@@ -89,6 +89,7 @@ class Trainer:
             full_state = self.env.full_state
 
             _, action_data, __ = raw_action.run_action_details(full_state)
+            IsInstance.assert_type(action_data, BaseActionData)
             assert isinstance(action_data, BaseActionData)
 
             action_opt = action_data.action.apply().real(Optional[BaseAction])

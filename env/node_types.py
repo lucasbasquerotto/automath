@@ -1,5 +1,6 @@
 from env.core import (
     INode,
+    IsInstance,
     IRunnable,
     RunInfo,
     ScopeDataGroup,
@@ -64,6 +65,7 @@ class HaveScratch(Goal[INode, StateScratchIndex], IInstantiable):
 
     def evaluate(self, state: State, eval_param: StateScratchIndex):
         goal_inner_expr = self.goal_inner_expr.apply()
+        IsInstance.assert_type(eval_param, StateScratchIndex)
         assert isinstance(eval_param, StateScratchIndex)
         scratch = eval_param.find_in_node(state).value_or_raise
         content = scratch.value_or_raise
@@ -87,6 +89,7 @@ class HaveResultScratch(Goal[IRunnable, StateScratchIndex], IInstantiable):
         )
         eval_result = runnable.run(run_info.with_stats())
         _, goal_inner_expr = eval_result.as_tuple
+        IsInstance.assert_type(eval_param, StateScratchIndex)
         assert isinstance(eval_param, StateScratchIndex)
         scratch = eval_param.find_in_node(state).value_or_raise
         content = scratch.value_or_raise
@@ -104,6 +107,7 @@ class HaveDynamicGoal(Goal[IGoal, StateDynamicGoalIndex], IInstantiable):
 
     def evaluate(self, state: State, eval_param: StateDynamicGoalIndex):
         goal_inner_expr = self.goal_inner_expr.apply()
+        IsInstance.assert_type(eval_param, StateDynamicGoalIndex)
         assert isinstance(eval_param, StateDynamicGoalIndex)
         dynamic_goal = eval_param.find_in_node(state).value_or_raise
         content = dynamic_goal.goal_expr.apply()
@@ -124,6 +128,7 @@ class HaveDynamicGoalAchieved(Goal[Void, StateDynamicGoalIndex], IDefault, IInst
         return cls.with_goal(Void())
 
     def evaluate(self, state: State, eval_param: StateDynamicGoalIndex):
+        IsInstance.assert_type(eval_param, StateDynamicGoalIndex)
         assert isinstance(eval_param, StateDynamicGoalIndex)
         dynamic_goal = eval_param.find_in_node(state).value_or_raise
         content = dynamic_goal.goal_achieved.apply().cast(IBoolean)

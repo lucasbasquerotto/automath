@@ -2,6 +2,9 @@ import typing
 from abc import ABC
 from env.core import (
     INode,
+    IsInstance,
+    GreaterThan,
+    LessOrEqual,
     IOpaqueScope,
     InheritableNode,
     IDefault,
@@ -489,6 +492,7 @@ class FullState(
     @property
     def cost_multiplier(self) -> Optional[CostMultiplier]:
         current = self.current.apply().real(HistoryNode)
+        IsInstance.assert_type(current, HistoryNode)
         assert isinstance(current, HistoryNode)
         meta_data = current.meta_data.apply().real(MetaData)
         cost_multiplier = meta_data.cost_multiplier.apply().real(Optional[CostMultiplier])
@@ -501,6 +505,7 @@ class FullState(
         if len(history) == 0:
             return Optional.create()
         last_item = history_group.as_tuple[-1]
+        IsInstance.assert_type(last_item, HistoryNode)
         assert isinstance(last_item, HistoryNode)
         action_data_opt = last_item.action_data.apply().real(IOptional[BaseActionData])
         return action_data_opt
@@ -535,7 +540,9 @@ class FullState(
 
     def at_history(self, index: int) -> tuple[typing.Self, IOptional[BaseActionData]]:
         history = self.history.apply().real(HistoryGroupNode).as_tuple
+        GreaterThan.with_ints(index, 0).raise_on_false()
         assert index > 0
+        LessOrEqual.with_ints(index, len(history)).raise_on_false()
         assert index <= len(history)
         item = history[index-1]
         current = HistoryNode.with_args(

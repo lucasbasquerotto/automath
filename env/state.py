@@ -2,6 +2,8 @@ import typing
 from abc import ABC
 from env.core import (
     INode,
+    Not,
+    IsInstance,
     IDefault,
     BaseNode,
     TypeNode,
@@ -113,11 +115,14 @@ class IGoalAchieved(IBoolean, ABC):
         if nested_args_indices is not None:
             idxs = [idx.as_int for idx in nested_args_indices.as_tuple]
             for idx in idxs:
+                IsInstance.assert_type(goal_achieved, GoalAchievedGroup)
                 assert isinstance(goal_achieved, GoalAchievedGroup), f'{idx} in {idxs}'
                 groups.append((idx, goal_achieved))
                 goal_achieved = goal_achieved.as_node.inner_arg(idx).apply().cast(IGoalAchieved)
 
+        IsInstance.assert_type(goal_achieved, GoalAchieved)
         assert isinstance(goal_achieved, GoalAchieved)
+        Not(goal_achieved).raise_on_false()
         assert goal_achieved.as_bool is False
         goal_achieved = GoalAchieved.achieved()
 
@@ -125,6 +130,7 @@ class IGoalAchieved(IBoolean, ABC):
             replaced = NodeArgIndex(idx).replace_in_target(group, goal_achieved)
             goal_achieved = replaced.value_or_raise
 
+        IsInstance.assert_type(goal_achieved, type(self))
         assert isinstance(goal_achieved, type(self))
         return typing.cast(typing.Self, goal_achieved)
 
@@ -574,6 +580,7 @@ class StateDynamicGoalIndex(StateIntIndex[DynamicGoal], IInstantiable):
         group = group_opt.value
         if group is None:
             return Optional.create()
+        IsInstance.assert_type(group, DynamicGoalGroup)
         assert isinstance(group, DynamicGoalGroup)
         return Optional(target.with_new_args(
             meta_info=target.meta_info.apply().cast(StateMetaInfo).with_new_args(
@@ -603,6 +610,7 @@ class StateScratchIndex(StateIntIndex[Scratch], IInstantiable):
         group = group_opt.value
         if group is None:
             return Optional.create()
+        IsInstance.assert_type(group, ScratchGroup)
         assert isinstance(group, ScratchGroup)
         return Optional(target.with_new_args(
             scratch_group=group,
@@ -622,6 +630,7 @@ class StateScratchIndex(StateIntIndex[Scratch], IInstantiable):
 class ScratchNodeIndex(NodeIntBaseIndex, IInstantiable):
 
     def find_in_node(self, node: INode):
+        IsInstance.assert_type(node, Scratch)
         assert isinstance(node, Scratch)
         content = node.value
         if content is None:
@@ -629,7 +638,9 @@ class ScratchNodeIndex(NodeIntBaseIndex, IInstantiable):
         return NodeMainIndex(self.as_int).find_in_node(content)
 
     def replace_in_target(self, target_node: INode, new_node: INode):
+        IsInstance.assert_type(target_node, Scratch)
         assert isinstance(target_node, Scratch)
+        IsInstance.assert_type(new_node, INode)
         assert isinstance(new_node, INode)
         if self.as_int == 1:
             return Optional(new_node)
@@ -638,6 +649,7 @@ class ScratchNodeIndex(NodeIntBaseIndex, IInstantiable):
         return content
 
     def remove_in_target(self, target_node: INode):
+        IsInstance.assert_type(target_node, Scratch)
         assert isinstance(target_node, Scratch)
         if self.as_int == 1:
             return Optional.create()
@@ -656,6 +668,7 @@ class StateArgsGroupIndex(StateIntIndex[PartialArgsGroup], IInstantiable):
         args_outer_group = group_opt.value
         if args_outer_group is None:
             return Optional.create()
+        IsInstance.assert_type(args_outer_group, PartialArgsOuterGroup)
         assert isinstance(args_outer_group, PartialArgsOuterGroup)
         return Optional(target.with_new_args(args_outer_group=args_outer_group))
 

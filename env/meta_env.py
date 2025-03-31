@@ -4,6 +4,10 @@ from abc import ABC
 import functools
 from env.core import (
     IDefault,
+    IsInstance,
+    Type,
+    Eq,
+    LessOrEqual,
     IFromInt,
     IInt,
     INodeIndex,
@@ -122,7 +126,9 @@ class SubtypeOuterGroup(InheritableNode, IWrapper, IInstantiable, typing.Generic
 
     @classmethod
     def from_all_types(cls, common_type: TypeNode[T], all_types: GeneralTypeGroup):
+        IsInstance.assert_type(common_type, TypeNode)
         assert isinstance(common_type, TypeNode)
+        IsInstance.assert_type(all_types, GeneralTypeGroup)
         assert isinstance(all_types, GeneralTypeGroup)
         full_type = IntersectionType(
             Type(common_type),
@@ -136,7 +142,7 @@ class SubtypeOuterGroup(InheritableNode, IWrapper, IInstantiable, typing.Generic
                 if full_type.static_valid(item)
             ]
         )
-        assert subtypes == GeneralTypeGroup.from_items(
+        alt_items = GeneralTypeGroup.from_items(
             [
                 item
                 for item in all_types.as_tuple
@@ -149,6 +155,8 @@ class SubtypeOuterGroup(InheritableNode, IWrapper, IInstantiable, typing.Generic
                 )
             ]
         )
+        Eq(subtypes, alt_items).raise_on_false()
+        assert subtypes == alt_items
         return cls(common_type, subtypes)
 
     @property
@@ -164,6 +172,9 @@ class SubtypeOuterGroup(InheritableNode, IWrapper, IInstantiable, typing.Generic
         common_type = self.common_type.apply()
         subtypes = self.subtypes.apply()
         if isinstance(common_type, TypeNode) and isinstance(subtypes, GeneralTypeGroup):
+            for item in subtypes.as_tuple:
+                t = typing.cast(type[INode], common_type.type)
+                t.as_supertype().is_subclass(item.type).raise_on_false()
             assert all(issubclass(item.type, common_type.type) for item in subtypes.as_tuple)
 
 class MetaInfoOptions(InheritableNode, IDefault, IInstantiable):
@@ -1076,10 +1087,12 @@ class ActionFullInfo(
         for item in self.as_tuple:
             if isinstance(item, ActionFullInfo):
                 for inner_item in item.as_tuple:
+                    IsInstance.assert_type(inner_item, BaseActionInfo)
                     assert isinstance(inner_item, BaseActionInfo), \
                         f"{type(inner_item)} != {BaseActionInfo}"
                     items.append(inner_item)
             else:
+                IsInstance.assert_type(item, BaseActionInfo)
                 assert isinstance(item, BaseActionInfo), f"{type(item)} != {BaseActionInfo}"
                 items.append(item)
         return self.func(*items)
@@ -1087,6 +1100,7 @@ class ActionFullInfo(
     def get_new_cost_multiplier(self) -> NewCostMultiplier | None:
         new_cost_multiplier: NewCostMultiplier | None = None
         for item in self.as_tuple:
+            IsInstance.assert_type(item, BaseActionInfo)
             assert isinstance(item, BaseActionInfo)
             new_cost_multiplier_opt = item.new_cost_multiplier.apply().real(
                 Optional[NewCostMultiplier]
@@ -1110,6 +1124,7 @@ class ActionFullInfo(
         actions = 1
         instructions = 1
         for item in self.as_tuple:
+            IsInstance.assert_type(item, BaseActionInfo)
             assert isinstance(item, BaseActionInfo)
             item_instructions = item.instructions.apply().real(Integer)
             instructions += item_instructions.as_int
@@ -1123,6 +1138,7 @@ class ActionFullInfo(
     def get_run_memory_size(self) -> Integer:
         run_memory_size = 0
         for item in self.as_tuple:
+            IsInstance.assert_type(item, BaseActionInfo)
             assert isinstance(item, BaseActionInfo)
             run_memory_size += item.get_run_memory_size().as_int
         return Integer(run_memory_size)
@@ -1152,9 +1168,11 @@ class IBasicAction(IAction[S], typing.Generic[S], ABC):
                     raw_args.append(0)
                 else:
                     value: INode = arg.value_or_raise
+                    IsInstance.assert_type(value, IInt)
                     assert isinstance(value, IInt)
                     raw_args.append(value.as_int)
             else:
+                IsInstance.assert_type(arg, IInt)
                 assert isinstance(arg, IInt)
                 raw_args.append(arg.as_int)
         for _ in range(len(args), 3):
@@ -1165,17 +1183,22 @@ class IBasicAction(IAction[S], typing.Generic[S], ABC):
     def from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         raw_args = [arg1, arg2, arg3]
         group = cls.protocol().arg_group.apply()
+        IsInstance.assert_type(group, CountableTypeGroup)
         assert isinstance(group, CountableTypeGroup), type(group)
         types = group.as_tuple
+        LessOrEqual.with_ints(len(types), 3).raise_on_false()
         assert len(types) <= 3
 
         result = cls._from_raw(arg1, arg2, arg3)
+        Eq(result.to_raw_args(), IntGroup.from_ints(raw_args)).raise_on_false()
         assert result.to_raw_args() == IntGroup.from_ints(raw_args)
 
         node = result.as_node
+        Eq.with_ints(len(node.args), len(types)).raise_on_false()
         assert len(node.args) == len(types)
         for i, raw_arg in enumerate(raw_args):
             if i >= len(types):
+                Eq.with_ints(raw_arg, 0).raise_on_false()
                 assert raw_arg == 0
             else:
                 type_node = types[i]
@@ -1184,21 +1207,30 @@ class IBasicAction(IAction[S], typing.Generic[S], ABC):
                     t1 = type_node.type.apply().real(TypeNode)
                     t_args = type_node.type_args.apply().real(OptionalTypeGroup)
                     t_arg = t_args.type_node.apply().real(TypeNode)
+                    IInt.as_supertype().is_subclass(t_arg.type).raise_on_false()
                     assert issubclass(t_arg.type, IInt)
                     type_node = t1
+                IsInstance.assert_type(type_node, TypeNode)
                 assert isinstance(type_node, TypeNode)
                 t = type_node.type
                 if issubclass(t, IOptional):
+                    IsInstance.assert_type(arg, IOptional)
                     assert isinstance(arg, IOptional)
                     if raw_arg == 0:
+                        arg.is_empty().raise_on_false()
                         assert arg.is_empty().as_bool
                     else:
                         value: INode = arg.value_or_raise
+                        IsInstance.assert_type(value, IInt)
                         assert isinstance(value, IInt)
+                        Eq(value, value.from_int(raw_arg)).raise_on_false()
                         assert value == value.from_int(raw_arg)
                 else:
+                    IInt.as_supertype().is_subclass(t).raise_on_false()
                     assert issubclass(t, IInt)
+                    IsInstance.assert_type(arg, IInt)
                     assert isinstance(arg, IInt)
+                    Eq(arg, t.from_int(raw_arg)).raise_on_false()
                     assert arg == t.from_int(raw_arg)
         return result
 
@@ -1259,6 +1291,7 @@ def _meta_main_args(all_types: tuple[TypeNode, ...]) -> MetaMainArgs:
         if issubclass(t.type, IInstantiable):
             for st in t.type.__bases__:
                 if st != IInstantiable:
+                    IInstantiable.as_supertype().is_subclass(st).raise_on_false()
                     assert not issubclass(st, IInstantiable), \
                         f"Instantiable class {t.type} has subclass {st}"
 

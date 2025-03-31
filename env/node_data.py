@@ -1,4 +1,5 @@
 from __future__ import annotations
+import typing
 import numpy as np
 from env import core, state, meta_env, full_state
 
@@ -315,6 +316,7 @@ class NodeData:
                 args_to_show: int | None = None
                 hidden = force_hidden
                 if main_node is not None and not hidden:
+                    core.IsInstance.assert_type(node, main_node.node_type.type)
                     assert isinstance(node, main_node.node_type.type)
                     hidden_index = main_node.hidden_index
                     if (
@@ -346,13 +348,16 @@ class NodeData:
                 )
 
                 context_node_id = (next_context_node_id - 1) if next_context_node_id >= 1 else 0
+                core.GreaterThan.with_ints(node_type_id, 0).raise_on_false()
                 assert node_type_id > 0
                 scope_id = parent_scope_id
 
                 if isinstance(node, core.IOpaqueScope):
                     scope_id = 1
                 elif isinstance(node, core.IScope):
+                    core.IsInstance.assert_type(node, core.IInnerScope)
                     assert isinstance(node, core.IInnerScope)
+                    core.GreaterThan.with_ints(parent_scope_id, 0).raise_on_false()
                     assert parent_scope_id > 0
                     scope_id = parent_scope_id + 1
 
@@ -380,7 +385,8 @@ class NodeData:
                     result[idx][7] = args_amount
                     for i in range(args_amount):
                         inner_arg_id = args_amount - i
-                        arg = args[inner_arg_id - 1]
+                        arg = typing.cast(core.INode, args[inner_arg_id - 1])
+                        core.IsInstance.assert_type(arg, core.INode)
                         assert isinstance(arg, core.INode)
                         arg_main_node: MainNodeData | None = None
                         if main_node is not None and main_node.args is not None:
@@ -404,6 +410,7 @@ class NodeData:
 
                 result[idx][8] = 1 if force_hidden or hidden else 0
 
+        core.Eq(core.Integer(idx), core.Integer(len(result) - 1)).raise_on_false()
         assert idx == len(result) - 1, \
             f'idx={idx} != {len(result) - 1}'
         return result

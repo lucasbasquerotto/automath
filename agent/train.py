@@ -2,10 +2,10 @@ import time
 from typing import Optional
 import torch
 from agent.smart_agent import SmartAgent
+from agent.trainer import Trainer
 from env.full_state import FullState
 from env.goal_env import GoalEnv
 from env.node_types import HaveScratch
-from env.trainer import Trainer
 from env import core
 from test_suite import test_root
 from utils.env_logger import env_logger
