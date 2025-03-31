@@ -4,6 +4,7 @@ from abc import ABC
 import functools
 from env.core import (
     IDefault,
+    Not,
     IsInstance,
     Type,
     Eq,
@@ -1291,7 +1292,7 @@ def _meta_main_args(all_types: tuple[TypeNode, ...]) -> MetaMainArgs:
         if issubclass(t.type, IInstantiable):
             for st in t.type.__bases__:
                 if st != IInstantiable:
-                    IInstantiable.as_supertype().is_subclass(st).raise_on_false()
+                    Not(IInstantiable.as_supertype().is_subclass(st)).raise_on_false()
                     assert not issubclass(st, IInstantiable), \
                         f"Instantiable class {t.type} has subclass {st}"
 

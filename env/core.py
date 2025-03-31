@@ -406,9 +406,7 @@ class IInstantiable(INode, ABC):
 class TmpInnerArg:
 
     def __init__(self, node: BaseNode, idx: int):
-        IsInstance.assert_type(node, BaseNode)
         assert isinstance(node, BaseNode)
-        Integer(idx).strict_validate()
         assert isinstance(idx, int)
         self.node = node
         self.idx = idx
@@ -417,7 +415,6 @@ class TmpInnerArg:
         node = self.node
         idx = self.idx
         node_aux = typing.cast(INode, node.args[idx-1])
-        IsInstance.assert_type(node_aux, BaseNode)
         assert isinstance(node_aux, BaseNode)
         node = node_aux
         return node
@@ -996,8 +993,6 @@ class InheritableNode(BaseNode, IInheritableNode, ABC):
         return cls(*args)
 
     def __init__(self, *args: INode):
-        for arg in args:
-            IsInstance.assert_type(arg, INode)
         assert all(isinstance(arg, INode) for arg in args)
         super().__init__(*args)
 
@@ -2158,8 +2153,8 @@ class Type(InheritableNode, IBasicType, ISingleChild[IType], IInstantiable):
         self,
         t: typing.Type,
     ) -> IntBoolean:
-        #TODO equality node here
-        assert issubclass(t, INode)
+        if not issubclass(t, INode):
+            return IBoolean.false()
         return self.static_valid_node(t.as_type())
 
 class NotType(InheritableNode, IBasicType, ISingleChild[IType], IInstantiable):
