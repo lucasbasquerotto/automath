@@ -19,6 +19,10 @@ class INode(ABC):
         return TypeNode(cls)
 
     @classmethod
+    def as_supertype(cls) -> Type:
+        return Type(cls.as_type())
+
+    @classmethod
     def protocol(cls) -> Protocol:
         raise NotImplementedError(cls)
 
@@ -705,6 +709,13 @@ class IType(INode, ABC):
     ) -> bool:
         valid, _ = self.valid(instance, AliasInfo.create())
         return valid
+
+    def static_valid_node(
+        self,
+        instance: INode,
+    ) -> IntBoolean:
+        valid = self.static_valid(instance)
+        return IBoolean.from_bool(valid)
 
     def verify(
         self,
@@ -2105,6 +2116,13 @@ class Type(InheritableNode, IBasicType, ISingleChild[IType], IInstantiable):
         my_type = self.type.apply().real(IType)
         type_to_verify = instance.real(IType)
         return IType.general_valid_type(my_type, type_to_verify, alias_info)
+
+    def is_subclass(
+        self,
+        t: typing.Type,
+    ) -> IntBoolean:
+        assert issubclass(t, INode)
+        return self.static_valid_node(t.as_type())
 
 class NotType(InheritableNode, IBasicType, ISingleChild[IType], IInstantiable):
 
