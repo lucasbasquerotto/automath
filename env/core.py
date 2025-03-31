@@ -417,7 +417,7 @@ class TmpInnerArg:
         node = self.node
         idx = self.idx
         node_aux = typing.cast(INode, node.args[idx-1])
-        IsInstance(node_aux, BaseNode.as_type()).as_type_or_raise
+        IsInstance.assert_type(node_aux, BaseNode)
         assert isinstance(node_aux, BaseNode)
         node = node_aux
         return node
@@ -441,7 +441,7 @@ class TmpNestedArg:
         idxs = self.idxs
         for idx in idxs:
             node_aux = typing.cast(INode, node.args[idx-1])
-            IsInstance(node_aux, BaseNode.as_type()).as_type_or_raise
+            IsInstance.assert_type(node_aux, BaseNode)
             assert isinstance(node_aux, BaseNode)
             node = node_aux
         return node
@@ -652,7 +652,7 @@ class BaseNode(IRunnable, ABC):
         if cached is not None:
             return cached
         alias_info = self._strict_validate()
-        IsInstance.assert_type(alias_info, AliasInfo)
+        Optional.with_value(alias_info).raise_if_empty()
         assert alias_info is not None
         self._cached_valid_strict = alias_info
         return alias_info
@@ -844,7 +844,6 @@ class TypeNode(
         origin = typing.get_origin(t)
         t = origin if origin is not None else t
         assert isinstance(t, type)
-        IInheritableNode.as_supertype().is_subclass(t).raise_on_false()
         assert issubclass(t, INode), t
         super().__init__(t)
 
@@ -929,7 +928,6 @@ class BaseInt(BaseNode, IInt, ISpecialValue, ABC):
         return cls.default_protocol(CountableTypeGroup())
 
     def __init__(self, value: int):
-        Integer(value).strict_validate()
         assert isinstance(value, int)
         super().__init__(value)
 
@@ -940,7 +938,6 @@ class BaseInt(BaseNode, IInt, ISpecialValue, ABC):
     @property
     def as_int(self) -> int:
         value = self.args[0]
-        #TODO equality node here
         assert isinstance(value, int)
         return value
 
@@ -3266,8 +3263,7 @@ class IsInstance(RunnableBoolean, typing.Generic[T], IInstantiable):
 
     @classmethod
     def assert_type(cls, instance: typing.Any, t: typing.Type[T]) -> T:
-        assert isinstance(instance, INode)
-        return cls(instance, TypeNode(t)).as_type_or_raise
+        return cls(instance, t.as_type()).as_type_or_raise
 
     @classmethod
     def verify(cls, instance: INode, t: typing.Type[INode]):
