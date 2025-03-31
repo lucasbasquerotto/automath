@@ -6,7 +6,6 @@ from env.core import (
     IDefault,
     Not,
     IsInstance,
-    Type,
     Eq,
     LessOrEqual,
     IFromInt,
@@ -1195,11 +1194,11 @@ class IBasicAction(IAction[S], typing.Generic[S], ABC):
         assert result.to_raw_args() == IntGroup.from_ints(raw_args)
 
         node = result.as_node
-        Eq.with_ints(len(node.args), len(types)).raise_on_false()
+        Eq.from_ints(len(node.args), len(types)).raise_on_false()
         assert len(node.args) == len(types)
         for i, raw_arg in enumerate(raw_args):
             if i >= len(types):
-                Eq.with_ints(raw_arg, 0).raise_on_false()
+                Eq.from_ints(raw_arg, 0).raise_on_false()
                 assert raw_arg == 0
             else:
                 type_node = types[i]

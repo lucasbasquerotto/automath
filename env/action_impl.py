@@ -122,8 +122,8 @@ class DynamicAction(
     @classmethod
     def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
-        Eq.with_ints(arg2, 0).raise_on_false()
-        Eq.with_ints(arg3, 0).raise_on_false()
+        Eq.from_ints(arg2, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
         return cls(scratch_index)
 
     @classmethod
@@ -228,8 +228,8 @@ class RestoreHistoryStateOutput(GeneralAction, IBasicAction[FullState], IInstant
     @classmethod
     def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         index = NodeArgReverseIndex(arg1)
-        Eq.with_ints(arg2, 0).raise_on_false()
-        Eq.with_ints(arg3, 0).raise_on_false()
+        Eq.from_ints(arg2, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
         return cls(index)
 
     def run_output(self, full_state: FullState) -> tuple[State, ActionOutputInfo]:
@@ -400,7 +400,7 @@ class CreateDynamicGoalOutput(GeneralAction, IInstantiable):
         dynamic_goal_group = state_meta.dynamic_goal_group.apply().real(DynamicGoalGroup)
 
         items = [item for item in dynamic_goal_group.as_tuple]
-        Eq.with_ints(index.as_int, len(items) + 1).raise_on_false()
+        Eq.from_ints(index.as_int, len(items) + 1).raise_on_false()
         items.append(DynamicGoal.from_goal_expr(goal_expr))
 
         new_dynamic_goal_group = DynamicGoalGroup.from_items(items)
@@ -421,8 +421,8 @@ class CreateDynamicGoal(
     @classmethod
     def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index_goal = StateScratchIndex(arg1)
-        Eq.with_ints(arg2, 0).raise_on_false()
-        Eq.with_ints(arg3, 0).raise_on_false()
+        Eq.from_ints(arg2, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
         return cls(scratch_index_goal)
 
     @classmethod
@@ -588,8 +588,8 @@ class DeleteDynamicGoalOutput(GeneralAction, IBasicAction[FullState], IInstantia
     @classmethod
     def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         dynamic_goal_index = StateDynamicGoalIndex(arg1)
-        Eq.with_ints(arg2, 0).raise_on_false()
-        Eq.with_ints(arg3, 0).raise_on_false()
+        Eq.from_ints(arg2, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
         return cls(dynamic_goal_index)
 
     @classmethod
@@ -631,9 +631,9 @@ class ResetStateHiddenInfo(BasicAction[DefineStateHiddenInfoOutput], IInstantiab
 
     @classmethod
     def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
-        Eq.with_ints(arg1, 0).raise_on_false()
-        Eq.with_ints(arg2, 0).raise_on_false()
-        Eq.with_ints(arg3, 0).raise_on_false()
+        Eq.from_ints(arg1, 0).raise_on_false()
+        Eq.from_ints(arg2, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
         return cls()
 
     @classmethod
@@ -757,7 +757,7 @@ class CreateScratchOutput(ScratchWithNodeBaseActionOutput, IInstantiable):
 
         state = full_state.current_state.apply().real(State)
         scratch_group = state.scratch_group.apply().real(ScratchGroup)
-        Eq.with_ints(index.as_int, len(scratch_group.as_tuple) + 1).raise_on_false()
+        Eq.from_ints(index.as_int, len(scratch_group.as_tuple) + 1).raise_on_false()
         new_args = list(scratch_group.as_tuple) + [new_node]
 
         new_state = state.with_new_args(
@@ -780,8 +780,8 @@ class CreateScratch(
             Optional.create()
             if arg1 == 0
             else Optional(StateScratchIndex(arg1)))
-        Eq.with_ints(arg2, 0).raise_on_false()
-        Eq.with_ints(arg3, 0).raise_on_false()
+        Eq.from_ints(arg2, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
         return cls(clone_index)
 
     @classmethod
@@ -823,8 +823,8 @@ class DeleteScratchOutput(ScratchBaseActionOutput, IBasicAction[FullState], IIns
     @classmethod
     def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         index = StateScratchIndex(arg1)
-        Eq.with_ints(arg2, 0).raise_on_false()
-        Eq.with_ints(arg3, 0).raise_on_false()
+        Eq.from_ints(arg2, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
         return cls(index)
 
     def run_output(self, full_state: FullState) -> tuple[State, ActionOutputInfo]:
@@ -861,8 +861,8 @@ class ClearScratch(BasicAction[DefineScratchOutput], IInstantiable):
     @classmethod
     def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
-        Eq.with_ints(arg2, 0).raise_on_false()
-        Eq.with_ints(arg3, 0).raise_on_false()
+        Eq.from_ints(arg2, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
         return cls(scratch_index)
 
     @classmethod
@@ -888,7 +888,7 @@ class DefineScratchFromDefault(
     def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
         type_index = MetaDefaultTypeIndex(arg2)
-        Eq.with_ints(arg3, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
         return cls(scratch_index, type_index)
 
     @classmethod
@@ -1393,7 +1393,7 @@ class RunScratch(
     def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         scratch_index = StateScratchIndex(arg1)
         source_index = StateScratchIndex(arg2)
-        Eq.with_ints(arg3, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
         return cls(scratch_index, source_index)
 
     @classmethod
@@ -1456,7 +1456,7 @@ class CreateArgsGroupOutput(GeneralAction, IInstantiable):
 
         state = full_state.current_state.apply().real(State)
         args_outer_group = state.args_outer_group.apply().real(PartialArgsOuterGroup)
-        Eq.with_ints(index.as_int, len(args_outer_group.as_tuple) + 1).raise_on_false()
+        Eq.from_ints(index.as_int, len(args_outer_group.as_tuple) + 1).raise_on_false()
         for arg in new_args_group.as_tuple:
             arg.as_node.validate()
 
@@ -1483,7 +1483,7 @@ class CreateArgsGroup(
             Optional.create()
             if arg2 == 0
             else Optional(StateArgsGroupIndex(arg2)))
-        Eq.with_ints(arg3, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
         return cls(args_amount, args_group_source_index)
 
     @classmethod
@@ -1529,8 +1529,8 @@ class DeleteArgsGroupOutput(GeneralAction, IBasicAction[FullState], IInstantiabl
     @classmethod
     def _from_raw(cls, arg1: int, arg2: int, arg3: int) -> typing.Self:
         args_group_index = StateArgsGroupIndex(arg1)
-        Eq.with_ints(arg2, 0).raise_on_false()
-        Eq.with_ints(arg3, 0).raise_on_false()
+        Eq.from_ints(arg2, 0).raise_on_false()
+        Eq.from_ints(arg3, 0).raise_on_false()
         return cls(args_group_index)
 
     @classmethod
