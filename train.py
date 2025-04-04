@@ -29,6 +29,7 @@ def main() -> None:
             input_dim=agent_settings.INPUT_DIM,
             feature_dim=agent_settings.FEATURE_DIM,
             hidden_dim=agent_settings.HIDDEN_DIM,
+            hidden_amount=agent_settings.HIDDEN_AMOUNT,
             learning_rate=agent_settings.LEARNING_RATE,
             gamma=agent_settings.GAMMA,
             epsilon_start=agent_settings.EPSILON_START,

@@ -303,6 +303,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             raw_action = action
 
             try:
+                print('raw_action', Symbol(node=raw_action, node_types=full_state.node_types()))
                 raw_action.strict_validate()
                 action_aux = raw_action.to_action(full_state)
                 assert isinstance(action_aux, BaseAction)
@@ -311,6 +312,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
                 raise RawActionExceptionInfo(raw_action, e.info).as_exception() from e
 
         try:
+            print('action', Symbol(node=action, node_types=full_state.node_types()))
             action.strict_validate()
             meta = full_state.meta.apply().real(MetaInfo)
             allowed_actions = meta.allowed_actions.apply().real(GeneralTypeGroup[IAction])
@@ -332,6 +334,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
         try:
             # pylint: disable=protected-access
             output, action_info = action._run_action(full_state)
+            print('output', Symbol(node=output, node_types=full_state.node_types()))
             action_info = (
                 action_info.normalize()
                 if isinstance(action_info, ActionFullInfo)

@@ -2,8 +2,9 @@ import typing
 import torch
 
 INPUT_DIM: int = 8
-FEATURE_DIM: int = 256
-HIDDEN_DIM: int = 128
+FEATURE_DIM: int = 2**12
+HIDDEN_DIM: int = 2**9
+HIDDEN_AMOUNT: int = 3
 LEARNING_RATE: float = 0.001
 GAMMA: float = 0.99
 EPSILON_START: float = 1.0

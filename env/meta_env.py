@@ -1338,6 +1338,7 @@ def _meta_main_args(all_types: tuple[TypeNode, ...]) -> MetaMainArgs:
         all_actions=SubtypeOuterGroup.from_all_types(
             TypeNode(IAction), all_types_group),
     )
+
 class MetaInfo(InheritableNode, IWrapper, IInstantiable):
 
     idx_goal = 1

@@ -14,6 +14,7 @@ def train_smart_agent(
     input_dim: int = 8,
     feature_dim: int = 256,
     hidden_dim: int = 128,
+    hidden_amount: int = 3,
     learning_rate: float = 0.001,
     gamma: float = 0.99,
     epsilon_start: float = 1.0,
@@ -36,6 +37,7 @@ def train_smart_agent(
         input_dim: Dimension of input state vector
         feature_dim: Dimension of feature vector produced by node feature extractor
         hidden_dim: Size of hidden layers
+        hidden_amount: Number of hidden layers
         learning_rate: Learning rate for optimizer
         gamma: Discount factor for future rewards
         epsilon_start: Starting value for epsilon (exploration probability)
@@ -62,6 +64,7 @@ def train_smart_agent(
         input_dim=input_dim,
         feature_dim=feature_dim,
         hidden_dim=hidden_dim,
+        hidden_amount=hidden_amount,
         learning_rate=learning_rate,
         gamma=gamma,
         epsilon_start=epsilon_start,

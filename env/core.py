@@ -3047,10 +3047,7 @@ class StackExceptionInfoSimplifiedItem(
     def arg_wrapper(cls, arg: INode) -> IStackNodeArg:
         return (
             StackNodeFullArg(arg)
-            if (
-                isinstance(arg, ISpecialValue)
-                or isinstance(arg, BaseIntGroup)
-            )
+            if (isinstance(arg, (BaseIntGroup, ISpecialValue)))
             else StackNodeSimplifiedArg(arg.as_node.as_type())
         )
 

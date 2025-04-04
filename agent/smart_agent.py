@@ -3,7 +3,7 @@ from collections import deque
 from typing import Optional
 import numpy as np
 import torch
-import torch.nn as nn
+from torch import nn
 import torch.nn.functional as F
 
 from env import core
@@ -12,6 +12,13 @@ from env.base_agent import BaseAgent
 from env.full_state import FullState
 from env.node_data import NodeData
 
+def _get_inner_layers(hidden_dim: int, hidden_amount: int) -> tuple[nn.Module, ...]:
+    inner_layers: tuple[nn.Module, ...] = tuple([
+        nn.Linear(hidden_dim, hidden_dim),
+        nn.ReLU(),
+    ]*hidden_amount)
+    return inner_layers
+
 class NodeFeatureExtractor(nn.Module):
     """
     Neural network module that processes the node data array and extracts features.
@@ -19,29 +26,34 @@ class NodeFeatureExtractor(nn.Module):
     followed by global pooling.
     """
 
-    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int):
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dim: int,
+        hidden_amount: int,
+        output_dim: int,
+    ):
         """
         Initialize the feature extractor network.
 
         Args:
             input_dim: Dimension of each node feature vector
             hidden_dim: Size of hidden layers
+            hidden_amount: Number of hidden layers
             output_dim: Size of output feature vector
         """
-        super(NodeFeatureExtractor, self).__init__()
+        super().__init__()
 
         # Node-wise feature extraction
         self.node_encoder = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU()
+            *_get_inner_layers(hidden_dim=hidden_dim, hidden_amount=hidden_amount),
         )
 
         # Global feature extraction
         self.global_encoder = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
+            *_get_inner_layers(hidden_dim=hidden_dim, hidden_amount=hidden_amount),
             nn.Linear(hidden_dim, output_dim),
             nn.ReLU()
         )
@@ -75,18 +87,26 @@ class NodeFeatureExtractor(nn.Module):
 class ActionPredictor(nn.Module):
     """
     Neural network module that predicts action indices and arguments.
+    Arguments prediction is conditioned on the action logits.
     """
 
-    def __init__(self, input_dim: int, hidden_dim: int, action_space_size: int):
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dim: int,
+        hidden_amount: int,
+        action_space_size: int,
+    ):
         """
         Initialize the action predictor network.
 
         Args:
             input_dim: Dimension of input feature vector
             hidden_dim: Size of hidden layers
+            hidden_amount: Number of hidden layers
             action_space_size: Number of possible action indices
         """
-        super(ActionPredictor, self).__init__()
+        super().__init__()
 
         self.action_space_size = action_space_size
 
@@ -99,10 +119,29 @@ class ActionPredictor(nn.Module):
         # Action index head
         self.action_head = nn.Linear(hidden_dim, action_space_size)
 
-        # Argument heads (3 arguments, each producing an integer)
-        self.arg1_head = nn.Linear(hidden_dim, 1)
-        self.arg2_head = nn.Linear(hidden_dim, 1)
-        self.arg3_head = nn.Linear(hidden_dim, 1)
+        # Argument heads now take both common features and action logits as input
+        self.arg_common = nn.Sequential(
+            nn.Linear(hidden_dim + action_space_size, hidden_dim),
+            nn.ReLU()
+        )
+
+        # Separate output heads for each argument
+        self.arg1_head = nn.Sequential(
+            *_get_inner_layers(hidden_dim=hidden_dim, hidden_amount=hidden_amount),
+            nn.Linear(hidden_dim, 1)
+        )
+        self.arg2_head = nn.Sequential(
+            nn.Linear(hidden_dim + 1, hidden_dim),
+            nn.ReLU(),
+            *_get_inner_layers(hidden_dim=hidden_dim, hidden_amount=hidden_amount),
+            nn.Linear(hidden_dim, 1)
+        )
+        self.arg3_head = nn.Sequential(
+            nn.Linear(hidden_dim + 2, hidden_dim),
+            nn.ReLU(),
+            *_get_inner_layers(hidden_dim=hidden_dim, hidden_amount=hidden_amount),
+            nn.Linear(hidden_dim, 1)
+        )
 
     def forward(self, x: torch.Tensor) -> tuple[
         torch.Tensor,
@@ -123,13 +162,25 @@ class ActionPredictor(nn.Module):
         """
         common_features = self.common(x)
 
+        # Predict action logits
         action_logits = self.action_head(common_features)
-        arg1 = self.arg1_head(common_features)
-        arg2 = self.arg2_head(common_features)
-        arg3 = self.arg3_head(common_features)
+
+        # Concatenate common features with action logits
+        # pylint: disable=no-member
+        combined_features = torch.cat([common_features, action_logits], dim=1)
+
+        # Process combined features for arguments
+        arg_features = self.arg_common(combined_features)
+
+        # Generate arguments
+        # pylint: disable=not-callable
+        arg1 = F.softplus(self.arg1_head(arg_features))
+        arg2_features = torch.cat([arg_features, arg1], dim=1)
+        arg2 = F.softplus(self.arg2_head(arg2_features))
+        arg3_features = torch.cat([arg_features, arg1, arg2], dim=1)
+        arg3 = F.softplus(self.arg3_head(arg3_features))
 
         return action_logits, arg1, arg2, arg3
-
 
 class DQN(nn.Module):
     """
@@ -142,6 +193,7 @@ class DQN(nn.Module):
         input_dim: int,
         feature_dim: int,
         hidden_dim: int,
+        hidden_amount: int,
         action_space_size: int,
     ):
         """
@@ -150,20 +202,23 @@ class DQN(nn.Module):
         Args:
             input_dim: Dimension of each node feature vector
             feature_dim: Dimension of feature vector produced by node feature extractor
-            hidden_dim: Size of hidden layers in action predictor
+            hidden_dim: Size of hidden layers
+            hidden_amount: Number of hidden layers
             action_space_size: Number of possible action indices
         """
-        super(DQN, self).__init__()
+        super().__init__()
 
         self.feature_extractor = NodeFeatureExtractor(
             input_dim=input_dim,
             hidden_dim=hidden_dim,
+            hidden_amount=hidden_amount,
             output_dim=feature_dim
         )
 
         self.action_predictor = ActionPredictor(
             input_dim=feature_dim,
             hidden_dim=hidden_dim,
+            hidden_amount=hidden_amount,
             action_space_size=action_space_size
         )
 
@@ -247,6 +302,7 @@ class SmartAgent(BaseAgent):
         input_dim: int,
         feature_dim: int,
         hidden_dim: int,
+        hidden_amount: int,
         learning_rate: float,
         gamma: float,
         epsilon_start: float,
@@ -265,6 +321,7 @@ class SmartAgent(BaseAgent):
             input_dim: Dimension of each node feature vector
             feature_dim: Dimension of feature vector produced by node feature extractor
             hidden_dim: Size of hidden layers
+            hidden_amount: Number of hidden layers
             learning_rate: Learning rate for optimizer
             gamma: Discount factor for future rewards
             epsilon_start: Starting value for epsilon (exploration probability)
@@ -279,6 +336,7 @@ class SmartAgent(BaseAgent):
         self.input_dim = input_dim
         self.feature_dim = feature_dim
         self.hidden_dim = hidden_dim
+        self.hidden_amount = hidden_amount
         self.learning_rate = learning_rate
         self.gamma = gamma
         self.epsilon = epsilon_start
@@ -298,6 +356,7 @@ class SmartAgent(BaseAgent):
             input_dim=input_dim,
             feature_dim=feature_dim,
             hidden_dim=hidden_dim,
+            hidden_amount=hidden_amount,
             action_space_size=action_space_size
         ).to(self.device)
 
@@ -305,6 +364,7 @@ class SmartAgent(BaseAgent):
             input_dim=input_dim,
             feature_dim=feature_dim,
             hidden_dim=hidden_dim,
+            hidden_amount=hidden_amount,
             action_space_size=action_space_size
         ).to(self.device)
 
@@ -366,9 +426,9 @@ class SmartAgent(BaseAgent):
                 action_logits, arg1, arg2, arg3 = tensors
                 # +1 because action indices start at 1
                 action_idx = int(action_logits.argmax(dim=1).item()) + 1
-                arg1_val = int(arg1.item())
-                arg2_val = int(arg2.item())
-                arg3_val = int(arg3.item())
+                arg1_val = int(round(arg1.item()))
+                arg2_val = int(round(arg2.item()))
+                arg3_val = int(round(arg3.item()))
         else:
             # Explore: random action
             action_idx = random.randint(1, self.action_space_size)
