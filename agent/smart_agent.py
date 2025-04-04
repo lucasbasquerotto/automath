@@ -435,7 +435,8 @@ class SmartAgent(BaseAgent):
             print(
                 time.strftime('%H:%M:%S'),
                 f"> [Exploit - Time: {end - start:.4f}s]",
-                f"Action: {action_idx}, (Args: {arg1_val}, {arg2_val}, {arg3_val})"
+                f"Action: {action_idx}, (Args: {arg1_val}, {arg2_val}, {arg3_val})",
+                f"State size: {state_tensor.size()}",
             )
         else:
             # Explore: random action
@@ -445,7 +446,8 @@ class SmartAgent(BaseAgent):
             arg3_val = random.randint(0, 100)
             print(
                 time.strftime('%H:%M:%S'),
-                f"> [Explore] Action: {action_idx}, Args: ({arg1_val}, {arg2_val}, {arg3_val})"
+                f"> [Explore] Action: {action_idx}, Args: ({arg1_val}, {arg2_val}, {arg3_val})",
+                f"State size: {state_tensor.size()}",
             )
 
         # Create and return RawAction
