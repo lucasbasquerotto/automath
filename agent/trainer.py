@@ -1,3 +1,4 @@
+import time
 from env.core import Optional, IExceptionInfo, IRunnable, IsInstance
 from env.goal_env import GoalEnv
 from env.base_agent import BaseAgent
@@ -35,12 +36,25 @@ class Trainer:
         steps = 0
 
         while True:
+            start = time.time()
+            start_select = start
+
             # Select and execute action
             raw_action = self.agent.select_action(state)
+
+            end_select = time.time()
+            start_step = end_select
+
             next_state, reward, terminated, truncated = self.env.step(raw_action)
             done = terminated or truncated
 
+            end_step = time.time()
+            start_sub_train = end_step
+
             self.sub_train(raw_action)
+
+            end_sub_train = time.time()
+            start_train = end_sub_train
 
             # Train agent
             self.agent.train(
@@ -50,6 +64,19 @@ class Trainer:
                 next_state=next_state,
                 terminated=terminated,
                 truncated=truncated)
+
+            end_train = time.time()
+            end = end_train
+
+            print(
+                time.strftime('%H:%M:%S'),
+                "[Trainer]",
+                f"Total: {end - start:.2f}s,",
+                f"Select: {end_select - start_select:.2f}s,",
+                f"Step: {end_step - start_step:.2f}s,",
+                f"Sub-train: {end_sub_train - start_sub_train:.2f}s,",
+                f"Train: {end_train - start_train:.2f}s",
+            )
 
             total_reward += reward
             steps += 1

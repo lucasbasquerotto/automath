@@ -2,13 +2,13 @@ import typing
 import torch
 
 INPUT_DIM: int = 8
-FEATURE_DIM: int = 2**12
-HIDDEN_DIM: int = 2**9
-HIDDEN_AMOUNT: int = 3
+FEATURE_DIM: int = 2**8
+HIDDEN_DIM: int = 2**7
+HIDDEN_AMOUNT: int = 9
 LEARNING_RATE: float = 0.001
 GAMMA: float = 0.99
-EPSILON_START: float = 1.0
-EPSILON_END: float = 0.05
+EPSILON_START: float = 0.9
+EPSILON_END: float = 0.005
 EPSILON_DECAY: float = 0.99
 REPLAY_BUFFER_CAPACITY: int = 10000
 BATCH_SIZE: int = 64

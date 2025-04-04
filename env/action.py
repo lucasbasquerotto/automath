@@ -303,7 +303,6 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             raw_action = action
 
             try:
-                print('raw_action', Symbol(node=raw_action, node_types=full_state.node_types()))
                 raw_action.strict_validate()
                 action_aux = raw_action.to_action(full_state)
                 assert isinstance(action_aux, BaseAction)
@@ -312,7 +311,6 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
                 raise RawActionExceptionInfo(raw_action, e.info).as_exception() from e
 
         try:
-            print('action', Symbol(node=action, node_types=full_state.node_types()))
             action.strict_validate()
             meta = full_state.meta.apply().real(MetaInfo)
             allowed_actions = meta.allowed_actions.apply().real(GeneralTypeGroup[IAction])
@@ -334,7 +332,6 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
         try:
             # pylint: disable=protected-access
             output, action_info = action._run_action(full_state)
-            print('output', Symbol(node=output, node_types=full_state.node_types()))
             action_info = (
                 action_info.normalize()
                 if isinstance(action_info, ActionFullInfo)
@@ -421,6 +418,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             env_logger.debug(str(symbol), exc_info=e)
             next_state = current.state.apply().real(State)
             action_data = e.to_action_data()
+
         action_data.strict_validate()
         remaining_steps = (
             remaining_steps - 1
@@ -466,7 +464,6 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
                 NodeData(node=new_full_state, node_types=node_types)
                 if not BaseNode.fast
                 else None)
-            # node_data = NodeData(node=next_state, node_types=node_types)
 
             full_state_memory_size = len(new_full_state)
             visible_state_memory_size = (

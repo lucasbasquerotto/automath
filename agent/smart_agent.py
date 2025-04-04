@@ -1,4 +1,5 @@
 import random
+import time
 from collections import deque
 from typing import Optional
 import numpy as np
@@ -415,6 +416,7 @@ class SmartAgent(BaseAgent):
 
         # Epsilon-greedy action selection
         if random.random() > self.epsilon:
+            start = time.time()
             # Exploit: use the model
             with torch.no_grad():
                 tensors: tuple[
@@ -429,12 +431,22 @@ class SmartAgent(BaseAgent):
                 arg1_val = int(round(arg1.item()))
                 arg2_val = int(round(arg2.item()))
                 arg3_val = int(round(arg3.item()))
+            end = time.time()
+            print(
+                time.strftime('%H:%M:%S'),
+                f"> [Exploit - Time: {end - start:.4f}s]",
+                f"Action: {action_idx}, (Args: {arg1_val}, {arg2_val}, {arg3_val})"
+            )
         else:
             # Explore: random action
             action_idx = random.randint(1, self.action_space_size)
             arg1_val = random.randint(0, 100)  # Using reasonable ranges for arguments
             arg2_val = random.randint(0, 100)
             arg3_val = random.randint(0, 100)
+            print(
+                time.strftime('%H:%M:%S'),
+                f"> [Explore] Action: {action_idx}, Args: ({arg1_val}, {arg2_val}, {arg3_val})"
+            )
 
         # Create and return RawAction
         raw_action = RawAction.with_raw_args(
@@ -466,6 +478,8 @@ class SmartAgent(BaseAgent):
             terminated: Whether episode ended naturally (e.g. goal achieved)
             truncated: Whether episode was cut short (e.g. max steps reached)
         """
+        start = time.time()
+
         # Preprocess states
         state_tensor = self._preprocess_state(state)
         next_state_tensor = self._preprocess_state(next_state)
@@ -545,8 +559,13 @@ class SmartAgent(BaseAgent):
         next_state_batch = torch.FloatTensor(np.array(padded_next_states)).to(self.device)
         done_batch = torch.FloatTensor(np.array(batch_dones)).to(self.device)
 
+        start_policy = time.time()
+
         # Compute Q values
         action_logits, arg1, arg2, arg3 = self.policy_net(state_batch)
+
+        end_policy = time.time()
+        start_loss = end_policy
 
         # Get Q values for the actions taken
         q_values = action_logits.gather(1, action_batch[:, 0].unsqueeze(1)).squeeze(1)
@@ -567,6 +586,9 @@ class SmartAgent(BaseAgent):
 
         total_loss = loss + arg1_loss + arg2_loss + arg3_loss
 
+        end_loss = time.time()
+        start_optimize = end_loss
+
         # Optimize the model
         self.optimizer.zero_grad()
         total_loss.backward()
@@ -576,6 +598,8 @@ class SmartAgent(BaseAgent):
             param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
 
+        end_optimize = time.time()
+
         # Update target network
         self.steps_done += 1
         if self.steps_done % self.target_update_frequency == 0:
@@ -583,6 +607,21 @@ class SmartAgent(BaseAgent):
 
         # Decay epsilon
         self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay)
+
+        end = time.time()
+
+        print(
+            time.strftime('%H:%M:%S'),
+            f"[Train - Time: {end - start:.4f}s]",
+            f"Policy: {end_policy - start_policy:.4f}s",
+            f"Loss: {end_loss - start_loss:.4f}s",
+            f"Optimize: {end_optimize - start_optimize:.4f}s",
+            f'Action Loss: {total_loss.item():.4f}',
+            f'Arg1 Loss: {arg1_loss.item():.4f}',
+            f'Arg2 Loss: {arg2_loss.item():.4f}',
+            f'Arg3 Loss: {arg3_loss.item():.4f}',
+            f'Total Loss: {total_loss.item():.4f}',
+        )
 
     def reset(self) -> None:
         """

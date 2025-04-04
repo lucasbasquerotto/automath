@@ -86,15 +86,33 @@ def train_smart_agent(
 
             # Get the history of states from this case
             history_amount = full_state_case.history_amount()
+            history_states: list[tuple[FullState, bool]] = []
+            for history_idx in range(history_amount):
+                current_fs, _ = full_state_case.at_history(history_idx + 1)
+                terminated = current_fs.goal_achieved()
+                history_states.append((current_fs, terminated))
 
             # For each state in history, train the agent
-            for history_idx in range(history_amount):
+            for history_idx, (current_fs, terminated) in enumerate(history_states):
+                if terminated:
+                    continue
+
                 env_logger.info(
                     f"[{amount+1}] <before> Training on history state "
                     f"{history_idx+1}/{history_amount}")
 
-                current_fs, _ = full_state_case.at_history(history_idx + 1)
-                results = run_agent_case(current_fs)
+                next_item = (
+                    history_states[history_idx + 1]
+                    if history_idx + 1 < history_amount
+                    else None)
+                next_terminated = next_item[1] if next_item else False
+                episodes = max_steps_per_episode if next_terminated else episodes_per_state
+                max_steps_forward = 1 if next_terminated else max_steps_per_episode
+
+                results = run_agent_case(
+                    current_fs=current_fs,
+                    episodes=episodes,
+                    max_steps_forward=max_steps_forward)
                 total_trained += 1
 
                 # Print training statistics
@@ -117,12 +135,12 @@ def train_smart_agent(
         return total_trained
 
     # Function to run training on a list of full_states
-    def run_agent_case(current_fs: FullState) -> list[tuple[float, int, bool]]:
+    def run_agent_case(current_fs: FullState, episodes: int, max_steps_forward: int) -> list[tuple[float, int, bool]]:
         # Create a goal environment with the current state
         env = GoalEnv(
             goal=HaveScratch.with_goal(core.Void()),
             fn_initial_state=lambda _: current_fs.with_max_steps(
-                max_steps=max_steps_per_episode + current_fs.history_amount(),
+                max_steps=max_steps_forward + current_fs.history_amount(),
             )
         )
 
@@ -130,8 +148,8 @@ def train_smart_agent(
         trainer = Trainer(
             env=env,
             agent=agent,
-            episodes=episodes_per_state,
-            max_steps_per_episode=max_steps_per_episode,
+            episodes=episodes,
+            max_steps_per_episode=max_steps_forward,
             inception_level=0,
             max_inception_level=0,  # No inception training for now
         )
