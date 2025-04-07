@@ -17,6 +17,7 @@ from env.core import (
     NodeArgBaseIndex,
     IFromSingleNode,
     IGroup,
+    Not,
     IFunction,
     IBoolean,
     TypeNode,
@@ -150,6 +151,10 @@ class BaseActionData(InheritableNode, ABC):
             exception.real(IExceptionInfo).as_node.validate()
 
         return alias_info
+
+    def is_error(self) -> IBoolean:
+        exception_opt = self.exception.apply().real(Optional[IExceptionInfo])
+        return Not(exception_opt.is_empty())
 
 class SuccessActionData(BaseActionData, IInstantiable):
 
@@ -510,6 +515,14 @@ class FullState(
         action_data_opt = last_item.action_data.apply().real(IOptional[BaseActionData])
         return action_data_opt
 
+    def final_cost(self) -> Integer:
+        current = self.current.apply().real(HistoryNode)
+        IsInstance.assert_type(current, HistoryNode)
+        assert isinstance(current, HistoryNode)
+        meta_data = current.meta_data.apply().real(MetaData)
+        final_cost_opt = meta_data.final_cost.apply().real(Optional[Integer])
+        return final_cost_opt.value_or_raise
+
     def goal_achieved(self) -> bool:
         state = self.current_state.apply().real(State)
         return state.goal_achieved()
@@ -600,6 +613,16 @@ class FullState(
             current=new_current,
             history=new_history,
         )
+
+    def is_last_step_error(self) -> bool:
+        history = self.history.apply().real(HistoryGroupNode).as_tuple
+        if not history:
+            return False
+        action_data_opt = history[-1].action_data.apply().real(Optional[BaseActionData])
+        action_data = action_data_opt.value
+        if action_data is None:
+            return False
+        return action_data.is_error().as_bool
 
 ###########################################################
 ###################### MAIN INDICES #######################

@@ -45,8 +45,9 @@ class Environment:
         current_state = self._full_state
         next_state = action.run_action(current_state)
         reward = reward_evaluator.evaluate(
-            self._full_state,
+            current_state,
             next_state)
+        print(f"Reward: {reward}")
         self._current_step += 1
         terminated = next_state.goal_achieved()
         truncated = (

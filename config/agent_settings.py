@@ -18,3 +18,4 @@ MAX_STEPS_PER_EPISODE: int = 100
 SAVE_INTERVAL: int = 1
 MODEL_PATH: str = "tmp/trained_model.pt"
 DEVICE: typing.Optional[torch.device] = None
+SEED: int | None = 1

@@ -43,6 +43,7 @@ def main() -> None:
             save_interval=agent_settings.SAVE_INTERVAL,
             model_path=agent_settings.MODEL_PATH,
             device=agent_settings.DEVICE,
+            seed=agent_settings.SEED,
         )
         env_logger.info(
             f"Training completed successfully in {time.time() - start_time:.2f} seconds")

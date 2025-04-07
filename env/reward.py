@@ -1,3 +1,4 @@
+import math
 from abc import ABC
 from env.core import (
     INode,
@@ -36,8 +37,10 @@ class DefaultRewardEvaluator(InheritableNode, IRewardEvaluator, IDefault, IInsta
             goal_reward = self.goal_reward.apply().cast(Integer).as_int
             return goal_reward  # Reached the objective
 
-        weight = len(next_state)
+        if next_state.is_last_step_error():
+            return -100
 
-        if next_state.current_state.apply() == current_state.current_state.apply():
-            return -10 * weight # No change applied
-        return -weight  # Small penalty for each step taken
+        cost = next_state.final_cost().as_int
+        reward = -math.log(cost + 1)
+
+        return reward

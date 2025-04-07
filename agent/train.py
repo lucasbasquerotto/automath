@@ -1,3 +1,4 @@
+import os
 import time
 from typing import Optional
 import torch
@@ -28,6 +29,7 @@ def train_smart_agent(
     save_interval: int = 100,
     model_path: str = "tmp/trained_model.pt",
     device: Optional[torch.device] = None,
+    seed: int | None = None,
 ) -> SmartAgent:
     """
     Train the SmartAgent using test cases from the test suite.
@@ -51,6 +53,7 @@ def train_smart_agent(
         save_interval: How often to save the model (in states)
         model_path: Path to save the trained model
         device: Device to use for tensor operations
+        seed: Random seed for reproducibility
 
     Returns:
         Trained SmartAgent
@@ -73,8 +76,12 @@ def train_smart_agent(
         replay_buffer_capacity=replay_buffer_capacity,
         batch_size=batch_size,
         target_update_frequency=target_update_frequency,
-        device=device
+        device=device,
+        seed=seed,
     )
+    if model_path:
+        if os.path.exists(model_path):
+            agent.load(model_path)
 
     # Function to run training on a list of full_states
     def run_agent_training(full_states: list[FullState]) -> int:
@@ -135,7 +142,11 @@ def train_smart_agent(
         return total_trained
 
     # Function to run training on a list of full_states
-    def run_agent_case(current_fs: FullState, episodes: int, max_steps_forward: int) -> list[tuple[float, int, bool]]:
+    def run_agent_case(
+        current_fs: FullState,
+        episodes: int,
+        max_steps_forward: int,
+    ) -> list[tuple[float, int, bool]]:
         # Create a goal environment with the current state
         env = GoalEnv(
             goal=HaveScratch.with_goal(core.Void()),

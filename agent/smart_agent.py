@@ -1,8 +1,8 @@
-import random
 import time
 from collections import deque
 from typing import Optional
 import numpy as np
+from numpy.random import MT19937, Generator
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -12,6 +12,11 @@ from env.action import RawAction
 from env.base_agent import BaseAgent
 from env.full_state import FullState
 from env.node_data import NodeData
+
+def random_generator(seed: int | None = None) -> Generator:
+    bg = MT19937(seed)
+    rg = Generator(bg)
+    return rg
 
 def _get_inner_layers(hidden_dim: int, hidden_amount: int) -> tuple[nn.Module, ...]:
     inner_layers: tuple[nn.Module, ...] = tuple([
@@ -247,7 +252,7 @@ class ExperienceReplayBuffer:
     Buffer to store experience tuples for experience replay in DQN.
     """
 
-    def __init__(self, capacity: int = 10000):
+    def __init__(self, capacity: int = 10000, seed: int | None = None):
         """
         Initialize the buffer.
 
@@ -255,6 +260,7 @@ class ExperienceReplayBuffer:
             capacity: Maximum number of experiences to store
         """
         self.buffer: deque[tuple] = deque(maxlen=capacity)
+        self.rg = random_generator(seed)
 
     def add(
         self,
@@ -286,7 +292,14 @@ class ExperienceReplayBuffer:
         Returns:
             List of experiences
         """
-        return random.sample(self.buffer, min(len(self.buffer), batch_size))
+        buffer_len = len(self.buffer)
+        size = min(buffer_len, batch_size)
+
+        # Use Generator.choice to randomly select indices without replacement
+        indices = self.rg.choice(buffer_len, size=size, replace=False)
+
+        # Return the selected experiences
+        return [self.buffer[idx] for idx in indices]
 
     def __len__(self) -> int:
         return len(self.buffer)
@@ -313,6 +326,7 @@ class SmartAgent(BaseAgent):
         batch_size: int,
         target_update_frequency: int,
         device: Optional[torch.device],
+        seed: int | None = None,
     ):
         """
         Initialize the SmartAgent.
@@ -345,6 +359,7 @@ class SmartAgent(BaseAgent):
         self.epsilon_decay = epsilon_decay
         self.batch_size = batch_size
         self.target_update_frequency = target_update_frequency
+        self.rg = random_generator(seed)
 
         # Use GPU if available
         self.device = (
@@ -415,7 +430,7 @@ class SmartAgent(BaseAgent):
         state_tensor = self._preprocess_state(state)
 
         # Epsilon-greedy action selection
-        if random.random() > self.epsilon:
+        if self.rg.random() > self.epsilon:
             start = time.time()
             # Exploit: use the model
             with torch.no_grad():
@@ -440,10 +455,16 @@ class SmartAgent(BaseAgent):
             )
         else:
             # Explore: random action
-            action_idx = random.randint(1, self.action_space_size)
-            arg1_val = random.randint(0, 100)  # Using reasonable ranges for arguments
-            arg2_val = random.randint(0, 100)
-            arg3_val = random.randint(0, 100)
+            action_idx = self.rg.integers(1, self.action_space_size + 1)
+            arg1_val = self.rg.integers(0, 100 + 1)  # Using reasonable ranges for arguments
+            arg2_val = self.rg.integers(0, 100 + 1)
+            arg3_val = self.rg.integers(0, 100 + 1)
+            # For random exploration, add a chance of using 0 for args 2 and 3
+            # This helps the agent learn which actions don't need all arguments
+            if self.rg.random() < 0.3:
+                arg3_val = 0
+                if self.rg.random() < 0.3:
+                    arg2_val = 0
             print(
                 time.strftime('%H:%M:%S'),
                 f"> [Explore] Action: {action_idx}, Args: ({arg1_val}, {arg2_val}, {arg3_val})",

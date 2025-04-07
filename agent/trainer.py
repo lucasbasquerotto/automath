@@ -7,6 +7,7 @@ from env.action import BaseAction, IActionOutput, RawAction
 from env import node_types
 
 class Trainer:
+
     def __init__(
         self,
         env: GoalEnv,
