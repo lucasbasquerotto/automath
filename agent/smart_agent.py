@@ -455,10 +455,10 @@ class SmartAgent(BaseAgent):
             )
         else:
             # Explore: random action
-            action_idx = self.rg.integers(1, self.action_space_size + 1)
-            arg1_val = self.rg.integers(0, 100 + 1)  # Using reasonable ranges for arguments
-            arg2_val = self.rg.integers(0, 100 + 1)
-            arg3_val = self.rg.integers(0, 100 + 1)
+            action_idx = self.rg.integers(1, self.action_space_size + 1, dtype=int)
+            arg1_val = self.rg.integers(0, 100 + 1, dtype=int)  # Using reasonable ranges for arguments
+            arg2_val = self.rg.integers(0, 100 + 1, dtype=int)
+            arg3_val = self.rg.integers(0, 100 + 1, dtype=int)
             # For random exploration, add a chance of using 0 for args 2 and 3
             # This helps the agent learn which actions don't need all arguments
             if self.rg.random() < 0.3:

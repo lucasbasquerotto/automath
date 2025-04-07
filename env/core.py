@@ -924,7 +924,8 @@ class BaseInt(BaseNode, IInt, ISpecialValue, ABC):
         return cls.default_protocol(CountableTypeGroup())
 
     def __init__(self, value: int):
-        assert isinstance(value, int)
+        assert isinstance(value, int), \
+            f'{type(value)} != {int}'
         super().__init__(value)
 
     @classmethod
