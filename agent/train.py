@@ -126,7 +126,7 @@ def train_smart_agent(
                     history_states[history_idx + 1]
                     if history_idx + 1 < history_amount
                     else None)
-                next_terminated = next_item[1] if next_item else False
+                next_terminated = next_item[2] if next_item else False
                 episodes = max_steps_per_episode if next_terminated else episodes_per_state
                 max_steps_forward = 1 if next_terminated else max_steps_per_episode
                 raw_actions: list[RawAction] = []
@@ -180,6 +180,7 @@ def train_smart_agent(
         results: list[tuple[float, int, bool]] = []
         max_steps_forward = max(len(static_actions or []), max_steps_forward)
         for i in range(episodes):
+            amount += 1
             static = static_actions is not None
             env_logger.info(
                 f"[{amount}{' (static)' if static else ''}] "
@@ -206,13 +207,10 @@ def train_smart_agent(
             result = trainer.train()
             results.append(result)
 
-            amount += 1
-
             # Save the model at regular intervals
-            if (amount + 1) % save_interval == 0:
-                datetime = time.strftime("%Y%m%d_%H%M%S")
+            if amount % save_interval == 0:
                 agent.save(model_path)
-                env_logger.info(f"{datetime} [{amount+1}] Model saved to {model_path}")
+                env_logger.info(f"[{amount}] Model saved to {model_path}")
 
         return amount, results
 
