@@ -1,3 +1,4 @@
+import typing
 import time
 from env.core import Optional, IExceptionInfo, IRunnable, IsInstance
 from env.goal_env import GoalEnv
@@ -12,19 +13,19 @@ class Trainer:
         self,
         env: GoalEnv,
         agent: BaseAgent,
-        episodes: int = 1000,
         max_steps_per_episode: int | None = None,
         inception_level: int = 0,
         max_inception_level: int = 0,
+        static_actions: typing.Sequence[RawAction] | None = None,
     ):
         self.env = env
         self.agent = agent
-        self.episodes = episodes
         self.max_steps_per_episode = max_steps_per_episode
         self.inception_level = inception_level
         self.max_inception_level = max_inception_level
+        self.static_actions = static_actions
 
-    def train_episode(self) -> tuple[float, int, bool]:
+    def train(self) -> tuple[float, int, bool]:
         """Run a single training episode.
 
         Returns:
@@ -35,13 +36,23 @@ class Trainer:
 
         total_reward = 0.0
         steps = 0
+        static_actions = self.static_actions
+        terminated = False
 
         while True:
+            if static_actions is not None:
+                if len(static_actions) <= steps:
+                    break
+
             start = time.time()
             start_select = start
 
             # Select and execute action
-            raw_action = self.agent.select_action(state)
+            raw_action = (
+                static_actions[steps]
+                if static_actions is not None
+                else self.agent.select_action(state)
+            )
 
             end_select = time.time()
             start_step = end_select
@@ -69,9 +80,10 @@ class Trainer:
             end_train = time.time()
             end = end_train
 
+            static = static_actions is not None
             print(
                 time.strftime('%H:%M:%S'),
-                "[Trainer]",
+                f"[Trainer{' (static)' if static else ''}]",
                 f"Total: {end - start:.2f}s,",
                 f"Select: {end_select - start_select:.2f}s,",
                 f"Step: {end_step - start_step:.2f}s,",
@@ -94,20 +106,6 @@ class Trainer:
             state = next_state
 
         return total_reward, steps, terminated
-
-    def train(self) -> list[tuple[float, int, bool]]:
-        """Run the full training process for max_episodes.
-
-        Returns:
-            List of (episode_reward, episode_steps, goal_achieved) tuples
-        """
-        results = []
-
-        for _ in range(self.episodes):
-            episode_result = self.train_episode()
-            results.append(episode_result)
-
-        return results
 
     def sub_train(self, raw_action: RawAction):
         inception_level = self.inception_level
@@ -177,9 +175,8 @@ class Trainer:
         sub_trainer = Trainer(
             env=sub_env,
             agent=self.agent,
-            episodes=self.episodes,
             max_steps_per_episode=self.max_steps_per_episode,
             inception_level=self.inception_level + 1,
             max_inception_level=self.max_inception_level,
         )
-        sub_trainer.train_episode()
+        sub_trainer.train()

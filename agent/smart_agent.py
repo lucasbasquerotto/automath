@@ -149,7 +149,16 @@ class ActionPredictor(nn.Module):
             nn.Linear(hidden_dim, 1)
         )
 
+        # Add a joint Q-value head that takes action and all arguments into account
+        self.joint_q_head = nn.Sequential(
+            nn.Linear(hidden_dim + action_space_size + 3, hidden_dim),
+            nn.ReLU(),
+            *_get_inner_layers(hidden_dim=hidden_dim, hidden_amount=hidden_amount),
+            nn.Linear(hidden_dim, action_space_size)
+        )
+
     def forward(self, x: torch.Tensor) -> tuple[
+        torch.Tensor,
         torch.Tensor,
         torch.Tensor,
         torch.Tensor,
@@ -162,9 +171,10 @@ class ActionPredictor(nn.Module):
             x: Input feature vector of shape (batch_size, input_dim)
 
         Returns:
-            Tuple of (action_logits, arg1, arg2, arg3) where:
+            Tuple of (action_logits, arg1, arg2, arg3, joint_q_values) where:
                 action_logits: Action probabilities of shape (batch_size, action_space_size)
                 arg1, arg2, arg3: Argument values of shape (batch_size, 1)
+                joint_q_values: Q-values considering action and args (batch_size, action_space_size)
         """
         common_features = self.common(x)
 
@@ -186,7 +196,12 @@ class ActionPredictor(nn.Module):
         arg3_features = torch.cat([arg_features, arg1, arg2], dim=1)
         arg3 = F.softplus(self.arg3_head(arg3_features))
 
-        return action_logits, arg1, arg2, arg3
+        # Calculate joint Q-values that consider both action and arguments
+        # pylint: disable=no-member
+        joint_features = torch.cat([common_features, action_logits, arg1, arg2, arg3], dim=1)
+        joint_q_values = self.joint_q_head(joint_features)
+
+        return action_logits, arg1, arg2, arg3, joint_q_values
 
 class DQN(nn.Module):
     """
@@ -233,6 +248,7 @@ class DQN(nn.Module):
         torch.Tensor,
         torch.Tensor,
         torch.Tensor,
+        torch.Tensor,
     ]:
         """
         Process node data and predict action.
@@ -241,7 +257,7 @@ class DQN(nn.Module):
             x: Node feature tensor of shape (batch_size, num_nodes, input_dim)
 
         Returns:
-            Tuple of (action_logits, arg1, arg2, arg3)
+            Tuple of (action_logits, arg1, arg2, arg3, joint_q_values)
         """
         features = self.feature_extractor(x)
         return self.action_predictor(features)
@@ -439,9 +455,10 @@ class SmartAgent(BaseAgent):
                     torch.Tensor,
                     torch.Tensor,
                     torch.Tensor,
+                    torch.Tensor,
                 ] = self.policy_net(state_tensor)
-                action_logits, arg1, arg2, arg3 = tensors
-                # +1 because action indices start at 1
+                action_logits, arg1, arg2, arg3, _ = tensors
+                # Use joint Q-values instead of action_logits for action selection
                 action_idx = int(action_logits.argmax(dim=1).item()) + 1
                 arg1_val = int(round(arg1.item()))
                 arg2_val = int(round(arg2.item()))
@@ -585,29 +602,34 @@ class SmartAgent(BaseAgent):
         start_policy = time.time()
 
         # Compute Q values
-        action_logits, arg1, arg2, arg3 = self.policy_net(state_batch)
+        action_logits, arg1, arg2, arg3, joint_q_values = self.policy_net(state_batch)
 
         end_policy = time.time()
         start_loss = end_policy
 
-        # Get Q values for the actions taken
-        q_values = action_logits.gather(1, action_batch[:, 0].unsqueeze(1)).squeeze(1)
+        # Get Q values for the actions taken from the joint_q_values that include argument information
+        q_values = joint_q_values.gather(1, action_batch[:, 0].unsqueeze(1)).squeeze(1)
 
-        # Compute target Q values
+        # Compute target Q values using joint Q-values from target network
         with torch.no_grad():
-            next_action_logits, _, _, _ = self.target_net(next_state_batch)
-            next_q_values = next_action_logits.max(1)[0]
+            # Get all outputs from target network
+            _, _, _, _, next_joint_q_values = self.target_net(next_state_batch)
+            # Use the joint Q-values that incorporate action and argument information
+            next_q_values = next_joint_q_values.max(1)[0]
             target_q_values = reward_batch + self.gamma * next_q_values * (1 - done_batch)
 
-        # Compute loss
-        loss = F.smooth_l1_loss(q_values, target_q_values)
+        # Compute loss for joint Q-values (our primary loss)
+        joint_q_loss = F.smooth_l1_loss(q_values, target_q_values)
 
-        # Add losses for arguments
+        # Compute additional losses for action logits and arguments (auxiliary losses)
+        action_loss = F.cross_entropy(action_logits, action_batch[:, 0])
         arg1_loss = F.smooth_l1_loss(arg1.squeeze(1), action_batch[:, 1].float())
         arg2_loss = F.smooth_l1_loss(arg2.squeeze(1), action_batch[:, 2].float())
         arg3_loss = F.smooth_l1_loss(arg3.squeeze(1), action_batch[:, 3].float())
 
-        total_loss = loss + arg1_loss + arg2_loss + arg3_loss
+        # Combine losses with higher weight for joint Q-values
+        # The joint Q-values are most important as they'll be used for action selection
+        total_loss = (2.0 * joint_q_loss) + (0.5 * action_loss) + (0.5 * arg1_loss) + (0.5 * arg2_loss) + (0.5 * arg3_loss)
 
         end_loss = time.time()
         start_optimize = end_loss
@@ -639,10 +661,11 @@ class SmartAgent(BaseAgent):
             f"Policy: {end_policy - start_policy:.4f}s",
             f"Loss: {end_loss - start_loss:.4f}s",
             f"Optimize: {end_optimize - start_optimize:.4f}s",
-            f'Action Loss: {total_loss.item():.4f}',
+            f'Action Loss: {action_loss.item():.4f}',
             f'Arg1 Loss: {arg1_loss.item():.4f}',
             f'Arg2 Loss: {arg2_loss.item():.4f}',
             f'Arg3 Loss: {arg3_loss.item():.4f}',
+            f'Joint Q Loss: {joint_q_loss.item():.4f}',
             f'Total Loss: {total_loss.item():.4f}',
         )
 

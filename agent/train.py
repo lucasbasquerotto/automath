@@ -7,6 +7,7 @@ from agent.trainer import Trainer
 from env.full_state import FullState
 from env.goal_env import GoalEnv
 from env.node_types import HaveScratch
+from env.action import RawAction, BaseAction, IBasicAction
 from env import core
 from test_suite import test_root
 from utils.env_logger import env_logger
@@ -61,7 +62,6 @@ def train_smart_agent(
     tmp_env = GoalEnv(goal=HaveScratch.with_goal(core.Void()))
     action_space_size = tmp_env.action_space_size()
 
-    # Create the SmartAgent
     agent = SmartAgent(
         action_space_size=action_space_size,
         input_dim=input_dim,
@@ -83,7 +83,6 @@ def train_smart_agent(
         if os.path.exists(model_path):
             agent.load(model_path)
 
-    # Function to run training on a list of full_states
     def run_agent_training(full_states: list[FullState]) -> int:
         total_trained = 0
         amount = 0
@@ -93,14 +92,29 @@ def train_smart_agent(
 
             # Get the history of states from this case
             history_amount = full_state_case.history_amount()
-            history_states: list[tuple[FullState, bool]] = []
+            history_states: list[tuple[FullState, RawAction | None, bool]] = []
             for history_idx in range(history_amount):
-                current_fs, _ = full_state_case.at_history(history_idx + 1)
+                current_fs, action_data_opt = full_state_case.at_history(history_idx + 1)
+                action_data = action_data_opt.value
+                raw_action_opt = (
+                    action_data.raw_action.apply().real(core.Optional[RawAction])
+                    if action_data is not None
+                    else None)
+                raw_action = raw_action_opt.value if raw_action_opt is not None else None
+                action_opt = (
+                    action_data.action.apply().real(core.Optional[BaseAction])
+                    if action_data is not None
+                    else None)
+                action = action_opt.value if action_opt is not None else None
+                if isinstance(action, IBasicAction):
+                    raw_action = RawAction.from_basic_action(
+                        action=action,
+                        full_state=full_state_case)
                 terminated = current_fs.goal_achieved()
-                history_states.append((current_fs, terminated))
+                history_states.append((current_fs, raw_action, terminated))
 
             # For each state in history, train the agent
-            for history_idx, (current_fs, terminated) in enumerate(history_states):
+            for history_idx, (current_fs, _, terminated) in enumerate(history_states):
                 if terminated:
                     continue
 
@@ -115,11 +129,32 @@ def train_smart_agent(
                 next_terminated = next_item[1] if next_item else False
                 episodes = max_steps_per_episode if next_terminated else episodes_per_state
                 max_steps_forward = 1 if next_terminated else max_steps_per_episode
+                raw_actions: list[RawAction] = []
+                for _, raw_action, _ in history_states[history_idx:]:
+                    if raw_action is None:
+                        break
+                    raw_actions.append(raw_action)
 
-                results = run_agent_case(
+                static_result = None
+                if raw_actions:
+                    static_result = run_agent_case(
+                        current_amount=amount,
+                        current_fs=current_fs,
+                        episodes=1,
+                        max_steps_forward=max_steps_forward,
+                        static_actions=raw_actions)
+
+                amount, results = run_agent_case(
+                    current_amount=amount,
                     current_fs=current_fs,
                     episodes=episodes,
                     max_steps_forward=max_steps_forward)
+
+                if static_result is not None:
+                    s_amount, s_results = static_result
+                    amount += s_amount
+                    results = s_results + results
+
                 total_trained += 1
 
                 # Print training statistics
@@ -128,46 +163,58 @@ def train_smart_agent(
                 successes = sum(1 for _, _, success in results if success)
 
                 env_logger.info(
-                    f"[{amount+1}] <after> Avg reward: {sum(rewards) / len(rewards):.2f}, "
+                    f"[{amount}] <after> Avg reward: {sum(rewards) / len(rewards):.2f}, "
                     f"Avg steps: {sum(steps) / len(steps):.2f}, "
                     f"Success rate: {successes / len(results):.2%}")
 
-                # Save the model at regular intervals
-                amount += 1
-                if (amount + 1) % save_interval == 0:
-                    datetime = time.strftime("%Y%m%d_%H%M%S")
-                    agent.save(model_path)
-                    env_logger.info(f"{datetime} [{amount+1}] Model saved to {model_path}")
-
         return total_trained
 
-    # Function to run training on a list of full_states
     def run_agent_case(
+        current_amount: int,
         current_fs: FullState,
         episodes: int,
         max_steps_forward: int,
-    ) -> list[tuple[float, int, bool]]:
-        # Create a goal environment with the current state
-        env = GoalEnv(
-            goal=HaveScratch.with_goal(core.Void()),
-            fn_initial_state=lambda _: current_fs.with_max_steps(
-                max_steps=max_steps_forward + current_fs.history_amount(),
+        static_actions: list[RawAction] | None = None,
+    ) -> tuple[int, list[tuple[float, int, bool]]]:
+        amount = current_amount
+        results: list[tuple[float, int, bool]] = []
+        max_steps_forward = max(len(static_actions or []), max_steps_forward)
+        for i in range(episodes):
+            static = static_actions is not None
+            env_logger.info(
+                f"[{amount}{' (static)' if static else ''}] "
+                + f"Training on case {i+1}/{episodes}",
             )
-        )
+            # Create a goal environment with the current state
+            env = GoalEnv(
+                goal=HaveScratch.with_goal(core.Void()),
+                fn_initial_state=lambda _: current_fs.with_max_steps(
+                    max_steps=max_steps_forward + current_fs.history_amount(),
+                )
+            )
 
-        # Create a trainer and run training
-        trainer = Trainer(
-            env=env,
-            agent=agent,
-            episodes=episodes,
-            max_steps_per_episode=max_steps_forward,
-            inception_level=0,
-            max_inception_level=0,  # No inception training for now
-        )
+            # Create a trainer and run training
+            trainer = Trainer(
+                env=env,
+                agent=agent,
+                max_steps_per_episode=max_steps_forward,
+                inception_level=0,
+                max_inception_level=0,  # No inception training for now
+                static_actions=static_actions,
+            )
 
-        results = trainer.train()
+            result = trainer.train()
+            results.append(result)
 
-        return results
+            amount += 1
+
+            # Save the model at regular intervals
+            if (amount + 1) % save_interval == 0:
+                datetime = time.strftime("%Y%m%d_%H%M%S")
+                agent.save(model_path)
+                env_logger.info(f"{datetime} [{amount+1}] Model saved to {model_path}")
+
+        return amount, results
 
     # Additional info function for logging
     def fn_additional_info_agent(total_trained: int) -> str:

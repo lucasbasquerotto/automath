@@ -47,6 +47,7 @@ from env.full_state import (
     HistoryNode,
     HistoryGroupNode,
     BaseActionData,
+    BeforeActionErrorActionData,
     RawActionErrorActionData,
     ActionTypeErrorActionData,
     ActionErrorActionData,
@@ -134,6 +135,28 @@ class InvalidActionException(InvalidNodeException):
 
     def to_action_data(self) -> BaseActionData:
         return self.info.to_action_data()
+
+class BeforeActionExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiable):
+
+    idx_exception = 1
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            IExceptionInfo.as_type(),
+        ))
+
+    @property
+    def exception(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_exception)
+
+    def to_action_data(self) -> BeforeActionErrorActionData:
+        return BeforeActionErrorActionData.from_args(
+            raw_action=Optional(),
+            action=Optional(),
+            output=Optional(),
+            exception=Optional(self.exception.apply().real(IExceptionInfo)),
+        )
 
 class RawActionExceptionInfo(InheritableNode, IActionExceptionInfo, IInstantiable):
 
@@ -393,7 +416,10 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
 
         try:
             if remaining_steps is not None:
-                GreaterThan.with_ints(remaining_steps, 0).raise_on_false()
+                try:
+                    GreaterThan.with_ints(remaining_steps, 0).raise_on_false()
+                except InvalidNodeException as e:
+                    raise BeforeActionExceptionInfo(e.info).as_exception() from e
             full_output, action_full_info = self.inner_run(full_state)
             raw_action_opt = full_output.raw_action.apply().real(Optional[IRawAction])
             actual_action = full_output.action.apply().real(BaseAction)

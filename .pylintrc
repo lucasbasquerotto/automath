@@ -29,4 +29,5 @@ disable=
     too-many-ancestors,
     too-many-positional-arguments,
     too-many-return-statements,
-    too-many-public-methods
+    too-many-public-methods,
+    logging-not-lazy

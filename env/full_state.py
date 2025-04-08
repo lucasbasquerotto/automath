@@ -179,6 +179,29 @@ class SuccessActionData(BaseActionData, IInstantiable):
             ),
         ))
 
+class BeforeActionErrorActionData(BaseActionData, IInstantiable):
+
+    @classmethod
+    def protocol(cls) -> Protocol:
+        return cls.default_protocol(CountableTypeGroup(
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(),
+            ),
+            CompositeType(
+                Optional.as_type(),
+                CountableTypeGroup(IExceptionInfo.as_type()),
+            ),
+        ))
+
 class RawActionErrorActionData(BaseActionData, IInstantiable):
 
     @classmethod
