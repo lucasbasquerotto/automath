@@ -27,6 +27,8 @@ def train_smart_agent(
     target_update_frequency: int = 100,
     episodes_per_state: int = 10,
     max_steps_per_episode: int = 10000,
+    dropout_rate: float = 0.2,
+    force_exploration_interval: int = 50,
     save_interval: int = 100,
     model_path: str = "tmp/trained_model.pt",
     device: Optional[torch.device] = None,
@@ -51,6 +53,8 @@ def train_smart_agent(
         target_update_frequency: How often to update target network
         episodes_per_state: Number of episodes to train on each state
         max_steps_per_episode: Maximum steps per episode
+        dropout_rate: Dropout rate for neural network layers
+        force_exploration_interval: Interval to force higher exploration
         save_interval: How often to save the model (in states)
         model_path: Path to save the trained model
         device: Device to use for tensor operations
@@ -77,6 +81,7 @@ def train_smart_agent(
         batch_size=batch_size,
         target_update_frequency=target_update_frequency,
         device=device,
+        dropout_rate=dropout_rate,
         seed=seed,
     )
     if model_path:
@@ -179,9 +184,29 @@ def train_smart_agent(
         amount = current_amount
         results: list[tuple[float, int, bool]] = []
         max_steps_forward = max(len(static_actions or []), max_steps_forward)
+
+        # Save original epsilon to restore later
+        original_epsilon = agent.epsilon
+
         for i in range(episodes):
             amount += 1
             static = static_actions is not None
+
+            # Periodically boost exploration to break out of repetitive patterns
+            if (
+                force_exploration_interval > 0
+                and amount % force_exploration_interval == 0
+                and not static
+            ):
+                # Temporarily increase the exploration rate
+                # Triple exploration but cap at 0.8
+                boost_epsilon = min(0.8, original_epsilon * 3.0)
+                agent.epsilon = boost_epsilon
+                env_logger.info(
+                    f"[{amount}{' (exploration boost)'}] "
+                    + f"Temporarily boosting exploration to epsilon={boost_epsilon:.2f}"
+                )
+
             env_logger.info(
                 f"[{amount}{' (static)' if static else ''}] "
                 + f"Training on case {i+1}/{episodes}",
@@ -206,6 +231,15 @@ def train_smart_agent(
 
             result = trainer.train()
             results.append(result)
+
+            # Restore original epsilon after exploration boost
+            if (
+                force_exploration_interval > 0
+                and amount % force_exploration_interval == 0
+                and not static
+            ):
+                agent.epsilon = original_epsilon
+                env_logger.info(f"[{amount}] Restoring original epsilon={original_epsilon:.2f}")
 
             # Save the model at regular intervals
             if amount % save_interval == 0:

@@ -355,6 +355,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
         try:
             # pylint: disable=protected-access
             output, action_info = action._run_action(full_state)
+            output.as_node.strict_validate()
             action_info = (
                 action_info.normalize()
                 if isinstance(action_info, ActionFullInfo)
@@ -445,11 +446,14 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             next_state = current.state.apply().real(State)
             action_data = e.to_action_data()
 
-        # print('action_data', Symbol(
-        #     node=action_data,
-        #     node_types=full_state.node_types(),
-        # ))
-        action_data.strict_validate()
+        try:
+            action_data.strict_validate()
+        except Exception as e:
+            print('action_data', Symbol(
+                node=action_data,
+                node_types=full_state.node_types(),
+            ))
+            raise e
         remaining_steps = (
             remaining_steps - 1
             if remaining_steps is not None

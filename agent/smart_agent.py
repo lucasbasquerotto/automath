@@ -18,11 +18,29 @@ def random_generator(seed: int | None = None) -> Generator:
     rg = Generator(bg)
     return rg
 
-def _get_inner_layers(hidden_dim: int, hidden_amount: int) -> tuple[nn.Module, ...]:
-    inner_layers: tuple[nn.Module, ...] = tuple([
-        nn.Linear(hidden_dim, hidden_dim),
-        nn.ReLU(),
-    ]*hidden_amount)
+def _get_inner_layers(
+    hidden_dim: int,
+    hidden_amount: int,
+    dropout_rate: float = 0.2,
+) -> tuple[nn.Module, ...]:
+    """
+    Create a tuple of inner layers with dropout for better regularization.
+
+    Args:
+        hidden_dim: Size of hidden layers
+        hidden_amount: Number of hidden layers to create
+        dropout_rate: Probability of dropout (default: 0.2)
+
+    Returns:
+        A tuple of layers: (Linear, ReLU, Dropout) repeated hidden_amount times
+    """
+    layers: list[nn.Module] = []
+    for _ in range(hidden_amount):
+        layers.append(nn.Linear(hidden_dim, hidden_dim))
+        layers.append(nn.ReLU())
+        layers.append(nn.Dropout(dropout_rate))
+
+    inner_layers: tuple[nn.Module, ...] = tuple(layers)
     return inner_layers
 
 class NodeFeatureExtractor(nn.Module):
@@ -38,6 +56,7 @@ class NodeFeatureExtractor(nn.Module):
         hidden_dim: int,
         hidden_amount: int,
         output_dim: int,
+        dropout_rate: float = 0.2,
     ):
         """
         Initialize the feature extractor network.
@@ -54,12 +73,18 @@ class NodeFeatureExtractor(nn.Module):
         self.node_encoder = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.ReLU(),
-            *_get_inner_layers(hidden_dim=hidden_dim, hidden_amount=hidden_amount),
+            *_get_inner_layers(
+                hidden_dim=hidden_dim,
+                hidden_amount=hidden_amount,
+                dropout_rate=dropout_rate),
         )
 
         # Global feature extraction
         self.global_encoder = nn.Sequential(
-            *_get_inner_layers(hidden_dim=hidden_dim, hidden_amount=hidden_amount),
+            *_get_inner_layers(
+                hidden_dim=hidden_dim,
+                hidden_amount=hidden_amount,
+                dropout_rate=dropout_rate),
             nn.Linear(hidden_dim, output_dim),
             nn.ReLU()
         )
@@ -102,6 +127,7 @@ class ActionPredictor(nn.Module):
         hidden_dim: int,
         hidden_amount: int,
         action_space_size: int,
+        dropout_rate: float = 0.2,
     ):
         """
         Initialize the action predictor network.
@@ -111,41 +137,66 @@ class ActionPredictor(nn.Module):
             hidden_dim: Size of hidden layers
             hidden_amount: Number of hidden layers
             action_space_size: Number of possible action indices
+            dropout_rate: Dropout probability for regularization
         """
         super().__init__()
 
         self.action_space_size = action_space_size
+        self.dropout = nn.Dropout(dropout_rate)  # Create dropout layer
 
         # Common feature processing
         self.common = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
-            nn.ReLU()
+            *_get_inner_layers(
+                hidden_dim=hidden_dim,
+                hidden_amount=hidden_amount,
+                dropout_rate=dropout_rate),
         )
 
         # Action index head
-        self.action_head = nn.Linear(hidden_dim, action_space_size)
+        self.action_head = nn.Sequential(
+            *_get_inner_layers(
+                hidden_dim=hidden_dim,
+                hidden_amount=hidden_amount,
+                dropout_rate=dropout_rate),
+            nn.Linear(hidden_dim, action_space_size),
+        )
 
         # Argument heads now take both common features and action logits as input
         self.arg_common = nn.Sequential(
             nn.Linear(hidden_dim + action_space_size, hidden_dim),
-            nn.ReLU()
+            *_get_inner_layers(
+                hidden_dim=hidden_dim,
+                hidden_amount=hidden_amount,
+                dropout_rate=dropout_rate),
         )
 
         # Separate output heads for each argument
         self.arg1_head = nn.Sequential(
-            *_get_inner_layers(hidden_dim=hidden_dim, hidden_amount=hidden_amount),
+            *_get_inner_layers(
+                hidden_dim=hidden_dim,
+                hidden_amount=hidden_amount,
+                dropout_rate=dropout_rate),
             nn.Linear(hidden_dim, 1)
         )
         self.arg2_head = nn.Sequential(
             nn.Linear(hidden_dim + 1, hidden_dim),
             nn.ReLU(),
-            *_get_inner_layers(hidden_dim=hidden_dim, hidden_amount=hidden_amount),
+            self.dropout,
+            *_get_inner_layers(
+                hidden_dim=hidden_dim,
+                hidden_amount=hidden_amount,
+                dropout_rate=dropout_rate),
             nn.Linear(hidden_dim, 1)
         )
         self.arg3_head = nn.Sequential(
             nn.Linear(hidden_dim + 2, hidden_dim),
             nn.ReLU(),
-            *_get_inner_layers(hidden_dim=hidden_dim, hidden_amount=hidden_amount),
+            self.dropout,
+            *_get_inner_layers(
+                hidden_dim=hidden_dim,
+                hidden_amount=hidden_amount,
+                dropout_rate=dropout_rate),
             nn.Linear(hidden_dim, 1)
         )
 
@@ -153,7 +204,11 @@ class ActionPredictor(nn.Module):
         self.joint_q_head = nn.Sequential(
             nn.Linear(hidden_dim + action_space_size + 3, hidden_dim),
             nn.ReLU(),
-            *_get_inner_layers(hidden_dim=hidden_dim, hidden_amount=hidden_amount),
+            self.dropout,
+            *_get_inner_layers(
+                hidden_dim=hidden_dim,
+                hidden_amount=hidden_amount,
+                dropout_rate=dropout_rate),
             nn.Linear(hidden_dim, action_space_size)
         )
 
@@ -216,6 +271,7 @@ class DQN(nn.Module):
         hidden_dim: int,
         hidden_amount: int,
         action_space_size: int,
+        dropout_rate: float = 0.2,
     ):
         """
         Initialize the DQN.
@@ -226,6 +282,7 @@ class DQN(nn.Module):
             hidden_dim: Size of hidden layers
             hidden_amount: Number of hidden layers
             action_space_size: Number of possible action indices
+            dropout_rate: Probability of dropout for regularization
         """
         super().__init__()
 
@@ -233,17 +290,19 @@ class DQN(nn.Module):
             input_dim=input_dim,
             hidden_dim=hidden_dim,
             hidden_amount=hidden_amount,
-            output_dim=feature_dim
+            output_dim=feature_dim,
+            dropout_rate=dropout_rate,
         )
 
         self.action_predictor = ActionPredictor(
             input_dim=feature_dim,
             hidden_dim=hidden_dim,
             hidden_amount=hidden_amount,
-            action_space_size=action_space_size
+            action_space_size=action_space_size,
+            dropout_rate=dropout_rate,
         )
 
-    def forward(self, x: torch.Tensor) -> tuple[
+    def forward(self, x: torch.Tensor, training: bool = True) -> tuple[
         torch.Tensor,
         torch.Tensor,
         torch.Tensor,
@@ -255,10 +314,14 @@ class DQN(nn.Module):
 
         Args:
             x: Node feature tensor of shape (batch_size, num_nodes, input_dim)
+            training: Whether the model is in training mode (affects dropout)
 
         Returns:
             Tuple of (action_logits, arg1, arg2, arg3, joint_q_values)
         """
+        # Set the training mode correctly
+        self.train(training)
+
         features = self.feature_extractor(x)
         return self.action_predictor(features)
 
@@ -342,6 +405,7 @@ class SmartAgent(BaseAgent):
         batch_size: int,
         target_update_frequency: int,
         device: Optional[torch.device],
+        dropout_rate: float,
         seed: int | None = None,
     ):
         """
@@ -362,6 +426,8 @@ class SmartAgent(BaseAgent):
             batch_size: Batch size for training
             target_update_frequency: How often to update target network
             device: Device to use for tensor operations
+            dropout_rate: Probability of dropout for regularization
+            seed: Random seed for reproducibility
         """
         self.action_space_size = action_space_size
         self.input_dim = input_dim
@@ -389,7 +455,8 @@ class SmartAgent(BaseAgent):
             feature_dim=feature_dim,
             hidden_dim=hidden_dim,
             hidden_amount=hidden_amount,
-            action_space_size=action_space_size
+            action_space_size=action_space_size,
+            dropout_rate=dropout_rate,
         ).to(self.device)
 
         self.target_net = DQN(
@@ -397,7 +464,8 @@ class SmartAgent(BaseAgent):
             feature_dim=feature_dim,
             hidden_dim=hidden_dim,
             hidden_amount=hidden_amount,
-            action_space_size=action_space_size
+            action_space_size=action_space_size,
+            dropout_rate=dropout_rate,
         ).to(self.device)
 
         self.target_net.load_state_dict(self.policy_net.state_dict())
@@ -471,12 +539,16 @@ class SmartAgent(BaseAgent):
                 f"State size: {state_tensor.size()}",
             )
         else:
-            # Explore: random action
+            # Explore: random action with enhanced exploration using normal distribution
             action_idx = self.rg.integers(1, self.action_space_size + 1, dtype=int)
-            arg1_val = self.rg.integers(0, 100 + 1, dtype=int)  # Using reasonable ranges for arguments
-            arg2_val = self.rg.integers(0, 100 + 1, dtype=int)
-            arg3_val = self.rg.integers(0, 100 + 1, dtype=int)
-            # For random exploration, add a chance of using 0 for args 2 and 3
+
+            # Generate arguments using normal distribution centered at 1 with std=10
+            # Round to nearest int and ensure non-negative
+            arg1_val = max(0, int(round(self.rg.normal(loc=1.0, scale=10.0))))
+            arg2_val = max(0, int(round(self.rg.normal(loc=1.0, scale=10.0))))
+            arg3_val = max(0, int(round(self.rg.normal(loc=1.0, scale=10.0))))
+
+            # For random exploration, still add a chance of using 0 for args 2 and 3
             # This helps the agent learn which actions don't need all arguments
             if self.rg.random() < 0.3:
                 arg3_val = 0
@@ -607,7 +679,8 @@ class SmartAgent(BaseAgent):
         end_policy = time.time()
         start_loss = end_policy
 
-        # Get Q values for the actions taken from the joint_q_values that include argument information
+        # Get Q values for the actions taken from the joint_q_values
+        # that include argument information
         q_values = joint_q_values.gather(1, action_batch[:, 0].unsqueeze(1)).squeeze(1)
 
         # Compute target Q values using joint Q-values from target network
@@ -629,7 +702,13 @@ class SmartAgent(BaseAgent):
 
         # Combine losses with higher weight for joint Q-values
         # The joint Q-values are most important as they'll be used for action selection
-        total_loss = (2.0 * joint_q_loss) + (0.5 * action_loss) + (0.5 * arg1_loss) + (0.5 * arg2_loss) + (0.5 * arg3_loss)
+        total_loss = (
+            (2.0 * joint_q_loss)
+            + (0.5 * action_loss)
+            + (0.5 * arg1_loss)
+            + (0.5 * arg2_loss)
+            + (0.5 * arg3_loss)
+        )
 
         end_loss = time.time()
         start_optimize = end_loss
