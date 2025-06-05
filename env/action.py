@@ -21,6 +21,7 @@ from env.core import (
     RunInfoStats,
     TmpInnerArg,
     IInstantiable,
+    HasArg,
 )
 from env.state import State
 from env.meta_env import (
@@ -339,6 +340,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
             allowed_actions = meta.allowed_actions.apply().real(GeneralTypeGroup[IAction])
             min_index = 1
             max_index = len(allowed_actions.as_tuple)
+            HasArg(action.as_type(), allowed_actions).raise_on_false()
             action_type = allowed_actions.as_tuple.index(action.as_type()) + 1
             IsInsideRange.from_raw(
                 value=action_type,
@@ -348,7 +350,7 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
         except InvalidNodeException as e:
             raise ActionTypeExceptionInfo(
                 Optional.with_value(raw_action),
-                action.as_type(),
+                action,
                 e.info,
             ).as_exception() from e
 

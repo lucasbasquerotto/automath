@@ -3120,7 +3120,7 @@ class InvalidNodeException(Exception):
         return info
 
 ###########################################################
-######################## EXCEPTION ########################
+#################### EXCEPTION WRAPPER ####################
 ###########################################################
 
 class ExceptionInfoWrapper(
@@ -3589,6 +3589,36 @@ class IsInsideRange(RunnableBoolean, IInstantiable):
         IsInstance.assert_type(max_value, IInt)
         assert isinstance(max_value, IInt)
         return min_value.as_int <= value.as_int <= max_value.as_int
+
+class HasArg(RunnableBoolean, IInstantiable):
+
+    idx_node = 1
+    idx_group = 2
+
+    @classmethod
+    def args_type_group(cls):
+        return CountableTypeGroup(
+            INode.as_type(),
+            BaseGroup.as_type(),
+        )
+
+    @property
+    def node(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_node)
+
+    @property
+    def group(self) -> TmpInnerArg:
+        return self.inner_arg(self.idx_group)
+
+    @property
+    def as_bool(self) -> bool:
+        node = self.node.apply()
+        IsInstance.assert_type(node, INode)
+        assert isinstance(node, INode)
+        group = self.group.apply()
+        IsInstance.assert_type(group, BaseGroup)
+        assert isinstance(group, BaseGroup)
+        return node in group.as_tuple
 
 ###########################################################
 ################### CONTROL FLOW NODES ####################

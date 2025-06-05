@@ -140,6 +140,7 @@ class BaseActionData(InheritableNode, ABC):
                 action_typed.strict_validate()
             else:
                 action_typed.validate()
+
         if output is not None:
             output_typed = output.real(IActionOutput).as_node
             if exception is not None:
