@@ -383,7 +383,6 @@ class ExperienceReplayBuffer:
     def __len__(self) -> int:
         return len(self.buffer)
 
-
 class SmartAgent(BaseAgent):
     """
     A reinforcement learning agent that uses a DQN to select actions.

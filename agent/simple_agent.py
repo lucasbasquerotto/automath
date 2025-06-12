@@ -9,7 +9,6 @@ from env.base_agent import BaseAgent
 from env.full_state import FullState
 from env.node_data import NodeData
 
-
 def random_generator(seed: int | None = None) -> Generator:
     bg = MT19937(seed)
     rg = Generator(bg)
@@ -358,44 +357,59 @@ class SimpleAgent(BaseAgent):
         # Preprocess state
         state_array = self._preprocess_state(state)
 
-        # Epsilon-greedy action selection
-        if self.rg.random() > self.epsilon:
-            start = time.time()
-            action_idx, arg1_val, arg2_val, arg3_val = self.network.predict(state_array)
-            action_idx += 1  # Convert to 1-indexed
+        start = time.time()
+        exploit = (self.rg.random() > self.epsilon)
+        semi_exploit = (not exploit) and (self.rg.random() > self.epsilon)
+        random = (not exploit) and (not semi_exploit)
 
-            end = time.time()
-            print(
-                time.strftime('%H:%M:%S'),
-                f"> [Exploit - Time: {end - start:.4f}s]",
-                f"Action: {action_idx}, Args: ({arg1_val}, {arg2_val}, {arg3_val})",
-                f"State size: {state_array.shape}",
-            )
-        else:
+        # Epsilon-greedy action selection
+        if random:
             # Explore: random action with bias toward successful patterns
             action_idx = self.rg.integers(1, self.action_space_size + 1, dtype=int)
 
-            # Completely random exploration
-            arg1_val = max(0, int(round(self.rg.normal(loc=1.0, scale=3.0))))
-            arg2_val = max(0, int(round(self.rg.normal(loc=1.0, scale=3.0))))
-            arg3_val = max(0, int(round(self.rg.normal(loc=1.0, scale=3.0))))
-
-            # Clamp to max value
-            arg1_val = min(arg1_val, self.max_arg_value)
-            arg2_val = min(arg2_val, self.max_arg_value)
-            arg3_val = min(arg3_val, self.max_arg_value)
+            # Random exploration
+            arg1_val = self.rg.integers(0, self.max_arg_value + 1, dtype=int)
+            arg2_val = self.rg.integers(0, self.max_arg_value + 1, dtype=int)
+            arg3_val = self.rg.integers(0, self.max_arg_value + 1, dtype=int)
 
             # Sometimes zero out args 2 and 3
             if self.rg.random() < 0.3:
                 arg3_val = 0
                 if self.rg.random() < 0.3:
                     arg2_val = 0
+        else:
+            action_idx, arg1_val, arg2_val, arg3_val = self.network.predict(state_array)
+            action_idx += 1  # Convert to 1-indexed
 
-            print(
-                time.strftime('%H:%M:%S'),
-                f"> [Explore] Action: {action_idx}, Args: ({arg1_val}, {arg2_val}, {arg3_val})",
-                f"State size: {state_array.shape}",
+            if semi_exploit:
+                # Semi-random exploration
+                scale = self.max_arg_value / 8
+                arg1_val = int(round(self.rg.normal(loc=arg1_val, scale=scale)))
+                arg2_val = int(round(self.rg.normal(loc=arg2_val, scale=scale)))
+                arg3_val = int(round(self.rg.normal(loc=arg3_val, scale=scale)))
+
+                # Clamp to max value
+                arg1_val = max(0, min(arg1_val, self.max_arg_value))
+                arg2_val = max(0, min(arg2_val, self.max_arg_value))
+                arg3_val = max(0, min(arg3_val, self.max_arg_value))
+
+        end = time.time()
+
+        name = (
+            'Explore'
+            if random
+            else (
+                'Semi-Exploit'
+                if semi_exploit
+                else 'Exploit'
             )
+        )
+        print(
+            time.strftime('%H:%M:%S'),
+            f"> [{name} - Time: {end - start:.4f}s]",
+            f"Action: {action_idx}, Args: ({arg1_val}, {arg2_val}, {arg3_val})",
+            f"State size: {state_array.shape}",
+        )
 
         # Create and return RawAction
         raw_action = RawAction.with_raw_args(
