@@ -18,6 +18,12 @@ MAX_STEPS_PER_EPISODE: int = 100
 DROPOUT_RATE: float = 0.1
 FORCE_EXPLORATION_INTERVAL: int = 50
 SAVE_INTERVAL: int = 1
-MODEL_PATH: str = "tmp/trained_model.pt"
 DEVICE: typing.Optional[torch.device] = None
 SEED: int | None = 1
+AGENT_TYPE: str = "simple"
+AGENT_NAME: str = f"{AGENT_TYPE}_{FEATURE_DIM}_{HIDDEN_DIM}_{SEED or 0}"
+MODEL_PATH: str = (
+    "tmp/trained_model.pt"
+    if AGENT_TYPE == "smart"
+    else f"tmp/trained_model_{AGENT_NAME}.pt"
+)

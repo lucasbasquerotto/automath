@@ -42,3 +42,19 @@ class BaseAgent(Generic[T], ABC):
 
     def reset(self) -> None:
         """Reset the agent's internal state between episodes."""
+
+    def save(self, path: str) -> None:
+        """
+        Save the agent's model to disk.
+
+        Args:
+            path: Path to save the model
+        """
+
+    def load(self, path: str) -> None:
+        """
+        Load the agent's model from disk.
+
+        Args:
+            path: Path to load the model from
+        """

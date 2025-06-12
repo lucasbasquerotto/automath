@@ -1,92 +1,37 @@
 import os
 import time
-from typing import Optional
-import torch
-from agent.smart_agent import SmartAgent
 from agent.trainer import Trainer
 from env.full_state import FullState
 from env.goal_env import GoalEnv
 from env.node_types import HaveScratch
 from env.action import RawAction, BaseAction, IBasicAction
+from env.base_agent import BaseAgent
 from env import core
 from test_suite import test_root
 from utils.env_logger import env_logger
 
-def train_smart_agent(
-    input_dim: int = 8,
-    feature_dim: int = 256,
-    hidden_dim: int = 128,
-    hidden_amount: int = 3,
-    learning_rate: float = 0.001,
-    gamma: float = 0.99,
-    epsilon_start: float = 1.0,
-    epsilon_end: float = 0.05,
-    epsilon_decay: float = 0.99,
-    replay_buffer_capacity: int = 10000,
-    batch_size: int = 64,
-    target_update_frequency: int = 100,
+def train_agent(
+    agent: BaseAgent,
+    model_path: str,
     episodes_per_state: int = 10,
     max_steps_per_episode: int = 10000,
-    dropout_rate: float = 0.2,
-    force_exploration_interval: int = 50,
     save_interval: int = 100,
-    model_path: str = "tmp/trained_model.pt",
-    device: Optional[torch.device] = None,
-    seed: int | None = None,
-) -> SmartAgent:
+) -> BaseAgent:
     """
-    Train the SmartAgent using test cases from the test suite.
+    Train the Agent using test cases from the test suite.
 
     Args:
-        action_space_size: Number of possible action indices
-        input_dim: Dimension of input state vector
-        feature_dim: Dimension of feature vector produced by node feature extractor
-        hidden_dim: Size of hidden layers
-        hidden_amount: Number of hidden layers
-        learning_rate: Learning rate for optimizer
-        gamma: Discount factor for future rewards
-        epsilon_start: Starting value for epsilon (exploration probability)
-        epsilon_end: Minimum value for epsilon
-        epsilon_decay: Decay rate for epsilon
-        replay_buffer_capacity: Capacity of experience replay buffer
-        batch_size: Batch size for training
-        target_update_frequency: How often to update target network
+        agent: Agent to train
+        model_path: Path to save the trained model
         episodes_per_state: Number of episodes to train on each state
         max_steps_per_episode: Maximum steps per episode
-        dropout_rate: Dropout rate for neural network layers
-        force_exploration_interval: Interval to force higher exploration
         save_interval: How often to save the model (in states)
-        model_path: Path to save the trained model
-        device: Device to use for tensor operations
-        seed: Random seed for reproducibility
 
     Returns:
-        Trained SmartAgent
+        Trained Agent
     """
-    tmp_env = GoalEnv(goal=HaveScratch.with_goal(core.Void()))
-    action_space_size = tmp_env.action_space_size()
-
-    agent = SmartAgent(
-        action_space_size=action_space_size,
-        input_dim=input_dim,
-        feature_dim=feature_dim,
-        hidden_dim=hidden_dim,
-        hidden_amount=hidden_amount,
-        learning_rate=learning_rate,
-        gamma=gamma,
-        epsilon_start=epsilon_start,
-        epsilon_end=epsilon_end,
-        epsilon_decay=epsilon_decay,
-        replay_buffer_capacity=replay_buffer_capacity,
-        batch_size=batch_size,
-        target_update_frequency=target_update_frequency,
-        device=device,
-        dropout_rate=dropout_rate,
-        seed=seed,
-    )
-    if model_path:
-        if os.path.exists(model_path):
-            agent.load(model_path)
+    if model_path and os.path.exists(model_path):
+        agent.load(model_path)
 
     def run_agent_training(full_states: list[FullState]) -> int:
         total_trained = 0
@@ -185,27 +130,9 @@ def train_smart_agent(
         results: list[tuple[float, int, bool]] = []
         max_steps_forward = max(len(static_actions or []), max_steps_forward)
 
-        # Save original epsilon to restore later
-        original_epsilon = agent.epsilon
-
         for i in range(episodes):
             amount += 1
             static = static_actions is not None
-
-            # Periodically boost exploration to break out of repetitive patterns
-            if (
-                force_exploration_interval > 0
-                and amount % force_exploration_interval == 0
-                and not static
-            ):
-                # Temporarily increase the exploration rate
-                # Triple exploration but cap at 0.8
-                boost_epsilon = min(0.8, original_epsilon * 3.0)
-                agent.epsilon = boost_epsilon
-                env_logger.info(
-                    f"[{amount}{' (exploration boost)'}] "
-                    + f"Temporarily boosting exploration to epsilon={boost_epsilon:.2f}"
-                )
 
             env_logger.info(
                 f"[{amount}{' (static)' if static else ''}] "
@@ -232,15 +159,6 @@ def train_smart_agent(
             result = trainer.train()
             results.append(result)
 
-            # Restore original epsilon after exploration boost
-            if (
-                force_exploration_interval > 0
-                and amount % force_exploration_interval == 0
-                and not static
-            ):
-                agent.epsilon = original_epsilon
-                env_logger.info(f"[{amount}] Restoring original epsilon={original_epsilon:.2f}")
-
             # Save the model at regular intervals
             if amount % save_interval == 0:
                 agent.save(model_path)
@@ -254,7 +172,7 @@ def train_smart_agent(
 
     # Run training on all test cases
     start_time = time.time()
-    env_logger.info("Starting SmartAgent training...")
+    env_logger.info("Starting Agent training...")
 
     # Use the test_root's run_with_agent to get all the test states
     test_root.run_with_agent(
