@@ -1,4 +1,5 @@
 import time
+import math
 from collections import deque
 import numpy as np
 from numpy.random import MT19937, Generator
@@ -159,9 +160,13 @@ class SimpleNetwork:
             arg3_targets: Target arg3 values
             weights: Sample weights (optional)
         """
-        batch_size = x.shape[0] if x.ndim > 1 else 1
-        if weights is None:
-            weights = np.ones(batch_size)
+        # Get hidden activations for gradient computation
+        if x.ndim == 1:
+            x = x.reshape(1, -1)
+
+        assert x.ndim == 2, f"Input must be 2D array, got {x.ndim}D"
+
+        batch_size = x.shape[0]
 
         # Forward pass
         action_logits, arg1_logits, arg2_logits, arg3_logits = self.forward(x)
@@ -186,19 +191,19 @@ class SimpleNetwork:
 
         # Compute gradients
         # Output layer gradients
-        action_grad = (action_probs - action_one_hot) * weights.reshape(-1, 1)
-        arg1_grad = (arg1_probs - arg1_one_hot) * weights.reshape(-1, 1)
-        arg2_grad = (arg2_probs - arg2_one_hot) * weights.reshape(-1, 1)
-        arg3_grad = (arg3_probs - arg3_one_hot) * weights.reshape(-1, 1)
+        action_grad = action_probs - action_one_hot
+        arg1_grad = arg1_probs - arg1_one_hot
+        arg2_grad = arg2_probs - arg2_one_hot
+        arg3_grad = arg3_probs - arg3_one_hot
+
+        if weights is not None:
+            action_grad = action_grad * weights.reshape(-1, 1)
+            arg1_grad = arg1_grad * weights.reshape(-1, 1)
+            arg2_grad = arg2_grad * weights.reshape(-1, 1)
+            arg3_grad = arg3_grad * weights.reshape(-1, 1)
 
         # Backpropagate through the network
         # We'll use a simplified approach and just update based on the combined gradients
-
-        # Get hidden activations for gradient computation
-        if x.ndim == 1:
-            x = x.reshape(1, -1)
-
-        assert x.ndim == 2, f"Input must be 2D array, got {x.ndim}D"
 
         h1 = relu(np.dot(x, self.W1) + self.b1)
         h2 = relu(np.dot(h1, self.W2) + self.b2)
@@ -242,7 +247,6 @@ class SimpleNetwork:
 
         self.W1 -= self.learning_rate * np.dot(x.T, h1_grad) / batch_size
         self.b1 -= self.learning_rate * np.mean(h1_grad, axis=0)
-
 
 class SimpleExperienceBuffer:
     """
@@ -358,7 +362,7 @@ class SimpleAgent(BaseAgent):
         state_array = self._preprocess_state(state)
 
         start = time.time()
-        exploit = (self.rg.random() > self.epsilon)
+        exploit = self.rg.random() > self.epsilon
         semi_exploit = (not exploit) and (self.rg.random() > self.epsilon)
         random = (not exploit) and (not semi_exploit)
 
@@ -498,14 +502,18 @@ class SimpleAgent(BaseAgent):
         arg3s = []
         weights = []
 
-        for state, action, reward, _ in successful_experiences:
-            states.append(state)
-            actions.append(action[0])  # action index
-            arg1s.append(action[1])
-            arg2s.append(action[2])
-            arg3s.append(action[3])
+        for state, full_action, reward, _ in successful_experiences:
+            action, arg1, arg2, arg3 = full_action
             # Weight by reward (successful actions with higher rewards get more weight)
-            weights.append(max(0.1, reward))
+            # Map reward from [-inf, inf] to [0, 1], 0 for -inf, 1 for inf, 0.5 for 0
+            reward_weight = 1 / (1 + math.exp(-reward))
+
+            states.append(state)
+            actions.append(action)
+            arg1s.append(arg1)
+            arg2s.append(arg2)
+            arg3s.append(arg3)
+            weights.append(reward_weight)
 
         # Convert to NumPy arrays
         state_batch = np.array(states)
@@ -517,7 +525,12 @@ class SimpleAgent(BaseAgent):
 
         # Train the network
         self.network.train_step(
-            state_batch, action_batch, arg1_batch, arg2_batch, arg3_batch, weight_batch
+            state_batch,
+            action_batch,
+            arg1_batch,
+            arg2_batch,
+            arg3_batch,
+            weight_batch,
         )
 
         print(
