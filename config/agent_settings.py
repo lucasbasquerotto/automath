@@ -1,5 +1,4 @@
 import typing
-import torch
 
 INPUT_DIM: int = 8
 FEATURE_DIM: int = 2**7
@@ -18,7 +17,7 @@ MAX_STEPS_PER_EPISODE: int = 100
 DROPOUT_RATE: float = 0.1
 FORCE_EXPLORATION_INTERVAL: int = 50
 SAVE_INTERVAL: int = 1
-DEVICE: typing.Optional[torch.device] = None
+DEVICE: typing.Optional[typing.Any] = None
 SEED: int | None = 1
 AGENT_TYPE: str = "simple"
 AGENT_NAME: str = f"{AGENT_TYPE}_{FEATURE_DIM}_{HIDDEN_DIM}_{SEED or 0}"

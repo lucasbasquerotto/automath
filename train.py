@@ -13,7 +13,7 @@ from env.base_agent import BaseAgent
 from env import core
 from agent.train import train_agent
 from agent.simple_agent import SimpleAgent
-from agent.smart_agent import SmartAgent
+# from agent.smart_agent import SmartAgent
 
 def get_action_space_size() -> int:
     tmp_env = GoalEnv(goal=HaveScratch.with_goal(core.Void()))
@@ -71,24 +71,25 @@ def main() -> None:
                 seed=seed,
             )
         elif agent_type == "smart":
-            agent = SmartAgent(
-                action_space_size=action_space_size,
-                input_dim=input_dim,
-                feature_dim=feature_dim,
-                hidden_dim=hidden_dim,
-                hidden_amount=hidden_amount,
-                learning_rate=learning_rate,
-                gamma=gamma,
-                epsilon_start=epsilon_start,
-                epsilon_end=epsilon_end,
-                epsilon_decay=epsilon_decay,
-                replay_buffer_capacity=replay_buffer_capacity,
-                batch_size=batch_size,
-                target_update_frequency=target_update_frequency,
-                device=device,
-                dropout_rate=dropout_rate,
-                seed=seed,
-            )
+            raise NotImplementedError("SmartAgent is not implemented in this code snippet.")
+            # agent = SmartAgent(
+            #     action_space_size=action_space_size,
+            #     input_dim=input_dim,
+            #     feature_dim=feature_dim,
+            #     hidden_dim=hidden_dim,
+            #     hidden_amount=hidden_amount,
+            #     learning_rate=learning_rate,
+            #     gamma=gamma,
+            #     epsilon_start=epsilon_start,
+            #     epsilon_end=epsilon_end,
+            #     epsilon_decay=epsilon_decay,
+            #     replay_buffer_capacity=replay_buffer_capacity,
+            #     batch_size=batch_size,
+            #     target_update_frequency=target_update_frequency,
+            #     device=device,
+            #     dropout_rate=dropout_rate,
+            #     seed=seed,
+            # )
         else:
             raise ValueError(f"Unknown agent type: {agent_type}")
 
