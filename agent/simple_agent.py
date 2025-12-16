@@ -91,6 +91,21 @@ class SimpleNetwork:
         self.W_arg3 = np.random.randn(hidden_dim, max_arg_value + 1) * np.sqrt(2.0 / hidden_dim)
         self.b_arg3 = np.zeros(max_arg_value + 1)
 
+    def _forward_main_group(self, input: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        # Forward pass through hidden layers
+        h1 = relu(np.dot(input, self.W1) + self.b1)
+        h2 = relu(np.dot(h1, self.W2) + self.b2)
+        h3 = relu(np.dot(h2, self.W3) + self.b3)
+
+        # Pool across the state_node_amount dimension: (batch_size, state_node_amount, hidden_dim) -> (batch_size, hidden_dim)
+        h = np.mean(h3, axis=1)
+
+        return h, h1, h2, h3
+
+    def _forward_main(self, input: np.ndarray) -> np.ndarray:
+        h = self._forward_main_group(input)[0]
+        return h
+
     def forward(self, x: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Forward pass through the network.
@@ -108,15 +123,13 @@ class SimpleNetwork:
         assert x.ndim == 3, f"Input must be 3D array, got {x.ndim}D"
 
         # Forward pass through hidden layers
-        h1 = relu(np.dot(x, self.W1) + self.b1)
-        h2 = relu(np.dot(h1, self.W2) + self.b2)
-        h3 = relu(np.dot(h2, self.W3) + self.b3)
+        h = self._forward_main(x)
 
         # Output predictions
-        action_logits = np.dot(h3, self.W_action) + self.b_action
-        arg1_logits = np.dot(h3, self.W_arg1) + self.b_arg1
-        arg2_logits = np.dot(h3, self.W_arg2) + self.b_arg2
-        arg3_logits = np.dot(h3, self.W_arg3) + self.b_arg3
+        action_logits = np.dot(h, self.W_action) + self.b_action
+        arg1_logits = np.dot(h, self.W_arg1) + self.b_arg1
+        arg2_logits = np.dot(h, self.W_arg2) + self.b_arg2
+        arg3_logits = np.dot(h, self.W_arg3) + self.b_arg3
 
         return action_logits, arg1_logits, arg2_logits, arg3_logits
 
@@ -156,12 +169,10 @@ class SimpleNetwork:
         assert x.ndim == 3, f"Input must be 3D array, got {x.ndim}D"
 
         # Forward pass through hidden layers
-        h1 = relu(np.dot(x, self.W1) + self.b1)
-        h2 = relu(np.dot(h1, self.W2) + self.b2)
-        h3 = relu(np.dot(h2, self.W3) + self.b3)
+        h = self._forward_main(x)
 
         # Output Q-values (we repurpose the action output head)
-        q_values = np.dot(h3, self.W_action) + self.b_action
+        q_values = np.dot(h, self.W_action) + self.b_action
 
         return q_values
 
@@ -185,17 +196,13 @@ class SimpleNetwork:
         assert x.ndim == 3, f"Input must be 3D array, got {x.ndim}D"
 
         # Forward pass through hidden layers
-        h1 = relu(np.dot(x, self.W1) + self.b1)
-        h2 = relu(np.dot(h1, self.W2) + self.b2)
-        h3 = relu(np.dot(h2, self.W3) + self.b3)
-
-        print('shape', x.shape, 'h3.shape', h3.shape)
+        h = self._forward_main(x)
 
         # Output Q-values for each component
-        action_q_values = np.dot(h3, self.W_action) + self.b_action
-        arg1_q_values = np.dot(h3, self.W_arg1) + self.b_arg1
-        arg2_q_values = np.dot(h3, self.W_arg2) + self.b_arg2
-        arg3_q_values = np.dot(h3, self.W_arg3) + self.b_arg3
+        action_q_values = np.dot(h, self.W_action) + self.b_action
+        arg1_q_values = np.dot(h, self.W_arg1) + self.b_arg1
+        arg2_q_values = np.dot(h, self.W_arg2) + self.b_arg2
+        arg3_q_values = np.dot(h, self.W_arg3) + self.b_arg3
 
         return action_q_values, arg1_q_values, arg2_q_values, arg3_q_values
 
@@ -234,27 +241,18 @@ class SimpleNetwork:
         if action_idx is not None:
             # Return Q-values for specific actions
             combined_q = np.zeros(batch_size)
+
             for i in range(batch_size):
                 a_idx = action_idx[i]
                 a1_idx = arg1_idx[i] if arg1_idx is not None else np.argmax(arg1_q[i])
                 a2_idx = arg2_idx[i] if arg2_idx is not None else np.argmax(arg2_q[i])
                 a3_idx = arg3_idx[i] if arg3_idx is not None else np.argmax(arg3_q[i])
 
-                print(f"Combining Q-values for batch {i}: \n"
-                      f"action {a_idx.shape}\n"
-                      f"arg1 {a1_idx.shape}\n"
-                      f"arg2 {a2_idx.shape}\n"
-                      f"arg3 {a3_idx.shape}\n"
-                      f"action_q: {action_q[i, a_idx].shape}\n"
-                      f"arg1_q: {arg1_q[i, a1_idx].shape}\n"
-                      f"arg2_q: {arg2_q[i, a2_idx].shape}\n"
-                      f"arg3_q: {arg3_q[i, a3_idx].shape}\n")
-
                 combined_q[i] = (
-                    action_q[i, a_idx] +
-                    arg1_q[i, a1_idx] +
-                    arg2_q[i, a2_idx] +
-                    arg3_q[i, a3_idx]
+                    action_q[i, a_idx]
+                    + arg1_q[i, a1_idx]
+                    + arg2_q[i, a2_idx]
+                    + arg3_q[i, a3_idx]
                 ) / 4.0
 
             return combined_q
@@ -265,19 +263,38 @@ class SimpleNetwork:
             for i in range(batch_size):
                 max_q = -float('inf')
                 for a_idx in range(action_q.shape[1]):
-                    for a1_idx in range(arg1_q.shape[1]):
-                        for a2_idx in range(arg2_q.shape[1]):
-                            for a3_idx in range(arg3_q.shape[1]):
-                                q_val = (
-                                    action_q[i, a_idx] +
-                                    arg1_q[i, a1_idx] +
-                                    arg2_q[i, a2_idx] +
-                                    arg3_q[i, a3_idx]
-                                ) / 4.0
-                                if q_val > max_q:
-                                    max_q = q_val
+                    q_val = action_q[i, a_idx]
+                    if q_val > max_q:
+                        max_q = q_val
+                max_action = max_q
 
-                max_q_values[i] = max_q
+                max_q = -float('inf')
+                for a1_idx in range(arg1_q.shape[1]):
+                    q_val = arg1_q[i, a1_idx]
+                    if q_val > max_q:
+                        max_q = q_val
+                max_arg1 = max_q
+
+                max_q = -float('inf')
+                for a2_idx in range(arg2_q.shape[1]):
+                    q_val = arg2_q[i, a2_idx]
+                    if q_val > max_q:
+                        max_q = q_val
+                max_arg2 = max_q
+
+                max_q = -float('inf')
+                for a3_idx in range(arg3_q.shape[1]):
+                    q_val = arg3_q[i, a3_idx]
+                    if q_val > max_q:
+                        max_q = q_val
+                max_arg3 = max_q
+
+                max_q_values[i] = (
+                    max_action
+                    + max_arg1
+                    + max_arg2
+                    + max_arg3
+                ) / 4.0
 
             return max_q_values
 
@@ -346,21 +363,20 @@ class SimpleNetwork:
         # Backpropagate through the network
         # We'll use a simplified approach and just update based on the combined gradients
 
-        h1 = relu(np.dot(x, self.W1) + self.b1)
-        h2 = relu(np.dot(h1, self.W2) + self.b2)
-        h3 = relu(np.dot(h2, self.W3) + self.b3)
+        # Forward pass through hidden layers
+        h, h1, h2, h3 = self._forward_main_group(x)
 
-        # Update output layer weights
-        self.W_action -= self.learning_rate * np.dot(h3.T, action_grad) / batch_size
+        # Update output layer weights using pooled h
+        self.W_action -= self.learning_rate * np.dot(h.T, action_grad) / batch_size
         self.b_action -= self.learning_rate * np.mean(action_grad, axis=0)
 
-        self.W_arg1 -= self.learning_rate * np.dot(h3.T, arg1_grad) / batch_size
+        self.W_arg1 -= self.learning_rate * np.dot(h.T, arg1_grad) / batch_size
         self.b_arg1 -= self.learning_rate * np.mean(arg1_grad, axis=0)
 
-        self.W_arg2 -= self.learning_rate * np.dot(h3.T, arg2_grad) / batch_size
+        self.W_arg2 -= self.learning_rate * np.dot(h.T, arg2_grad) / batch_size
         self.b_arg2 -= self.learning_rate * np.mean(arg2_grad, axis=0)
 
-        self.W_arg3 -= self.learning_rate * np.dot(h3.T, arg3_grad) / batch_size
+        self.W_arg3 -= self.learning_rate * np.dot(h.T, arg3_grad) / batch_size
         self.b_arg3 -= self.learning_rate * np.mean(arg3_grad, axis=0)
 
         # Simplified backprop for hidden layers (using combined gradient signal)
@@ -371,23 +387,31 @@ class SimpleNetwork:
             arg3_grad @ self.W_arg3.T
         )
 
-        # h3 gradient
-        h3_grad = combined_grad * (h3 > 0)  # ReLU derivative
+        # h gradient (pooled activations)
+        h_grad = combined_grad * (h > 0)  # ReLU derivative
 
-        self.W3 -= self.learning_rate * np.dot(h2.T, h3_grad) / batch_size
-        self.b3 -= self.learning_rate * np.mean(h3_grad, axis=0)
+        # Broadcast gradient back to h3 shape for backprop through pooling operation
+        # h3 shape: (batch_size, state_node_amount, hidden_dim)
+        # h_grad shape: (batch_size, hidden_dim)
+        # Distribute gradient equally across all nodes
+        h3_grad_broadcasted = np.expand_dims(h_grad, axis=1) / h3.shape[1]  # Divide by state_node_amount
+        h3_grad_broadcasted = np.broadcast_to(h3_grad_broadcasted, h3.shape)
+        h3_grad = h3_grad_broadcasted * (h3 > 0).astype(np.float32)  # Apply ReLU derivative
+
+        self.W3 -= self.learning_rate * np.dot(h2.reshape(-1, h2.shape[-1]).T, h3_grad.reshape(-1, h3_grad.shape[-1])) / batch_size
+        self.b3 -= self.learning_rate * np.mean(h3_grad.reshape(-1, h3_grad.shape[-1]), axis=0)
 
         # h2 gradient
-        h2_grad = (h3_grad @ self.W3.T) * (h2 > 0)
+        h2_grad = np.dot(h3_grad, self.W3.T) * (h2 > 0)
 
-        self.W2 -= self.learning_rate * np.dot(h1.T, h2_grad) / batch_size
-        self.b2 -= self.learning_rate * np.mean(h2_grad, axis=0)
+        self.W2 -= self.learning_rate * np.dot(h1.reshape(-1, h1.shape[-1]).T, h2_grad.reshape(-1, h2_grad.shape[-1])) / batch_size
+        self.b2 -= self.learning_rate * np.mean(h2_grad.reshape(-1, h2_grad.shape[-1]), axis=0)
 
         # h1 gradient
-        h1_grad = (h2_grad @ self.W2.T) * (h1 > 0)
+        h1_grad = np.dot(h2_grad, self.W2.T) * (h1 > 0)
 
-        self.W1 -= self.learning_rate * np.dot(x.T, h1_grad) / batch_size
-        self.b1 -= self.learning_rate * np.mean(h1_grad, axis=0)
+        self.W1 -= self.learning_rate * np.dot(x.reshape(-1, x.shape[-1]).T, h1_grad.reshape(-1, h1_grad.shape[-1])) / batch_size
+        self.b1 -= self.learning_rate * np.mean(h1_grad.reshape(-1, h1_grad.shape[-1]), axis=0)
 
     def q_learning_update(self, states: np.ndarray, actions: np.ndarray, targets: np.ndarray):
         """
@@ -400,13 +424,11 @@ class SimpleNetwork:
         """
         batch_size = states.shape[0]
 
-        # Forward pass
-        h1 = relu(np.dot(states, self.W1) + self.b1)
-        h2 = relu(np.dot(h1, self.W2) + self.b2)
-        h3 = relu(np.dot(h2, self.W3) + self.b3)
+        # Forward pass through hidden layers
+        h, h1, h2, h3 = self._forward_main_group(states)
 
         # Output Q-values
-        q_values = np.dot(h3, self.W_action) + self.b_action
+        q_values = np.dot(h, self.W_action) + self.b_action
 
         # Create target vector - copy current predictions
         target_vector = np.copy(q_values)
@@ -420,24 +442,28 @@ class SimpleNetwork:
 
         # Backpropagate and update weights
         # Update output layer weights
-        self.W_action -= self.learning_rate * np.dot(h3.T, q_grad)
+        self.W_action -= self.learning_rate * np.dot(h.T, q_grad)
         self.b_action -= self.learning_rate * np.mean(q_grad, axis=0)
 
         # Backpropagate through hidden layers
-        h3_grad = np.dot(q_grad, self.W_action.T) * (h3 > 0)  # ReLU derivative
+        h_grad = np.dot(q_grad, self.W_action.T) * (h > 0)  # ReLU derivative
 
-        self.W3 -= self.learning_rate * np.dot(h2.T, h3_grad)
-        self.b3 -= self.learning_rate * np.mean(h3_grad, axis=0)
+        h3_grad_broadcasted = np.expand_dims(h_grad, axis=1) / h3.shape[1]  # Divide by state_node_amount
+        h3_grad_broadcasted = np.broadcast_to(h3_grad_broadcasted, h3.shape)
+        h3_grad = h3_grad_broadcasted * (h3 > 0).astype(np.float32)  # Apply ReLU derivative
 
-        h2_grad = np.dot(h3_grad, self.W3.T) * (h2 > 0)
+        self.W3 -= self.learning_rate * np.dot(h2.reshape(-1, h2.shape[-1]).T, h3_grad.reshape(-1, h3_grad.shape[-1])) / batch_size
+        self.b3 -= self.learning_rate * np.mean(h3_grad.reshape(-1, h3_grad.shape[-1]), axis=0)
 
-        self.W2 -= self.learning_rate * np.dot(h1.T, h2_grad)
-        self.b2 -= self.learning_rate * np.mean(h2_grad, axis=0)
+        h2_grad = np.dot(h3_grad, self.W3.T) * (h2 > 0).astype(np.float32)
 
-        h1_grad = np.dot(h2_grad, self.W2.T) * (h1 > 0)
+        self.W2 -= self.learning_rate * np.dot(h1.reshape(-1, h1.shape[-1]).T, h2_grad.reshape(-1, h2_grad.shape[-1])) / batch_size
+        self.b2 -= self.learning_rate * np.mean(h2_grad.reshape(-1, h2_grad.shape[-1]), axis=0)
 
-        self.W1 -= self.learning_rate * np.dot(states.T, h1_grad)
-        self.b1 -= self.learning_rate * np.mean(h1_grad, axis=0)
+        h1_grad = np.dot(h2_grad, self.W2.T) * (h1 > 0).astype(np.float32)
+
+        self.W1 -= self.learning_rate * np.dot(states.reshape(-1, states.shape[-1]).T, h1_grad.reshape(-1, h1_grad.shape[-1])) / batch_size
+        self.b1 -= self.learning_rate * np.mean(h1_grad.reshape(-1, h1_grad.shape[-1]), axis=0)
 
         # Calculate loss for reporting
         loss = np.mean(np.square(target_vector - q_values))
@@ -455,7 +481,7 @@ class SimpleNetwork:
         Args:
             states: Batch of states (batch_size, input_dim)
             actions: List of action component indices [action_idx, arg1_idx, arg2_idx, arg3_idx]
-            target_q: Target Q-values (batch_size,)
+            target_q: Target Q-values (4,batch_size,)
 
         Returns:
             Loss value
@@ -463,16 +489,14 @@ class SimpleNetwork:
         action_idx, arg1_idx, arg2_idx, arg3_idx = actions
         batch_size = states.shape[0]
 
-        # Forward pass
-        h1 = relu(np.dot(states, self.W1) + self.b1)
-        h2 = relu(np.dot(h1, self.W2) + self.b2)
-        h3 = relu(np.dot(h2, self.W3) + self.b3)
+        # Forward pass through hidden layers
+        h, h1, h2, h3 = self._forward_main_group(states)
 
         # Get current Q-values for each component
-        action_q = np.dot(h3, self.W_action) + self.b_action
-        arg1_q = np.dot(h3, self.W_arg1) + self.b_arg1
-        arg2_q = np.dot(h3, self.W_arg2) + self.b_arg2
-        arg3_q = np.dot(h3, self.W_arg3) + self.b_arg3
+        action_q = np.dot(h, self.W_action) + self.b_action
+        arg1_q = np.dot(h, self.W_arg1) + self.b_arg1
+        arg2_q = np.dot(h, self.W_arg2) + self.b_arg2
+        arg3_q = np.dot(h, self.W_arg3) + self.b_arg3
 
         # Create target vectors for each component
         # We'll use the same target value for each component to ensure they all contribute equally
@@ -501,16 +525,16 @@ class SimpleNetwork:
         arg3_grad = 2.0 * (arg3_q - arg3_target) / batch_size
 
         # Update output layer weights
-        self.W_action -= self.learning_rate * np.dot(h3.T, action_grad)
+        self.W_action -= self.learning_rate * np.dot(h.T, action_grad)
         self.b_action -= self.learning_rate * np.mean(action_grad, axis=0)
 
-        self.W_arg1 -= self.learning_rate * np.dot(h3.T, arg1_grad)
+        self.W_arg1 -= self.learning_rate * np.dot(h.T, arg1_grad)
         self.b_arg1 -= self.learning_rate * np.mean(arg1_grad, axis=0)
 
-        self.W_arg2 -= self.learning_rate * np.dot(h3.T, arg2_grad)
+        self.W_arg2 -= self.learning_rate * np.dot(h.T, arg2_grad)
         self.b_arg2 -= self.learning_rate * np.mean(arg2_grad, axis=0)
 
-        self.W_arg3 -= self.learning_rate * np.dot(h3.T, arg3_grad)
+        self.W_arg3 -= self.learning_rate * np.dot(h.T, arg3_grad)
         self.b_arg3 -= self.learning_rate * np.mean(arg3_grad, axis=0)
 
         # Backpropagate through hidden layers
@@ -522,23 +546,28 @@ class SimpleNetwork:
             arg3_grad @ self.W_arg3.T
         )
 
-        # h3 gradient
-        h3_grad = combined_grad * (h3 > 0)  # ReLU derivative
+        # Backpropagate through hidden layers
+        h_grad = combined_grad * (h > 0)  # ReLU derivative
 
-        self.W3 -= self.learning_rate * np.dot(h2.T, h3_grad)
-        self.b3 -= self.learning_rate * np.mean(h3_grad, axis=0)
+        # h3 gradient
+        h3_grad_broadcasted = np.expand_dims(h_grad, axis=1) / h3.shape[1]  # Divide by state_node_amount
+        h3_grad_broadcasted = np.broadcast_to(h3_grad_broadcasted, h3.shape)
+        h3_grad = h3_grad_broadcasted * (h3 > 0).astype(np.float32)  # Apply ReLU derivative
+
+        self.W3 -= self.learning_rate * np.dot(h2.reshape(-1, h2.shape[-1]).T, h3_grad.reshape(-1, h3_grad.shape[-1])) / batch_size
+        self.b3 -= self.learning_rate * np.mean(h3_grad.reshape(-1, h3_grad.shape[-1]), axis=0)
 
         # h2 gradient
-        h2_grad = np.dot(h3_grad, self.W3.T) * (h2 > 0)
+        h2_grad = np.dot(h3_grad, self.W3.T) * (h2 > 0).astype(np.float32)
 
-        self.W2 -= self.learning_rate * np.dot(h1.T, h2_grad)
-        self.b2 -= self.learning_rate * np.mean(h2_grad, axis=0)
+        self.W2 -= self.learning_rate * np.dot(h1.reshape(-1, h1.shape[-1]).T, h2_grad.reshape(-1, h2_grad.shape[-1])) / batch_size
+        self.b2 -= self.learning_rate * np.mean(h2_grad.reshape(-1, h2_grad.shape[-1]), axis=0)
 
         # h1 gradient
-        h1_grad = np.dot(h2_grad, self.W2.T) * (h1 > 0)
+        h1_grad = np.dot(h2_grad, self.W2.T) * (h1 > 0).astype(np.float32)
 
-        self.W1 -= self.learning_rate * np.dot(states.T, h1_grad)
-        self.b1 -= self.learning_rate * np.mean(h1_grad, axis=0)
+        self.W1 -= self.learning_rate * np.dot(states.reshape(-1, states.shape[-1]).T, h1_grad.reshape(-1, h1_grad.shape[-1])) / batch_size
+        self.b1 -= self.learning_rate * np.mean(h1_grad.reshape(-1, h1_grad.shape[-1]), axis=0)
 
         # Calculate loss for reporting (average of the individual component losses)
         action_loss = np.mean(np.square(action_target - action_q))
@@ -657,7 +686,6 @@ class SimpleAgent(BaseAgent):
         node_data = NodeData(node=state, node_types=state.node_types())
         data_array = node_data.to_data_array()
         features = data_array.astype(np.float32)
-        print('features', features.shape)
 
         return features
 
@@ -674,7 +702,6 @@ class SimpleAgent(BaseAgent):
         """
         # Preprocess state
         state_array = self._preprocess_state(state)
-        print('state_array', state_array.shape)
 
         start = time.time()
         exploit = self.rg.random() > self.epsilon
@@ -796,7 +823,8 @@ class SimpleAgent(BaseAgent):
         self.steps_done += 1
 
         end = time.time()
-        print(            time.strftime('%H:%M:%S'),
+        print(
+            time.strftime('%H:%M:%S'),
             f"[Train - Time: {end - start:.4f}s]",
             f"Reward: {reward:.3f}",
             f"Terminated: {terminated}",
