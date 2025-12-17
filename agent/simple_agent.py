@@ -91,13 +91,17 @@ class SimpleNetwork:
         self.W_arg3 = np.random.randn(hidden_dim, max_arg_value + 1) * np.sqrt(2.0 / hidden_dim)
         self.b_arg3 = np.zeros(max_arg_value + 1)
 
-    def _forward_main_group(self, input: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def _forward_main_group(
+        self,
+        input: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         # Forward pass through hidden layers
         h1 = relu(np.dot(input, self.W1) + self.b1)
         h2 = relu(np.dot(h1, self.W2) + self.b2)
         h3 = relu(np.dot(h2, self.W3) + self.b3)
 
-        # Pool across the state_node_amount dimension: (batch_size, state_node_amount, hidden_dim) -> (batch_size, hidden_dim)
+        # Pool across the state_node_amount dimension:
+        # (batch_size, state_node_amount, hidden_dim) -> (batch_size, hidden_dim)
         h = np.mean(h3, axis=1)
 
         return h, h1, h2, h3
@@ -105,76 +109,6 @@ class SimpleNetwork:
     def _forward_main(self, input: np.ndarray) -> np.ndarray:
         h = self._forward_main_group(input)[0]
         return h
-
-    def forward(self, x: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Forward pass through the network.
-
-        Args:
-            x: Input array of shape (batch_size, input_dim) or (input_dim,)
-
-        Returns:
-            tuple of (action_logits, arg1_logits, arg2_logits, arg3_logits)
-        """
-        # Ensure input is 3D
-        if x.ndim == 2:
-            x = x.reshape(1, x.shape[0], x.shape[1])
-
-        assert x.ndim == 3, f"Input must be 3D array, got {x.ndim}D"
-
-        # Forward pass through hidden layers
-        h = self._forward_main(x)
-
-        # Output predictions
-        action_logits = np.dot(h, self.W_action) + self.b_action
-        arg1_logits = np.dot(h, self.W_arg1) + self.b_arg1
-        arg2_logits = np.dot(h, self.W_arg2) + self.b_arg2
-        arg3_logits = np.dot(h, self.W_arg3) + self.b_arg3
-
-        return action_logits, arg1_logits, arg2_logits, arg3_logits
-
-    def predict(self, x: np.ndarray) -> tuple[int, int, int, int]:
-        """
-        Make predictions and return the most likely values.
-
-        Args:
-            x: Input array
-
-        Returns:
-            tuple of (action_idx, arg1_val, arg2_val, arg3_val)
-        """
-        action_logits, arg1_logits, arg2_logits, arg3_logits = self.forward(x)
-
-        action_idx = int(np.argmax(action_logits[0]))
-        arg1_val = int(np.argmax(arg1_logits[0]))
-        arg2_val = int(np.argmax(arg2_logits[0]))
-        arg3_val = int(np.argmax(arg3_logits[0]))
-
-        return action_idx, arg1_val, arg2_val, arg3_val
-
-    def predict_q_values(self, x: np.ndarray) -> np.ndarray:
-        """
-        Predict Q-values for all actions given state input.
-
-        Args:
-            x: Input array representing state
-
-        Returns:
-            Array of Q-values for each action
-        """
-        # Ensure input is 3D
-        if x.ndim == 2:
-            x = x.reshape(1, x.shape[0], x.shape[1])
-
-        assert x.ndim == 3, f"Input must be 3D array, got {x.ndim}D"
-
-        # Forward pass through hidden layers
-        h = self._forward_main(x)
-
-        # Output Q-values (we repurpose the action output head)
-        q_values = np.dot(h, self.W_action) + self.b_action
-
-        return q_values
 
     def predict_decomposed_q_values(
         self,
@@ -298,74 +232,19 @@ class SimpleNetwork:
 
             return max_q_values
 
-    def train_step(
+    def _update_grads(
         self,
-        x: np.ndarray,
-        action_targets: np.ndarray,
-        arg1_targets: np.ndarray,
-        arg2_targets: np.ndarray,
-        arg3_targets: np.ndarray,
-        weights: np.ndarray | None = None,
+        input: np.ndarray,
+        batch_size: int,
+        h: np.ndarray,
+        h1: np.ndarray,
+        h2: np.ndarray,
+        h3: np.ndarray,
+        action_grad: np.ndarray,
+        arg1_grad: np.ndarray,
+        arg2_grad: np.ndarray,
+        arg3_grad: np.ndarray,
     ):
-        """
-        Perform one training step using backpropagation.
-
-        Args:
-            x: Input data
-            action_targets: Target action indices
-            arg1_targets: Target arg1 values
-            arg2_targets: Target arg2 values
-            arg3_targets: Target arg3 values
-            weights: Sample weights (optional)
-        """
-        # Get hidden activations for gradient computation
-        if x.ndim == 1:
-            x = x.reshape(1, -1)
-
-        assert x.ndim == 2, f"Input must be 2D array, got {x.ndim}D"
-
-        batch_size = x.shape[0]
-
-        # Forward pass
-        action_logits, arg1_logits, arg2_logits, arg3_logits = self.forward(x)
-
-        # Compute softmax probabilities
-        action_probs = softmax(action_logits)
-        arg1_probs = softmax(arg1_logits)
-        arg2_probs = softmax(arg2_logits)
-        arg3_probs = softmax(arg3_logits)
-
-        # Create one-hot targets
-        action_one_hot = np.zeros_like(action_probs)
-        arg1_one_hot = np.zeros_like(arg1_probs)
-        arg2_one_hot = np.zeros_like(arg2_probs)
-        arg3_one_hot = np.zeros_like(arg3_probs)
-
-        for i in range(batch_size):
-            action_one_hot[i, action_targets[i]] = 1
-            arg1_one_hot[i, arg1_targets[i]] = 1
-            arg2_one_hot[i, arg2_targets[i]] = 1
-            arg3_one_hot[i, arg3_targets[i]] = 1
-
-        # Compute gradients
-        # Output layer gradients
-        action_grad = action_probs - action_one_hot
-        arg1_grad = arg1_probs - arg1_one_hot
-        arg2_grad = arg2_probs - arg2_one_hot
-        arg3_grad = arg3_probs - arg3_one_hot
-
-        if weights is not None:
-            action_grad = action_grad * weights.reshape(-1, 1)
-            arg1_grad = arg1_grad * weights.reshape(-1, 1)
-            arg2_grad = arg2_grad * weights.reshape(-1, 1)
-            arg3_grad = arg3_grad * weights.reshape(-1, 1)
-
-        # Backpropagate through the network
-        # We'll use a simplified approach and just update based on the combined gradients
-
-        # Forward pass through hidden layers
-        h, h1, h2, h3 = self._forward_main_group(x)
-
         # Update output layer weights using pooled h
         self.W_action -= self.learning_rate * np.dot(h.T, action_grad) / batch_size
         self.b_action -= self.learning_rate * np.mean(action_grad, axis=0)
@@ -380,12 +259,18 @@ class SimpleNetwork:
         self.b_arg3 -= self.learning_rate * np.mean(arg3_grad, axis=0)
 
         # Simplified backprop for hidden layers (using combined gradient signal)
+        # Average gradients from all heads to prevent saturation
         combined_grad = (
             action_grad @ self.W_action.T +
             arg1_grad @ self.W_arg1.T +
             arg2_grad @ self.W_arg2.T +
             arg3_grad @ self.W_arg3.T
-        )
+        ) / 4.0  # Average instead of sum
+
+        # Gradient norm clipping to prevent explosion
+        grad_norm = np.linalg.norm(combined_grad)
+        if grad_norm > 10.0:
+            combined_grad = combined_grad * (10.0 / grad_norm)
 
         # h gradient (pooled activations)
         h_grad = combined_grad * (h > 0)  # ReLU derivative
@@ -394,80 +279,57 @@ class SimpleNetwork:
         # h3 shape: (batch_size, state_node_amount, hidden_dim)
         # h_grad shape: (batch_size, hidden_dim)
         # Distribute gradient equally across all nodes
-        h3_grad_broadcasted = np.expand_dims(h_grad, axis=1) / h3.shape[1]  # Divide by state_node_amount
+        # Divide by state_node_amount
+        h3_grad_broadcasted = np.expand_dims(h_grad, axis=1) / h3.shape[1]
         h3_grad_broadcasted = np.broadcast_to(h3_grad_broadcasted, h3.shape)
-        h3_grad = h3_grad_broadcasted * (h3 > 0).astype(np.float32)  # Apply ReLU derivative
+        # Apply ReLU derivative
+        h3_grad: np.ndarray = h3_grad_broadcasted * (h3 > 0).astype(np.float32)
 
-        self.W3 -= self.learning_rate * np.dot(h2.reshape(-1, h2.shape[-1]).T, h3_grad.reshape(-1, h3_grad.shape[-1])) / batch_size
+        # Clip by norm to prevent explosion
+        h3_grad_norm = np.linalg.norm(h3_grad)
+        if h3_grad_norm > 10.0:
+            h3_grad = h3_grad * (10.0 / h3_grad_norm)
+
+        self.W3 -= self.learning_rate * np.dot(
+            h2.reshape(-1, h2.shape[-1]).T,
+            h3_grad.reshape(-1, h3_grad.shape[-1])
+        ) / batch_size
         self.b3 -= self.learning_rate * np.mean(h3_grad.reshape(-1, h3_grad.shape[-1]), axis=0)
 
         # h2 gradient
-        h2_grad = np.dot(h3_grad, self.W3.T) * (h2 > 0)
+        h2_grad: np.ndarray = np.dot(h3_grad, self.W3.T) * (h2 > 0)
 
-        self.W2 -= self.learning_rate * np.dot(h1.reshape(-1, h1.shape[-1]).T, h2_grad.reshape(-1, h2_grad.shape[-1])) / batch_size
+        # Clip by norm to prevent explosion
+        h2_grad_norm = np.linalg.norm(h2_grad)
+        if h2_grad_norm > 10.0:
+            h2_grad = h2_grad * (10.0 / h2_grad_norm)
+
+        self.W2 -= self.learning_rate * np.dot(
+            h1.reshape(-1, h1.shape[-1]).T,
+            h2_grad.reshape(-1, h2_grad.shape[-1])
+        ) / batch_size
         self.b2 -= self.learning_rate * np.mean(h2_grad.reshape(-1, h2_grad.shape[-1]), axis=0)
 
         # h1 gradient
-        h1_grad = np.dot(h2_grad, self.W2.T) * (h1 > 0)
+        h1_grad: np.ndarray = np.dot(h2_grad, self.W2.T) * (h1 > 0)
 
-        self.W1 -= self.learning_rate * np.dot(x.reshape(-1, x.shape[-1]).T, h1_grad.reshape(-1, h1_grad.shape[-1])) / batch_size
+        # Clip by norm to prevent explosion
+        h1_grad_norm = np.linalg.norm(h1_grad)
+        if h1_grad_norm > 10.0:
+            h1_grad = h1_grad * (10.0 / h1_grad_norm)
+
+        self.W1 -= self.learning_rate * np.dot(
+            input.reshape(-1, input.shape[-1]).T,
+            h1_grad.reshape(-1, h1_grad.shape[-1])
+        ) / batch_size
         self.b1 -= self.learning_rate * np.mean(h1_grad.reshape(-1, h1_grad.shape[-1]), axis=0)
 
-    def q_learning_update(self, states: np.ndarray, actions: np.ndarray, targets: np.ndarray):
-        """
-        Update network weights using Q-learning with MSE loss.
-
-        Args:
-            states: Batch of states (batch_size, input_dim)
-            actions: Actions taken for each state (batch_size,)
-            targets: Target Q-values for the actions (batch_size,)
-        """
-        batch_size = states.shape[0]
-
-        # Forward pass through hidden layers
-        h, h1, h2, h3 = self._forward_main_group(states)
-
-        # Output Q-values
-        q_values = np.dot(h, self.W_action) + self.b_action
-
-        # Create target vector - copy current predictions
-        target_vector = np.copy(q_values)
-
-        # Update only the Q-values for the actions that were taken
-        for i, action_idx in enumerate(actions):
-            target_vector[i, action_idx] = targets[i]
-
-        # Compute gradient of MSE loss
-        q_grad = 2.0 * (q_values - target_vector) / batch_size
-
-        # Backpropagate and update weights
-        # Update output layer weights
-        self.W_action -= self.learning_rate * np.dot(h.T, q_grad)
-        self.b_action -= self.learning_rate * np.mean(q_grad, axis=0)
-
-        # Backpropagate through hidden layers
-        h_grad = np.dot(q_grad, self.W_action.T) * (h > 0)  # ReLU derivative
-
-        h3_grad_broadcasted = np.expand_dims(h_grad, axis=1) / h3.shape[1]  # Divide by state_node_amount
-        h3_grad_broadcasted = np.broadcast_to(h3_grad_broadcasted, h3.shape)
-        h3_grad = h3_grad_broadcasted * (h3 > 0).astype(np.float32)  # Apply ReLU derivative
-
-        self.W3 -= self.learning_rate * np.dot(h2.reshape(-1, h2.shape[-1]).T, h3_grad.reshape(-1, h3_grad.shape[-1])) / batch_size
-        self.b3 -= self.learning_rate * np.mean(h3_grad.reshape(-1, h3_grad.shape[-1]), axis=0)
-
-        h2_grad = np.dot(h3_grad, self.W3.T) * (h2 > 0).astype(np.float32)
-
-        self.W2 -= self.learning_rate * np.dot(h1.reshape(-1, h1.shape[-1]).T, h2_grad.reshape(-1, h2_grad.shape[-1])) / batch_size
-        self.b2 -= self.learning_rate * np.mean(h2_grad.reshape(-1, h2_grad.shape[-1]), axis=0)
-
-        h1_grad = np.dot(h2_grad, self.W2.T) * (h1 > 0).astype(np.float32)
-
-        self.W1 -= self.learning_rate * np.dot(states.reshape(-1, states.shape[-1]).T, h1_grad.reshape(-1, h1_grad.shape[-1])) / batch_size
-        self.b1 -= self.learning_rate * np.mean(h1_grad.reshape(-1, h1_grad.shape[-1]), axis=0)
-
-        # Calculate loss for reporting
-        loss = np.mean(np.square(target_vector - q_values))
-        return loss
+        print(
+            time.strftime('%H:%M:%S'),
+            'lr', self.learning_rate,
+            'h1_grad', h1_grad.mean(),
+            'h2_grad', h2_grad.mean(),
+            'h3_grad', h3_grad.mean())
 
     def q_decomposition_update(
         self,
@@ -481,7 +343,7 @@ class SimpleNetwork:
         Args:
             states: Batch of states (batch_size, input_dim)
             actions: List of action component indices [action_idx, arg1_idx, arg2_idx, arg3_idx]
-            target_q: Target Q-values (4,batch_size,)
+            target_q: Target Q-values (batch_size,)
 
         Returns:
             Loss value
@@ -506,68 +368,54 @@ class SimpleNetwork:
         arg3_target = np.copy(arg3_q)
 
         # Update only the values for the actions that were taken
+        # Since we combine Q-values by averaging, each component should learn 1/4 of the total
         for i in range(batch_size):
             a_idx = action_idx[i]
             a1_idx = arg1_idx[i]
             a2_idx = arg2_idx[i]
             a3_idx = arg3_idx[i]
 
-            # Distribute the target Q-value to each component
-            action_target[i, a_idx] = target_q[i]
-            arg1_target[i, a1_idx] = target_q[i]
-            arg2_target[i, a2_idx] = target_q[i]
-            arg3_target[i, a3_idx] = target_q[i]
+            # Each component gets an equal share of the target Q-value
+            component_target = target_q[i] / 4.0
+            action_target[i, a_idx] = component_target
+            arg1_target[i, a1_idx] = component_target
+            arg2_target[i, a2_idx] = component_target
+            arg3_target[i, a3_idx] = component_target
 
-        # Compute gradients
-        action_grad = 2.0 * (action_q - action_target) / batch_size
-        arg1_grad = 2.0 * (arg1_q - arg1_target) / batch_size
-        arg2_grad = 2.0 * (arg2_q - arg2_target) / batch_size
-        arg3_grad = 2.0 * (arg3_q - arg3_target) / batch_size
+        # Compute Huber loss gradients (more stable than MSE)
+        # Huber loss: 0.5 * x^2 if |x| <= delta, else delta * (|x| - 0.5 * delta)
+        # Use larger delta to handle large reward values
+        delta = 100.0
 
-        # Update output layer weights
-        self.W_action -= self.learning_rate * np.dot(h.T, action_grad)
-        self.b_action -= self.learning_rate * np.mean(action_grad, axis=0)
+        def huber_gradient(error, delta):
+            abs_error = np.abs(error)
+            # If error is small, use quadratic gradient (error)
+            # If error is large, use linear gradient (delta * sign(error))
+            return np.where(abs_error <= delta, error, delta * np.sign(error))
 
-        self.W_arg1 -= self.learning_rate * np.dot(h.T, arg1_grad)
-        self.b_arg1 -= self.learning_rate * np.mean(arg1_grad, axis=0)
+        action_error = action_q - action_target
+        arg1_error = arg1_q - arg1_target
+        arg2_error = arg2_q - arg2_target
+        arg3_error = arg3_q - arg3_target
 
-        self.W_arg2 -= self.learning_rate * np.dot(h.T, arg2_grad)
-        self.b_arg2 -= self.learning_rate * np.mean(arg2_grad, axis=0)
+        # Don't divide by batch_size here - already handled in weight updates
+        action_grad = huber_gradient(action_error, delta)
+        arg1_grad = huber_gradient(arg1_error, delta)
+        arg2_grad = huber_gradient(arg2_error, delta)
+        arg3_grad = huber_gradient(arg3_error, delta)
 
-        self.W_arg3 -= self.learning_rate * np.dot(h.T, arg3_grad)
-        self.b_arg3 -= self.learning_rate * np.mean(arg3_grad, axis=0)
-
-        # Backpropagate through hidden layers
-        # Combine gradients from all output heads
-        combined_grad = (
-            action_grad @ self.W_action.T +
-            arg1_grad @ self.W_arg1.T +
-            arg2_grad @ self.W_arg2.T +
-            arg3_grad @ self.W_arg3.T
+        self._update_grads(
+            input=states,
+            batch_size=batch_size,
+            h=h,
+            h1=h1,
+            h2=h2,
+            h3=h3,
+            action_grad=action_grad,
+            arg1_grad=arg1_grad,
+            arg2_grad=arg2_grad,
+            arg3_grad=arg3_grad
         )
-
-        # Backpropagate through hidden layers
-        h_grad = combined_grad * (h > 0)  # ReLU derivative
-
-        # h3 gradient
-        h3_grad_broadcasted = np.expand_dims(h_grad, axis=1) / h3.shape[1]  # Divide by state_node_amount
-        h3_grad_broadcasted = np.broadcast_to(h3_grad_broadcasted, h3.shape)
-        h3_grad = h3_grad_broadcasted * (h3 > 0).astype(np.float32)  # Apply ReLU derivative
-
-        self.W3 -= self.learning_rate * np.dot(h2.reshape(-1, h2.shape[-1]).T, h3_grad.reshape(-1, h3_grad.shape[-1])) / batch_size
-        self.b3 -= self.learning_rate * np.mean(h3_grad.reshape(-1, h3_grad.shape[-1]), axis=0)
-
-        # h2 gradient
-        h2_grad = np.dot(h3_grad, self.W3.T) * (h2 > 0).astype(np.float32)
-
-        self.W2 -= self.learning_rate * np.dot(h1.reshape(-1, h1.shape[-1]).T, h2_grad.reshape(-1, h2_grad.shape[-1])) / batch_size
-        self.b2 -= self.learning_rate * np.mean(h2_grad.reshape(-1, h2_grad.shape[-1]), axis=0)
-
-        # h1 gradient
-        h1_grad = np.dot(h2_grad, self.W2.T) * (h1 > 0).astype(np.float32)
-
-        self.W1 -= self.learning_rate * np.dot(states.reshape(-1, states.shape[-1]).T, h1_grad.reshape(-1, h1_grad.shape[-1])) / batch_size
-        self.b1 -= self.learning_rate * np.mean(h1_grad.reshape(-1, h1_grad.shape[-1]), axis=0)
 
         # Calculate loss for reporting (average of the individual component losses)
         action_loss = np.mean(np.square(action_target - action_q))
@@ -622,7 +470,7 @@ class SimpleAgent(BaseAgent):
         action_space_size: int,
         input_dim: int,
         hidden_dim: int = 128,
-        learning_rate: float = 0.001,
+        learning_rate: float = 0.01,
         epsilon_start: float = 0.9,
         epsilon_end: float = 0.1,
         epsilon_decay: float = 0.995,
@@ -814,8 +662,8 @@ class SimpleAgent(BaseAgent):
             terminated
         )
 
-        # Train on experiences every few steps
-        if self.steps_done % 5 == 0 and len(self.experience_buffer) >= 10:
+        # Train on experiences every step once we have enough data
+        if len(self.experience_buffer) >= 20:
             self._train_q_network()
 
         # Update exploration rate
@@ -849,8 +697,13 @@ class SimpleAgent(BaseAgent):
         """Train the network using Q-decomposition approach."""
         experiences = self.experience_buffer.get_all()
 
-        if len(experiences) < 10:
+        if len(experiences) < 20:
             return  # Not enough examples to learn from
+
+        # Sample a batch for training instead of using all experiences
+        batch_size = min(32, len(experiences))
+        indices = self.rg.choice(len(experiences), size=batch_size, replace=False)
+        sampled_experiences = [experiences[i] for i in indices]
 
         # Prepare training data
         states = []
@@ -862,7 +715,7 @@ class SimpleAgent(BaseAgent):
         next_states = []
         terminateds = []
 
-        for state, full_action, reward, next_state, terminated in experiences:
+        for state, full_action, reward, next_state, terminated in sampled_experiences:
             action_idx, arg1, arg2, arg3 = full_action
 
             states.append(state)
@@ -911,7 +764,10 @@ class SimpleAgent(BaseAgent):
 
         # Calculate target Q-values using Q-learning formula:
         # Q(s,a) = r + gamma * max(Q(s',a')) * (1 - terminated)
-        target_q_values = reward_batch + self.gamma * max_next_q_values * (1 - terminated_batch)
+        target_q_values = (
+            reward_batch
+            + self.gamma * max_next_q_values * (1 - terminated_batch)
+        )
 
         # Update network weights using Q-decomposition
         loss = self.network.q_decomposition_update(
@@ -922,7 +778,7 @@ class SimpleAgent(BaseAgent):
 
         print(
             time.strftime('%H:%M:%S'),
-            f"[Q-Decomposition Train] Experiences: {len(experiences)}",
+            f"[Q-Decomposition Train] Batch: {batch_size}/{len(experiences)}",
             f"Loss: {loss:.5f}",
             f"Avg Reward: {np.mean(reward_batch):.3f}",
             f"Avg Target Q: {np.mean(target_q_values):.3f}",
