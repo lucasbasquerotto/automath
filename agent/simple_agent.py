@@ -550,7 +550,7 @@ class SimpleAgent(BaseAgent):
         )
 
         # Experience buffer
-        self.experience_buffer = SimpleExperienceBuffer(capacity=2000)
+        self.experience_buffer = SimpleExperienceBuffer(capacity=500)
 
         # Track statistics
         self.steps_done = 0
@@ -596,15 +596,30 @@ class SimpleAgent(BaseAgent):
             # Explore: random action with bias toward successful patterns
             action_idx = self.rg.integers(1, self.action_space_size + 1, dtype=int)
 
-            # Random exploration
-            arg1_val = self.rg.integers(0, self.max_arg_value + 1, dtype=int)
-            arg2_val = self.rg.integers(0, self.max_arg_value + 1, dtype=int)
-            arg3_val = self.rg.integers(0, self.max_arg_value + 1, dtype=int)
+            # State-aware argument sampling
+            # Get state size to avoid out-of-bounds errors
+            state_size = state_array.shape[0] if len(state_array.shape) > 1 else 1
+            max_safe_index = min(state_size - 1, self.max_arg_value)
 
-            # Sometimes zero out args 2 and 3
-            if self.rg.random() < 0.3:
+            # Bias toward smaller values (more likely to be valid)
+            # Use exponential distribution for more realistic argument sampling
+            if self.rg.random() < 0.4:  # 40% of time use small values
+                arg1_val = self.rg.integers(0, min(10, max_safe_index + 1), dtype=int)
+                arg2_val = self.rg.integers(0, min(10, self.max_arg_value + 1), dtype=int)
+                arg3_val = self.rg.integers(0, min(10, self.max_arg_value + 1), dtype=int)
+            elif self.rg.random() < 0.7:  # 30% of time use medium values
+                arg1_val = self.rg.integers(0, min(max_safe_index + 1, 100), dtype=int)
+                arg2_val = self.rg.integers(0, min(100, self.max_arg_value + 1), dtype=int)
+                arg3_val = self.rg.integers(0, min(100, self.max_arg_value + 1), dtype=int)
+            else:  # 30% of time use full range
+                arg1_val = self.rg.integers(0, max_safe_index + 1, dtype=int)
+                arg2_val = self.rg.integers(0, self.max_arg_value + 1, dtype=int)
+                arg3_val = self.rg.integers(0, self.max_arg_value + 1, dtype=int)
+
+            # Sometimes zero out args 2 and 3 (many actions don't need all args)
+            if self.rg.random() < 0.4:  # Increased from 0.3
                 arg3_val = 0
-                if self.rg.random() < 0.3:
+                if self.rg.random() < 0.5:  # Increased from 0.3
                     arg2_val = 0
         else:
             # Use decomposed Q-values to select the best action
@@ -697,8 +712,8 @@ class SimpleAgent(BaseAgent):
             terminated
         )
 
-        # Train on experiences every step once we have enough data
-        if len(self.experience_buffer) >= 20:
+        # Train on experiences every 3 steps to speed up learning
+        if self.steps_done % 3 == 0 and len(self.experience_buffer) >= 20:
             self._train_q_network()
 
         # Update exploration rate
@@ -736,7 +751,7 @@ class SimpleAgent(BaseAgent):
             return  # Not enough examples to learn from
 
         # Sample a batch for training instead of using all experiences
-        batch_size = min(32, len(experiences))
+        batch_size = min(16, len(experiences))
         indices = self.rg.choice(len(experiences), size=batch_size, replace=False)
         sampled_experiences = [experiences[i] for i in indices]
 
@@ -824,9 +839,9 @@ class SimpleAgent(BaseAgent):
     def reset(self) -> None:
         """Reset the agent's episode-specific variables."""
         # Clear experience buffer at the end of episodes to focus on recent learning
-        if len(self.experience_buffer) > 500:
-            # Keep only the most recent 200 experiences
-            recent_experiences = list(self.experience_buffer.experiences)[-200:]
+        if len(self.experience_buffer) > 200:
+            # Keep only the most recent 100 experiences
+            recent_experiences = list(self.experience_buffer.experiences)[-100:]
             self.experience_buffer.clear()
             for exp in recent_experiences:
                 self.experience_buffer.experiences.append(exp)
