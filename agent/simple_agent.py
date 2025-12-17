@@ -138,6 +138,14 @@ class SimpleNetwork:
         arg2_q_values = np.dot(h, self.W_arg2) + self.b_arg2
         arg3_q_values = np.dot(h, self.W_arg3) + self.b_arg3
 
+        # Clip Q-values to prevent explosion (use bounds that accommodate reward scale)
+        q_max = 5000.0  # Slightly less than max single-step reward to allow for discounting
+        q_min = -500.0
+        action_q_values = np.clip(action_q_values, q_min, q_max)
+        arg1_q_values = np.clip(arg1_q_values, q_min, q_max)
+        arg2_q_values = np.clip(arg2_q_values, q_min, q_max)
+        arg3_q_values = np.clip(arg3_q_values, q_min, q_max)
+
         return action_q_values, arg1_q_values, arg2_q_values, arg3_q_values
 
     def combine_q_values(
@@ -324,6 +332,26 @@ class SimpleNetwork:
         ) / batch_size
         self.b1 -= self.learning_rate * np.mean(h1_grad.reshape(-1, h1_grad.shape[-1]), axis=0)
 
+        # Clip weights to prevent them from growing too large
+        max_weight = 10.0
+        self.W1 = np.clip(self.W1, -max_weight, max_weight)
+        self.W2 = np.clip(self.W2, -max_weight, max_weight)
+        self.W3 = np.clip(self.W3, -max_weight, max_weight)
+        self.W_action = np.clip(self.W_action, -max_weight, max_weight)
+        self.W_arg1 = np.clip(self.W_arg1, -max_weight, max_weight)
+        self.W_arg2 = np.clip(self.W_arg2, -max_weight, max_weight)
+        self.W_arg3 = np.clip(self.W_arg3, -max_weight, max_weight)
+
+        # Clip biases too
+        max_bias = 10.0
+        self.b1 = np.clip(self.b1, -max_bias, max_bias)
+        self.b2 = np.clip(self.b2, -max_bias, max_bias)
+        self.b3 = np.clip(self.b3, -max_bias, max_bias)
+        self.b_action = np.clip(self.b_action, -max_bias, max_bias)
+        self.b_arg1 = np.clip(self.b_arg1, -max_bias, max_bias)
+        self.b_arg2 = np.clip(self.b_arg2, -max_bias, max_bias)
+        self.b_arg3 = np.clip(self.b_arg3, -max_bias, max_bias)
+
         print(
             time.strftime('%H:%M:%S'),
             'lr', self.learning_rate,
@@ -360,6 +388,14 @@ class SimpleNetwork:
         arg2_q = np.dot(h, self.W_arg2) + self.b_arg2
         arg3_q = np.dot(h, self.W_arg3) + self.b_arg3
 
+        # Clip Q-values to prevent explosion
+        q_max = 5000.0
+        q_min = -500.0
+        action_q = np.clip(action_q, q_min, q_max)
+        arg1_q = np.clip(arg1_q, q_min, q_max)
+        arg2_q = np.clip(arg2_q, q_min, q_max)
+        arg3_q = np.clip(arg3_q, q_min, q_max)
+
         # Create target vectors for each component
         # We'll use the same target value for each component to ensure they all contribute equally
         action_target = np.copy(action_q)
@@ -384,8 +420,7 @@ class SimpleNetwork:
 
         # Compute Huber loss gradients (more stable than MSE)
         # Huber loss: 0.5 * x^2 if |x| <= delta, else delta * (|x| - 0.5 * delta)
-        # Use larger delta to handle large reward values
-        delta = 100.0
+        delta = 10.0
 
         def huber_gradient(error, delta):
             abs_error = np.abs(error)
@@ -764,9 +799,11 @@ class SimpleAgent(BaseAgent):
 
         # Calculate target Q-values using Q-learning formula:
         # Q(s,a) = r + gamma * max(Q(s',a')) * (1 - terminated)
-        target_q_values = (
-            reward_batch
-            + self.gamma * max_next_q_values * (1 - terminated_batch)
+        # Clip to prevent explosive feedback loop
+        target_q_values = np.clip(
+            reward_batch + self.gamma * max_next_q_values * (1 - terminated_batch),
+            -500.0,
+            5000.0
         )
 
         # Update network weights using Q-decomposition
