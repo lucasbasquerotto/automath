@@ -524,7 +524,6 @@ class BaseAction(InheritableNode, IAction[FullState], typing.Generic[O], ABC):
                 run_cost=run_cost,
                 options=meta_info_options,
             ).normalize()
-            print('final_cost', final_cost.as_int)
             meta_data = meta_data.with_new_args(
                 run_cost=Optional.with_value(run_cost),
                 final_cost=final_cost.as_int,
